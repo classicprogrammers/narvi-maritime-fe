@@ -1,0 +1,58 @@
+[
+  {
+    "name": "Alex Thompson",
+    "company": "Tech Solutions Inc.",
+    "email": "alex.thompson@techsolutions.com",
+    "phone": "+1 (555) 111-2222",
+    "status": "Active"
+  },
+  {
+    "name": "Maria Rodriguez",
+    "company": "Global Logistics Ltd.",
+    "email": "maria.rodriguez@globallogistics.com",
+    "phone": "+1 (555) 222-3333",
+    "status": "Active"
+  },
+  {
+    "name": "James Chen",
+    "company": "Quality Supplies Co.",
+    "email": "james.chen@qualitysupplies.com",
+    "phone": "+1 (555) 333-4444",
+    "status": "Inactive"
+  },
+  {
+    "name": "Sophie Williams",
+    "company": "Premium Materials Corp.",
+    "email": "sophie.williams@premiummaterials.com",
+    "phone": "+1 (555) 444-5555",
+    "status": "Active"
+  },
+  {
+    "name": "Carlos Garcia",
+    "company": "Express Shipping LLC",
+    "email": "carlos.garcia@expressshipping.com",
+    "phone": "+1 (555) 555-6666",
+    "status": "Active"
+  },
+  {
+    "name": "Emma Davis",
+    "company": "Reliable Partners Inc.",
+    "email": "emma.davis@reliablepartners.com",
+    "phone": "+1 (555) 666-7777",
+    "status": "Active"
+  },
+  {
+    "name": "Daniel Kim",
+    "company": "FastTrack Solutions",
+    "email": "daniel.kim@fasttrack.com",
+    "phone": "+1 (555) 777-8888",
+    "status": "Inactive"
+  },
+  {
+    "name": "Rachel Green",
+    "company": "Elite Services Group",
+    "email": "rachel.green@eliteservices.com",
+    "phone": "+1 (555) 888-9999",
+    "status": "Active"
+  }
+] 

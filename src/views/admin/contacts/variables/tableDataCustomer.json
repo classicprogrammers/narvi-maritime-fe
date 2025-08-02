@@ -1,0 +1,58 @@
+[
+  {
+    "name": "John Smith",
+    "email": "john.smith@email.com",
+    "phone": "+1 (555) 123-4567",
+    "status": "Active",
+    "joinDate": "15.Jan.2023"
+  },
+  {
+    "name": "Sarah Johnson",
+    "email": "sarah.johnson@email.com",
+    "phone": "+1 (555) 234-5678",
+    "status": "Active",
+    "joinDate": "22.Feb.2023"
+  },
+  {
+    "name": "Michael Brown",
+    "email": "michael.brown@email.com",
+    "phone": "+1 (555) 345-6789",
+    "status": "Inactive",
+    "joinDate": "10.Mar.2023"
+  },
+  {
+    "name": "Emily Davis",
+    "email": "emily.davis@email.com",
+    "phone": "+1 (555) 456-7890",
+    "status": "Active",
+    "joinDate": "05.Apr.2023"
+  },
+  {
+    "name": "David Wilson",
+    "email": "david.wilson@email.com",
+    "phone": "+1 (555) 567-8901",
+    "status": "Active",
+    "joinDate": "18.May.2023"
+  },
+  {
+    "name": "Lisa Anderson",
+    "email": "lisa.anderson@email.com",
+    "phone": "+1 (555) 678-9012",
+    "status": "Inactive",
+    "joinDate": "12.Jun.2023"
+  },
+  {
+    "name": "Robert Taylor",
+    "email": "robert.taylor@email.com",
+    "phone": "+1 (555) 789-0123",
+    "status": "Active",
+    "joinDate": "25.Jul.2023"
+  },
+  {
+    "name": "Jennifer Martinez",
+    "email": "jennifer.martinez@email.com",
+    "phone": "+1 (555) 890-1234",
+    "status": "Active",
+    "joinDate": "08.Aug.2023"
+  }
+] 
