@@ -78,7 +78,9 @@ export default function AdminNavbar(props) {
 				lg: 'calc(100vw - 6%)',
 				xl: 'calc(100vw - 350px)',
 				'2xl': 'calc(100vw - 365px)'
-			}}>
+			}}
+			pointerEvents="auto"
+			zIndex="1000">
 			<Flex
 				w='100%'
 				flexDirection={{

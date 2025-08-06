@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 
 // chakra imports
 import {
@@ -21,12 +21,14 @@ import {
 } from "components/scrollbar/Scrollbar";
 import { Scrollbars } from "react-custom-scrollbars-2";
 import PropTypes from "prop-types";
+import { SidebarContext } from "contexts/SidebarContext";
 
 // Assets
 import { IoMenuOutline } from "react-icons/io5";
 
 function Sidebar(props) {
   const { routes } = props;
+  const { toggleSidebar } = useContext(SidebarContext);
 
   let variantChange = "0.2s linear";
   let shadow = useColorModeValue(
@@ -39,22 +41,30 @@ function Sidebar(props) {
 
   // SIDEBAR
   return (
-    <Box display={{ sm: "none", xl: "block" }} w="100%" position='fixed' minH='100%'>
+    <Box
+      display={{ sm: "none", xl: "block" }}
+      w="100%"
+      position="fixed"
+      minH="100%"
+      zIndex="1000"
+    >
       <Box
         bg={sidebarBg}
         transition={variantChange}
-        w='300px'
-        h='100vh'
+        w={toggleSidebar ? "300px" : "80px"}
+        h="100vh"
         m={sidebarMargins}
-        minH='100%'
-        overflowX='hidden'
-        boxShadow={shadow}>
+        minH="100%"
+        overflowX="hidden"
+        boxShadow={shadow}
+      >
         <Scrollbars
           autoHide
           renderTrackVertical={renderTrack}
           renderThumbVertical={renderThumb}
-          renderView={renderView}>
-          <Content routes={routes} />
+          renderView={renderView}
+        >
+          <Content routes={routes} collapsed={!toggleSidebar} />
         </Scrollbars>
       </Box>
     </Box>
@@ -74,15 +84,15 @@ export function SidebarResponsive(props) {
   //  BRAND
 
   return (
-    <Flex display={{ sm: "flex", xl: "none" }} alignItems='center'>
-      <Flex ref={btnRef} w='max-content' h='max-content' onClick={onOpen}>
+    <Flex display={{ sm: "flex", xl: "none" }} alignItems="center">
+      <Flex ref={btnRef} w="max-content" h="max-content" onClick={onOpen}>
         <Icon
           as={IoMenuOutline}
           color={menuColor}
-          my='auto'
-          w='20px'
-          h='20px'
-          me='10px'
+          my="auto"
+          w="20px"
+          h="20px"
+          me="10px"
           _hover={{ cursor: "pointer" }}
         />
       </Flex>
@@ -90,21 +100,23 @@ export function SidebarResponsive(props) {
         isOpen={isOpen}
         onClose={onClose}
         placement={document.documentElement.dir === "rtl" ? "right" : "left"}
-        finalFocusRef={btnRef}>
+        finalFocusRef={btnRef}
+      >
         <DrawerOverlay />
-        <DrawerContent w='285px' maxW='285px' bg={sidebarBackgroundColor}>
+        <DrawerContent w="285px" maxW="285px" bg={sidebarBackgroundColor}>
           <DrawerCloseButton
-            zIndex='3'
+            zIndex="3"
             onClose={onClose}
             _focus={{ boxShadow: "none" }}
             _hover={{ boxShadow: "none" }}
           />
-          <DrawerBody maxW='285px' px='0rem' pb='0'>
+          <DrawerBody maxW="285px" px="0rem" pb="0">
             <Scrollbars
               autoHide
               renderTrackVertical={renderTrack}
               renderThumbVertical={renderThumb}
-              renderView={renderView}>
+              renderView={renderView}
+            >
               <Content routes={routes} />
             </Scrollbars>
           </DrawerBody>

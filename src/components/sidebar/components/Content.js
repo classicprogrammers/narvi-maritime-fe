@@ -9,14 +9,14 @@ import React from "react";
 // FUNCTIONS
 
 function SidebarContent(props) {
-  const { routes } = props;
+  const { routes, collapsed = false } = props;
   // SIDEBAR
   return (
-    <Flex direction='column' height='100%' pt='25px' px="16px" borderRadius='30px'>
-      <Brand />
+    <Flex direction='column' height='100%' pt='25px' px={collapsed ? "8px" : "16px"} borderRadius='30px'>
+      <Brand collapsed={collapsed} />
       <Stack direction='column' mb='auto' mt='8px'>
-        <Box ps='20px' pe={{ md: "16px", "2xl": "1px" }}>
-          <Links routes={routes} />
+        <Box ps={collapsed ? "0px" : '20px'} pe={{ md: collapsed ? "0px" : "16px", "2xl": collapsed ? "0px" : "1px" }}>
+          <Links routes={routes} collapsed={collapsed} />
         </Box>
       </Stack>
 
