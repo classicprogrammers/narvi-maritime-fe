@@ -5,6 +5,8 @@ import {
     Text,
     Button,
     Input,
+    InputGroup,
+    InputLeftElement,
     Table,
     Thead,
     Tbody,
@@ -42,6 +44,10 @@ import {
     NumberDecrementStepper,
     Grid,
     Textarea,
+    useToast,
+    Tooltip,
+    Card,
+    CardBody,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -56,17 +62,25 @@ import {
     MdDragIndicator,
     MdMoreVert,
     MdDelete,
+    MdEdit,
+    MdVisibility,
+    MdFilterList,
+    MdDownload,
+    MdPrint,
 } from "react-icons/md";
 
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [searchValue, setSearchValue] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
 
     // Modal states
     const { isOpen: isNewRateOpen, onOpen: onNewRateOpen, onClose: onNewRateClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const [deleteItemId, setDeleteItemId] = useState(null);
+    const toast = useToast();
 
     // Form states for new rate item
     const [newRateItem, setNewRateItem] = useState({
@@ -110,6 +124,10 @@ export default function RateList() {
     const bgColor = useColorModeValue("white", "gray.800");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
+    const hoverBg = useColorModeValue("blue.50", "blue.900");
+    const searchIconColor = useColorModeValue("gray.400", "gray.500");
+    const inputBg = useColorModeValue("white", "gray.700");
+    const inputText = useColorModeValue("gray.700", "white");
 
     const handleSelectAll = (isChecked) => {
         if (isChecked) {
@@ -157,6 +175,14 @@ export default function RateList() {
 
         setRateItems([...rateItems, newRateItemData]);
 
+        toast({
+            title: "Rate Item Created",
+            description: "New rate item has been successfully created.",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+
         onNewRateClose();
         // Reset form
         setNewRateItem({
@@ -187,6 +213,14 @@ export default function RateList() {
             const newRateItems = rateItems.filter(item => item.id !== deleteItemId);
             setRateItems(newRateItems);
             setDeleteItemId(null);
+            
+            toast({
+                title: "Rate Item Deleted",
+                description: "Rate item has been successfully deleted.",
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
         }
         onDeleteClose();
     };
@@ -200,357 +234,327 @@ export default function RateList() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-            {/* Top Navigation Bar */}
-            <Flex
-                bg={bgColor}
-                borderBottom="1px"
-                borderColor={borderColor}
-                px={{ base: "4", md: "6" }}
-                py="3"
-                justify="space-between"
-                align="center"
-                flexDir={{ base: "column", lg: "row" }}
-                gap={{ base: "2", lg: "0" }}
-            >
-                <HStack spacing={{ base: "2", md: "4" }} flexWrap="wrap" justify="flex-start">
-                    {/* <Box
-                        w="24px"
-                        h="24px"
-                        bg="linear-gradient(135deg, #1c4a95 0%, #134391 100%)"
-                        borderRadius="4px"
-                    /> */}
-                    <HStack spacing={{ base: "2", md: "4" }} flexWrap="wrap">
-                        {/* Inventory item with colored box */}
-                        <Flex align="center" gap="2">
-                            <Box
-                                w="12px"
-                                h="12px"
-                                bg="#1c4a95"
-                                borderRadius="2px"
-                            />
-                            <Text fontSize={{ base: "xs", md: "sm" }} color={textColor} fontWeight="medium">
-                                Inventory
-                            </Text>
-                        </Flex>
-
-                        {/* Remaining items */}
-                        {["Overview", "Operations", "Products", "Shipment", "Agents", "Reporting", "Configuration"].map((item) => (
-                            <Text
-                                key={item}
-                                fontSize={{ base: "xs", md: "sm" }}
-                                color={textColor}
-                                fontWeight="medium"
-                            >
-                                {item}
-                            </Text>
-                        ))}
-                    </HStack>
-
-                </HStack>
-
-                <HStack spacing={{ base: "2", md: "4" }} flexWrap="wrap" justify="flex-end">
-                    <IconButton
-                        size="sm"
-                        icon={<Icon as={MdReport} color={textColor} />}
-                        variant="ghost"
-                        aria-label="Issues"
-                    />
-                    <Box position="relative">
-                        <IconButton
+            <VStack spacing={6} align="stretch">
+                {/* Header Section */}
+                <Flex justify="space-between" align="center" px="25px">
+                    <HStack spacing={4}>
+                        <Button
+                            leftIcon={<Icon as={MdAdd} />}
+                            colorScheme="blue"
                             size="sm"
-                            icon={<Icon as={MdChat} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Messages"
-                        />
-                        <Badge
-                            position="absolute"
-                            top="-2px"
-                            right="-2px"
-                            colorScheme="red"
-                            borderRadius="full"
-                            fontSize="xs"
+                            onClick={handleNewRate}
                         >
-                            5
-                        </Badge>
-                    </Box>
-                    <Box position="relative">
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdAccessTime} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Reminders"
-                        />
-                        <Badge
-                            position="absolute"
-                            top="-2px"
-                            right="-2px"
-                            colorScheme="red"
-                            borderRadius="full"
-                            fontSize="xs"
-                        >
-                            5
-                        </Badge>
-                    </Box>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color={textColor} fontWeight="medium" display={{ base: "none", lg: "block" }}>
-                        My Company (San Francisco)
-                    </Text>
-                    <HStack spacing="2">
-                        <Icon as={MdPerson} w="24px" h="24px" color={textColor} />
-                        <VStack align="flex-start" spacing="0" display={{ base: "none", md: "flex" }}>
-                            <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="bold" color={textColor}>
-                                Mitchell Admin
+                            New Rate Item
+                        </Button>
+                        <VStack align="start" spacing={1}>
+                            <Text fontSize="xl" fontWeight="bold" color="blue.600">
+                                Rate List
                             </Text>
-                            <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
-                                narvi_maritime
+                            <Text fontSize="sm" color="gray.500">
+                                Manage shipping rates and tariffs
                             </Text>
                         </VStack>
                     </HStack>
-                </HStack>
-            </Flex>
-
-            {/* Main Content */}
-            <Box p={{ base: "4", md: "6" }}>
-                {/* Header Section */}
-                <Flex
-                    justify="space-between"
-                    align="center"
-                    mb="6"
-                    flexDir={{ base: "column", lg: "row" }}
-                    gap={{ base: "4", lg: "0" }}
-                >
-                    <HStack spacing="4" flexWrap="wrap">
-                        <Button
-                            leftIcon={<MdAdd />}
-                            bg="#1c4a95"
-                            color="white"
-                            size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "#173f7c" }} // darker shade for hover
-                            onClick={handleNewRate}
-                        >
-                            New
-                        </Button>
-
-                        <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold" color={textColor}>
-                            Rate Items
-                        </Text>
-
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdSettings} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Settings"
-                        />
-                    </HStack>
-
-
-                    <HStack spacing="4" flexWrap="wrap">
-                        <Box position="relative">
-                            <Input
-                                placeholder="Search..."
+                    
+                    <HStack spacing={4}>
+                        <HStack spacing={2}>
+                            <Text fontSize="sm" color="gray.600">
+                                {rateItems.length} items
+                            </Text>
+                            <IconButton
+                                icon={<Icon as={MdArrowBack} />}
                                 size="sm"
-                                pr="40px"
-                                width={{ base: "150px", md: "200px" }}
-                                _placeholder={{ color: "gray.500" }}
+                                variant="ghost"
+                                aria-label="Previous"
+                                isDisabled={currentPage === 1}
                             />
-                            <Icon
-                                as={MdSearch}
-                                position="absolute"
-                                right="12px"
-                                top="50%"
-                                transform="translateY(-50%)"
-                                color="gray.500"
-                                w="16px"
-                                h="16px"
+                            <IconButton
+                                icon={<Icon as={MdArrowForward} />}
+                                size="sm"
+                                variant="ghost"
+                                aria-label="Next"
+                                isDisabled={currentPage === totalPages}
                             />
-                        </Box>
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdMoreVert} color={textColor} />}
-                            variant="ghost"
-                            aria-label="More options"
-                        />
+                        </HStack>
+                        <HStack spacing={2}>
+                            <Tooltip label="Export">
+                                <IconButton
+                                    icon={<Icon as={MdDownload} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Export"
+                                />
+                            </Tooltip>
+                            <Tooltip label="Print">
+                                <IconButton
+                                    icon={<Icon as={MdPrint} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Print"
+                                />
+                            </Tooltip>
+                        </HStack>
                     </HStack>
                 </Flex>
 
-                {/* Pagination Info */}
-                <Flex
-                    justify="space-between"
-                    align="center"
-                    mb="4"
-                    flexDir={{ base: "column", sm: "row" }}
-                    gap={{ base: "2", sm: "0" }}
-                >
-                    <Text fontSize="sm" color={textColor}>
-                        {rateItems.length} items
-                    </Text>
-                    <HStack spacing="2">
-                        <IconButton
+                {/* Filter Section */}
+                <Box px='25px' mb='20px'>
+                    <HStack spacing={4} flexWrap="wrap">
+                        <InputGroup w={{ base: "100%", md: "300px" }}>
+                            <InputLeftElement>
+                                <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
+                            </InputLeftElement>
+                            <Input
+                                variant='outline'
+                                fontSize='sm'
+                                bg={inputBg}
+                                color={inputText}
+                                fontWeight='500'
+                                _placeholder={{ color: "gray.400", fontSize: "14px" }}
+                                borderRadius="8px"
+                                placeholder="Search rate items..."
+                                value={searchValue}
+                                onChange={(e) => setSearchValue(e.target.value)}
+                            />
+                        </InputGroup>
+
+                        <Select
+                            w={{ base: "100%", md: "200px" }}
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            bg={inputBg}
+                            color={inputText}
+                            borderRadius="8px"
+                            fontSize="sm"
+                        >
+                            <option value="all">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </Select>
+
+                        <Button
+                            leftIcon={<Icon as={MdFilterList} />}
+                            variant="outline"
                             size="sm"
-                            icon={<Icon as={MdArrowBack} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Previous"
-                            isDisabled={currentPage === 1}
-                        />
-                        <Text fontSize="sm" color={textColor}>
-                            1-1/1
-                        </Text>
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdArrowForward} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Next"
-                            isDisabled={currentPage === totalPages}
-                        />
+                            borderRadius="8px"
+                        >
+                            Filters
+                        </Button>
                     </HStack>
-                </Flex>
+                </Box>
 
                 {/* Rate Items Table */}
-                <Box overflowX="auto" maxW="100%">
-                    <Table variant="simple" size="sm" border="1px" borderColor={borderColor} minW={{ base: "800px", lg: "auto" }}>
-                        <Thead>
+                <Box px="25px">
+                    <Table variant="unstyled" size="sm" minW="100%">
+                        <Thead bg="gray.100">
                             <Tr>
-                                <Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                     <Checkbox
                                         isChecked={selectedItems.length === rateItems.length}
                                         isIndeterminate={selectedItems.length > 0 && selectedItems.length < rateItems.length}
                                         onChange={(e) => handleSelectAll(e.target.checked)}
                                     />
                                 </Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rate ID</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Location...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Handlin...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Curre...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rate Ti...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rate T...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Base Rate</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rate Cal...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Fixed Sa...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Valid Until</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rema...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Rate Cal...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Incl in T...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>Tariff Gr...</Th>
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor}>
-                                    Sort Ord
-                                    <Icon as={MdDragIndicator} ml="1" color={textColor} />
-                                </Th>
-
-                                <Th fontSize="sm" color="gray.500" border="1px" borderColor={borderColor} textAlign="center">
-                                    Delete
-                                </Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate ID</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Location</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Handling</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Currency</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Type</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Base Rate</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Calc</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Fixed Surcharge</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Valid Until</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Include in Tariff</Th>
+                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
                             </Tr>
                         </Thead>
                         <Tbody>
-                            {rateItems.map((item) => (
-                                <Tr key={item.id}>
-                                    <Td>
+                            {rateItems.map((item, index) => (
+                                <Tr
+                                    key={item.id}
+                                    bg={index % 2 === 0 ? "white" : "gray.50"}
+                                    _hover={{ bg: hoverBg }}
+                                    borderBottom="1px"
+                                    borderColor="gray.200">
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                         <Checkbox
                                             isChecked={selectedItems.includes(item.id)}
                                             onChange={(e) => handleSelectItem(item.id, e.target.checked)}
                                         />
                                     </Td>
-                                    <Td fontSize="sm" color={textColor}>{item.id}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.location}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.handling}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.currency}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.rateType}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.rateType2}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.baseRate}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.rateCalculation}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.fixedSurcharge}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.validUntil}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.remaining}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.rateCalculation2}</Td>
-                                    <Td>
-                                        <Checkbox isChecked={item.includeInTariff} />
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                            {item.id}
+                                        </Text>
                                     </Td>
-                                    <Td fontSize="sm" color={textColor}>{item.tariffGroup}</Td>
-                                    <Td fontSize="sm" color={textColor}>{item.sortOrder}</Td>
-
-                                    <Td fontSize="sm" color={textColor} textAlign="center">
-                                        <IconButton
-                                            size="sm"
-                                            icon={<Icon as={MdDelete} />}
-                                            variant="ghost"
-                                            color="red.500"
-                                            aria-label="Delete"
-                                            _hover={{ bg: "red.50", color: "red.600" }}
-                                            _active={{ bg: "red.100" }}
-                                            borderRadius="md"
-                                            onClick={() => handleDeleteItem(item.id)}
-                                        />
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            {item.location}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            {item.handling}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Badge
+                                            colorScheme="blue"
+                                            variant="subtle"
+                                            fontSize="xs"
+                                            px="8px"
+                                            py="4px"
+                                            borderRadius="full">
+                                            {item.currency}
+                                        </Badge>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            {item.rateType || "-"}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                            ${item.baseRate}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            {item.rateCalculation}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            ${item.fixedSurcharge}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Text color={textColor} fontSize='sm'>
+                                            {item.validUntil || "-"}
+                                        </Text>
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Checkbox isChecked={item.includeInTariff} size="sm" />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <HStack spacing={2}>
+                                            <Tooltip label="View Rate">
+                                                <IconButton
+                                                    icon={<Icon as={MdVisibility} />}
+                                                    size="sm"
+                                                    colorScheme="blue"
+                                                    variant="ghost"
+                                                    aria-label="View rate"
+                                                />
+                                            </Tooltip>
+                                            <Tooltip label="Edit Rate">
+                                                <IconButton
+                                                    icon={<Icon as={MdEdit} />}
+                                                    size="sm"
+                                                    colorScheme="blue"
+                                                    variant="ghost"
+                                                    aria-label="Edit rate"
+                                                />
+                                            </Tooltip>
+                                            <Tooltip label="Delete Rate">
+                                                <IconButton
+                                                    icon={<Icon as={MdDelete} />}
+                                                    size="sm"
+                                                    colorScheme="red"
+                                                    variant="ghost"
+                                                    aria-label="Delete rate"
+                                                    onClick={() => handleDeleteItem(item.id)}
+                                                />
+                                            </Tooltip>
+                                        </HStack>
                                     </Td>
                                 </Tr>
                             ))}
                         </Tbody>
                     </Table>
                 </Box>
-            </Box>
+
+                {/* Pagination */}
+                <Flex px='25px' justify='space-between' align='center' py='20px'>
+                    <Text fontSize='sm' color='gray.500'>
+                        Showing {rateItems.length} of {rateItems.length} results
+                    </Text>
+                    <HStack spacing={2}>
+                        <Button
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            isDisabled={currentPage === 1}
+                            variant="outline"
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            isDisabled={currentPage === totalPages}
+                            variant="outline"
+                        >
+                            Next
+                        </Button>
+                    </HStack>
+                </Flex>
+            </VStack>
 
             {/* New Rate Item Modal */}
-            <Modal isOpen={isNewRateOpen} onClose={onNewRateClose} size="xl">
+            <Modal isOpen={isNewRateOpen} onClose={onNewRateClose} size="6xl">
                 <ModalOverlay />
                 <ModalContent>
-                    <ModalHeader bg="#1c4a95" color="white">
-                        Create New Rate Item
+                    <ModalHeader bg="blue.600" color="white" borderRadius="md">
+                        <HStack spacing={3}>
+                            <Icon as={MdAdd} />
+                            <Text>Create New Rate Item</Text>
+                        </HStack>
                     </ModalHeader>
                     <ModalCloseButton color="white" />
                     <ModalBody py="6">
-                        <Grid templateColumns="repeat(2, 1fr)" gap="6">
+                        <Grid templateColumns="repeat(2, 1fr)" gap="8">
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Location</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
                                     <Input
-                                        size="sm"
+                                        size="md"
                                         value={newRateItem.location}
                                         onChange={(e) => handleInputChange('location', e.target.value)}
                                         placeholder="Enter location code"
-                                        border="1px"
-                                        borderColor="gray.300"
                                         borderRadius="md"
                                         _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
                                         }}
                                     />
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Handling</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Handling</FormLabel>
                                     <Input
-                                        size="sm"
+                                        size="md"
                                         value={newRateItem.handling}
                                         onChange={(e) => handleInputChange('handling', e.target.value)}
                                         placeholder="Enter handling type"
-                                        border="1px"
-                                        borderColor="gray.300"
                                         borderRadius="md"
                                         _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
                                         }}
                                     />
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Currency</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency</FormLabel>
                                     <Select
-                                        size="sm"
+                                        size="md"
                                         value={newRateItem.currency}
                                         onChange={(e) => handleInputChange('currency', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
                                         borderRadius="md"
                                         _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
                                         }}
                                     >
                                         <option value="">Select currency</option>
@@ -835,13 +839,11 @@ export default function RateList() {
                         </Grid>
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
-                        <Button variant="ghost" mr={3} onClick={onNewRateClose}>
+                        <Button variant="outline" mr={3} onClick={onNewRateClose}>
                             Cancel
                         </Button>
                         <Button
-                            bg="#1c4a95"
-                            color="white"
-                            _hover={{ bg: "#173f7c" }}
+                            colorScheme="blue"
                             onClick={handleSaveRate}
                         >
                             Create Rate Item
@@ -853,15 +855,15 @@ export default function RateList() {
             {/* Delete Confirmation Dialog */}
             <AlertDialog isOpen={isDeleteOpen} onClose={onDeleteClose}>
                 <AlertDialogOverlay />
-                <AlertDialogContent>
-                    <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                <AlertDialogContent borderRadius="lg">
+                    <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
                         Delete Rate Item
                     </AlertDialogHeader>
                     <AlertDialogBody>
                         Are you sure you want to delete this rate item? This action cannot be undone.
                     </AlertDialogBody>
                     <AlertDialogFooter>
-                        <Button onClick={onDeleteClose}>
+                        <Button variant="outline" onClick={onDeleteClose}>
                             Cancel
                         </Button>
                         <Button colorScheme="red" onClick={confirmDelete} ml={3}>

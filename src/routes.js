@@ -41,6 +41,17 @@ import ShippingOrder from "views/admin/shipping-order";
 import StockList from "views/admin/stock-list";
 import NewStockItem from "views/admin/stock-list/NewStockItem";
 
+// Forms Imports
+import ShippingInstructions from "views/admin/forms/shipping-instructions";
+import ShippingInstructionDetail from "views/admin/forms/shipping-instructions/ShippingInstructionDetail";
+import DeliveryInstructions from "views/admin/forms/delivery-instructions";
+import DeliveryInstructionDetail from "views/admin/forms/delivery-instructions/DeliveryInstructionDetail";
+import DeliveryConfirmation from "views/admin/forms/delivery-confirmation";
+import ShippingConfirmation from "views/admin/forms/shipping-confirmation";
+
+// Customer Detail Import
+import CustomerDetail from "views/admin/contacts/CustomerDetail";
+
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
 
@@ -140,7 +151,7 @@ const routes = [
             color="inherit"
           />
         ),
-        component: MainDashboard, // Placeholder component
+        component: ShippingInstructions,
       },
       {
         name: "Shipping Confirmation",
@@ -153,7 +164,7 @@ const routes = [
             color="inherit"
           />
         ),
-        component: MainDashboard, // Placeholder component
+        component: ShippingConfirmation,
       },
       {
         name: "Delivery Instructions",
@@ -166,7 +177,7 @@ const routes = [
             color="inherit"
           />
         ),
-        component: MainDashboard, // Placeholder component
+        component: DeliveryInstructions,
       },
       {
         name: "Delivery Confirmation",
@@ -179,32 +190,32 @@ const routes = [
             color="inherit"
           />
         ),
-        component: MainDashboard, // Placeholder component
+        component: DeliveryConfirmation,
       },
     ],
   },
-  {
-    name: "NFT Marketplace",
-    layout: "/admin",
-    path: "/nft-marketplace",
-    icon: (
-      <Icon
-        as={MdOutlineShoppingCart}
-        width="20px"
-        height="20px"
-        color="inherit"
-      />
-    ),
-    component: NFTMarketplace,
-    secondary: true,
-  },
-  {
-    name: "Data Tables",
-    layout: "/admin",
-    icon: <Icon as={MdBarChart} width="20px" height="20px" color="inherit" />,
-    path: "/data-tables",
-    component: DataTables,
-  },
+  // {
+  //   name: "NFT Marketplace",
+  //   layout: "/admin",
+  //   path: "/nft-marketplace",
+  //   icon: (
+  //     <Icon
+  //       as={MdOutlineShoppingCart}
+  //       width="20px"
+  //       height="20px"
+  //       color="inherit"
+  //     />
+  //   ),
+  //   component: NFTMarketplace,
+  //   secondary: true,
+  // },
+  // {
+  //   name: "Data Tables",
+  //   layout: "/admin",
+  //   icon: <Icon as={MdBarChart} width="20px" height="20px" color="inherit" />,
+  //   path: "/data-tables",
+  //   component: DataTables,
+  // },
   {
     name: "Profile",
     layout: "/admin",
@@ -212,6 +223,7 @@ const routes = [
     icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
     component: Profile,
   },
+
   {
     name: "Sign In",
     layout: "/auth",
@@ -226,6 +238,28 @@ const routes = [
   //   icon: <Icon as={MdHome} width='20px' height='20px' color='inherit' />,
   //   component: RTL,
   // },
+];
+
+// Hidden routes that should not appear in sidebar but are available for routing
+export const hiddenRoutes = [
+  {
+    name: "Shipping Instruction Detail",
+    layout: "/admin",
+    path: "/forms/shipping-instruction/:id",
+    component: ShippingInstructionDetail,
+  },
+  {
+    name: "Delivery Instruction Detail",
+    layout: "/admin",
+    path: "/forms/delivery-instruction/:id",
+    component: DeliveryInstructionDetail,
+  },
+  {
+    name: "Customer Detail",
+    layout: "/admin",
+    path: "/contacts/customer/:id",
+    component: CustomerDetail,
+  },
 ];
 
 export default routes;

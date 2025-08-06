@@ -7,7 +7,7 @@ import Sidebar from "components/sidebar/Sidebar.js";
 import { SidebarContext } from "contexts/SidebarContext";
 import React, { useState } from "react";
 import { Redirect, Route, Switch } from "react-router-dom";
-import routes from "routes.js";
+import routes, { hiddenRoutes } from "routes.js";
 
 // Custom Chakra theme
 export default function Dashboard(props) {
@@ -15,6 +15,7 @@ export default function Dashboard(props) {
   // states and functions
   const [fixed] = useState(false);
   const [toggleSidebar, setToggleSidebar] = useState(true);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   // functions for changing the states from components
   const getRoute = () => {
     return window.location.pathname !== "/admin/full-screen-maps";
@@ -158,29 +159,42 @@ export default function Dashboard(props) {
           value={{
             toggleSidebar,
             setToggleSidebar,
+            isSidebarHovered,
+            setIsSidebarHovered,
           }}
         >
-          <Sidebar routes={routes} display="none" {...rest} />
-          <Box
-            float="right"
-            minHeight="100vh"
-            height="100%"
-            overflow="auto"
-            position="relative"
-            maxHeight="100%"
-            w={{
+          <Sidebar 
+            routes={routes} 
+            display="none" 
+            onHoverChange={setIsSidebarHovered}
+            {...rest} 
+          />
+                     <Box
+             float="right"
+             minHeight="100vh"
+             height="100%"
+             overflow="auto"
+             position="relative"
+             maxHeight="100%"
+                         w={{
               base: "100%",
-              xl: toggleSidebar ? "calc( 100% - 290px )" : "100%",
+              xl: (toggleSidebar || isSidebarHovered) ? "calc( 100% - 290px )" : "calc( 100% - 80px )",
             }}
             maxWidth={{
               base: "100%",
-              xl: toggleSidebar ? "calc( 100% - 290px )" : "100%",
+              xl: (toggleSidebar || isSidebarHovered) ? "calc( 100% - 290px )" : "calc( 100% - 80px )",
             }}
-            transition="all 0.33s cubic-bezier(0.685, 0.0473, 0.346, 1)"
-            transitionDuration=".2s, .2s, .35s"
-            transitionProperty="top, bottom, width"
-            transitionTimingFunction="linear, linear, ease"
-          >
+            ml={{
+              base: "0px",
+              xl: (toggleSidebar || isSidebarHovered) ? "290px" : "80px",
+            }}
+             pr={{ base: "0px", xl: "20px" }}
+             pl={{ base: "0px", xl: "20px" }}
+             transition="all 0.33s cubic-bezier(0.685, 0.0473, 0.346, 1)"
+             transitionDuration=".2s, .2s, .35s"
+             transitionProperty="top, bottom, width, margin-left"
+             transitionTimingFunction="linear, linear, ease"
+           >
             <Box position="relative" zIndex="1001">
               <Navbar
                 onOpen={onOpen}
@@ -202,9 +216,13 @@ export default function Dashboard(props) {
                 pt="50px"
                 position="relative"
                 zIndex="1000"
+                pl={{ base: "20px", xl: "0px" }}
+                pr={{ base: "20px", xl: "40px" }}
+                pb="40px"
               >
                 <Switch>
                   {getRoutes(routes)}
+                  {getRoutes(hiddenRoutes)}
                   <Redirect from="/" to="/admin/default" />
                 </Switch>
               </Box>

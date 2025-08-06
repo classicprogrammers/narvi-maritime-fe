@@ -29,8 +29,17 @@ import {
   VStack,
   IconButton,
   Tooltip,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  Badge,
 } from "@chakra-ui/react";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
+import { useHistory } from "react-router-dom";
 import {
   useGlobalFilter,
   usePagination,
@@ -40,34 +49,46 @@ import {
 
 // Custom components
 import Card from "components/card/Card";
-import Menu from "components/menu/MainMenu";
 
 // Assets
-import { MdCheckCircle, MdCancel, MdSearch, MdAdd, MdEdit, MdDelete } from "react-icons/md";
+import { MdCheckCircle, MdCancel, MdSearch, MdAdd, MdEdit, MdDelete, MdVisibility } from "react-icons/md";
 
 export default function CustomerTable(props) {
   const { columnsData, tableData } = props;
+  const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     email: "",
     phone: "",
     status: "Active",
-    joinDate: new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: '2-digit' 
+    joinDate: new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit'
     })
   });
   const [editingCustomer, setEditingCustomer] = useState(null);
-  
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { 
-    isOpen: isEditOpen, 
-    onOpen: onEditOpen, 
-    onClose: onEditClose 
+  const {
+    isOpen: isEditOpen,
+    onOpen: onEditOpen,
+    onClose: onEditClose
   } = useDisclosure();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose
+  } = useDisclosure();
+
+  const toast = useToast();
+  const cancelRef = useRef();
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
@@ -98,7 +119,7 @@ export default function CustomerTable(props) {
     {
       columns,
       data,
-      initialState: { pageIndex: 0, pageSize: 5 },
+      initialState: { pageIndex: 0, pageSize: itemsPerPage },
     },
     useGlobalFilter,
     useSortBy,
@@ -111,13 +132,22 @@ export default function CustomerTable(props) {
     headerGroups,
     page,
     prepareRow,
+    pageCount,
+    gotoPage,
+    nextPage,
+    previousPage,
+    canNextPage,
+    canPreviousPage,
+    setPageSize,
+    state: { pageIndex },
   } = tableInstance;
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
   const searchIconColor = useColorModeValue("gray.700", "white");
-  const inputBg = useColorModeValue("secondaryGray.300", "navy.900");
+  const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.700", "gray.100");
+  const hoverBg = useColorModeValue("blue.50", "gray.700");
 
   const handleInputChange = (field, value) => {
     setNewCustomer(prev => ({
@@ -136,21 +166,27 @@ export default function CustomerTable(props) {
   const handleSaveCustomer = () => {
     // Here you would typically save to your backend
     console.log("Saving new customer:", newCustomer);
-    
-    // For demo purposes, we'll just close the modal
-    // In a real app, you'd add the customer to your data source
+
+    toast({
+      title: "Customer Added",
+      description: "New customer has been successfully added.",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
     onClose();
-    
+
     // Reset form
     setNewCustomer({
       name: "",
       email: "",
       phone: "",
       status: "Active",
-      joinDate: new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: '2-digit' 
+      joinDate: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit'
       })
     });
   };
@@ -158,7 +194,15 @@ export default function CustomerTable(props) {
   const handleSaveEdit = () => {
     // Here you would typically update your backend
     console.log("Updating customer:", editingCustomer);
-    
+
+    toast({
+      title: "Customer Updated",
+      description: "Customer information has been successfully updated.",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
     onEditClose();
     setEditingCustomer(null);
   };
@@ -169,12 +213,24 @@ export default function CustomerTable(props) {
   };
 
   const handleDelete = (customer) => {
+    setCustomerToDelete(customer);
+    onDeleteOpen();
+  };
+
+  const confirmDelete = () => {
     // Here you would typically delete from your backend
-    console.log("Deleting customer:", customer);
-    
-    // For demo purposes, just log the action
-    // In a real app, you'd remove the customer from your data source
-    alert(`Customer "${customer.name}" would be deleted`);
+    console.log("Deleting customer:", customerToDelete);
+
+    toast({
+      title: "Customer Deleted",
+      description: "Customer has been successfully deleted.",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
+    onDeleteClose();
+    setCustomerToDelete(null);
   };
 
   const handleCancel = () => {
@@ -185,10 +241,10 @@ export default function CustomerTable(props) {
       email: "",
       phone: "",
       status: "Active",
-      joinDate: new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: '2-digit' 
+      joinDate: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit'
       })
     });
   };
@@ -196,6 +252,36 @@ export default function CustomerTable(props) {
   const handleCancelEdit = () => {
     onEditClose();
     setEditingCustomer(null);
+  };
+
+  const handleSelectAll = (isChecked) => {
+    if (isChecked) {
+      setSelectedItems(page.map(row => row.original));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (item, isChecked) => {
+    if (isChecked) {
+      setSelectedItems(prev => [...prev, item]);
+    } else {
+      setSelectedItems(prev => prev.filter(selected => selected !== item));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedItems.length === 0) return;
+
+    toast({
+      title: "Bulk Delete",
+      description: `${selectedItems.length} customers have been deleted.`,
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+
+    setSelectedItems([]);
   };
 
   return (
@@ -213,14 +299,26 @@ export default function CustomerTable(props) {
             lineHeight='100%'>
             Customer Management
           </Text>
-          <Button
-            leftIcon={<Icon as={MdAdd} />}
-            colorScheme="blue"
-            size="sm"
-            onClick={onOpen}
-          >
-            Add Customer
-          </Button>
+          <HStack spacing={3}>
+            {selectedItems.length > 0 && (
+              <Button
+                leftIcon={<Icon as={MdDelete} />}
+                colorScheme="red"
+                size="sm"
+                onClick={handleBulkDelete}
+              >
+                Delete Selected ({selectedItems.length})
+              </Button>
+            )}
+            <Button
+              leftIcon={<Icon as={MdAdd} />}
+              colorScheme="blue"
+              size="sm"
+              onClick={onOpen}
+            >
+              Add Customer
+            </Button>
+          </HStack>
         </Flex>
 
         {/* Filter Section */}
@@ -231,13 +329,13 @@ export default function CustomerTable(props) {
                 <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
               </InputLeftElement>
               <Input
-                variant='search'
+                variant='outline'
                 fontSize='sm'
                 bg={inputBg}
                 color={inputText}
                 fontWeight='500'
                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
-                borderRadius="30px"
+                borderRadius="8px"
                 placeholder="Search customers..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
@@ -250,7 +348,7 @@ export default function CustomerTable(props) {
               onChange={(e) => setStatusFilter(e.target.value)}
               bg={inputBg}
               color={inputText}
-              borderRadius="30px"
+              borderRadius="8px"
               fontSize="sm"
             >
               <option value="all">All Status</option>
@@ -260,21 +358,32 @@ export default function CustomerTable(props) {
           </HStack>
         </Box>
 
-        <Table {...getTableProps()} variant='simple' color='gray.500' mb='24px'>
-          <Thead>
+        <Table {...getTableProps()} variant="unstyled" size="sm" minW="100%">
+          <Thead bg="gray.100">
             {headerGroups.map((headerGroup, index) => (
               <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
+                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === page.length && page.length > 0}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                  />
+                </Th>
                 {headerGroup.headers.map((column, index) => (
                   <Th
                     {...column.getHeaderProps(column.getSortByToggleProps())}
-                    pe='10px'
+                    borderRight="1px"
+                    borderColor="gray.200"
+                    py="12px"
+                    px="16px"
                     key={index}
-                    borderColor={borderColor}>
+                    fontSize="12px"
+                    fontWeight="600"
+                    color="gray.600"
+                    textTransform="uppercase">
                     <Flex
                       justify='space-between'
-                      align='center'
-                      fontSize={{ sm: "10px", lg: "12px" }}
-                      color='gray.400'>
+                      align='center'>
                       {column.render("Header")}
                     </Flex>
                   </Th>
@@ -282,55 +391,101 @@ export default function CustomerTable(props) {
               </Tr>
             ))}
           </Thead>
-          <Tbody {...getTableBodyProps()}>
+          <Tbody>
             {page.map((row, index) => {
               prepareRow(row);
               return (
-                <Tr {...row.getRowProps()} key={index}>
+                <Tr
+                  {...row.getRowProps()}
+                  key={index}
+                  bg={index % 2 === 0 ? "white" : "gray.50"}
+                  _hover={{ bg: hoverBg }}
+                  borderBottom="1px"
+                  borderColor="gray.200">
+                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(row.original)}
+                      onChange={(e) => handleSelectItem(row.original, e.target.checked)}
+                    />
+                  </Td>
                   {row.cells.map((cell, index) => {
                     let data = "";
                     if (cell.column.Header === "CUSTOMER NAME") {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text
+                          color={textColor}
+                          fontSize='sm'
+                          fontWeight='600'
+                          cursor="pointer"
+                          _hover={{ textDecoration: "underline" }}
+                          onClick={() => history.push(`/admin/contacts/customer/${row.original.id}`)}
+                        >
                           {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "COMPANY") {
+                      data = (
+                        <Text color={textColor} fontSize='sm'>
+                          {cell.value || "-"}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "EMAIL") {
+                      data = (
+                        <Text color={textColor} fontSize='sm'>
+                          {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "PHONE") {
+                      data = (
+                        <Text color={textColor} fontSize='sm'>
+                          {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "WEBSITE") {
+                      data = (
+                        <Text color={textColor} fontSize='sm'>
+                          {cell.value || "-"}
                         </Text>
                       );
                     } else if (cell.column.Header === "STATUS") {
                       data = (
-                        <Flex align='center'>
-                          <Icon
-                            w='24px'
-                            h='24px'
-                            me='5px'
-                            color={
-                              cell.value === "Active"
-                                ? "green.500"
-                                : cell.value === "Inactive"
-                                  ? "red.500"
-                                  : null
-                            }
-                            as={
-                              cell.value === "Active"
-                                ? MdCheckCircle
-                                : cell.value === "Inactive"
-                                  ? MdCancel
-                                  : null
-                            }
-                          />
-                          <Text color={textColor} fontSize='sm' fontWeight='700'>
-                            {cell.value}
-                          </Text>
-                        </Flex>
+                        <Badge
+                          colorScheme={cell.value === "Active" ? "green" : "red"}
+                          variant="subtle"
+                          fontSize="xs"
+                          px="8px"
+                          py="4px"
+                          borderRadius="full">
+                          <HStack spacing={1}>
+                            <Icon
+                              as={cell.value === "Active" ? MdCheckCircle : MdCancel}
+                              w="12px"
+                              h="12px"
+                            />
+                            <Text>{cell.value}</Text>
+                          </HStack>
+                        </Badge>
                       );
                     } else if (cell.column.Header === "JOIN DATE") {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text color={textColor} fontSize='sm'>
                           {cell.value}
                         </Text>
                       );
                     } else if (cell.column.Header === "ACTIONS") {
                       data = (
                         <HStack spacing={2}>
+                          <Tooltip label="View Customer">
+                            <IconButton
+                              icon={<Icon as={MdVisibility} />}
+                              size="sm"
+                              colorScheme="blue"
+                              variant="ghost"
+                              onClick={() => history.push(`/admin/contacts/customer/${row.original.id}`)}
+                              aria-label="View customer"
+                            />
+                          </Tooltip>
                           <Tooltip label="Edit Customer">
                             <IconButton
                               icon={<Icon as={MdEdit} />}
@@ -355,7 +510,7 @@ export default function CustomerTable(props) {
                       );
                     } else {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text color={textColor} fontSize='sm'>
                           {cell.value}
                         </Text>
                       );
@@ -364,9 +519,10 @@ export default function CustomerTable(props) {
                       <Td
                         {...cell.getCellProps()}
                         key={index}
-                        fontSize={{ sm: "14px" }}
-                        minW={{ sm: "150px", md: "200px", lg: "auto" }}
-                        borderColor='transparent'>
+                        borderRight="1px"
+                        borderColor="gray.200"
+                        py="12px"
+                        px="16px">
                         {data}
                       </Td>
                     );
@@ -376,6 +532,31 @@ export default function CustomerTable(props) {
             })}
           </Tbody>
         </Table>
+
+        {/* Pagination */}
+        <Flex px='25px' justify='space-between' align='center' py='20px'>
+          <Text fontSize='sm' color='gray.500'>
+            Showing {pageIndex * itemsPerPage + 1} to {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of {data.length} results
+          </Text>
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              onClick={() => previousPage()}
+              isDisabled={!canPreviousPage}
+              variant="outline"
+            >
+              Previous
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => nextPage()}
+              isDisabled={!canNextPage}
+              variant="outline"
+            >
+              Next
+            </Button>
+          </HStack>
+        </Flex>
       </Card>
 
       {/* Add Customer Modal */}
@@ -394,7 +575,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleInputChange('name', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
@@ -404,7 +585,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleInputChange('email', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
@@ -413,7 +594,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>Status</FormLabel>
                 <Select
@@ -431,8 +612,8 @@ export default function CustomerTable(props) {
             <Button variant="ghost" mr={3} onClick={handleCancel}>
               Cancel
             </Button>
-            <Button 
-              colorScheme="blue" 
+            <Button
+              colorScheme="blue"
               onClick={handleSaveCustomer}
               isDisabled={!newCustomer.name || !newCustomer.email || !newCustomer.phone}
             >
@@ -458,7 +639,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleEditInputChange('name', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
@@ -468,7 +649,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleEditInputChange('email', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
@@ -477,7 +658,7 @@ export default function CustomerTable(props) {
                   onChange={(e) => handleEditInputChange('phone', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>Status</FormLabel>
                 <Select
@@ -495,8 +676,8 @@ export default function CustomerTable(props) {
             <Button variant="ghost" mr={3} onClick={handleCancelEdit}>
               Cancel
             </Button>
-            <Button 
-              colorScheme="blue" 
+            <Button
+              colorScheme="blue"
               onClick={handleSaveEdit}
               isDisabled={!editingCustomer?.name || !editingCustomer?.email || !editingCustomer?.phone}
             >
@@ -505,6 +686,34 @@ export default function CustomerTable(props) {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Customer
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Are you sure you want to delete "{customerToDelete?.name}"? This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </>
   );
 } 

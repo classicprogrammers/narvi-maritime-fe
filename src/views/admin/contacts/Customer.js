@@ -1,5 +1,6 @@
 import React from "react";
-import { Box, SimpleGrid } from "@chakra-ui/react";
+import { Box, Flex, Text, Button, Input, InputGroup, InputLeftElement, Select, HStack, VStack, Table, Thead, Tbody, Tr, Th, Td, Badge, IconButton, useColorModeValue, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, useDisclosure, useToast, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
+import { MdSearch, MdAdd, MdEdit, MdDelete, MdCheckCircle, MdCancel, MdVisibility } from "react-icons/md";
 import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataCustomer } from "views/admin/contacts/variables/columnsData";
 import tableDataCustomer from "views/admin/contacts/variables/tableDataCustomer.json";
@@ -7,15 +8,12 @@ import tableDataCustomer from "views/admin/contacts/variables/tableDataCustomer.
 export default function Customer() {
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-      <SimpleGrid
-        mb='20px'
-        columns={{ sm: 1, md: 1 }}
-        spacing={{ base: "20px", xl: "20px" }}>
+      <VStack spacing={6} align="stretch">
         <CustomerTable
           columnsData={columnsDataCustomer}
           tableData={tableDataCustomer}
         />
-      </SimpleGrid>
+      </VStack>
     </Box>
   );
 } 

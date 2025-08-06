@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 
 // chakra imports
 import {
@@ -27,8 +27,10 @@ import { SidebarContext } from "contexts/SidebarContext";
 import { IoMenuOutline } from "react-icons/io5";
 
 function Sidebar(props) {
-  const { routes } = props;
+  const { routes, onHoverChange } = props;
   const { toggleSidebar } = useContext(SidebarContext);
+  const [isHovered, setIsHovered] = useState(false);
+  const [hoverTimeout, setHoverTimeout] = useState(null);
 
   let variantChange = "0.2s linear";
   let shadow = useColorModeValue(
@@ -38,6 +40,25 @@ function Sidebar(props) {
   // Chakra Color Mode
   let sidebarBg = useColorModeValue("white", "navy.800");
   let sidebarMargins = "0px";
+
+  // Determine if sidebar should be expanded (either by toggle or hover)
+  const isExpanded = toggleSidebar || isHovered;
+
+  const handleMouseEnter = () => {
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout);
+    }
+    setIsHovered(true);
+    if (onHoverChange) onHoverChange(true);
+  };
+
+  const handleMouseLeave = () => {
+    const timeout = setTimeout(() => {
+      setIsHovered(false);
+      if (onHoverChange) onHoverChange(false);
+    }, 300); // 300ms delay before collapsing
+    setHoverTimeout(timeout);
+  };
 
   // SIDEBAR
   return (
@@ -51,12 +72,15 @@ function Sidebar(props) {
       <Box
         bg={sidebarBg}
         transition={variantChange}
-        w={toggleSidebar ? "300px" : "80px"}
+        w={isExpanded ? "300px" : "80px"}
         h="100vh"
         m={sidebarMargins}
         minH="100%"
         overflowX="hidden"
         boxShadow={shadow}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        _hover={{ cursor: "default" }}
       >
         <Scrollbars
           autoHide
@@ -64,7 +88,7 @@ function Sidebar(props) {
           renderThumbVertical={renderThumb}
           renderView={renderView}
         >
-          <Content routes={routes} collapsed={!toggleSidebar} />
+          <Content routes={routes} collapsed={!isExpanded} />
         </Scrollbars>
       </Box>
     </Box>

@@ -77,12 +77,12 @@ import {
 
 export default function Quotations() {
     const [activeTab, setActiveTab] = useState("order-lines");
-    
+
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const [deleteItemIndex, setDeleteItemIndex] = useState(null);
-    
+
     // Form states for new quotation
     const [newQuotation, setNewQuotation] = useState({
         customer: "",
@@ -97,7 +97,7 @@ export default function Quotations() {
         quotationTemplate: "",
         pricelist: "Default USD pricelist (USD)",
     });
-    
+
     // Order lines state
     const [orderLines, setOrderLines] = useState([
         {
@@ -207,104 +207,6 @@ export default function Quotations() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden">
-            {/* Top Navigation Bar */}
-            <Flex
-                bg={bgColor}
-                borderBottom="1px"
-                borderColor={borderColor}
-                px={{ base: "4", md: "6" }}
-                py="3"
-                justify="space-between"
-                align="center"
-                flexDir={{ base: "column", lg: "row" }}
-                gap={{ base: "2", lg: "0" }}
-            >
-                <HStack spacing={{ base: "2", md: "4" }} flexWrap="wrap">
-                    {/* Inventory item with colored box */}
-                    <Flex align="center" gap="2">
-                        <Box
-                            w="12px"
-                            h="12px"
-                            bg="#1c4a95"
-                            borderRadius="2px"
-                        />
-                        <Text fontSize={{ base: "xs", md: "sm" }} color={textColor} fontWeight="medium">
-                            Inventory
-                        </Text>
-                    </Flex>
-
-                    {/* Remaining items */}
-                    {["Overview", "Operations", "Products", "Shipment", "Agents", "Reporting", "Configuration"].map((item) => (
-                        <Text
-                            key={item}
-                            fontSize={{ base: "xs", md: "sm" }}
-                            color={textColor}
-                            fontWeight="medium"
-                        >
-                            {item}
-                        </Text>
-                    ))}
-                </HStack>
-
-                <HStack spacing={{ base: "2", md: "4" }} flexWrap="wrap" justify="flex-end">
-                    <IconButton
-                        size="sm"
-                        icon={<Icon as={MdReport} color={textColor} />}
-                        variant="ghost"
-                        aria-label="Issues"
-                    />
-                    <Box position="relative">
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdChat} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Messages"
-                        />
-                        <Badge
-                            position="absolute"
-                            top="-2px"
-                            right="-2px"
-                            colorScheme="red"
-                            borderRadius="full"
-                            fontSize="xs"
-                        >
-                            5
-                        </Badge>
-                    </Box>
-                    <Box position="relative">
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdAccessTime} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Reminders"
-                        />
-                        <Badge
-                            position="absolute"
-                            top="-2px"
-                            right="-2px"
-                            colorScheme="red"
-                            borderRadius="full"
-                            fontSize="xs"
-                        >
-                            5
-                        </Badge>
-                    </Box>
-                    <Text fontSize={{ base: "xs", md: "sm" }} color={textColor} fontWeight="medium" display={{ base: "none", lg: "block" }}>
-                        My Company (San Francisco)
-                    </Text>
-                    <HStack spacing="2">
-                        <Icon as={MdPerson} w="24px" h="24px" color={textColor} />
-                        <VStack align="flex-start" spacing="0" display={{ base: "none", md: "flex" }}>
-                            <Text fontSize={{ base: "xs", md: "sm" }} fontWeight="bold" color={textColor}>
-                                Mitchell Admin
-                            </Text>
-                            <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
-                                narvi_maritime
-                            </Text>
-                        </VStack>
-                    </HStack>
-                </HStack>
-            </Flex>
 
             {/* Sub Header Bar */}
             <Flex
@@ -395,7 +297,7 @@ export default function Quotations() {
                                 <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
                                     Vessel <Icon as={MdHelpOutline} ml="1" />
                                 </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} placeholder="" />
+                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
                             </FormControl>
 
                             <FormControl>
@@ -420,7 +322,7 @@ export default function Quotations() {
                                 <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
                                     Quotation Template <Icon as={MdHelpOutline} ml="1" />
                                 </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} placeholder="" />
+                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
                             </FormControl>
                         </VStack>
 
@@ -457,7 +359,7 @@ export default function Quotations() {
                                 <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
                                     Payment Terms <Icon as={MdHelpOutline} ml="1" />
                                 </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} placeholder="" />
+                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
                             </FormControl>
                         </VStack>
                     </Grid>
@@ -740,6 +642,7 @@ export default function Quotations() {
                                                 >
                                                     <Input
                                                         size={{ base: "xs", md: "sm" }}
+                                                        style={{ padding: "6px 10px" }}
                                                         placeholder="Enter route..."
                                                         border="1px"
                                                         borderColor="gray.300"
@@ -762,6 +665,7 @@ export default function Quotations() {
                                                 >
                                                     <NumberInput
                                                         size={{ base: "xs", md: "sm" }}
+                                                        style={{ padding: "6px 10px" }}
                                                         value={line.quantity}
                                                         onChange={(value) => {
                                                             const newOrderLines = [...orderLines];
@@ -780,6 +684,7 @@ export default function Quotations() {
                                                         <NumberInputField
                                                             border="1px"
                                                             borderColor="gray.300"
+                                                            style={{ padding: "6px 10px" }}
                                                             _hover={{ borderColor: "gray.400" }}
                                                         />
                                                         <NumberInputStepper>
@@ -812,6 +717,7 @@ export default function Quotations() {
                                                         <MenuButton
                                                             as={Button}
                                                             size={{ base: "xs", md: "sm" }}
+                                                            style={{ padding: "6px 10px" }}
                                                             variant="outline"
                                                             borderRadius="md"
                                                             border="1px"
@@ -1019,6 +925,7 @@ export default function Quotations() {
                                                 >
                                                     <Input
                                                         size={{ base: "xs", md: "sm" }}
+                                                        style={{ padding: "6px 10px" }}
                                                         placeholder="0.00"
                                                         border="1px"
                                                         borderColor="gray.300"
