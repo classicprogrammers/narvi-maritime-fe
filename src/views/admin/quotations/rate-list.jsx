@@ -213,7 +213,7 @@ export default function RateList() {
             const newRateItems = rateItems.filter(item => item.id !== deleteItemId);
             setRateItems(newRateItems);
             setDeleteItemId(null);
-            
+
             toast({
                 title: "Rate Item Deleted",
                 description: "Rate item has been successfully deleted.",
@@ -255,7 +255,7 @@ export default function RateList() {
                             </Text>
                         </VStack>
                     </HStack>
-                    
+
                     <HStack spacing={4}>
                         <HStack spacing={2}>
                             <Text fontSize="sm" color="gray.600">
@@ -326,6 +326,8 @@ export default function RateList() {
                             color={inputText}
                             borderRadius="8px"
                             fontSize="sm"
+                            zIndex={1000}
+                            position="relative"
                         >
                             <option value="all">All Status</option>
                             <option value="active">Active</option>

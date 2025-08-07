@@ -347,8 +347,8 @@ export default function StockList() {
                                     </Td>
                                 </Tr>
                             ))}
-                            {/* Empty rows for visual spacing */}
-                            {[...Array(8)].map((_, index) => (
+                            {/* Empty rows for visual spacing
+                            {[...Array(1)].map((_, index) => (
                                 <Tr key={`empty-${index}`} bg={index % 2 === 0 ? "white" : "gray.50"}>
                                     <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
                                     <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
@@ -364,7 +364,7 @@ export default function StockList() {
                                     <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
                                     <Td py="3" px="3" fontSize="xs" borderBottom="1px"></Td>
                                 </Tr>
-                            ))}
+                            ))} */}
                         </Tbody>
                     </Table>
                 </Box>

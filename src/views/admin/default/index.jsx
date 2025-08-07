@@ -85,7 +85,7 @@ export default function UserReports() {
             />
           }
           name='Clients'
-          value='$350.4'
+          value='350'
         />
         <MiniStatistics
           startContent={
@@ -112,9 +112,9 @@ export default function UserReports() {
               }
             />
           }
-          growth='+23%'
+          // growth='+23%'
           name='Sales'
-          value='$574.34'
+        value='$574.34'
         />
         <MiniStatistics
           startContent={
@@ -128,7 +128,7 @@ export default function UserReports() {
             />
           }
           name='Orders'
-          value='$1,000'
+          value='1,000'
         />
         <MiniStatistics
           startContent={

@@ -241,7 +241,7 @@ const routes = [
 ];
 
 // Hidden routes that should not appear in sidebar but are available for routing
-export const hiddenRoutes = [
+const hiddenRoutes = [
   {
     name: "Shipping Instruction Detail",
     layout: "/admin",
@@ -262,4 +262,5 @@ export const hiddenRoutes = [
   },
 ];
 
+export { hiddenRoutes };
 export default routes;
