@@ -1,11 +1,8 @@
 // Chakra Imports
 import {
   Avatar,
-  Button,
   Flex,
   Icon,
-  Image,
-  Link,
   Menu,
   MenuButton,
   MenuItem,
@@ -22,10 +19,8 @@ import PropTypes from "prop-types";
 import React, { useContext } from "react";
 import { SidebarContext } from "contexts/SidebarContext";
 // Assets
-import navImage from "assets/img/layout/Navbar.png";
 import {
   MdNotificationsNone,
-  MdInfoOutline,
   MdMenu,
   MdClose,
 } from "react-icons/md";
@@ -50,7 +45,6 @@ export default function HeaderLinks(props) {
     "14px 17px 40px 4px rgba(112, 144, 176, 0.18)",
     "14px 17px 40px 4px rgba(112, 144, 176, 0.06)"
   );
-  const borderButton = useColorModeValue("secondaryGray.500", "whiteAlpha.200");
 
   const handleToggleSidebar = () => {
     setToggleSidebar(!toggleSidebar);
@@ -170,75 +164,10 @@ export default function HeaderLinks(props) {
               mb="10px"
             >
               <ItemContent
-                info="Horizon Design System Free"
+                info="Classic Design System Free"
                 aName="Josh Henry"
               />
             </MenuItem>
-          </Flex>
-        </MenuList>
-      </Menu>
-
-      <Menu>
-        <MenuButton p="0px">
-          <Icon
-            mt="6px"
-            as={MdInfoOutline}
-            color={navbarIcon}
-            w="18px"
-            h="18px"
-            me="10px"
-          />
-        </MenuButton>
-        <MenuList
-          boxShadow={shadow}
-          p="20px"
-          me={{ base: "30px", md: "unset" }}
-          borderRadius="20px"
-          bg={menuBg}
-          border="none"
-          mt="22px"
-          minW={{ base: "unset" }}
-          maxW={{ base: "360px", md: "unset" }}
-        >
-          <Image src={navImage} borderRadius="16px" mb="28px" />
-          <Flex flexDirection="column">
-            <Link
-              w="100%"
-              href="https://horizon-ui.com/pro?ref=horizon-chakra-free"
-            >
-              <Button w="100%" h="44px" mb="10px" variant="brand">
-                Buy Horizon UI PRO
-              </Button>
-            </Link>
-            <Link
-              w="100%"
-              href="https://horizon-ui.com/documentation/docs/introduction?ref=horizon-chakra-free"
-            >
-              <Button
-                w="100%"
-                h="44px"
-                mb="10px"
-                border="1px solid"
-                bg="transparent"
-                borderColor={borderButton}
-              >
-                See Documentation
-              </Button>
-            </Link>
-            <Link
-              w="100%"
-              href="https://github.com/horizon-ui/horizon-ui-chakra"
-            >
-              <Button
-                w="100%"
-                h="44px"
-                variant="no-hover"
-                color={textColor}
-                bg="transparent"
-              >
-                Try Horizon Free
-              </Button>
-            </Link>
           </Flex>
         </MenuList>
       </Menu>
@@ -288,14 +217,6 @@ export default function HeaderLinks(props) {
               px="14px"
             >
               <Text fontSize="sm">Profile Settings</Text>
-            </MenuItem>
-            <MenuItem
-              _hover={{ bg: "none" }}
-              _focus={{ bg: "none" }}
-              borderRadius="8px"
-              px="14px"
-            >
-              <Text fontSize="sm">Newsletter Settings</Text>
             </MenuItem>
             <MenuItem
               _hover={{ bg: "none" }}

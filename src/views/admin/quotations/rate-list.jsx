@@ -347,133 +347,157 @@ export default function RateList() {
 
                 {/* Rate Items Table */}
                 <Box px="25px">
-                    <Table variant="unstyled" size="sm" minW="100%">
-                        <Thead bg="gray.100">
-                            <Tr>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                    <Checkbox
-                                        isChecked={selectedItems.length === rateItems.length}
-                                        isIndeterminate={selectedItems.length > 0 && selectedItems.length < rateItems.length}
-                                        onChange={(e) => handleSelectAll(e.target.checked)}
-                                    />
-                                </Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate ID</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Location</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Handling</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Currency</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Type</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Base Rate</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Calc</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Fixed Surcharge</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Valid Until</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Include in Tariff</Th>
-                                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
-                            </Tr>
-                        </Thead>
-                        <Tbody>
-                            {rateItems.map((item, index) => (
-                                <Tr
-                                    key={item.id}
-                                    bg={index % 2 === 0 ? "white" : "gray.50"}
-                                    _hover={{ bg: hoverBg }}
-                                    borderBottom="1px"
-                                    borderColor="gray.200">
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                    <Box 
+                        maxH="400px" 
+                        overflowY="auto" 
+                        border="1px" 
+                        borderColor="gray.200" 
+                        borderRadius="8px"
+                        sx={{
+                            '&::-webkit-scrollbar': {
+                                width: '8px',
+                            },
+                            '&::-webkit-scrollbar-track': {
+                                background: 'gray.100',
+                                borderRadius: '4px',
+                            },
+                            '&::-webkit-scrollbar-thumb': {
+                                background: 'gray.300',
+                                borderRadius: '4px',
+                                '&:hover': {
+                                    background: 'gray.400',
+                                },
+                            },
+                        }}
+                    >
+                        <Table variant="unstyled" size="sm" minW="100%">
+                            <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
+                                <Tr>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                         <Checkbox
-                                            isChecked={selectedItems.includes(item.id)}
-                                            onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                                            isChecked={selectedItems.length === rateItems.length}
+                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < rateItems.length}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
                                         />
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                            {item.id}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            {item.location}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            {item.handling}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Badge
-                                            colorScheme="blue"
-                                            variant="subtle"
-                                            fontSize="xs"
-                                            px="8px"
-                                            py="4px"
-                                            borderRadius="full">
-                                            {item.currency}
-                                        </Badge>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            {item.rateType || "-"}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                            ${item.baseRate}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            {item.rateCalculation}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            ${item.fixedSurcharge}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Text color={textColor} fontSize='sm'>
-                                            {item.validUntil || "-"}
-                                        </Text>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Checkbox isChecked={item.includeInTariff} size="sm" />
-                                    </Td>
-                                    <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <HStack spacing={2}>
-                                            <Tooltip label="View Rate">
-                                                <IconButton
-                                                    icon={<Icon as={MdVisibility} />}
-                                                    size="sm"
-                                                    colorScheme="blue"
-                                                    variant="ghost"
-                                                    aria-label="View rate"
-                                                />
-                                            </Tooltip>
-                                            <Tooltip label="Edit Rate">
-                                                <IconButton
-                                                    icon={<Icon as={MdEdit} />}
-                                                    size="sm"
-                                                    colorScheme="blue"
-                                                    variant="ghost"
-                                                    aria-label="Edit rate"
-                                                />
-                                            </Tooltip>
-                                            <Tooltip label="Delete Rate">
-                                                <IconButton
-                                                    icon={<Icon as={MdDelete} />}
-                                                    size="sm"
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    aria-label="Delete rate"
-                                                    onClick={() => handleDeleteItem(item.id)}
-                                                />
-                                            </Tooltip>
-                                        </HStack>
-                                    </Td>
+                                    </Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Location</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Handling</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Currency</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Type</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Base Rate</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Calc</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Fixed Surcharge</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Valid Until</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Include in Tariff</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
-                            ))}
-                        </Tbody>
-                    </Table>
+                            </Thead>
+                            <Tbody>
+                                {rateItems.map((item, index) => (
+                                    <Tr
+                                        key={item.id}
+                                        bg={index % 2 === 0 ? "white" : "gray.50"}
+                                        _hover={{ bg: hoverBg }}
+                                        borderBottom="1px"
+                                        borderColor="gray.200">
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Checkbox
+                                                isChecked={selectedItems.includes(item.id)}
+                                                onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                                            />
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                {item.id}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.location}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.handling}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Badge
+                                                colorScheme="blue"
+                                                variant="subtle"
+                                                fontSize="xs"
+                                                px="8px"
+                                                py="4px"
+                                                borderRadius="full">
+                                                {item.currency}
+                                            </Badge>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.rateType || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                ${item.baseRate}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.rateCalculation}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                ${item.fixedSurcharge}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.validUntil || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Checkbox isChecked={item.includeInTariff} size="sm" />
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <HStack spacing={2}>
+                                                <Tooltip label="View Rate">
+                                                    <IconButton
+                                                        icon={<Icon as={MdVisibility} />}
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        variant="ghost"
+                                                        aria-label="View rate"
+                                                    />
+                                                </Tooltip>
+                                                <Tooltip label="Edit Rate">
+                                                    <IconButton
+                                                        icon={<Icon as={MdEdit} />}
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        variant="ghost"
+                                                        aria-label="Edit rate"
+                                                    />
+                                                </Tooltip>
+                                                <Tooltip label="Delete Rate">
+                                                    <IconButton
+                                                        icon={<Icon as={MdDelete} />}
+                                                        size="sm"
+                                                        colorScheme="red"
+                                                        variant="ghost"
+                                                        aria-label="Delete rate"
+                                                        onClick={() => handleDeleteItem(item.id)}
+                                                    />
+                                                </Tooltip>
+                                            </HStack>
+                                        </Td>
+                                    </Tr>
+                                ))}
+                            </Tbody>
+                        </Table>
+                    </Box>
                 </Box>
 
                 {/* Pagination */}

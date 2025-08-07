@@ -21,6 +21,8 @@ import {
     Checkbox,
     InputGroup,
     InputLeftElement,
+    Select,
+    Tooltip,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -33,6 +35,11 @@ import {
     MdChevronLeft,
     MdChevronRight,
     MdFilterList,
+    MdDownload,
+    MdPrint,
+    MdEdit,
+    MdDelete,
+    MdVisibility,
 } from "react-icons/md";
 
 export default function StockList() {
@@ -41,10 +48,15 @@ export default function StockList() {
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [statusFilter, setStatusFilter] = useState("all");
 
     const bgColor = useColorModeValue("white", "gray.800");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
+    const hoverBg = useColorModeValue("blue.50", "blue.900");
+    const searchIconColor = useColorModeValue("gray.400", "gray.500");
+    const inputBg = useColorModeValue("white", "gray.700");
+    const inputText = useColorModeValue("gray.700", "white");
 
     // Load stock data from localStorage and combine with sample data
     const loadStockData = () => {
@@ -172,238 +184,308 @@ export default function StockList() {
     };
 
     return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
-
-            {/* Main Content Area */}
-            <Box bg="white" p={{ base: "4", md: "6" }}>
-                {/* Top Section with New Button, Title, Search, and Pagination */}
-                <Flex
-                    justify="space-between"
-                    align="center"
-                    mb="6"
-                    flexDir={{ base: "column", lg: "row" }}
-                    gap={{ base: "4", lg: "0" }}
-                >
-                    <HStack spacing="4">
+        <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            <VStack spacing={6} align="stretch">
+                {/* Header Section */}
+                <Flex justify="space-between" align="center" px="25px">
+                    <HStack spacing={4}>
                         <Button
                             leftIcon={<Icon as={MdAdd} />}
-                            bg="#1c4a95"
-                            color="white"
+                            colorScheme="blue"
                             size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "#173f7c" }}
                             onClick={handleNewButton}
                         >
-                            New
+                            New Stock Item
                         </Button>
-                        <HStack spacing="2">
-                            <Text fontSize={{ base: "sm", md: "md" }} fontWeight="bold" color={textColor}>
+                        <VStack align="start" spacing={1}>
+                            <Text fontSize="xl" fontWeight="bold" color="blue.600">
                                 Stock List
                             </Text>
-                            <IconButton
-                                size="xs"
-                                icon={<Icon as={MdSettings} color={textColor} />}
-                                variant="ghost"
-                                aria-label="Settings"
-                                onClick={handleSettingsClick}
-                                _hover={{ bg: "gray.100" }}
-                            />
-                        </HStack>
+                            <Text fontSize="sm" color="gray.500">
+                                Manage inventory and stock items
+                            </Text>
+                        </VStack>
                     </HStack>
 
-                    {/* Search Bar */}
-                    <InputGroup maxW="400px">
-                        <InputLeftElement pointerEvents="none">
-                            <Icon as={MdSearch} color="gray.400" />
-                        </InputLeftElement>
-                        <Input
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => handleSearch(e.target.value)}
-                            size="sm"
-                            bg="white"
-                            border="1px"
-                            borderColor="gray.300"
-                            borderRadius="md"
-                        />
-                    </InputGroup>
-
-                    {/* Pagination */}
-                    <HStack spacing="2">
-                        <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                            {currentPage}-2/{totalPages}
-                        </Text>
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdChevronLeft} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Previous"
-                            onClick={handlePreviousPage}
-                            isDisabled={currentPage <= 1}
-                            _hover={{ bg: "gray.100" }}
-                        />
-                        <IconButton
-                            size="sm"
-                            icon={<Icon as={MdChevronRight} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Next"
-                            onClick={handleNextPage}
-                            isDisabled={currentPage >= totalPages}
-                            _hover={{ bg: "gray.100" }}
-                        />
+                    <HStack spacing={4}>
+                        <HStack spacing={2}>
+                            <Text fontSize="sm" color="gray.600">
+                                {stockData.length} items
+                            </Text>
+                            <IconButton
+                                icon={<Icon as={MdChevronLeft} />}
+                                size="sm"
+                                variant="ghost"
+                                aria-label="Previous"
+                                isDisabled={currentPage === 1}
+                            />
+                            <IconButton
+                                icon={<Icon as={MdChevronRight} />}
+                                size="sm"
+                                variant="ghost"
+                                aria-label="Next"
+                                isDisabled={currentPage === totalPages}
+                            />
+                        </HStack>
+                        <HStack spacing={2}>
+                            <Tooltip label="Export">
+                                <IconButton
+                                    icon={<Icon as={MdDownload} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Export"
+                                />
+                            </Tooltip>
+                            <Tooltip label="Print">
+                                <IconButton
+                                    icon={<Icon as={MdPrint} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Print"
+                                />
+                            </Tooltip>
+                        </HStack>
                     </HStack>
                 </Flex>
 
-                {/* Stock List Table */}
-                <Box overflowX="auto" maxW="100%">
-                    <Table variant="unstyled" size="sm" minW="1400px" border="1px" borderColor="gray.300">
-                        <Thead>
-                            <Tr bg="gray.100">
-                                <Th fontSize="xs" color="gray.600" textAlign="center" py="3" px="3" borderRight="1px" borderColor="gray.300">
-                                    <Checkbox
-                                        isChecked={selectedItems.length === stockData.length}
-                                        isIndeterminate={selectedItems.length > 0 && selectedItems.length < stockData.length}
-                                        onChange={(e) => handleSelectAll(e.target.checked)}
-                                        size="sm"
-                                    />
-                                </Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Stock Item ID</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">SO Number</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">PO Number</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Supplier</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Vessel Name</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Origin Country</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Destination C...</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Stock Status</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Item Descript...</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Item Value</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Number of Pcs</Th>
-                                <Th fontSize="xs" color="gray.600" py="3" px="3" borderRight="1px" borderColor="gray.300">Submitted to ...</Th>
-                                <Th fontSize="xs" color="gray.600" textAlign="center" py="3" px="3">
-                                    <IconButton
-                                        size="xs"
-                                        icon={<Icon as={MdFilterList} color="gray.500" />}
-                                        variant="ghost"
-                                        aria-label="Filter"
-                                        onClick={handleFilterClick}
-                                        _hover={{ bg: "gray.200" }}
-                                    />
-                                </Th>
-                            </Tr>
-                        </Thead>
-                        <Tbody>
-                            {stockData.map((item, index) => (
-                                <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"} _hover={{ bg: "blue.50" }}>
-                                    <Td textAlign="center" py="3" px="3" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        <Checkbox
-                                            isChecked={selectedItems.includes(item.id)}
-                                            onChange={(e) => handleSelectItem(item.id, e.target.checked)}
-                                            size="sm"
-                                        />
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.stockItemId}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.soNumber}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.poNumber}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.supplier}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.vesselName}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.originCountry}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.destinationCountry}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.stockStatus}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.itemDescription}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.itemValue}
-                                    </Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        {item.numberOfPcs}
-                                    </Td>
-                                    <Td textAlign="center" py="3" px="3" borderRight="1px" borderColor="gray.300" borderBottom="1px">
-                                        <Checkbox
-                                            isChecked={item.submittedToCustoms}
-                                            size="sm"
-                                        />
-                                    </Td>
-                                    <Td py="3" px="3" borderBottom="1px">
-                                        {/* Empty cell for filter icon column */}
-                                    </Td>
-                                </Tr>
-                            ))}
-                            {/* Empty rows for visual spacing
-                            {[...Array(1)].map((_, index) => (
-                                <Tr key={`empty-${index}`} bg={index % 2 === 0 ? "white" : "gray.50"}>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderRight="1px" borderColor="gray.300" borderBottom="1px"></Td>
-                                    <Td py="3" px="3" fontSize="xs" borderBottom="1px"></Td>
-                                </Tr>
-                            ))} */}
-                        </Tbody>
-                    </Table>
-                </Box>
+                {/* Filter Section */}
+                <Box px='25px' mb='20px'>
+                    <HStack spacing={4} flexWrap="wrap">
+                        <InputGroup w={{ base: "100%", md: "300px" }}>
+                            <InputLeftElement>
+                                <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
+                            </InputLeftElement>
+                            <Input
+                                variant='outline'
+                                fontSize='sm'
+                                bg={inputBg}
+                                color={inputText}
+                                fontWeight='500'
+                                _placeholder={{ color: "gray.400", fontSize: "14px" }}
+                                borderRadius="8px"
+                                placeholder="Search stock items..."
+                                value={searchQuery}
+                                onChange={(e) => handleSearch(e.target.value)}
+                            />
+                        </InputGroup>
 
-                {/* Action Buttons */}
-                <HStack spacing="4" mt="6" justify="space-between">
-                    <HStack spacing="3">
-                        <Button
-                            size="sm"
-                            colorScheme="red"
-                            variant="outline"
-                            onClick={handleDeleteSelected}
-                            isDisabled={selectedItems.length === 0}
+                        <Select
+                            w={{ base: "100%", md: "200px" }}
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            bg={inputBg}
+                            color={inputText}
+                            borderRadius="8px"
+                            fontSize="sm"
                         >
-                            Delete Selected ({selectedItems.length})
-                        </Button>
+                            <option value="all">All Status</option>
+                            <option value="in-stock">In Stock</option>
+                            <option value="out-of-stock">Out of Stock</option>
+                            <option value="pending">Pending</option>
+                        </Select>
+
                         <Button
-                            size="sm"
-                            colorScheme="blue"
+                            leftIcon={<Icon as={MdFilterList} />}
                             variant="outline"
-                            onClick={handleExportData}
-                        >
-                            Export Data
-                        </Button>
-                        <Button
                             size="sm"
-                            colorScheme="green"
-                            variant="outline"
-                            onClick={handleRefreshData}
+                            borderRadius="8px"
                         >
-                            Refresh
+                            Filters
                         </Button>
                     </HStack>
+                </Box>
 
-                    <Text fontSize="sm" color="gray.500">
-                        {selectedItems.length} item(s) selected
+                {/* Stock List Table */}
+                <Box px="25px">
+                    <Box
+                        maxH="400px"
+                        overflowY="auto"
+                        border="1px"
+                        borderColor="gray.200"
+                        borderRadius="8px"
+                        sx={{
+                            '&::-webkit-scrollbar': {
+                                width: '8px',
+                            },
+                            '&::-webkit-scrollbar-track': {
+                                background: 'gray.100',
+                                borderRadius: '4px',
+                            },
+                            '&::-webkit-scrollbar-thumb': {
+                                background: 'gray.300',
+                                borderRadius: '4px',
+                                '&:hover': {
+                                    background: 'gray.400',
+                                },
+                            },
+                        }}
+                    >
+                        <Table variant="unstyled" size="sm" minW="100%">
+                            <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
+                                <Tr>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                        <Checkbox
+                                            isChecked={selectedItems.length === stockData.length}
+                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < stockData.length}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                        />
+                                    </Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Stock Item ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">SO Number</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">PO Number</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Supplier</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Vessel Name</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Origin Country</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Destination Country</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Stock Status</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Item Description</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Item Value</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Number of Pcs</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Submitted to Customs</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
+                                </Tr>
+                            </Thead>
+                            <Tbody>
+                                {stockData.map((item, index) => (
+                                    <Tr
+                                        key={item.id}
+                                        bg={index % 2 === 0 ? "white" : "gray.50"}
+                                        _hover={{ bg: hoverBg }}
+                                        borderBottom="1px"
+                                        borderColor="gray.200">
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Checkbox
+                                                isChecked={selectedItems.includes(item.id)}
+                                                onChange={(e) => handleSelectItem(item.id, e.target.checked)}
+                                            />
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                {item.stockItemId}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.soNumber}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.poNumber}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.supplier || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.vesselName || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.originCountry || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.destinationCountry || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Badge
+                                                colorScheme={item.stockStatus === "In Stock" ? "green" : "gray"}
+                                                variant="subtle"
+                                                fontSize="xs"
+                                                px="8px"
+                                                py="4px"
+                                                borderRadius="full">
+                                                {item.stockStatus || "Unknown"}
+                                            </Badge>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.itemDescription || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                ${item.itemValue}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.numberOfPcs}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Checkbox isChecked={item.submittedToCustoms} size="sm" />
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <HStack spacing={2}>
+                                                <Tooltip label="View Stock Item">
+                                                    <IconButton
+                                                        icon={<Icon as={MdVisibility} />}
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        variant="ghost"
+                                                        aria-label="View stock item"
+                                                    />
+                                                </Tooltip>
+                                                <Tooltip label="Edit Stock Item">
+                                                    <IconButton
+                                                        icon={<Icon as={MdEdit} />}
+                                                        size="sm"
+                                                        colorScheme="blue"
+                                                        variant="ghost"
+                                                        aria-label="Edit stock item"
+                                                    />
+                                                </Tooltip>
+                                                <Tooltip label="Delete Stock Item">
+                                                    <IconButton
+                                                        icon={<Icon as={MdDelete} />}
+                                                        size="sm"
+                                                        colorScheme="red"
+                                                        variant="ghost"
+                                                        aria-label="Delete stock item"
+                                                    />
+                                                </Tooltip>
+                                            </HStack>
+                                        </Td>
+                                    </Tr>
+                                ))}
+                            </Tbody>
+                        </Table>
+                    </Box>
+                </Box>
+
+                {/* Pagination */}
+                <Flex px='25px' justify='space-between' align='center' py='20px'>
+                    <Text fontSize='sm' color='gray.500'>
+                        Showing {stockData.length} of {stockData.length} results
                     </Text>
-                </HStack>
-            </Box>
+                    <HStack spacing={2}>
+                        <Button
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            isDisabled={currentPage === 1}
+                            variant="outline"
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            isDisabled={currentPage === totalPages}
+                            variant="outline"
+                        >
+                            Next
+                        </Button>
+                    </HStack>
+                </Flex>
+            </VStack>
         </Box>
     );
 } 

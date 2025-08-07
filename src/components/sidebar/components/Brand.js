@@ -4,7 +4,7 @@ import React from "react";
 import { Flex, Image } from "@chakra-ui/react";
 
 // Custom components
-// import { HorizonLogo } from "components/icons/Icons";
+// import { ClassicLogo } from "components/icons/Icons";
 // import { HSeparator } from "components/separator/Separator";
 
 export function SidebarBrand(props) {
@@ -14,7 +14,7 @@ export function SidebarBrand(props) {
 
   return (
     <Flex align='center' direction='column'>
-      {/* <HorizonLogo h='26px' w='175px' my='32px' color={logoColor} />
+      {/* <ClassicLogo h='26px' w='175px' my='32px' color={logoColor} />
       <HSeparator mb='20px' /> */}
       {collapsed ?
       'N-M' :

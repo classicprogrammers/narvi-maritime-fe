@@ -436,12 +436,12 @@ export default function Quotations() {
                                         backgroundRepeat: 'no-repeat',
                                         backgroundPosition: 'center',
                                     },
-                                    '&::-webkit-scrollbar-button:single-button:horizontal:decrement': {
+                                    '&::-webkit-scrollbar-button:single-button:Classictal:decrement': {
                                         backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M6 3l-3 3 3 3\' fill=\'%23666\'/></svg>")',
                                         backgroundRepeat: 'no-repeat',
                                         backgroundPosition: 'center',
                                     },
-                                    '&::-webkit-scrollbar-button:single-button:horizontal:increment': {
+                                    '&::-webkit-scrollbar-button:single-button:Classictal:increment': {
                                         backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M3 3l3 3 3-3\' fill=\'%23666\'/></svg>")',
                                         backgroundRepeat: 'no-repeat',
                                         backgroundPosition: 'center',
