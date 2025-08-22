@@ -54,6 +54,8 @@ import CustomerDetail from "views/admin/contacts/CustomerDetail";
 
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
+import ForgotPassword from "views/auth/forgotPassword";
+import SignUp from "views/auth/signUp";
 
 const routes = [
   {
@@ -230,6 +232,20 @@ const routes = [
     path: "/sign-in",
     icon: <Icon as={MdLock} width="20px" height="20px" color="inherit" />,
     component: SignInCentered,
+  },
+  {
+    name: "Forgot Password",
+    layout: "/auth",
+    path: "/forgot-password",
+    icon: <Icon as={MdLock} width="20px" height="20px" color="inherit" />,
+    component: ForgotPassword,
+  },
+  {
+    name: "Sign Up",
+    layout: "/auth",
+    path: "/sign-up",
+    icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
+    component: SignUp,
   },
   // {
   //   name: "RTL Admin",

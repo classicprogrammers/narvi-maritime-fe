@@ -28,7 +28,7 @@ import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
 import { useUser } from "redux/hooks/useUser";
 
-function SignIn() {
+function SignUp() {
   const history = useHistory();
   const toast = useToast();
 
@@ -54,13 +54,18 @@ function SignIn() {
 
   // Form state
   const [show, setShow] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
   const [formData, setFormData] = React.useState({
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
-    rememberMe: false,
+    confirmPassword: "",
+    agreeToTerms: false,
   });
 
   const handleClick = () => setShow(!show);
+  const handleConfirmClick = () => setShowConfirm(!showConfirm);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -72,9 +77,10 @@ function SignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted'); // Debug log
+    console.log('Sign up form submitted'); // Debug log
 
-    if (!formData.email || !formData.password) {
+    // Validation
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -85,39 +91,63 @@ function SignIn() {
       return;
     }
 
-    try {
-      console.log('Attempting login...'); // Debug log
-      const result = await login(formData.email, formData.password);
-      console.log('Login result:', result); // Debug log
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: "Login successful! Redirecting...",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-
-        // Redirect to admin dashboard
-        setTimeout(() => {
-          console.log('Redirecting to admin dashboard...'); // Debug log
-          history.push('/admin');
-        }, 1000);
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "Login failed",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } catch (error) {
-      console.error('Login error:', error); // Debug log
+    if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "Passwords do not match",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    if (!formData.agreeToTerms) {
+      toast({
+        title: "Error",
+        description: "Please agree to the terms and conditions",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      console.log('Creating account...'); // Debug log
+      
+      // Simulate account creation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      toast({
+        title: "Success",
+        description: "Account created successfully! Please sign in.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
+      // Redirect to signin page
+      setTimeout(() => {
+        history.push('/auth/sign-in');
+      }, 2000);
+
+    } catch (error) {
+      console.error('Sign up error:', error); // Debug log
+      toast({
+        title: "Error",
+        description: "Failed to create account. Please try again.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -131,16 +161,6 @@ function SignIn() {
       clearError();
     }
   }, [error, clearError]);
-
-  // Error boundary for debugging
-  React.useEffect(() => {
-    const handleError = (error) => {
-      console.error('Global error caught:', error);
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
 
   return (
     <DefaultAuth illustrationBackground={illustration} image={illustration}>
@@ -158,7 +178,7 @@ function SignIn() {
         flexDirection='column'>
         <Box me='auto'>
           <Heading color={textColor} fontSize='36px' mb='10px'>
-            Sign In
+            Sign Up
           </Heading>
           <Text
             mb='36px'
@@ -166,7 +186,7 @@ function SignIn() {
             color={textColorSecondary}
             fontWeight='400'
             fontSize='md'>
-            Enter your email and password to sign in!
+            Create your account to get started!
           </Text>
         </Box>
         <Flex
@@ -193,7 +213,7 @@ function SignIn() {
             _active={googleActive}
             _focus={googleActive}>
             <Icon as={FcGoogle} w='20px' h='20px' me='10px' />
-            Sign in with Google
+            Sign up with Google
           </Button>
           <Flex align='center' mb='25px'>
             <HSeparator />
@@ -204,6 +224,55 @@ function SignIn() {
           </Flex>
           <form onSubmit={handleSubmit}>
             <FormControl>
+              <Flex gap="10px" mb="24px">
+                <Box flex="1">
+                  <FormLabel
+                    display='flex'
+                    ms='4px'
+                    fontSize='sm'
+                    fontWeight='500'
+                    color={textColor}
+                    mb='8px'>
+                    First Name<Text color={brandStars}>*</Text>
+                  </FormLabel>
+                  <Input
+                    isRequired={true}
+                    variant='auth'
+                    fontSize='sm'
+                    type='text'
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleInputChange}
+                    placeholder='John'
+                    fontWeight='500'
+                    size='lg'
+                  />
+                </Box>
+                <Box flex="1">
+                  <FormLabel
+                    display='flex'
+                    ms='4px'
+                    fontSize='sm'
+                    fontWeight='500'
+                    color={textColor}
+                    mb='8px'>
+                    Last Name<Text color={brandStars}>*</Text>
+                  </FormLabel>
+                  <Input
+                    isRequired={true}
+                    variant='auth'
+                    fontSize='sm'
+                    type='text'
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleInputChange}
+                    placeholder='Doe'
+                    fontWeight='500'
+                    size='lg'
+                  />
+                </Box>
+              </Flex>
+
               <FormLabel
                 display='flex'
                 ms='4px'
@@ -227,6 +296,7 @@ function SignIn() {
                 fontWeight='500'
                 size='lg'
               />
+
               <FormLabel
                 ms='4px'
                 fontSize='sm'
@@ -257,35 +327,62 @@ function SignIn() {
                   />
                 </InputRightElement>
               </InputGroup>
-              <Flex justifyContent='space-between' align='center' mb='24px'>
+
+              <FormLabel
+                ms='4px'
+                fontSize='sm'
+                fontWeight='500'
+                color={textColor}
+                display='flex'>
+                Confirm Password<Text color={brandStars}>*</Text>
+              </FormLabel>
+              <InputGroup size='md'>
+                <Input
+                  isRequired={true}
+                  fontSize='sm'
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  placeholder='Confirm your password'
+                  mb='24px'
+                  size='lg'
+                  type={showConfirm ? "text" : "password"}
+                  variant='auth'
+                />
+                <InputRightElement display='flex' alignItems='center' mt='4px'>
+                  <Icon
+                    color={textColorSecondary}
+                    _hover={{ cursor: "pointer" }}
+                    as={showConfirm ? RiEyeCloseLine : MdOutlineRemoveRedEye}
+                    onClick={handleConfirmClick}
+                  />
+                </InputRightElement>
+              </InputGroup>
+
+              <Flex justifyContent='start' align='center' mb='24px'>
                 <FormControl display='flex' alignItems='center'>
                   <Checkbox
-                    id='remember-login'
-                    name="rememberMe"
-                    checked={formData.rememberMe}
+                    id='agree-terms'
+                    name="agreeToTerms"
+                    checked={formData.agreeToTerms}
                     onChange={handleInputChange}
                     colorScheme='brandScheme'
                     me='10px'
                   />
                   <FormLabel
-                    htmlFor='remember-login'
+                    htmlFor='agree-terms'
                     mb='0'
                     fontWeight='normal'
                     color={textColor}
                     fontSize='sm'>
-                    Keep me logged in
+                    I agree to the{" "}
+                    <Text as="span" color={textColorBrand} fontWeight="500">
+                      Terms and Conditions
+                    </Text>
                   </FormLabel>
                 </FormControl>
-                <NavLink to='/auth/forgot-password'>
-                  <Text
-                    color={textColorBrand}
-                    fontSize='sm'
-                    w='124px'
-                    fontWeight='500'>
-                    Forgot password?
-                  </Text>
-                </NavLink>
               </Flex>
+
               <Button
                 type="submit"
                 fontSize='sm'
@@ -295,8 +392,8 @@ function SignIn() {
                 h='50px'
                 mb='24px'
                 isLoading={isLoading}
-                loadingText="Signing In...">
-                Sign In
+                loadingText="Creating Account...">
+                Create Account
               </Button>
             </FormControl>
           </form>
@@ -307,14 +404,14 @@ function SignIn() {
             maxW='100%'
             mt='0px'>
             <Text color={textColorDetails} fontWeight='400' fontSize='14px'>
-              Not registered yet?
-              <NavLink to='/auth/sign-up'>
+              Already have an account?
+              <NavLink to='/auth/sign-in'>
                 <Text
                   color={textColorBrand}
                   as='span'
                   ms='5px'
                   fontWeight='500'>
-                  Create an Account
+                  Sign In
                 </Text>
               </NavLink>
             </Text>
@@ -325,4 +422,4 @@ function SignIn() {
   );
 }
 
-export default SignIn;
+export default SignUp;
