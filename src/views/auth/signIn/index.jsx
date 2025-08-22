@@ -20,6 +20,7 @@ import {
 // Custom components
 import { HSeparator } from "components/separator/Separator";
 import DefaultAuth from "layouts/auth/Default";
+import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import illustration from "assets/img/auth/auth.png";
 import { FcGoogle } from "react-icons/fc";
@@ -34,6 +35,11 @@ function SignIn() {
 
   // Redux user state and actions
   const { login, isLoading, error, clearError } = useUser();
+
+  // Modal states
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
+  const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
+  const [modalMessage, setModalMessage] = React.useState("");
 
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
@@ -75,13 +81,8 @@ function SignIn() {
     console.log('Form submitted'); // Debug log
 
     if (!formData.email || !formData.password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setModalMessage("Please fill in all required fields");
+      setIsFailureModalOpen(true);
       return;
     }
 
@@ -91,43 +92,29 @@ function SignIn() {
       console.log('Login result:', result); // Debug log
 
       if (result.success) {
-        toast({
-          title: "Success",
-          description: "Login successful! Redirecting...",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
+        setModalMessage("Login successful! Redirecting to dashboard...");
+        setIsSuccessModalOpen(true);
 
-        // Redirect to admin dashboard
+        // Redirect to admin dashboard after modal closes
         setTimeout(() => {
-          console.log('Redirecting to admin dashboard...'); // Debug log
           history.push('/admin');
-        }, 1000);
+        }, 2000);
       } else {
-        toast({
-          title: "Error",
-          description: result.error || "Login failed",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+        setModalMessage(result.error || "Login failed. Please check your credentials.");
+        setIsFailureModalOpen(true);
       }
     } catch (error) {
       console.error('Login error:', error); // Debug log
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setModalMessage("An unexpected error occurred. Please try again.");
+      setIsFailureModalOpen(true);
     }
   };
 
   // Clear error when component unmounts or error changes
   React.useEffect(() => {
     if (error) {
+      setModalMessage(error);
+      setIsFailureModalOpen(true);
       clearError();
     }
   }, [error, clearError]);
@@ -205,19 +192,18 @@ function SignIn() {
           <form onSubmit={handleSubmit}>
             <FormControl>
               <FormLabel
-                display='flex'
                 ms='4px'
                 fontSize='sm'
                 fontWeight='500'
                 color={textColor}
-                mb='8px'>
+                display='flex'>
                 Email<Text color={brandStars}>*</Text>
               </FormLabel>
               <Input
                 isRequired={true}
                 variant='auth'
                 fontSize='sm'
-                ms="0px"
+                ms='0px'
                 type='email'
                 name="email"
                 value={formData.email}
@@ -245,13 +231,13 @@ function SignIn() {
                   placeholder='Min. 8 characters'
                   mb='24px'
                   size='lg'
-                  type={show ? "text" : "password"}
+                  type={show ? 'text' : 'password'}
                   variant='auth'
                 />
                 <InputRightElement display='flex' alignItems='center' mt='4px'>
                   <Icon
                     color={textColorSecondary}
-                    _hover={{ cursor: "pointer" }}
+                    _hover={{ cursor: 'pointer' }}
                     as={show ? RiEyeCloseLine : MdOutlineRemoveRedEye}
                     onClick={handleClick}
                   />
@@ -292,7 +278,7 @@ function SignIn() {
                 variant='brand'
                 fontWeight='500'
                 w='100%'
-                h='50px'
+                h='50'
                 mb='24px'
                 isLoading={isLoading}
                 loadingText="Signing In...">
@@ -309,11 +295,7 @@ function SignIn() {
             <Text color={textColorDetails} fontWeight='400' fontSize='14px'>
               Not registered yet?
               <NavLink to='/auth/sign-up'>
-                <Text
-                  color={textColorBrand}
-                  as='span'
-                  ms='5px'
-                  fontWeight='500'>
+                <Text color={textColorBrand} as='span' ms='5px' fontWeight='500'>
                   Create an Account
                 </Text>
               </NavLink>
@@ -321,6 +303,22 @@ function SignIn() {
           </Flex>
         </Flex>
       </Flex>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => setIsSuccessModalOpen(false)}
+        title="Login Successful!"
+        message={modalMessage}
+      />
+
+      {/* Failure Modal */}
+      <FailureModal
+        isOpen={isFailureModalOpen}
+        onClose={() => setIsFailureModalOpen(false)}
+        title="Login Failed"
+        message={modalMessage}
+      />
     </DefaultAuth>
   );
 }

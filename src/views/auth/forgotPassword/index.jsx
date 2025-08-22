@@ -27,9 +27,9 @@ import { useUser } from "redux/hooks/useUser";
 function ForgotPassword() {
   const history = useHistory();
   const toast = useToast();
-  
-  // Redux user actions
-  const { resetPassword } = useUser();
+
+  // Redux user actions and state
+  const { resetPassword, isLoading, error, clearError } = useUser();
 
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
@@ -39,7 +39,6 @@ function ForgotPassword() {
   const brandStars = useColorModeValue("#174693", "#174693");
 
   // Form state
-  const [isLoading, setIsLoading] = React.useState(false);
   const [email, setEmail] = React.useState("");
 
   const handleInputChange = (e) => {
@@ -75,7 +74,6 @@ function ForgotPassword() {
     }
 
     try {
-      setIsLoading(true);
       console.log('Sending password reset email...'); // Debug log
 
       const result = await resetPassword(email);
@@ -113,10 +111,15 @@ function ForgotPassword() {
         duration: 3000,
         isClosable: true,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Clear error when component unmounts or error changes
+  React.useEffect(() => {
+    if (error) {
+      clearError();
+    }
+  }, [error, clearError]);
 
   return (
     <DefaultAuth illustrationBackground={illustration} image={illustration}>
@@ -155,7 +158,7 @@ function ForgotPassword() {
           mx="auto"
           me='auto'
           mb="20px">
-          
+
           <form onSubmit={handleSubmit}>
             <FormControl>
               <FormLabel
@@ -181,7 +184,7 @@ function ForgotPassword() {
                 fontWeight='500'
                 size='lg'
               />
-              
+
               <Button
                 type="submit"
                 fontSize='sm'
@@ -197,7 +200,7 @@ function ForgotPassword() {
               </Button>
             </FormControl>
           </form>
-          
+
           <Flex
             flexDirection='column'
             justifyContent='center'

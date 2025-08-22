@@ -5,7 +5,8 @@ import {
   updateUserData, 
   clearUserError,
   checkUserAuth,
-  resetPassword
+  resetPassword,
+  signupUser
 } from '../actions/userActions';
 
 export const useUser = () => {
@@ -19,6 +20,8 @@ export const useUser = () => {
     isLoading: userState.isLoading,
     error: userState.error,
     token: userState.token,
+    signupLoading: userState.signupLoading,
+    signupError: userState.signupError,
 
     // Actions
     login: (email, password) => dispatch(loginUser(email, password)),
@@ -27,5 +30,6 @@ export const useUser = () => {
     clearError: () => dispatch(clearUserError()),
     checkAuth: () => dispatch(checkUserAuth()),
     resetPassword: (email) => dispatch(resetPassword(email)),
+    signup: (userData) => dispatch(signupUser(userData)),
   };
 };

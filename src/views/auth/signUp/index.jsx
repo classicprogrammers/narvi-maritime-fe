@@ -33,7 +33,7 @@ function SignUp() {
   const toast = useToast();
 
   // Redux user state and actions
-  const { login, isLoading, error, clearError } = useUser();
+  const { signupLoading, signupError, clearError, signup } = useUser();
 
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
@@ -69,18 +69,24 @@ function SignUp() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Sign up form submitted'); // Debug log
+    console.log("Sign up form submitted"); // Debug log
 
     // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (
+      !formData.firstName ||
+      !formData.lastName ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -125,29 +131,48 @@ function SignUp() {
     }
 
     try {
-      console.log('Creating account...'); // Debug log
-      
-      // Simulate account creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log("Creating account..."); // Debug log
 
-      toast({
-        title: "Success",
-        description: "Account created successfully! Please sign in.",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      // Commented out API call - just show success message
+      // const result = await signup({
+      //   firstName: formData.firstName,
+      //   lastName: formData.lastName,
+      //   email: formData.email,
+      //   password: formData.password,
+      // });
 
-      // Redirect to signin page
-      setTimeout(() => {
-        history.push('/auth/sign-in');
-      }, 2000);
+      // Mock success response
+      const result = { success: true, data: { message: "Account created successfully" } };
 
+      console.log("Signup Response:", result);
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Account created successfully! Please sign in.",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+
+        // Redirect to signin page
+        setTimeout(() => {
+          history.push("/auth/sign-in");
+        }, 2000);
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create account. Please try again.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
     } catch (error) {
-      console.error('Sign up error:', error); // Debug log
+      console.error("Sign up error:", error); // Debug log
       toast({
         title: "Error",
-        description: "Failed to create account. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -157,67 +182,71 @@ function SignUp() {
 
   // Clear error when component unmounts or error changes
   React.useEffect(() => {
-    if (error) {
+    if (signupError) {
       clearError();
     }
-  }, [error, clearError]);
+  }, [signupError, clearError]);
 
   return (
     <DefaultAuth illustrationBackground={illustration} image={illustration}>
       <Flex
         maxW="100%"
-        w='100%'
+        w="100%"
         mx="auto"
-        me='auto'
-        h='100%'
-        alignItems='start'
-        justifyContent='center'
+        me="auto"
+        h="100%"
+        alignItems="start"
+        justifyContent="center"
         mb="30px"
         px="25px"
         mt="40px"
-        flexDirection='column'>
-        <Box me='auto'>
-          <Heading color={textColor} fontSize='36px' mb='10px'>
+        flexDirection="column"
+      >
+        <Box me="auto">
+          <Heading color={textColor} fontSize="36px" mb="10px">
             Sign Up
           </Heading>
           <Text
-            mb='36px'
-            ms='4px'
+            mb="36px"
+            ms="4px"
             color={textColorSecondary}
-            fontWeight='400'
-            fontSize='md'>
+            fontWeight="400"
+            fontSize="md"
+          >
             Create your account to get started!
           </Text>
         </Box>
         <Flex
-          zIndex='2'
-          direction='column'
+          zIndex="2"
+          direction="column"
           w="100%"
-          maxW='420px'
-          background='transparent'
-          borderRadius='15px'
+          maxW="420px"
+          background="transparent"
+          borderRadius="15px"
           mx="auto"
-          me='auto'
-          mb="20px">
+          me="auto"
+          mb="20px"
+        >
           <Button
-            fontSize='sm'
-            me='0px'
-            mb='26px'
-            py='15px'
-            h='50px'
-            borderRadius='16px'
+            fontSize="sm"
+            me="0px"
+            mb="26px"
+            py="15px"
+            h="50px"
+            borderRadius="16px"
             bg={googleBg}
             color={googleText}
-            fontWeight='500'
+            fontWeight="500"
             _hover={googleHover}
             _active={googleActive}
-            _focus={googleActive}>
-            <Icon as={FcGoogle} w='20px' h='20px' me='10px' />
+            _focus={googleActive}
+          >
+            <Icon as={FcGoogle} w="20px" h="20px" me="10px" />
             Sign up with Google
           </Button>
-          <Flex align='center' mb='25px'>
+          <Flex align="center" mb="25px">
             <HSeparator />
-            <Text color='gray.400' mx='14px'>
+            <Text color="gray.400" mx="14px">
               or
             </Text>
             <HSeparator />
@@ -227,98 +256,102 @@ function SignUp() {
               <Flex gap="10px" mb="24px">
                 <Box flex="1">
                   <FormLabel
-                    display='flex'
-                    ms='4px'
-                    fontSize='sm'
-                    fontWeight='500'
+                    display="flex"
+                    ms="4px"
+                    fontSize="sm"
+                    fontWeight="500"
                     color={textColor}
-                    mb='8px'>
+                    mb="8px"
+                  >
                     First Name<Text color={brandStars}>*</Text>
                   </FormLabel>
                   <Input
                     isRequired={true}
-                    variant='auth'
-                    fontSize='sm'
-                    type='text'
+                    variant="auth"
+                    fontSize="sm"
+                    type="text"
                     name="firstName"
                     value={formData.firstName}
                     onChange={handleInputChange}
-                    placeholder='John'
-                    fontWeight='500'
-                    size='lg'
+                    placeholder="John"
+                    fontWeight="500"
+                    size="lg"
                   />
                 </Box>
                 <Box flex="1">
                   <FormLabel
-                    display='flex'
-                    ms='4px'
-                    fontSize='sm'
-                    fontWeight='500'
+                    display="flex"
+                    ms="4px"
+                    fontSize="sm"
+                    fontWeight="500"
                     color={textColor}
-                    mb='8px'>
+                    mb="8px"
+                  >
                     Last Name<Text color={brandStars}>*</Text>
                   </FormLabel>
                   <Input
                     isRequired={true}
-                    variant='auth'
-                    fontSize='sm'
-                    type='text'
+                    variant="auth"
+                    fontSize="sm"
+                    type="text"
                     name="lastName"
                     value={formData.lastName}
                     onChange={handleInputChange}
-                    placeholder='Doe'
-                    fontWeight='500'
-                    size='lg'
+                    placeholder="Doe"
+                    fontWeight="500"
+                    size="lg"
                   />
                 </Box>
               </Flex>
 
               <FormLabel
-                display='flex'
-                ms='4px'
-                fontSize='sm'
-                fontWeight='500'
+                display="flex"
+                ms="4px"
+                fontSize="sm"
+                fontWeight="500"
                 color={textColor}
-                mb='8px'>
+                mb="8px"
+              >
                 Email<Text color={brandStars}>*</Text>
               </FormLabel>
               <Input
                 isRequired={true}
-                variant='auth'
-                fontSize='sm'
+                variant="auth"
+                fontSize="sm"
                 ms="0px"
-                type='email'
+                type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                placeholder='mail@simmmple.com'
-                mb='24px'
-                fontWeight='500'
-                size='lg'
+                placeholder="mail@simmmple.com"
+                mb="24px"
+                fontWeight="500"
+                size="lg"
               />
 
               <FormLabel
-                ms='4px'
-                fontSize='sm'
-                fontWeight='500'
+                ms="4px"
+                fontSize="sm"
+                fontWeight="500"
                 color={textColor}
-                display='flex'>
+                display="flex"
+              >
                 Password<Text color={brandStars}>*</Text>
               </FormLabel>
-              <InputGroup size='md'>
+              <InputGroup size="md">
                 <Input
                   isRequired={true}
-                  fontSize='sm'
+                  fontSize="sm"
                   name="password"
                   value={formData.password}
                   onChange={handleInputChange}
-                  placeholder='Min. 8 characters'
-                  mb='24px'
-                  size='lg'
+                  placeholder="Min. 8 characters"
+                  mb="24px"
+                  size="lg"
                   type={show ? "text" : "password"}
-                  variant='auth'
+                  variant="auth"
                 />
-                <InputRightElement display='flex' alignItems='center' mt='4px'>
+                <InputRightElement display="flex" alignItems="center" mt="4px">
                   <Icon
                     color={textColorSecondary}
                     _hover={{ cursor: "pointer" }}
@@ -329,27 +362,28 @@ function SignUp() {
               </InputGroup>
 
               <FormLabel
-                ms='4px'
-                fontSize='sm'
-                fontWeight='500'
+                ms="4px"
+                fontSize="sm"
+                fontWeight="500"
                 color={textColor}
-                display='flex'>
+                display="flex"
+              >
                 Confirm Password<Text color={brandStars}>*</Text>
               </FormLabel>
-              <InputGroup size='md'>
+              <InputGroup size="md">
                 <Input
                   isRequired={true}
-                  fontSize='sm'
+                  fontSize="sm"
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
-                  placeholder='Confirm your password'
-                  mb='24px'
-                  size='lg'
+                  placeholder="Confirm your password"
+                  mb="24px"
+                  size="lg"
                   type={showConfirm ? "text" : "password"}
-                  variant='auth'
+                  variant="auth"
                 />
-                <InputRightElement display='flex' alignItems='center' mt='4px'>
+                <InputRightElement display="flex" alignItems="center" mt="4px">
                   <Icon
                     color={textColorSecondary}
                     _hover={{ cursor: "pointer" }}
@@ -359,22 +393,23 @@ function SignUp() {
                 </InputRightElement>
               </InputGroup>
 
-              <Flex justifyContent='start' align='center' mb='24px'>
-                <FormControl display='flex' alignItems='center'>
+              <Flex justifyContent="start" align="center" mb="24px">
+                <FormControl display="flex" alignItems="center">
                   <Checkbox
-                    id='agree-terms'
+                    id="agree-terms"
                     name="agreeToTerms"
                     checked={formData.agreeToTerms}
                     onChange={handleInputChange}
-                    colorScheme='brandScheme'
-                    me='10px'
+                    colorScheme="brandScheme"
+                    me="10px"
                   />
                   <FormLabel
-                    htmlFor='agree-terms'
-                    mb='0'
-                    fontWeight='normal'
+                    htmlFor="agree-terms"
+                    mb="0"
+                    fontWeight="normal"
                     color={textColor}
-                    fontSize='sm'>
+                    fontSize="sm"
+                  >
                     I agree to the{" "}
                     <Text as="span" color={textColorBrand} fontWeight="500">
                       Terms and Conditions
@@ -385,32 +420,30 @@ function SignUp() {
 
               <Button
                 type="submit"
-                fontSize='sm'
-                variant='brand'
-                fontWeight='500'
-                w='100%'
-                h='50px'
-                mb='24px'
-                isLoading={isLoading}
-                loadingText="Creating Account...">
+                fontSize="sm"
+                variant="brand"
+                fontWeight="500"
+                w="100%"
+                h="50px"
+                mb="24px"
+                isLoading={signupLoading}
+                loadingText="Creating Account..."
+              >
                 Create Account
               </Button>
             </FormControl>
           </form>
           <Flex
-            flexDirection='column'
-            justifyContent='center'
-            alignItems='start'
-            maxW='100%'
-            mt='0px'>
-            <Text color={textColorDetails} fontWeight='400' fontSize='14px'>
+            flexDirection="column"
+            justifyContent="center"
+            alignItems="start"
+            maxW="100%"
+            mt="0px"
+          >
+            <Text color={textColorDetails} fontWeight="400" fontSize="14px">
               Already have an account?
-              <NavLink to='/auth/sign-in'>
-                <Text
-                  color={textColorBrand}
-                  as='span'
-                  ms='5px'
-                  fontWeight='500'>
+              <NavLink to="/auth/sign-in">
+                <Text color={textColorBrand} as="span" ms="5px" fontWeight="500">
                   Sign In
                 </Text>
               </NavLink>

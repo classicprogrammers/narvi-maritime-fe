@@ -5,56 +5,64 @@ import {
   logout,
   updateUser,
   clearError,
-  checkAuth
-} from '../slices/userSlice';
+  checkAuth,
+  signupStart,
+  signupSuccess,
+  signupFailure,
+} from "../slices/userSlice";
+import { signupApi, signinApi, forgotPasswordApi } from "../../api/auth";
 
 // Async action for login
-export const loginUser = (email, password) => (dispatch) => {
-  return new Promise((resolve, reject) => {
-    try {
-      dispatch(loginStart());
-      
-      // Mock validation
-      if (!email || !password) {
-        const error = 'Email and password are required';
-        dispatch(loginFailure(error));
-        resolve({ success: false, error });
-        return;
-      }
-      
-      // Simulate API delay
-      setTimeout(() => {
-        try {
-          // For now, let's simulate a successful login with mock data
-          // In production, this would come from your API
-          const mockUserData = {
-            id: '1',
-            email: email,
-            name: 'Admin User',
-            role: 'admin',
-            avatar: null,
-            permissions: ['read', 'write', 'admin'],
-            createdAt: new Date().toISOString(),
-          };
+export const loginUser = (email, password) => async (dispatch) => {
+  try {
+    dispatch(loginStart());
 
-          const mockToken = 'mock-jwt-token-' + Date.now();
+    // Call the real signin API
+    const result = await signinApi({ email, password });
 
-          dispatch(loginSuccess({
-            user: mockUserData,
-            token: mockToken,
-          }));
+    // Store user data and token
+    const userData = {
+      id: result.user?.id || "1",
+      email: email,
+      name: result.user?.name || "User",
+      role: result.user?.role || "user",
+      avatar: null,
+      permissions: result.user?.permissions || ["read"],
+      createdAt: new Date().toISOString(),
+    };
 
-          resolve({ success: true, user: mockUserData });
-        } catch (error) {
-          dispatch(loginFailure(error.message));
-          resolve({ success: false, error: error.message });
-        }
-      }, 1000);
-    } catch (error) {
-      dispatch(loginFailure(error.message));
-      resolve({ success: false, error: error.message });
-    }
-  });
+    const token = result.token || result.accessToken;
+
+    dispatch(
+      loginSuccess({
+        user: userData,
+        token: token,
+      })
+    );
+
+    return { success: true, user: userData };
+  } catch (error) {
+    const errorMessage = error.message || "Login failed";
+    dispatch(loginFailure(errorMessage));
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Async action for signup
+export const signupUser = (userData) => async (dispatch) => {
+  try {
+    dispatch(signupStart());
+
+    // Call the signup API
+    const result = await signupApi(userData);
+
+    dispatch(signupSuccess());
+    return { success: true, data: result };
+  } catch (error) {
+    const errorMessage = error.message || "Signup failed";
+    dispatch(signupFailure(errorMessage));
+    return { success: false, error: errorMessage };
+  }
 };
 
 // Action for logout
@@ -74,8 +82,8 @@ export const clearUserError = () => (dispatch) => {
 
 // Action to check authentication status
 export const checkUserAuth = () => (dispatch) => {
-  const token = localStorage.getItem('token');
-  const userData = localStorage.getItem('user');
+  const token = localStorage.getItem("token");
+  const userData = localStorage.getItem("user");
 
   if (token && userData) {
     try {
@@ -83,33 +91,25 @@ export const checkUserAuth = () => (dispatch) => {
       dispatch(checkAuth({ token, user }));
     } catch (error) {
       // If parsing fails, clear invalid data
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
       dispatch(logout());
     }
   }
 };
 
 // Action for password reset
-export const resetPassword = (email) => (dispatch) => {
-  return new Promise((resolve, reject) => {
-    try {
-      // Simulate API call for password reset
-      setTimeout(() => {
-        // In production, this would be an actual API call
-        // const response = await fetch('/api/auth/reset-password', {
-        //   method: 'POST',
-        //   headers: {
-        //     'Content-Type': 'application/json',
-        //   },
-        //   body: JSON.stringify({ email }),
-        // });
+export const resetPassword = (email) => async (dispatch) => {
+  try {
+    // Call the real forgot password API
+    const result = await forgotPasswordApi({ email });
 
-        // For now, simulate success
-        resolve({ success: true, message: 'Password reset email sent successfully' });
-      }, 2000);
-    } catch (error) {
-      reject({ success: false, error: error.message });
-    }
-  });
+    return {
+      success: true,
+      message: result.message || "Password reset email sent successfully",
+    };
+  } catch (error) {
+    const errorMessage = error.message || "Failed to send password reset email";
+    return { success: false, error: errorMessage };
+  }
 };

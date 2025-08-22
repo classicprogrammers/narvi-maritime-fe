@@ -1,18 +1,19 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   user: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
-  token: localStorage.getItem('token') || null,
+  token: localStorage.getItem("token") || null,
+  signupLoading: false,
+  signupError: null,
 };
 
 const userSlice = createSlice({
-  name: 'user',
+  name: "user",
   initialState,
   reducers: {
-    // Login actions
     loginStart: (state) => {
       state.isLoading = true;
       state.error = null;
@@ -23,8 +24,7 @@ const userSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.error = null;
-      // Store token in localStorage
-      localStorage.setItem('token', action.payload.token);
+      localStorage.setItem("token", action.payload.token);
     },
     loginFailure: (state, action) => {
       state.isLoading = false;
@@ -32,29 +32,22 @@ const userSlice = createSlice({
       state.user = null;
       state.token = null;
       state.error = action.payload;
+      localStorage.removeItem("token");
     },
-
-    // Logout action
     logout: (state) => {
       state.user = null;
       state.isAuthenticated = false;
       state.token = null;
       state.error = null;
-      // Remove token from localStorage
-      localStorage.removeItem('token');
+      localStorage.removeItem("token");
     },
-
-    // Update user data
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };
     },
-
-    // Clear error
     clearError: (state) => {
       state.error = null;
+      state.signupError = null;
     },
-
-    // Check authentication status
     checkAuth: (state, action) => {
       if (action.payload.token && action.payload.user) {
         state.isAuthenticated = true;
@@ -65,6 +58,18 @@ const userSlice = createSlice({
         state.user = null;
         state.token = null;
       }
+    },
+    signupStart: (state) => {
+      state.signupLoading = true;
+      state.signupError = null;
+    },
+    signupSuccess: (state) => {
+      state.signupLoading = false;
+      state.signupError = null;
+    },
+    signupFailure: (state, action) => {
+      state.signupLoading = false;
+      state.signupError = action.payload;
     },
   },
 });
@@ -77,6 +82,9 @@ export const {
   updateUser,
   clearError,
   checkAuth,
+  signupStart,
+  signupSuccess,
+  signupFailure,
 } = userSlice.actions;
 
 export default userSlice.reducer;
