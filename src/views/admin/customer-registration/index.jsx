@@ -95,7 +95,6 @@ function CustomerRegistration() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("📝 Form submitted! Starting customer registration...");
         setIsLoading(true);
 
         // Validation
@@ -115,24 +114,8 @@ function CustomerRegistration() {
             return;
         }
 
-        console.log(" Validation passed! Form data:", formData);
-
         try {
-            // Commented out API call for testing
-            // const result = await registerCustomerApi({
-            //     name: formData.name,
-            //     email: formData.email,
-            //     phone: formData.phone,
-            //     mobile: formData.mobile,
-            //     street: formData.street,
-            //     city: formData.city,
-            //     zip: formData.zip,
-            //     country_id: parseInt(formData.country_id) || null,
-            //     company_type: formData.company_type,
-            // });
-
-            // Console log the payload for debugging
-            console.log(" Customer Registration Payload:", {
+            const result = await registerCustomerApi({
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
@@ -143,10 +126,6 @@ function CustomerRegistration() {
                 country_id: parseInt(formData.country_id) || null,
                 company_type: formData.company_type,
             });
-
-            // Mock result for testing
-            const result = { id: Date.now() };
-            console.log(" Mock API Response:", result);
 
             // Add the new customer to Redux
             const newCustomer = {
@@ -168,7 +147,6 @@ function CustomerRegistration() {
                 }),
             };
 
-            console.log("Adding customer to Redux:", newCustomer);
             addCustomerToRedux(newCustomer);
 
             setModalMessage("Customer registered successfully!");
@@ -271,7 +249,7 @@ function CustomerRegistration() {
                                                 name="name"
                                                 value={formData.name}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., John Smith, ABC Corporation..."
+                                                placeholder="👤 e.g., John Smith, ABC Corporation..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -305,7 +283,7 @@ function CustomerRegistration() {
                                                 name="email"
                                                 value={formData.email}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., john.smith@company.com..."
+                                                placeholder="📧 e.g., john.smith@company.com..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -342,7 +320,7 @@ function CustomerRegistration() {
                                                 name="phone"
                                                 value={formData.phone}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., +1-555-123-4567..."
+                                                placeholder="📞 e.g., +1-555-123-4567..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -376,7 +354,7 @@ function CustomerRegistration() {
                                                 name="mobile"
                                                 value={formData.mobile}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., +1-555-987-6543..."
+                                                placeholder="📱 e.g., +1-555-987-6543..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -422,7 +400,7 @@ function CustomerRegistration() {
                                             name="street"
                                             value={formData.street}
                                             onChange={handleInputChange}
-                                            placeholder=" e.g., 123 Main Street, Suite 100..."
+                                            placeholder="🏠 e.g., 123 Main Street, Suite 100..."
                                             size="lg"
                                             borderRadius="12px"
                                             bg={inputBg}
@@ -458,7 +436,7 @@ function CustomerRegistration() {
                                                 name="city"
                                                 value={formData.city}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., New York, London, Tokyo..."
+                                                placeholder="🏙️ e.g., New York, London, Tokyo..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -492,7 +470,7 @@ function CustomerRegistration() {
                                                 name="zip"
                                                 value={formData.zip}
                                                 onChange={handleInputChange}
-                                                placeholder=" e.g., 10001, SW1A 1AA, 100-0001..."
+                                                placeholder="📮 e.g., 10001, SW1A 1AA, 100-0001..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -610,8 +588,8 @@ function CustomerRegistration() {
                                                 },
                                             }}
                                         >
-                                            <option value="person"> Person</option>
-                                            <option value="company"> Company</option>
+                                            <option value="person">👤 Person</option>
+                                            <option value="company">🏢 Company</option>
                                         </Select>
                                     </FormControl>
                                 </Box>

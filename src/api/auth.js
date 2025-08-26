@@ -93,13 +93,17 @@ export const signupApi = async (data) => {
 // Signin API - Using the simple /api/login endpoint
 export const signinApi = async (data) => {
   try {
+    const payload = {
+      login: data.email,
+      password: data.password,
+    };
+
+    console.log("🔐 Login API Payload:", payload);
+
     const response = await fetch(buildApiUrl(getApiEndpoint("LOGIN")), {
       method: "POST",
       headers: API_CONFIG.DEFAULT_HEADERS,
-      body: JSON.stringify({
-        login: data.email,
-        password: data.password,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -109,8 +113,10 @@ export const signinApi = async (data) => {
 
     const result = await response.json();
 
+    console.log("🔐 Login API Response:", result);
+
     // Check if authentication was successful
-    if (result.result && result.result.uid) {
+    if (result.result && result.result.user_id) {
       // Show success modal
       showApiModal(
         "success",
@@ -121,7 +127,7 @@ export const signinApi = async (data) => {
       return {
         success: true,
         user: {
-          id: result.result.uid,
+          id: result.result.user_id,
           email: data.email,
           name: result.result.name || data.email,
           role: "user",

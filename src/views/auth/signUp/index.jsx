@@ -134,15 +134,15 @@ function SignUp() {
       console.log("Creating account..."); // Debug log
 
       // Commented out API call - just show success message
-      // const result = await signup({
-      //   firstName: formData.firstName,
-      //   lastName: formData.lastName,
-      //   email: formData.email,
-      //   password: formData.password,
-      // });
+      const result = await signup({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+      });
 
       // Mock success response
-      const result = { success: true, data: { message: "Account created successfully" } };
+      // const result = { success: true, data: { message: "Account created successfully" } };
 
       console.log("Signup Response:", result);
 
