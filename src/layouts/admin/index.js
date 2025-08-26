@@ -8,6 +8,8 @@ import { SidebarContext } from "contexts/SidebarContext";
 import React, { useState } from "react";
 import { Redirect, Route, Switch } from "react-router-dom";
 import routes, { hiddenRoutes } from "routes.js";
+// API Modal component
+import ApiModal from "components/ApiModal";
 
 // Custom Chakra theme
 export default function Dashboard(props) {
@@ -163,38 +165,44 @@ export default function Dashboard(props) {
             setIsSidebarHovered,
           }}
         >
-          <Sidebar 
-            routes={routes} 
-            display="none" 
+          <Sidebar
+            routes={routes}
+            display="none"
             onHoverChange={setIsSidebarHovered}
-            {...rest} 
+            {...rest}
           />
-                     <Box
-             float="right"
-             minHeight="100vh"
-             height="100%"
-             overflow="auto"
-             position="relative"
-             maxHeight="100%"
-                         w={{
+          <Box
+            float="right"
+            minHeight="100vh"
+            height="100%"
+            overflow="auto"
+            position="relative"
+            maxHeight="100%"
+            w={{
               base: "100%",
-              xl: (toggleSidebar || isSidebarHovered) ? "calc( 100% - 290px )" : "calc( 100% - 80px )",
+              xl:
+                toggleSidebar || isSidebarHovered
+                  ? "calc( 100% - 290px )"
+                  : "calc( 100% - 80px )",
             }}
             maxWidth={{
               base: "100%",
-              xl: (toggleSidebar || isSidebarHovered) ? "calc( 100% - 290px )" : "calc( 100% - 80px )",
+              xl:
+                toggleSidebar || isSidebarHovered
+                  ? "calc( 100% - 290px )"
+                  : "calc( 100% - 80px )",
             }}
             ml={{
               base: "0px",
-              xl: (toggleSidebar || isSidebarHovered) ? "290px" : "80px",
+              xl: toggleSidebar || isSidebarHovered ? "290px" : "80px",
             }}
-             pr={{ base: "0px", xl: "20px" }}
-             pl={{ base: "0px", xl: "20px" }}
-             transition="all 0.33s cubic-bezier(0.685, 0.0473, 0.346, 1)"
-             transitionDuration=".2s, .2s, .35s"
-             transitionProperty="top, bottom, width, margin-left"
-             transitionTimingFunction="linear, linear, ease"
-           >
+            pr={{ base: "0px", xl: "20px" }}
+            pl={{ base: "0px", xl: "20px" }}
+            transition="all 0.33s cubic-bezier(0.685, 0.0473, 0.346, 1)"
+            transitionDuration=".2s, .2s, .35s"
+            transitionProperty="top, bottom, width, margin-left"
+            transitionTimingFunction="linear, linear, ease"
+          >
             <Box position="relative" zIndex="1001">
               <Navbar
                 onOpen={onOpen}
@@ -233,6 +241,9 @@ export default function Dashboard(props) {
           </Box>
         </SidebarContext.Provider>
       </Box>
+
+      {/* Global API Modal */}
+      <ApiModal />
     </Box>
   );
 }

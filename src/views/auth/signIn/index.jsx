@@ -137,36 +137,46 @@ function SignIn() {
         mx="auto"
         me='auto'
         h='100%'
-        alignItems='start'
+        alignItems='center'
         justifyContent='center'
         mb="30px"
         px="25px"
         mt="40px"
         flexDirection='column'>
-        <Box me='auto'>
-          <Heading color={textColor} fontSize='36px' mb='10px'>
-            Sign In
-          </Heading>
-          <Text
-            mb='36px'
-            ms='4px'
-            color={textColorSecondary}
-            fontWeight='400'
-            fontSize='md'>
-            Enter your email and password to sign in!
-          </Text>
-        </Box>
-        <Flex
-          zIndex='2'
-          direction='column'
+        <Box
           w="100%"
-          maxW='420px'
-          background='transparent'
-          borderRadius='15px'
+          maxW='450px'
           mx="auto"
-          me='auto'
-          mb="20px">
-          <Button
+          bg={useColorModeValue("white", "navy.800")}
+          borderRadius='20px'
+          boxShadow={useColorModeValue(
+            "0px 4px 20px rgba(0, 0, 0, 0.1)",
+            "0px 4px 20px rgba(0, 0, 0, 0.3)"
+          )}
+          border={useColorModeValue("1px solid", "1px solid")}
+          borderColor={useColorModeValue("gray.200", "whiteAlpha.100")}
+          p="40px">
+          <Box textAlign="center" mb="30px">
+            <Heading color={textColor} fontSize='32px' mb='10px'>
+              Sign In
+            </Heading>
+            <Text
+              color={textColorSecondary}
+              fontWeight='400'
+              fontSize='md'>
+              Enter your email and password to sign in!
+            </Text>
+          </Box>
+          <Flex
+            zIndex='2'
+            direction='column'
+            w="100%"
+            background='transparent'
+            borderRadius='15px'
+            mx="auto"
+            mb="20px">
+            {/* Google Sign In Button - Commented Out */}
+            {/* <Button
             fontSize='sm'
             me='0px'
             mb='26px'
@@ -188,105 +198,106 @@ function SignIn() {
               or
             </Text>
             <HSeparator />
-          </Flex>
-          <form onSubmit={handleSubmit}>
-            <FormControl>
-              <FormLabel
-                ms='4px'
-                fontSize='sm'
-                fontWeight='500'
-                color={textColor}
-                display='flex'>
-                Email<Text color={brandStars}>*</Text>
-              </FormLabel>
-              <Input
-                isRequired={true}
-                variant='auth'
-                fontSize='sm'
-                ms='0px'
-                type='email'
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder='mail@simmmple.com'
-                mb='24px'
-                fontWeight='500'
-                size='lg'
-              />
-              <FormLabel
-                ms='4px'
-                fontSize='sm'
-                fontWeight='500'
-                color={textColor}
-                display='flex'>
-                Password<Text color={brandStars}>*</Text>
-              </FormLabel>
-              <InputGroup size='md'>
+          </Flex> */}
+            <form onSubmit={handleSubmit}>
+              <FormControl>
+                <FormLabel
+                  ms='4px'
+                  fontSize='sm'
+                  fontWeight='500'
+                  color={textColor}
+                  display='flex'>
+                  Email<Text color={brandStars}>*</Text>
+                </FormLabel>
                 <Input
                   isRequired={true}
-                  fontSize='sm'
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  placeholder='Min. 8 characters'
-                  mb='24px'
-                  size='lg'
-                  type={show ? 'text' : 'password'}
                   variant='auth'
+                  fontSize='sm'
+                  ms='0px'
+                  type='text'
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder='mail@simmmple.com'
+                  mb='24px'
+                  fontWeight='500'
+                  size='lg'
                 />
-                <InputRightElement display='flex' alignItems='center' mt='4px'>
-                  <Icon
-                    color={textColorSecondary}
-                    _hover={{ cursor: 'pointer' }}
-                    as={show ? RiEyeCloseLine : MdOutlineRemoveRedEye}
-                    onClick={handleClick}
-                  />
-                </InputRightElement>
-              </InputGroup>
-              <Flex justifyContent='space-between' align='center' mb='24px'>
-                <FormControl display='flex' alignItems='center'>
-                  <Checkbox
-                    id='remember-login'
-                    name="rememberMe"
-                    checked={formData.rememberMe}
-                    onChange={handleInputChange}
-                    colorScheme='brandScheme'
-                    me='10px'
-                  />
-                  <FormLabel
-                    htmlFor='remember-login'
-                    mb='0'
-                    fontWeight='normal'
-                    color={textColor}
-                    fontSize='sm'>
-                    Keep me logged in
-                  </FormLabel>
-                </FormControl>
-                <NavLink to='/auth/forgot-password'>
-                  <Text
-                    color={textColorBrand}
+                <FormLabel
+                  ms='4px'
+                  fontSize='sm'
+                  fontWeight='500'
+                  color={textColor}
+                  display='flex'>
+                  Password<Text color={brandStars}>*</Text>
+                </FormLabel>
+                <InputGroup size='md'>
+                  <Input
+                    isRequired={true}
                     fontSize='sm'
-                    w='124px'
-                    fontWeight='500'>
-                    Forgot password?
-                  </Text>
-                </NavLink>
-              </Flex>
-              <Button
-                type="submit"
-                fontSize='sm'
-                variant='brand'
-                fontWeight='500'
-                w='100%'
-                h='50'
-                mb='24px'
-                isLoading={isLoading}
-                loadingText="Signing In...">
-                Sign In
-              </Button>
-            </FormControl>
-          </form>
-          <Flex
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder='Min. 8 characters'
+                    mb='24px'
+                    size='lg'
+                    type={show ? 'text' : 'password'}
+                    variant='auth'
+                  />
+                  <InputRightElement display='flex' alignItems='center' mt='4px'>
+                    <Icon
+                      color={textColorSecondary}
+                      _hover={{ cursor: 'pointer' }}
+                      as={show ? RiEyeCloseLine : MdOutlineRemoveRedEye}
+                      onClick={handleClick}
+                    />
+                  </InputRightElement>
+                </InputGroup>
+                <Flex justifyContent='space-between' align='center' mb='24px'>
+                  <FormControl display='flex' alignItems='center'>
+                    <Checkbox
+                      id='remember-login'
+                      name="rememberMe"
+                      checked={formData.rememberMe}
+                      onChange={handleInputChange}
+                      colorScheme='brandScheme'
+                      me='10px'
+                    />
+                    <FormLabel
+                      htmlFor='remember-login'
+                      mb='0'
+                      fontWeight='normal'
+                      color={textColor}
+                      fontSize='sm'>
+                      Keep me logged in
+                    </FormLabel>
+                  </FormControl>
+                  <NavLink to='/auth/forgot-password'>
+                    <Text
+                      color={textColorBrand}
+                      fontSize='sm'
+                      w='124px'
+                      fontWeight='500'>
+                      Forgot password?
+                    </Text>
+                  </NavLink>
+                </Flex>
+                <Button
+                  type="submit"
+                  fontSize='sm'
+                  variant='brand'
+                  fontWeight='500'
+                  w='100%'
+                  h='50'
+                  mb='24px'
+                  isLoading={isLoading}
+                  loadingText="Signing In...">
+                  Sign In
+                </Button>
+              </FormControl>
+            </form>
+            {/* Footer Section - Commented Out */}
+            {/* <Flex
             flexDirection='column'
             justifyContent='center'
             alignItems='start'
@@ -300,8 +311,9 @@ function SignIn() {
                 </Text>
               </NavLink>
             </Text>
+          </Flex> */}
           </Flex>
-        </Flex>
+        </Box>
       </Flex>
 
       {/* Success Modal */}

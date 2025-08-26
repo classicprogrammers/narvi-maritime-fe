@@ -1,19 +1,26 @@
-import React from "react";
-import { Box, Flex, Text, Button, Input, InputGroup, InputLeftElement, Select, HStack, VStack, Table, Thead, Tbody, Tr, Th, Td, Badge, IconButton, useColorModeValue, Icon, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, ModalBody, ModalCloseButton, FormControl, FormLabel, useDisclosure, useToast, AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
-import { MdSearch, MdAdd, MdEdit, MdDelete, MdCheckCircle, MdCancel, MdVisibility } from "react-icons/md";
+import React, { useEffect } from "react";
+import { Box, VStack } from "@chakra-ui/react";
 import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataCustomer } from "views/admin/contacts/variables/columnsData";
-import tableDataCustomer from "views/admin/contacts/variables/tableDataCustomer.json";
+import { useCustomer } from "redux/hooks/useCustomer";
 
 export default function Customer() {
+  const { customers, isLoading, getCustomers } = useCustomer();
+
+  // Load customers on component mount
+  useEffect(() => {
+    getCustomers();
+  }, [getCustomers]);
+
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">
         <CustomerTable
           columnsData={columnsDataCustomer}
-          tableData={tableDataCustomer}
+          tableData={customers || []}
+          isLoading={isLoading}
         />
       </VStack>
     </Box>
   );
-} 
+}

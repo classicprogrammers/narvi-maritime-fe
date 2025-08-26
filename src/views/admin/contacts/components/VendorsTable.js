@@ -43,7 +43,14 @@ import Card from "components/card/Card";
 import Menu from "components/menu/MainMenu";
 
 // Assets
-import { MdCheckCircle, MdCancel, MdSearch, MdAdd, MdEdit, MdDelete } from "react-icons/md";
+import {
+  MdCheckCircle,
+  MdCancel,
+  MdSearch,
+  MdAdd,
+  MdEdit,
+  MdDelete,
+} from "react-icons/md";
 
 export default function VendorsTable(props) {
   const { columnsData, tableData } = props;
@@ -57,12 +64,12 @@ export default function VendorsTable(props) {
     status: "Active",
   });
   const [editingVendor, setEditingVendor] = useState(null);
-  
+
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { 
-    isOpen: isEditOpen, 
-    onOpen: onEditOpen, 
-    onClose: onEditClose 
+  const {
+    isOpen: isEditOpen,
+    onOpen: onEditOpen,
+    onClose: onEditClose,
   } = useDisclosure();
 
   const columns = useMemo(() => columnsData, [columnsData]);
@@ -73,16 +80,17 @@ export default function VendorsTable(props) {
 
     // Apply status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter(item => item.status === statusFilter);
+      filtered = filtered.filter((item) => item.status === statusFilter);
     }
 
     // Apply search filter
     if (searchValue) {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-        item.company.toLowerCase().includes(searchValue.toLowerCase()) ||
-        item.email.toLowerCase().includes(searchValue.toLowerCase()) ||
-        item.phone.includes(searchValue)
+      filtered = filtered.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+          item.company.toLowerCase().includes(searchValue.toLowerCase()) ||
+          item.email.toLowerCase().includes(searchValue.toLowerCase()) ||
+          item.phone.includes(searchValue)
       );
     }
 
@@ -102,13 +110,8 @@ export default function VendorsTable(props) {
     usePagination
   );
 
-  const {
-    getTableProps,
-    getTableBodyProps,
-    headerGroups,
-    page,
-    prepareRow,
-  } = tableInstance;
+  const { getTableProps, getTableBodyProps, headerGroups, page, prepareRow } =
+    tableInstance;
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -117,27 +120,27 @@ export default function VendorsTable(props) {
   const inputText = useColorModeValue("gray.700", "gray.100");
 
   const handleInputChange = (field, value) => {
-    setNewVendor(prev => ({
+    setNewVendor((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleEditInputChange = (field, value) => {
-    setEditingVendor(prev => ({
+    setEditingVendor((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleSaveVendor = () => {
     // Here you would typically save to your backend
     console.log("Saving new vendor:", newVendor);
-    
+
     // For demo purposes, we'll just close the modal
     // In a real app, you'd add the vendor to your data source
     onClose();
-    
+
     // Reset form
     setNewVendor({
       name: "",
@@ -151,7 +154,7 @@ export default function VendorsTable(props) {
   const handleSaveEdit = () => {
     // Here you would typically update your backend
     console.log("Updating vendor:", editingVendor);
-    
+
     onEditClose();
     setEditingVendor(null);
   };
@@ -164,7 +167,7 @@ export default function VendorsTable(props) {
   const handleDelete = (vendor) => {
     // Here you would typically delete from your backend
     console.log("Deleting vendor:", vendor);
-    
+
     // For demo purposes, just log the action
     // In a real app, you'd remove the vendor from your data source
     alert(`Vendor "${vendor.name}" would be deleted`);
@@ -190,16 +193,18 @@ export default function VendorsTable(props) {
   return (
     <>
       <Card
-        direction='column'
-        w='100%'
-        px='0px'
-        overflowX={{ sm: "scroll", lg: "hidden" }}>
-        <Flex px='25px' justify='space-between' mb='20px' align='center'>
+        direction="column"
+        w="100%"
+        px="0px"
+        overflowX={{ sm: "scroll", lg: "hidden" }}
+      >
+        <Flex px="25px" justify="space-between" mb="20px" align="center">
           <Text
             color={textColor}
-            fontSize='22px'
-            fontWeight='700'
-            lineHeight='100%'>
+            fontSize="22px"
+            fontWeight="700"
+            lineHeight="100%"
+          >
             Vendor Management
           </Text>
           <Button
@@ -213,18 +218,18 @@ export default function VendorsTable(props) {
         </Flex>
 
         {/* Filter Section */}
-        <Box px='25px' mb='20px'>
+        <Box px="25px" mb="20px">
           <HStack spacing={4} flexWrap="wrap">
             <InputGroup w={{ base: "100%", md: "300px" }}>
               <InputLeftElement>
-                <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
+                <Icon as={MdSearch} color={searchIconColor} w="15px" h="15px" />
               </InputLeftElement>
               <Input
-                variant='search'
-                fontSize='sm'
+                variant="search"
+                fontSize="sm"
                 bg={inputBg}
                 color={inputText}
-                fontWeight='500'
+                fontWeight="500"
                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
                 borderRadius="30px"
                 placeholder="Search vendors..."
@@ -241,29 +246,49 @@ export default function VendorsTable(props) {
               color={inputText}
               borderRadius="30px"
               fontSize="sm"
+              border="2px"
+              borderColor={borderColor}
+              _focus={{
+                borderColor: "blue.400",
+                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+              }}
+              _hover={{
+                borderColor: "blue.300",
+              }}
+              sx={{
+                option: {
+                  bg: inputBg,
+                  color: inputText,
+                  _hover: {
+                    bg: useColorModeValue("blue.50", "blue.900"),
+                  },
+                },
+              }}
             >
-              <option value="all">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="all">📊 All Status</option>
+              <option value="Active">✅ Active</option>
+              <option value="Inactive">❌ Inactive</option>
             </Select>
           </HStack>
         </Box>
 
-        <Table {...getTableProps()} variant='simple' color='gray.500' mb='24px'>
+        <Table {...getTableProps()} variant="simple" color="gray.500" mb="24px">
           <Thead>
             {headerGroups.map((headerGroup, index) => (
               <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
                 {headerGroup.headers.map((column, index) => (
                   <Th
                     {...column.getHeaderProps(column.getSortByToggleProps())}
-                    pe='10px'
+                    pe="10px"
                     key={index}
-                    borderColor={borderColor}>
+                    borderColor={borderColor}
+                  >
                     <Flex
-                      justify='space-between'
-                      align='center'
+                      justify="space-between"
+                      align="center"
                       fontSize={{ sm: "10px", lg: "12px" }}
-                      color='gray.400'>
+                      color="gray.400"
+                    >
                       {column.render("Header")}
                     </Flex>
                   </Th>
@@ -280,23 +305,23 @@ export default function VendorsTable(props) {
                     let data = "";
                     if (cell.column.Header === "VENDOR NAME") {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
                           {cell.value}
                         </Text>
                       );
                     } else if (cell.column.Header === "COMPANY") {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
                           {cell.value}
                         </Text>
                       );
                     } else if (cell.column.Header === "STATUS") {
                       data = (
-                        <Flex align='center'>
+                        <Flex align="center">
                           <Icon
-                            w='24px'
-                            h='24px'
-                            me='5px'
+                            w="24px"
+                            h="24px"
+                            me="5px"
                             color={
                               cell.value === "Active"
                                 ? "green.500"
@@ -312,7 +337,11 @@ export default function VendorsTable(props) {
                                 : null
                             }
                           />
-                          <Text color={textColor} fontSize='sm' fontWeight='700'>
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
                             {cell.value}
                           </Text>
                         </Flex>
@@ -344,7 +373,7 @@ export default function VendorsTable(props) {
                       );
                     } else {
                       data = (
-                        <Text color={textColor} fontSize='sm' fontWeight='700'>
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
                           {cell.value}
                         </Text>
                       );
@@ -355,7 +384,8 @@ export default function VendorsTable(props) {
                         key={index}
                         fontSize={{ sm: "14px" }}
                         minW={{ sm: "150px", md: "200px", lg: "auto" }}
-                        borderColor='transparent'>
+                        borderColor="transparent"
+                      >
                         {data}
                       </Td>
                     );
@@ -380,46 +410,66 @@ export default function VendorsTable(props) {
                 <Input
                   placeholder="Enter vendor name"
                   value={newVendor.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Company</FormLabel>
                 <Input
                   placeholder="Enter company name"
                   value={newVendor.company}
-                  onChange={(e) => handleInputChange('company', e.target.value)}
+                  onChange={(e) => handleInputChange("company", e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
                   placeholder="Enter email address"
                   value={newVendor.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
                   placeholder="Enter phone number"
                   value={newVendor.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>Status</FormLabel>
                 <Select
                   value={newVendor.status}
-                  onChange={(e) => handleInputChange('status', e.target.value)}
+                  onChange={(e) => handleInputChange("status", e.target.value)}
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                  }}
+                  sx={{
+                    option: {
+                      bg: inputBg,
+                      color: inputText,
+                      _hover: {
+                        bg: useColorModeValue("blue.50", "blue.900"),
+                      },
+                    },
+                  }}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Active">✅ Active</option>
+                  <option value="Inactive">❌ Inactive</option>
                 </Select>
               </FormControl>
             </VStack>
@@ -429,10 +479,15 @@ export default function VendorsTable(props) {
             <Button variant="ghost" mr={3} onClick={handleCancel}>
               Cancel
             </Button>
-            <Button 
-              colorScheme="blue" 
+            <Button
+              colorScheme="blue"
               onClick={handleSaveVendor}
-              isDisabled={!newVendor.name || !newVendor.company || !newVendor.email || !newVendor.phone}
+              isDisabled={
+                !newVendor.name ||
+                !newVendor.company ||
+                !newVendor.email ||
+                !newVendor.phone
+              }
             >
               Save Vendor
             </Button>
@@ -453,46 +508,76 @@ export default function VendorsTable(props) {
                 <Input
                   placeholder="Enter vendor name"
                   value={editingVendor?.name || ""}
-                  onChange={(e) => handleEditInputChange('name', e.target.value)}
+                  onChange={(e) =>
+                    handleEditInputChange("name", e.target.value)
+                  }
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Company</FormLabel>
                 <Input
                   placeholder="Enter company name"
                   value={editingVendor?.company || ""}
-                  onChange={(e) => handleEditInputChange('company', e.target.value)}
+                  onChange={(e) =>
+                    handleEditInputChange("company", e.target.value)
+                  }
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
                   placeholder="Enter email address"
                   value={editingVendor?.email || ""}
-                  onChange={(e) => handleEditInputChange('email', e.target.value)}
+                  onChange={(e) =>
+                    handleEditInputChange("email", e.target.value)
+                  }
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
                   placeholder="Enter phone number"
                   value={editingVendor?.phone || ""}
-                  onChange={(e) => handleEditInputChange('phone', e.target.value)}
+                  onChange={(e) =>
+                    handleEditInputChange("phone", e.target.value)
+                  }
                 />
               </FormControl>
-              
+
               <FormControl>
                 <FormLabel>Status</FormLabel>
                 <Select
                   value={editingVendor?.status || "Active"}
-                  onChange={(e) => handleEditInputChange('status', e.target.value)}
+                  onChange={(e) =>
+                    handleEditInputChange("status", e.target.value)
+                  }
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                  }}
+                  sx={{
+                    option: {
+                      bg: inputBg,
+                      color: inputText,
+                      _hover: {
+                        bg: useColorModeValue("blue.50", "blue.900"),
+                      },
+                    },
+                  }}
                 >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
+                  <option value="Active">✅ Active</option>
+                  <option value="Inactive">❌ Inactive</option>
                 </Select>
               </FormControl>
             </VStack>
@@ -502,10 +587,15 @@ export default function VendorsTable(props) {
             <Button variant="ghost" mr={3} onClick={handleCancelEdit}>
               Cancel
             </Button>
-            <Button 
-              colorScheme="blue" 
+            <Button
+              colorScheme="blue"
               onClick={handleSaveEdit}
-              isDisabled={!editingVendor?.name || !editingVendor?.company || !editingVendor?.email || !editingVendor?.phone}
+              isDisabled={
+                !editingVendor?.name ||
+                !editingVendor?.company ||
+                !editingVendor?.email ||
+                !editingVendor?.phone
+              }
             >
               Update Vendor
             </Button>
@@ -514,4 +604,4 @@ export default function VendorsTable(props) {
       </Modal>
     </>
   );
-} 
+}

@@ -4,10 +4,6 @@ export const columnsDataCustomer = [
     accessor: "name",
   },
   {
-    Header: "COMPANY",
-    accessor: "company",
-  },
-  {
     Header: "EMAIL",
     accessor: "email",
   },
@@ -16,16 +12,24 @@ export const columnsDataCustomer = [
     accessor: "phone",
   },
   {
-    Header: "WEBSITE",
-    accessor: "website",
+    Header: "MOBILE",
+    accessor: "mobile",
   },
   {
-    Header: "STATUS",
-    accessor: "status",
+    Header: "STREET",
+    accessor: "street",
   },
   {
-    Header: "JOIN DATE",
-    accessor: "joinDate",
+    Header: "CITY",
+    accessor: "city",
+  },
+  {
+    Header: "ZIP",
+    accessor: "zip",
+  },
+  {
+    Header: "COUNTRY",
+    accessor: "country_name",
   },
   {
     Header: "ACTIONS",
@@ -58,4 +62,4 @@ export const columnsDataVendors = [
     Header: "ACTIONS",
     accessor: "id", // Use id as accessor since actions are rendered dynamically
   },
-]; 
+];

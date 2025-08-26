@@ -2,10 +2,8 @@ import React from "react";
 
 import { Icon } from "@chakra-ui/react";
 import {
-  MdBarChart,
   MdPerson,
   MdLock,
-  MdOutlineShoppingCart,
   MdDashboard,
   MdContacts,
   MdDescription,
@@ -20,6 +18,7 @@ import {
   MdConfirmationNumber,
   MdDeliveryDining,
   MdAdd,
+  MdPersonAdd,
 } from "react-icons/md";
 
 // Admin Imports
@@ -31,6 +30,7 @@ import DataTables from "views/admin/dataTables";
 // Contacts Imports
 import Customer from "views/admin/contacts/Customer";
 import Vendors from "views/admin/contacts/Vendors";
+import CustomerRegistration from "views/admin/customer-registration";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
@@ -76,6 +76,7 @@ const routes = [
         icon: <Icon as={MdPeople} width="20px" height="20px" color="inherit" />,
         component: Customer,
       },
+
       {
         name: "Vendors",
         path: "/contacts/vendors",
@@ -275,6 +276,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/contacts/customer/:id",
     component: CustomerDetail,
+  },
+  {
+    name: "Customer Registration",
+    layout: "/admin",
+    path: "/customer-registration",
+    component: CustomerRegistration,
   },
 ];
 

@@ -8,6 +8,9 @@ const initialState = {
   token: localStorage.getItem("token") || null,
   signupLoading: false,
   signupError: null,
+  forgotPasswordLoading: false,
+  forgotPasswordError: null,
+  forgotPasswordSuccess: false,
 };
 
 const userSlice = createSlice({
@@ -47,6 +50,7 @@ const userSlice = createSlice({
     clearError: (state) => {
       state.error = null;
       state.signupError = null;
+      state.forgotPasswordError = null;
     },
     checkAuth: (state, action) => {
       if (action.payload.token && action.payload.user) {
@@ -71,6 +75,26 @@ const userSlice = createSlice({
       state.signupLoading = false;
       state.signupError = action.payload;
     },
+    forgotPasswordStart: (state) => {
+      state.forgotPasswordLoading = true;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = false;
+    },
+    forgotPasswordSuccess: (state) => {
+      state.forgotPasswordLoading = false;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = true;
+    },
+    forgotPasswordFailure: (state, action) => {
+      state.forgotPasswordLoading = false;
+      state.forgotPasswordError = action.payload;
+      state.forgotPasswordSuccess = false;
+    },
+    clearForgotPasswordState: (state) => {
+      state.forgotPasswordLoading = false;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = false;
+    },
   },
 });
 
@@ -85,6 +109,10 @@ export const {
   signupStart,
   signupSuccess,
   signupFailure,
+  forgotPasswordStart,
+  forgotPasswordSuccess,
+  forgotPasswordFailure,
+  clearForgotPasswordState,
 } = userSlice.actions;
 
 export default userSlice.reducer;

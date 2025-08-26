@@ -13,7 +13,7 @@ function AuthIllustration(props) {
   const { children, illustrationBackground } = props;
   // Chakra color mode
   return (
-    <Flex position='relative' h='max-content'>
+    <Flex position="relative" h="max-content">
       <Flex
         h={{
           sm: "initial",
@@ -21,15 +21,17 @@ function AuthIllustration(props) {
           lg: "100vh",
           xl: "97vh",
         }}
-        w='100%'
+        w="100%"
         maxW={{ md: "66%", lg: "1313px" }}
-        mx='auto'
+        mx="auto"
         pt={{ sm: "50px", md: "0px" }}
         px={{ lg: "30px", xl: "0px" }}
         ps={{ xl: "70px" }}
-        justifyContent='start'
-        direction='column'>
-        <NavLink
+        justifyContent="start"
+        direction="column"
+      >
+        {/* Back Button - Commented Out */}
+        {/* <NavLink
           to='/admin'
           style={() => ({
             width: "fit-content",
@@ -51,7 +53,7 @@ function AuthIllustration(props) {
               Back
             </Text>
           </Flex>
-        </NavLink>
+        </NavLink> */}
         {children}
         {/* <Box
           display={{ base: "none", md: "block" }}
@@ -71,7 +73,8 @@ function AuthIllustration(props) {
             position='absolute'
             borderBottomLeftRadius={{ lg: "120px", xl: "200px" }}></Flex>
         </Box> */}
-        <Footer />
+        {/* Footer - Commented Out */}
+        {/* <Footer /> */}
       </Flex>
       <FixedPlugin />
     </Flex>

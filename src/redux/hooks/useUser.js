@@ -1,13 +1,14 @@
-import { useSelector, useDispatch } from 'react-redux';
-import { 
-  loginUser, 
-  logoutUser, 
-  updateUserData, 
+import { useSelector, useDispatch } from "react-redux";
+import {
+  loginUser,
+  logoutUser,
+  updateUserData,
   clearUserError,
   checkUserAuth,
   resetPassword,
-  signupUser
-} from '../actions/userActions';
+  signupUser,
+  clearForgotPassword,
+} from "../actions/userActions";
 
 export const useUser = () => {
   const dispatch = useDispatch();
@@ -22,6 +23,9 @@ export const useUser = () => {
     token: userState.token,
     signupLoading: userState.signupLoading,
     signupError: userState.signupError,
+    forgotPasswordLoading: userState.forgotPasswordLoading,
+    forgotPasswordError: userState.forgotPasswordError,
+    forgotPasswordSuccess: userState.forgotPasswordSuccess,
 
     // Actions
     login: (email, password) => dispatch(loginUser(email, password)),
@@ -31,5 +35,6 @@ export const useUser = () => {
     checkAuth: () => dispatch(checkUserAuth()),
     resetPassword: (email) => dispatch(resetPassword(email)),
     signup: (userData) => dispatch(signupUser(userData)),
+    clearForgotPassword: () => dispatch(clearForgotPassword()),
   };
 };

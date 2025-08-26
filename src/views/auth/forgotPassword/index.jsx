@@ -17,19 +17,33 @@ import {
 // Custom components
 import { HSeparator } from "components/separator/Separator";
 import DefaultAuth from "layouts/auth/Default";
+import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import illustration from "assets/img/auth/auth.png";
 import { MdEmail } from "react-icons/md";
 import { FaArrowLeft } from "react-icons/fa";
 // Redux
 import { useUser } from "redux/hooks/useUser";
+// API
+import { testApiConnection } from "api/auth";
 
 function ForgotPassword() {
   const history = useHistory();
   const toast = useToast();
 
   // Redux user actions and state
-  const { resetPassword, isLoading, error, clearError } = useUser();
+  const {
+    resetPassword,
+    forgotPasswordLoading,
+    forgotPasswordError,
+    forgotPasswordSuccess,
+    clearForgotPassword
+  } = useUser();
+
+  // Modal states
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
+  const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
+  const [modalMessage, setModalMessage] = React.useState("");
 
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
@@ -45,31 +59,38 @@ function ForgotPassword() {
     setEmail(e.target.value);
   };
 
+  // Test API connection
+  const handleTestConnection = async () => {
+    try {
+      const result = await testApiConnection();
+      if (result.success) {
+        setModalMessage("API connection successful! Server is reachable.");
+        setIsSuccessModalOpen(true);
+      } else {
+        setModalMessage(result.message);
+        setIsFailureModalOpen(true);
+      }
+    } catch (error) {
+      setModalMessage("Failed to test API connection: " + error.message);
+      setIsFailureModalOpen(true);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Forgot password form submitted'); // Debug log
 
     if (!email) {
-      toast({
-        title: "Error",
-        description: "Please enter your email address",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setModalMessage("Please enter your email address");
+      setIsFailureModalOpen(true);
       return;
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid email address",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setModalMessage("Please enter a valid email address");
+      setIsFailureModalOpen(true);
       return;
     }
 
@@ -80,46 +101,50 @@ function ForgotPassword() {
       console.log('Password reset result:', result); // Debug log
 
       if (result.success) {
-        toast({
-          title: "Success",
-          description: "Password reset email sent! Please check your inbox.",
-          status: "success",
-          duration: 5000,
-          isClosable: true,
-        });
-
-        // Redirect to signin page after a delay
-        setTimeout(() => {
-          history.push('/auth/sign-in');
-        }, 3000);
+        setModalMessage("Password reset email sent successfully! Please check your inbox.");
+        setIsSuccessModalOpen(true);
       } else {
-        toast({
-          title: "Error",
-          description: result.error || "Failed to send password reset email. Please try again.",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+        setModalMessage(result.error || "Failed to send password reset email. Please try again.");
+        setIsFailureModalOpen(true);
       }
 
     } catch (error) {
       console.error('Password reset error:', error); // Debug log
-      toast({
-        title: "Error",
-        description: "Failed to send password reset email. Please try again.",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      setModalMessage("An unexpected error occurred. Please try again.");
+      setIsFailureModalOpen(true);
     }
   };
 
-  // Clear error when component unmounts or error changes
+  // Handle success modal close
+  const handleSuccessModalClose = () => {
+    setIsSuccessModalOpen(false);
+    // Redirect to signin page after success
+    setTimeout(() => {
+      history.push('/auth/sign-in');
+    }, 1000);
+  };
+
+  // Handle failure modal close
+  const handleFailureModalClose = () => {
+    setIsFailureModalOpen(false);
+  };
+
+  // Watch for Redux state changes
   React.useEffect(() => {
-    if (error) {
-      clearError();
+    if (forgotPasswordSuccess) {
+      setModalMessage("Password reset email sent successfully! Please check your inbox.");
+      setIsSuccessModalOpen(true);
+      clearForgotPassword(); // Clear the success state
     }
-  }, [error, clearError]);
+  }, [forgotPasswordSuccess, clearForgotPassword]);
+
+  React.useEffect(() => {
+    if (forgotPasswordError) {
+      setModalMessage(forgotPasswordError);
+      setIsFailureModalOpen(true);
+      clearForgotPassword(); // Clear the error state
+    }
+  }, [forgotPasswordError, clearForgotPassword]);
 
   return (
     <DefaultAuth illustrationBackground={illustration} image={illustration}>
@@ -193,13 +218,26 @@ function ForgotPassword() {
                 w='100%'
                 h='50px'
                 mb='24px'
-                isLoading={isLoading}
+                isLoading={forgotPasswordLoading}
                 loadingText="Sending...">
                 <Icon as={MdEmail} w='20px' h='20px' me='10px' />
                 Send Reset Link
               </Button>
             </FormControl>
           </form>
+
+          {/* Test Connection Button - Remove this in production */}
+          <Button
+            fontSize='sm'
+            variant='outline'
+            fontWeight='500'
+            w='100%'
+            h='40px'
+            mb='16px'
+            onClick={handleTestConnection}
+            colorScheme="blue">
+            Test API Connection
+          </Button>
 
           <Flex
             flexDirection='column'
@@ -237,6 +275,22 @@ function ForgotPassword() {
           </Flex>
         </Flex>
       </Flex>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={handleSuccessModalClose}
+        title="Email Sent Successfully!"
+        message={modalMessage}
+      />
+
+      {/* Failure Modal */}
+      <FailureModal
+        isOpen={isFailureModalOpen}
+        onClose={handleFailureModalClose}
+        title="Failed to Send Email"
+        message={modalMessage}
+      />
     </DefaultAuth>
   );
 }

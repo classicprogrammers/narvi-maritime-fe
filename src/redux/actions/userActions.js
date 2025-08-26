@@ -9,6 +9,10 @@ import {
   signupStart,
   signupSuccess,
   signupFailure,
+  forgotPasswordStart,
+  forgotPasswordSuccess,
+  forgotPasswordFailure,
+  clearForgotPasswordState,
 } from "../slices/userSlice";
 import { signupApi, signinApi, forgotPasswordApi } from "../../api/auth";
 
@@ -20,27 +24,19 @@ export const loginUser = (email, password) => async (dispatch) => {
     // Call the real signin API
     const result = await signinApi({ email, password });
 
-    // Store user data and token
-    const userData = {
-      id: result.user?.id || "1",
-      email: email,
-      name: result.user?.name || "User",
-      role: result.user?.role || "user",
-      avatar: null,
-      permissions: result.user?.permissions || ["read"],
-      createdAt: new Date().toISOString(),
-    };
+    // Check if the API call was successful
+    if (result.success && result.user && result.token) {
+      dispatch(
+        loginSuccess({
+          user: result.user,
+          token: result.token,
+        })
+      );
 
-    const token = result.token || result.accessToken;
-
-    dispatch(
-      loginSuccess({
-        user: userData,
-        token: token,
-      })
-    );
-
-    return { success: true, user: userData };
+      return { success: true, user: result.user };
+    } else {
+      throw new Error("Invalid response from server");
+    }
   } catch (error) {
     const errorMessage = error.message || "Login failed";
     dispatch(loginFailure(errorMessage));
@@ -101,15 +97,28 @@ export const checkUserAuth = () => (dispatch) => {
 // Action for password reset
 export const resetPassword = (email) => async (dispatch) => {
   try {
+    dispatch(forgotPasswordStart());
+
     // Call the real forgot password API
     const result = await forgotPasswordApi({ email });
 
-    return {
-      success: true,
-      message: result.message || "Password reset email sent successfully",
-    };
+    if (result.success) {
+      dispatch(forgotPasswordSuccess());
+      return {
+        success: true,
+        message: result.message || "Password reset email sent successfully",
+      };
+    } else {
+      throw new Error(result.error || "Failed to send password reset email");
+    }
   } catch (error) {
     const errorMessage = error.message || "Failed to send password reset email";
+    dispatch(forgotPasswordFailure(errorMessage));
     return { success: false, error: errorMessage };
   }
+};
+
+// Action to clear forgot password state
+export const clearForgotPassword = () => (dispatch) => {
+  dispatch(clearForgotPasswordState());
 };

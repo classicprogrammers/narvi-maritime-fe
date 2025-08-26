@@ -10,6 +10,7 @@ import {
   Text,
   useColorModeValue,
   IconButton,
+  useColorMode,
 } from "@chakra-ui/react";
 // Custom Components
 import { ItemContent } from "components/menu/ItemContent";
@@ -19,7 +20,7 @@ import PropTypes from "prop-types";
 import React, { useContext } from "react";
 import { SidebarContext } from "contexts/SidebarContext";
 // Assets
-import { MdNotificationsNone, MdMenu, MdClose } from "react-icons/md";
+import { MdNotificationsNone, MdMenu, MdClose, MdLightMode, MdDarkMode } from "react-icons/md";
 import { FaEthereum } from "react-icons/fa";
 import routes from "routes.js";
 // import { ThemeEditor } from "./ThemeEditor";
@@ -27,6 +28,7 @@ import routes from "routes.js";
 export default function HeaderLinks(props) {
   const { secondary } = props;
   const { toggleSidebar, setToggleSidebar } = useContext(SidebarContext);
+  const { colorMode, toggleColorMode } = useColorMode();
 
   // Chakra Color Mode
   const navbarIcon = useColorModeValue("gray.400", "white");
@@ -61,6 +63,19 @@ export default function HeaderLinks(props) {
         me="10px"
         borderRadius="30px"
       />
+      
+      {/* Theme Toggle Button */}
+      <IconButton
+        icon={<Icon as={colorMode === 'light' ? MdDarkMode : MdLightMode} />}
+        variant="ghost"
+        aria-label="Toggle theme"
+        onClick={toggleColorMode}
+        color={navbarIcon}
+        _hover={{ bg: "gray.100" }}
+        me="10px"
+        size="sm"
+      />
+      
       <Flex
         bg={ethBg}
         display={secondary ? "flex" : "none"}
