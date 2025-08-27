@@ -18,16 +18,16 @@ import {
   useToast,
 } from "@chakra-ui/react";
 // Custom components
-import { HSeparator } from "components/separator/Separator";
 import DefaultAuth from "layouts/auth/Default";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import illustration from "assets/img/auth/auth.png";
-import { FcGoogle } from "react-icons/fc";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
 import { useUser } from "redux/hooks/useUser";
+// API
+import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 
 function SignIn() {
   const history = useHistory();
@@ -44,19 +44,8 @@ function SignIn() {
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
   const textColorSecondary = "gray.400";
-  const textColorDetails = useColorModeValue("navy.700", "secondaryGray.600");
   const textColorBrand = useColorModeValue("#174693", "white");
   const brandStars = useColorModeValue("#174693", "#174693");
-  const googleBg = useColorModeValue("secondaryGray.300", "whiteAlpha.200");
-  const googleText = useColorModeValue("navy.700", "white");
-  const googleHover = useColorModeValue(
-    { bg: "gray.200" },
-    { bg: "whiteAlpha.300" }
-  );
-  const googleActive = useColorModeValue(
-    { bg: "secondaryGray.300" },
-    { bg: "whiteAlpha.200" }
-  );
 
   // Form state
   const [show, setShow] = React.useState(false);
@@ -76,6 +65,55 @@ function SignIn() {
     }));
   };
 
+  // Login API call function
+  const handleLoginApi = async (email, password) => {
+    try {
+      const payload = {
+        login: email,
+        password: password,
+      };
+
+      console.log("🔐 Login API Payload:", payload);
+
+      const response = await fetch(buildApiUrl(getApiEndpoint("LOGIN")), {
+        method: "POST",
+        headers: API_CONFIG.DEFAULT_HEADERS,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Login failed");
+      }
+
+      const result = await response.json();
+
+      console.log("🔐 Login API Response:", result);
+
+      // Check if authentication was successful
+      if (result.result && result.result.user_id) {
+        return {
+          success: true,
+          user: {
+            id: result.result.user_id,
+            email: email,
+            name: result.result.name || email,
+            role: "user",
+            avatar: null,
+            permissions: ["read"],
+            createdAt: new Date().toISOString(),
+          },
+          token: result.result.session_id || "session_token",
+        };
+      } else {
+        throw new Error("Invalid credentials");
+      }
+    } catch (error) {
+      console.error("Login API failed:", error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted'); // Debug log
@@ -88,24 +126,46 @@ function SignIn() {
 
     try {
       console.log('Attempting login...'); // Debug log
-      const result = await login(formData.email, formData.password);
-      console.log('Login result:', result); // Debug log
 
-      if (result.success) {
-        setModalMessage("Login successful! Redirecting to dashboard...");
-        setIsSuccessModalOpen(true);
+      // Call the login API directly
+      const apiResult = await handleLoginApi(formData.email, formData.password);
 
-        // Redirect to admin dashboard immediately after successful login
-        setTimeout(() => {
-          history.push('/admin/default');
-        }, 1000);
+      if (apiResult.success) {
+        // Store user data in localStorage
+        localStorage.setItem("user", JSON.stringify(apiResult.user));
+        localStorage.setItem("token", apiResult.token);
+
+        // Update Redux state
+        const result = await login(formData.email, formData.password);
+
+        if (result.success) {
+          setModalMessage("Login successful! Redirecting to dashboard...");
+          setIsSuccessModalOpen(true);
+
+          // Redirect to admin dashboard immediately after successful login
+          setTimeout(() => {
+            history.push('/admin/default');
+          }, 1000);
+        } else {
+          setModalMessage(result.error || "Login failed. Please check your credentials.");
+          setIsFailureModalOpen(true);
+        }
       } else {
-        setModalMessage(result.error || "Login failed. Please check your credentials.");
+        setModalMessage("Login failed. Please check your credentials.");
         setIsFailureModalOpen(true);
       }
     } catch (error) {
       console.error('Login error:', error); // Debug log
-      setModalMessage("An unexpected error occurred. Please try again.");
+
+      let errorMessage = "An unexpected error occurred. Please try again.";
+
+      if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+        errorMessage = "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      setModalMessage(errorMessage);
       setIsFailureModalOpen(true);
     }
   };

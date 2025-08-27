@@ -14,7 +14,6 @@ import {
     Badge,
     Icon,
     HStack,
-    VStack,
     IconButton,
     useColorModeValue,
     Checkbox,
@@ -37,20 +36,8 @@ import {
     MdAdd,
     MdSettings,
     MdSearch,
-    MdMoreVert,
     MdDelete,
     MdEdit,
-    MdVisibility,
-    MdLocalShipping,
-    MdLocationOn,
-    MdCalendarToday,
-    MdAttachMoney,
-    MdPerson,
-    MdBugReport,
-    MdChat,
-    MdAccessTime,
-    MdCloudUpload,
-    MdRefresh,
     MdHelp,
     MdChevronLeft,
     MdChevronRight,
@@ -58,14 +45,11 @@ import {
     MdSend,
     MdNote,
     MdHistory,
-    MdMenu,
-    MdClose,
 } from "react-icons/md";
 
 export default function ShippingOrder() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [activeTab, setActiveTab] = useState("orderLines");
-    const [sidebarOpen, setSidebarOpen] = useState(true);
 
     // Quotation data state
     const [quotationData, setQuotationData] = useState({
@@ -96,7 +80,6 @@ export default function ShippingOrder() {
         }
     ]);
 
-    const bgColor = useColorModeValue("white", "gray.800");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
 
@@ -216,7 +199,7 @@ export default function ShippingOrder() {
 
             {/* Main Content Area */}
             <Flex>
-         
+
                 {/* Main Content */}
                 <Box flex="1" bg="white" p={{ base: "4", md: "6" }}>
                     {/* Shipping Order ID Header */}

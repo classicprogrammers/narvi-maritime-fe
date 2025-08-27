@@ -12,10 +12,8 @@ import {
   Input,
   Text,
   useColorModeValue,
-  useToast,
 } from "@chakra-ui/react";
 // Custom components
-import { HSeparator } from "components/separator/Separator";
 import DefaultAuth from "layouts/auth/Default";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
@@ -25,11 +23,10 @@ import { FaArrowLeft } from "react-icons/fa";
 // Redux
 import { useUser } from "redux/hooks/useUser";
 // API
-import { testApiConnection } from "api/auth";
+import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 
 function ForgotPassword() {
   const history = useHistory();
-  const toast = useToast();
 
   // Redux user actions and state
   const {
@@ -59,19 +56,52 @@ function ForgotPassword() {
     setEmail(e.target.value);
   };
 
+  // Forgot Password API call function
+  const handleForgotPasswordApi = async (email) => {
+    try {
+      const response = await fetch(
+        buildApiUrl(getApiEndpoint("FORGOT_PASSWORD")),
+        {
+          method: "POST",
+          headers: API_CONFIG.DEFAULT_HEADERS,
+          mode: "cors", // Enable CORS
+          credentials: "include", // Include cookies if needed
+          body: JSON.stringify({
+            email: email,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Password reset request failed");
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error("Forgot password API failed:", error);
+      throw error;
+    }
+  };
+
   // Test API connection
   const handleTestConnection = async () => {
     try {
-      const result = await testApiConnection();
-      if (result.success) {
+      const response = await fetch(API_CONFIG.BASE_URL, {
+        method: "GET",
+        headers: API_CONFIG.DEFAULT_HEADERS,
+      });
+
+      if (response.ok) {
         setModalMessage("API connection successful! Server is reachable.");
         setIsSuccessModalOpen(true);
       } else {
-        setModalMessage(result.message);
+        setModalMessage("API connection failed");
         setIsFailureModalOpen(true);
       }
     } catch (error) {
-      setModalMessage("Failed to test API connection: " + error.message);
+      setModalMessage("Cannot connect to backend server. Please check if the server is running and CORS is properly configured.");
       setIsFailureModalOpen(true);
     }
   };
@@ -97,20 +127,37 @@ function ForgotPassword() {
     try {
       console.log('Sending password reset email...'); // Debug log
 
-      const result = await resetPassword(email);
-      console.log('Password reset result:', result); // Debug log
-
-      if (result.success) {
-        setModalMessage("Password reset email sent successfully! Please check your inbox.");
-        setIsSuccessModalOpen(true);
+      // Call the forgot password API directly
+      const apiResult = await handleForgotPasswordApi(email);
+      
+      if (apiResult) {
+        // Update Redux state
+        const result = await resetPassword(email);
+        
+        if (result.success) {
+          setModalMessage("Password reset email sent successfully! Please check your inbox.");
+          setIsSuccessModalOpen(true);
+        } else {
+          setModalMessage(result.error || "Failed to send password reset email. Please try again.");
+          setIsFailureModalOpen(true);
+        }
       } else {
-        setModalMessage(result.error || "Failed to send password reset email. Please try again.");
+        setModalMessage("Failed to send password reset email. Please try again.");
         setIsFailureModalOpen(true);
       }
 
     } catch (error) {
       console.error('Password reset error:', error); // Debug log
-      setModalMessage("An unexpected error occurred. Please try again.");
+      
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      
+      if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+        errorMessage = "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setModalMessage(errorMessage);
       setIsFailureModalOpen(true);
     }
   };

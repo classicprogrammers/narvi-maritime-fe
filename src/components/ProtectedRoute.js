@@ -1,27 +1,38 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Route, useHistory } from "react-router-dom";
-import { useSelector } from "react-redux";
 import { useUser } from "../redux/hooks/useUser";
-import { Box, Spinner, Center } from "@chakra-ui/react";
+import { Spinner, Center } from "@chakra-ui/react";
 
 const ProtectedRoute = ({ component: Component, ...rest }) => {
   const history = useHistory();
   const { isAuthenticated, token, checkAuth } = useUser();
   const [isChecking, setIsChecking] = useState(true);
-  const userState = useSelector((state) => state.user);
+  const [hasChecked, setHasChecked] = useState(false);
+
+  // Memoize the authentication check to prevent unnecessary calls
+  const checkAuthentication = useCallback(async () => {
+    if (!hasChecked) {
+      try {
+        await checkAuth();
+        setHasChecked(true);
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+      } finally {
+        setIsChecking(false);
+      }
+    }
+  }, [checkAuth, hasChecked]);
 
   useEffect(() => {
-    // Check authentication status when component mounts
-    const checkAuthentication = async () => {
-      await checkAuth();
-      setIsChecking(false);
-    };
-
-    checkAuthentication();
-  }, [checkAuth]);
+    // Only check authentication once when component mounts
+    if (!hasChecked) {
+      checkAuthentication();
+    }
+  }, [checkAuthentication, hasChecked]);
 
   useEffect(() => {
     // If not authenticated and no token, redirect to login
+    // Only run this after the initial check is complete
     if (!isChecking && !isAuthenticated && !token) {
       history.push("/auth/sign-in");
     }

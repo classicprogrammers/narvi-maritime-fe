@@ -1,179 +1,134 @@
-/*!
-  _   _  ___  ____  ___ ________  _   _   _   _ ___   
- | | | |/ _ \|  _ \|_ _|__  / _ \| \ | | | | | |_ _| 
- | |_| | | | | |_) || |  / / | | |  \| | | | | || | 
- |  _  | |_| |  _ < | | / /| |_| | |\  | | |_| || |
- |_| |_|\___/|_| \_\___/____\___/|_| \_|  \___/|___|
-                                                                                                                                                                                                                                                                                                                                       
-=========================================================
-* Classic UI - v1.1.0
-=========================================================
-
-* Product Page: https://www.Classic-ui.com/
-* Copyright 2023 Classic UI (https://www.Classic-ui.com/)
-
-* Designed and Coded by Simmmple
-
-=========================================================
-
-* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-*/
-
 // Chakra imports
 import {
-  Avatar,
   Box,
-  Flex,
-  FormLabel,
   Icon,
-  Select,
   SimpleGrid,
   useColorModeValue,
 } from "@chakra-ui/react";
-// Assets
-import Usa from "assets/img/dashboards/usa.png";
+
 // Custom components
 import MiniCalendar from "components/calendar/MiniCalendar";
 import MiniStatistics from "components/card/MiniStatistics";
 import IconBox from "components/icons/IconBox";
-import React from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   MdAddTask,
   MdAttachMoney,
   MdBarChart,
-  MdFileCopy,
   MdPeople,
-  MdDescription,
   MdLocalShipping,
-  MdAssessment,
   MdSummarize,
 } from "react-icons/md";
-import CheckTable from "views/admin/default/components/CheckTable";
-import ComplexTable from "views/admin/default/components/ComplexTable";
-import DailyTraffic from "views/admin/default/components/DailyTraffic";
-import PieCard from "views/admin/default/components/PieCard";
-import Tasks from "views/admin/default/components/Tasks";
-import TotalSpent from "views/admin/default/components/TotalSpent";
-import WeeklyRevenue from "views/admin/default/components/WeeklyRevenue";
-import {
-  columnsDataCheck,
-  columnsDataComplex,
-} from "views/admin/default/variables/columnsData";
-import tableDataCheck from "views/admin/default/variables/tableDataCheck.json";
-import tableDataComplex from "views/admin/default/variables/tableDataComplex.json";
+
+// Import components directly to avoid lazy loading issues
+import CheckTable from "./components/CheckTable";
+import ComplexTable from "./components/ComplexTable";
+import DailyTraffic from "./components/DailyTraffic";
+import PieCard from "./components/PieCard";
+import Tasks from "./components/Tasks";
+import TotalSpent from "./components/TotalSpent";
+import WeeklyRevenue from "./components/WeeklyRevenue";
 
 export default function UserReports() {
   // Chakra Color Mode
   const brandColor = useColorModeValue("#174693", "white");
   const boxBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+
+  // Memoize statistics data to prevent unnecessary re-renders
+  const statisticsData = useMemo(() => [
+    {
+      icon: MdPeople,
+      name: 'Clients',
+      value: '350',
+      bg: boxBg,
+      iconColor: brandColor,
+    },
+    {
+      icon: MdAttachMoney,
+      name: 'Revenue',
+      value: '$642.39',
+      bg: boxBg,
+      iconColor: brandColor,
+    },
+    {
+      icon: MdBarChart,
+      name: 'Sales',
+      value: '$574.34',
+      bg: boxBg,
+      iconColor: brandColor,
+    },
+    {
+      icon: MdLocalShipping,
+      name: 'Orders',
+      value: '1,000',
+      bg: boxBg,
+      iconColor: brandColor,
+    },
+    {
+      icon: MdAddTask,
+      name: 'Vendors',
+      value: '154',
+      bg: 'linear-gradient(90deg, #4481EB 0%, #04BEFE 100%)',
+      iconColor: 'white',
+    },
+    {
+      icon: MdSummarize,
+      name: 'Reports',
+      value: '2935',
+      bg: boxBg,
+      iconColor: brandColor,
+    },
+  ], [brandColor, boxBg]);
+
+  // Memoize the statistics rendering function
+  const renderStatistics = useCallback(() => (
+    <SimpleGrid
+      columns={{ base: 1, md: 2, lg: 3, "2xl": 6 }}
+      gap='20px'
+      mb='20px'>
+      {statisticsData.map((stat, index) => (
+        <MiniStatistics
+          key={index}
+          startContent={
+            <IconBox
+              w='56px'
+              h='56px'
+              bg={stat.bg}
+              icon={
+                <Icon w='32px' h='32px' as={stat.icon} color={stat.iconColor} />
+              }
+            />
+          }
+          name={stat.name}
+          value={stat.value}
+        />
+      ))}
+    </SimpleGrid>
+  ), [statisticsData]);
+
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-      <SimpleGrid
-        columns={{ base: 1, md: 2, lg: 3, "2xl": 6 }}
-        gap='20px'
-        mb='20px'>
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg={boxBg}
-              icon={
-                <Icon w='32px' h='32px' as={MdPeople} color={brandColor} />
-              }
-            />
-          }
-          name='Clients'
-          value='350'
-        />
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg={boxBg}
-              icon={
-                <Icon w='32px' h='32px' as={MdAttachMoney} color={brandColor} />
-              }
-            />
-          }
-          name='Revenue'
-          value='$642.39'
-        />
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg={boxBg}
-              icon={
-                <Icon w='32px' h='32px' as={MdBarChart} color={brandColor} />
-              }
-            />
-          }
-          // growth='+23%'
-          name='Sales'
-        value='$574.34'
-        />
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg={boxBg}
-              icon={
-                <Icon w='32px' h='32px' as={MdLocalShipping} color={brandColor} />
-              }
-            />
-          }
-          name='Orders'
-          value='1,000'
-        />
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg='linear-gradient(90deg, #4481EB 0%, #04BEFE 100%)'
-              icon={<Icon w='28px' h='28px' as={MdAddTask} color='white' />}
-            />
-          }
-          name='Vendors'
-          value='154'
-        />
-        <MiniStatistics
-          startContent={
-            <IconBox
-              w='56px'
-              h='56px'
-              bg={boxBg}
-              icon={
-                <Icon w='32px' h='32px' as={MdSummarize} color={brandColor} />
-              }
-            />
-          }
-          name='Reports'
-          value='2935'
-        />
-      </SimpleGrid>
+      {/* Statistics Section - Memoized */}
+      {renderStatistics()}
 
+      {/* Charts Section */}
       <SimpleGrid columns={{ base: 1, md: 2, xl: 2 }} gap='20px' mb='20px'>
         <TotalSpent />
         <WeeklyRevenue />
       </SimpleGrid>
+
+      {/* Tables and Charts Section */}
       <SimpleGrid columns={{ base: 1, md: 1, xl: 2 }} gap='20px' mb='20px'>
-        <CheckTable columnsData={columnsDataCheck} tableData={tableDataCheck} />
+        <CheckTable />
         <SimpleGrid columns={{ base: 1, md: 2, xl: 2 }} gap='20px'>
           <DailyTraffic />
           <PieCard />
         </SimpleGrid>
       </SimpleGrid>
+
+      {/* Complex Table and Calendar Section */}
       <SimpleGrid columns={{ base: 1, md: 1, xl: 2 }} gap='20px' mb='20px'>
-        <ComplexTable
-          columnsData={columnsDataComplex}
-          tableData={tableDataComplex}
-        />
+        <ComplexTable />
         <SimpleGrid columns={{ base: 1, md: 2, xl: 2 }} gap='20px'>
           <Tasks />
           <MiniCalendar h='100%' minW='100%' selectRange={false} />

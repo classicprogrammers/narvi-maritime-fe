@@ -1,12 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useUser } from "../redux/hooks/useUser";
 
 const AppWrapper = ({ children }) => {
   const { checkAuth } = useUser();
+  const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
-    // Check authentication status when app starts
-    checkAuth();
+    // Only check authentication status once when app starts
+    if (!hasCheckedAuth.current) {
+      checkAuth();
+      hasCheckedAuth.current = true;
+    }
   }, [checkAuth]);
 
   return <>{children}</>;

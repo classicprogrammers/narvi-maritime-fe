@@ -11,7 +11,7 @@ import {
   useColorModeValue,
   Icon,
 } from "@chakra-ui/react";
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   useGlobalFilter,
   usePagination,
@@ -24,16 +24,24 @@ import { MdShoppingCart } from "react-icons/md";
 import Card from "components/card/Card";
 import Menu from "components/menu/MainMenu";
 import IconBox from "components/icons/IconBox";
-export default function CheckTable(props) {
-  const { columnsData, tableData } = props;
 
+// Import data directly to avoid lazy loading issues
+import { columnsDataCheck } from "../variables/columnsData";
+import tableDataCheck from "../variables/tableDataCheck.json";
+
+const CheckTable = function CheckTable(props) {
+  const { columnsData = columnsDataCheck, tableData = tableDataCheck } = props;
+
+  // Memoize columns and data to prevent unnecessary re-renders
   const columns = useMemo(() => columnsData, [columnsData]);
   const data = useMemo(() => tableData, [tableData]);
 
+  // Move useTable to top level - hooks must be called at component level
   const tableInstance = useTable(
     {
       columns,
       data,
+      initialState: { pageSize: 11 },
     },
     useGlobalFilter,
     useSortBy,
@@ -46,14 +54,100 @@ export default function CheckTable(props) {
     headerGroups,
     page,
     prepareRow,
-    initialState,
   } = tableInstance;
-  initialState.pageSize = 11;
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
   const brandColor = useColorModeValue("#174693", "white");
   const boxBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+
+  // Memoize cell render functions
+  const renderCell = useCallback((cell, textColor) => {
+    if (cell.column.Header === "NAME") {
+      return (
+        <Flex align="center">
+          <Checkbox
+            defaultChecked={cell.value[1]}
+            colorScheme="brandScheme"
+            me="10px"
+          />
+          <Text color={textColor} fontSize="sm" fontWeight="700">
+            {cell.value[0]}
+          </Text>
+        </Flex>
+      );
+    } else if (cell.column.Header === "PROGRESS") {
+      return (
+        <Flex align="center">
+          <Text
+            me="10px"
+            color={textColor}
+            fontSize="sm"
+            fontWeight="700"
+          >
+            {cell.value}%
+          </Text>
+        </Flex>
+      );
+    } else if (cell.column.Header === "QUANTITY") {
+      return (
+        <Text color={textColor} fontSize="sm" fontWeight="700">
+          {cell.value}
+        </Text>
+      );
+    } else if (cell.column.Header === "DATE") {
+      return (
+        <Text color={textColor} fontSize="sm" fontWeight="700">
+          {cell.value}
+        </Text>
+      );
+    }
+    return null;
+  }, []);
+
+  // Memoize header rendering
+  const renderHeader = useCallback((headerGroup, borderColor) => (
+    <Tr {...headerGroup.getHeaderGroupProps()} key={headerGroup.id}>
+      {headerGroup.headers.map((column, index) => (
+        <Th
+          {...column.getHeaderProps(column.getSortByToggleProps())}
+          pe="10px"
+          key={column.id || index}
+          borderColor={borderColor}
+        >
+          <Flex
+            justify="space-between"
+            align="center"
+            fontSize={{ sm: "10px", lg: "12px" }}
+            color="gray.400"
+          >
+            {column.render("Header")}
+          </Flex>
+        </Th>
+      ))}
+    </Tr>
+  ), []);
+
+  // Memoize row rendering
+  const renderRow = useCallback((row, textColor) => {
+    prepareRow(row);
+    return (
+      <Tr {...row.getRowProps()} key={row.id}>
+        {row.cells.map((cell, index) => (
+          <Td
+            {...cell.getCellProps()}
+            key={cell.column.id || index}
+            fontSize={{ sm: "14px" }}
+            minW={{ sm: "150px", md: "200px", lg: "auto" }}
+            borderColor="transparent"
+          >
+            {renderCell(cell, textColor)}
+          </Td>
+        ))}
+      </Tr>
+    );
+  }, [prepareRow, renderCell]);
+
   return (
     <Card
       direction="column"
@@ -84,91 +178,14 @@ export default function CheckTable(props) {
       </Flex>
       <Table {...getTableProps()} variant="simple" color="gray.500" mb="24px">
         <Thead>
-          {headerGroups.map((headerGroup, index) => (
-            <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-              {headerGroup.headers.map((column, index) => (
-                <Th
-                  {...column.getHeaderProps(column.getSortByToggleProps())}
-                  pe="10px"
-                  key={index}
-                  borderColor={borderColor}
-                >
-                  <Flex
-                    justify="space-between"
-                    align="center"
-                    fontSize={{ sm: "10px", lg: "12px" }}
-                    color="gray.400"
-                  >
-                    {column.render("Header")}
-                  </Flex>
-                </Th>
-              ))}
-            </Tr>
-          ))}
+          {headerGroups.map((headerGroup) => renderHeader(headerGroup, borderColor))}
         </Thead>
         <Tbody {...getTableBodyProps()}>
-          {page.map((row, index) => {
-            prepareRow(row);
-            return (
-              <Tr {...row.getRowProps()} key={index}>
-                {row.cells.map((cell, index) => {
-                  let data = "";
-                  if (cell.column.Header === "NAME") {
-                    data = (
-                      <Flex align="center">
-                        <Checkbox
-                          defaultChecked={cell.value[1]}
-                          colorScheme="brandScheme"
-                          me="10px"
-                        />
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value[0]}
-                        </Text>
-                      </Flex>
-                    );
-                  } else if (cell.column.Header === "PROGRESS") {
-                    data = (
-                      <Flex align="center">
-                        <Text
-                          me="10px"
-                          color={textColor}
-                          fontSize="sm"
-                          fontWeight="700"
-                        >
-                          {cell.value}%
-                        </Text>
-                      </Flex>
-                    );
-                  } else if (cell.column.Header === "QUANTITY") {
-                    data = (
-                      <Text color={textColor} fontSize="sm" fontWeight="700">
-                        {cell.value}
-                      </Text>
-                    );
-                  } else if (cell.column.Header === "DATE") {
-                    data = (
-                      <Text color={textColor} fontSize="sm" fontWeight="700">
-                        {cell.value}
-                      </Text>
-                    );
-                  }
-                  return (
-                    <Td
-                      {...cell.getCellProps()}
-                      key={index}
-                      fontSize={{ sm: "14px" }}
-                      minW={{ sm: "150px", md: "200px", lg: "auto" }}
-                      borderColor="transparent"
-                    >
-                      {data}
-                    </Td>
-                  );
-                })}
-              </Tr>
-            );
-          })}
+          {page.map((row) => renderRow(row, textColor))}
         </Tbody>
       </Table>
     </Card>
   );
 }
+
+export default CheckTable;

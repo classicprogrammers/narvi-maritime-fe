@@ -12,7 +12,6 @@ import {
     Tr,
     Th,
     Td,
-    Badge,
     Icon,
     HStack,
     VStack,
@@ -23,15 +22,17 @@ import {
     InputLeftElement,
     Select,
     Tooltip,
+    useToast,
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogContent,
+    AlertDialogOverlay,
 } from "@chakra-ui/react";
 import {
     MdAdd,
-    MdSettings,
     MdSearch,
-    MdBugReport,
-    MdChat,
-    MdAccessTime,
-    MdPerson,
     MdChevronLeft,
     MdChevronRight,
     MdFilterList,
@@ -40,18 +41,22 @@ import {
     MdEdit,
     MdDelete,
     MdVisibility,
+    MdRefresh,
 } from "react-icons/md";
 
 export default function StockList() {
     const history = useHistory();
+    const toast = useToast();
     const [selectedItems, setSelectedItems] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+    const [itemsPerPage] = useState(10);
     const [statusFilter, setStatusFilter] = useState("all");
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deleteItemId, setDeleteItemId] = useState(null);
+    const [sortField, setSortField] = useState("stockItemId");
+    const [sortDirection, setSortDirection] = useState("asc");
 
-    const bgColor = useColorModeValue("white", "gray.800");
-    const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
     const hoverBg = useColorModeValue("blue.50", "blue.900");
     const searchIconColor = useColorModeValue("gray.400", "gray.500");
@@ -64,33 +69,48 @@ export default function StockList() {
         const sampleData = [
             {
                 id: 1,
-                stockItemId: "dfsds",
+                stockItemId: "STK001",
                 soNumber: "S00024",
                 poNumber: "P00011",
-                supplier: "",
-                vesselName: "",
-                originCountry: "",
-                destinationCountry: "",
+                supplier: "Marine Supplies Co.",
+                vesselName: "Ocean Voyager",
+                originCountry: "USA",
+                destinationCountry: "Singapore",
                 stockStatus: "In Stock",
-                itemDescription: "fsdfasf",
-                itemValue: "0",
+                itemDescription: "Marine Engine Parts",
+                itemValue: "2500.00",
+                numberOfPcs: "5",
+                submittedToCustoms: true,
+            },
+            {
+                id: 2,
+                stockItemId: "STK002",
+                soNumber: "S00025",
+                poNumber: "P00012",
+                supplier: "Global Maritime",
+                vesselName: "Sea Explorer",
+                originCountry: "Germany",
+                destinationCountry: "Japan",
+                stockStatus: "Out of Stock",
+                itemDescription: "Navigation Equipment",
+                itemValue: "1800.00",
                 numberOfPcs: "0",
                 submittedToCustoms: false,
             },
             {
-                id: 2,
-                stockItemId: "Si",
-                soNumber: "",
-                poNumber: "",
-                supplier: "",
-                vesselName: "",
-                originCountry: "",
-                destinationCountry: "",
-                stockStatus: "",
-                itemDescription: "",
-                itemValue: "0",
-                numberOfPcs: "0",
-                submittedToCustoms: false,
+                id: 3,
+                stockItemId: "STK003",
+                soNumber: "S00026",
+                poNumber: "P00013",
+                supplier: "Ocean Tech",
+                vesselName: "Pacific Star",
+                originCountry: "UK",
+                destinationCountry: "Australia",
+                stockStatus: "Pending",
+                itemDescription: "Safety Equipment",
+                itemValue: "3200.00",
+                numberOfPcs: "8",
+                submittedToCustoms: true,
             },
         ];
 
@@ -98,15 +118,70 @@ export default function StockList() {
     };
 
     const [stockData, setStockData] = useState([]);
+    const [filteredData, setFilteredData] = useState([]);
 
-    // Load stock data on component mount and refresh
+    // Load stock data on component mount
     useEffect(() => {
-        setStockData(loadStockData());
+        const data = loadStockData();
+        setStockData(data);
+        setFilteredData(data);
     }, []);
+
+    // Filter and search data
+    useEffect(() => {
+        let filtered = stockData;
+
+        // Apply status filter
+        if (statusFilter !== "all") {
+            filtered = filtered.filter(item => {
+                if (statusFilter === "in-stock") return item.stockStatus === "In Stock";
+                if (statusFilter === "out-of-stock") return item.stockStatus === "Out of Stock";
+                if (statusFilter === "pending") return item.stockStatus === "Pending";
+                return true;
+            });
+        }
+
+        // Apply search filter
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter(item =>
+                item.stockItemId.toLowerCase().includes(query) ||
+                item.soNumber.toLowerCase().includes(query) ||
+                item.poNumber.toLowerCase().includes(query) ||
+                item.supplier.toLowerCase().includes(query) ||
+                item.vesselName.toLowerCase().includes(query) ||
+                item.itemDescription.toLowerCase().includes(query)
+            );
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            let aValue = a[sortField] || "";
+            let bValue = b[sortField] || "";
+
+            if (typeof aValue === "string") aValue = aValue.toLowerCase();
+            if (typeof bValue === "string") bValue = bValue.toLowerCase();
+
+            if (sortDirection === "asc") {
+                return aValue > bValue ? 1 : -1;
+            } else {
+                return aValue < bValue ? 1 : -1;
+            }
+        });
+
+        setFilteredData(filtered);
+        setCurrentPage(1); // Reset to first page when filtering
+    }, [stockData, searchQuery, statusFilter, sortField, sortDirection]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentData = filteredData.slice(startIndex, endIndex);
 
     const handleSelectAll = (isChecked) => {
         if (isChecked) {
-            setSelectedItems(stockData.map(item => item.id));
+            setSelectedItems(currentData.map(item => item.id));
         } else {
             setSelectedItems([]);
         }
@@ -127,7 +202,6 @@ export default function StockList() {
 
     const handleSearch = (value) => {
         setSearchQuery(value);
-        console.log("Searching for:", value);
     };
 
     const handlePreviousPage = () => {
@@ -143,44 +217,452 @@ export default function StockList() {
     };
 
     const handleIssuesClick = () => {
-        alert("Issues panel opened! This would show system issues and bugs.");
+        toast({
+            title: "Issues Panel",
+            description: "System issues and bugs panel opened",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleMessagesClick = () => {
-        alert("Messages panel opened! You have 5 unread messages.");
+        toast({
+            title: "Messages Panel",
+            description: "You have 5 unread messages",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleRemindersClick = () => {
-        alert("Reminders panel opened! You have 5 pending reminders.");
+        toast({
+            title: "Reminders Panel",
+            description: "You have 5 pending reminders",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleSettingsClick = () => {
-        alert("Settings panel opened! Configure your stock list preferences.");
+        toast({
+            title: "Settings Panel",
+            description: "Configure your stock list preferences",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleFilterClick = () => {
-        alert("Filter panel opened! Filter your stock items by various criteria.");
+        toast({
+            title: "Filter Panel",
+            description: "Advanced filtering options opened",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleDeleteSelected = () => {
         if (selectedItems.length > 0) {
             const confirmed = window.confirm(`Are you sure you want to delete ${selectedItems.length} selected item(s)?`);
             if (confirmed) {
-                alert(`${selectedItems.length} item(s) deleted successfully!`);
+                const newStockData = stockData.filter(item => !selectedItems.includes(item.id));
+                setStockData(newStockData);
+                localStorage.setItem('stockItems', JSON.stringify(newStockData.filter(item => item.id > 3))); // Keep only custom items
                 setSelectedItems([]);
+                toast({
+                    title: "Success",
+                    description: `${selectedItems.length} item(s) deleted successfully!`,
+                    status: "success",
+                    duration: 3000,
+                    isClosable: true,
+                });
             }
         } else {
-            alert("Please select items to delete.");
+            toast({
+                title: "Warning",
+                description: "Please select items to delete",
+                status: "warning",
+                duration: 3000,
+                isClosable: true,
+            });
         }
     };
 
+    const handleDeleteItem = (itemId) => {
+        setDeleteItemId(itemId);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const confirmDeleteItem = () => {
+        if (deleteItemId) {
+            const newStockData = stockData.filter(item => item.id !== deleteItemId);
+            setStockData(newStockData);
+            localStorage.setItem('stockItems', JSON.stringify(newStockData.filter(item => item.id > 3)));
+            toast({
+                title: "Success",
+                description: "Item deleted successfully!",
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+        setIsDeleteDialogOpen(false);
+        setDeleteItemId(null);
+    };
+
+    const handleEditItem = (itemId) => {
+        history.push(`/admin/edit-stock-item/${itemId}`);
+    };
+
+    const handleViewItem = (itemId) => {
+        history.push(`/admin/view-stock-item/${itemId}`);
+    };
+
     const handleExportData = () => {
-        alert("Exporting stock data to CSV/Excel...");
+        const csvContent = [
+            ['Stock Item ID', 'SO Number', 'PO Number', 'Supplier', 'Vessel Name', 'Origin Country', 'Destination Country', 'Stock Status', 'Item Description', 'Item Value', 'Number of Pcs', 'Submitted to Customs'],
+            ...filteredData.map(item => [
+                item.stockItemId,
+                item.soNumber,
+                item.poNumber,
+                item.supplier,
+                item.vesselName,
+                item.originCountry,
+                item.destinationCountry,
+                item.stockStatus,
+                item.itemDescription,
+                item.itemValue,
+                item.numberOfPcs,
+                item.submittedToCustoms ? 'Yes' : 'No'
+            ])
+        ].map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stock-list.csv';
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        toast({
+            title: "Export Successful",
+            description: "Stock data exported to CSV",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handlePrintData = () => {
+        window.print();
+        toast({
+            title: "Print",
+            description: "Printing stock list...",
+            status: "info",
+            duration: 3000,
+            isClosable: true,
+        });
     };
 
     const handleRefreshData = () => {
-        setStockData(loadStockData());
-        alert("Stock data refreshed!");
+        const data = loadStockData();
+        setStockData(data);
+        setFilteredData(data);
+        toast({
+            title: "Data Refreshed",
+            description: "Stock data has been refreshed!",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handleStatusChange = (itemId, newStatus) => {
+        const updatedData = stockData.map(item =>
+            item.id === itemId ? { ...item, stockStatus: newStatus } : item
+        );
+        setStockData(updatedData);
+        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
+        toast({
+            title: "Status Updated",
+            description: `Stock status changed to ${newStatus}`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handleCustomsToggle = (itemId) => {
+        const updatedData = stockData.map(item =>
+            item.id === itemId ? { ...item, submittedToCustoms: !item.submittedToCustoms } : item
+        );
+        setStockData(updatedData);
+        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
+        toast({
+            title: "Customs Status Updated",
+            description: "Customs submission status changed",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handleBulkStatusChange = (newStatus) => {
+        if (selectedItems.length === 0) {
+            toast({
+                title: "Warning",
+                description: "Please select items to update",
+                status: "warning",
+                duration: 3000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        const updatedData = stockData.map(item =>
+            selectedItems.includes(item.id) ? { ...item, stockStatus: newStatus } : item
+        );
+        setStockData(updatedData);
+        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
+        setSelectedItems([]);
+        toast({
+            title: "Bulk Update Successful",
+            description: `${selectedItems.length} items updated to ${newStatus}`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handleBulkCustomsToggle = () => {
+        if (selectedItems.length === 0) {
+            toast({
+                title: "Warning",
+                description: "Please select items to update",
+                status: "warning",
+                duration: 3000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        const updatedData = stockData.map(item =>
+            selectedItems.includes(item.id) ? { ...item, submittedToCustoms: !item.submittedToCustoms } : item
+        );
+        setStockData(updatedData);
+        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
+        setSelectedItems([]);
+        toast({
+            title: "Bulk Update Successful",
+            description: `${selectedItems.length} items customs status updated`,
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+        });
+    };
+
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+        } else {
+            setSortField(field);
+            setSortDirection("asc");
+        }
+    };
+
+    const getSortIcon = (field) => {
+        if (sortField !== field) return null;
+        return sortDirection === "asc" ? "↑" : "↓";
+    };
+
+    const getStockStatistics = () => {
+        const total = stockData.length;
+        const inStock = stockData.filter(item => item.stockStatus === "In Stock").length;
+        const outOfStock = stockData.filter(item => item.stockStatus === "Out of Stock").length;
+        const pending = stockData.filter(item => item.stockStatus === "Pending").length;
+        const submittedToCustoms = stockData.filter(item => item.submittedToCustoms).length;
+        const totalValue = stockData.reduce((sum, item) => sum + parseFloat(item.itemValue || 0), 0);
+
+        return {
+            total,
+            inStock,
+            outOfStock,
+            pending,
+            submittedToCustoms,
+            totalValue: totalValue.toFixed(2)
+        };
+    };
+
+    const validateStockData = (data) => {
+        const errors = [];
+        data.forEach((item, index) => {
+            if (!item.stockItemId) {
+                errors.push(`Row ${index + 1}: Stock Item ID is required`);
+            }
+            if (!item.itemDescription) {
+                errors.push(`Row ${index + 1}: Item Description is required`);
+            }
+            if (isNaN(parseFloat(item.itemValue))) {
+                errors.push(`Row ${index + 1}: Item Value must be a valid number`);
+            }
+            if (isNaN(parseInt(item.numberOfPcs))) {
+                errors.push(`Row ${index + 1}: Number of Pcs must be a valid integer`);
+            }
+        });
+        return errors;
+    };
+
+    const handleDataValidation = () => {
+        const errors = validateStockData(stockData);
+        if (errors.length > 0) {
+            toast({
+                title: "Validation Errors",
+                description: errors.join(", "),
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        } else {
+            toast({
+                title: "Validation Successful",
+                description: "All stock data is valid",
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    const handleDuplicateCheck = () => {
+        const duplicates = stockData.filter((item, index, self) =>
+            self.findIndex(t => t.stockItemId === item.stockItemId) !== index
+        );
+
+        if (duplicates.length > 0) {
+            toast({
+                title: "Duplicate Items Found",
+                description: `${duplicates.length} duplicate stock item IDs found`,
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+        } else {
+            toast({
+                title: "No Duplicates",
+                description: "All stock items have unique IDs",
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyPress = (event) => {
+            if (event.ctrlKey || event.metaKey) {
+                switch (event.key) {
+                    case 'n':
+                        event.preventDefault();
+                        handleNewButton();
+                        break;
+                    case 'f':
+                        event.preventDefault();
+                        document.querySelector('input[placeholder="Search stock items..."]')?.focus();
+                        break;
+                    case 'r':
+                        event.preventDefault();
+                        handleRefreshData();
+                        break;
+                    case 'e':
+                        event.preventDefault();
+                        handleExportData();
+                        break;
+                    case 'p':
+                        event.preventDefault();
+                        handlePrintData();
+                        break;
+                    case 'Delete':
+                        event.preventDefault();
+                        if (selectedItems.length > 0) {
+                            handleDeleteSelected();
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyPress);
+        return () => document.removeEventListener('keydown', handleKeyPress);
+        //eslint-disable-next-line
+    }, [selectedItems]);
+
+    const handleQuickActions = (action) => {
+        switch (action) {
+            case 'selectAll':
+                handleSelectAll(true);
+                break;
+            case 'clearSelection':
+                setSelectedItems([]);
+                break;
+            case 'exportSelected':
+                if (selectedItems.length > 0) {
+                    const selectedData = stockData.filter(item => selectedItems.includes(item.id));
+                    // Export only selected items
+                    const csvContent = [
+                        ['Stock Item ID', 'SO Number', 'PO Number', 'Supplier', 'Vessel Name', 'Origin Country', 'Destination Country', 'Stock Status', 'Item Description', 'Item Value', 'Number of Pcs', 'Submitted to Customs'],
+                        ...selectedData.map(item => [
+                            item.stockItemId,
+                            item.soNumber,
+                            item.poNumber,
+                            item.supplier,
+                            item.vesselName,
+                            item.originCountry,
+                            item.destinationCountry,
+                            item.stockStatus,
+                            item.itemDescription,
+                            item.itemValue,
+                            item.numberOfPcs,
+                            item.submittedToCustoms ? 'Yes' : 'No'
+                        ])
+                    ].map(row => row.join(',')).join('\n');
+
+                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'selected-stock-items.csv';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+
+                    toast({
+                        title: "Export Successful",
+                        description: `${selectedItems.length} selected items exported`,
+                        status: "success",
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                } else {
+                    toast({
+                        title: "Warning",
+                        description: "Please select items to export",
+                        status: "warning",
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                }
+                break;
+            default:
+                break;
+        }
     };
 
     return (
@@ -210,13 +692,14 @@ export default function StockList() {
                     <HStack spacing={4}>
                         <HStack spacing={2}>
                             <Text fontSize="sm" color="gray.600">
-                                {stockData.length} items
+                                {filteredData.length} items
                             </Text>
                             <IconButton
                                 icon={<Icon as={MdChevronLeft} />}
                                 size="sm"
                                 variant="ghost"
                                 aria-label="Previous"
+                                onClick={handlePreviousPage}
                                 isDisabled={currentPage === 1}
                             />
                             <IconButton
@@ -224,8 +707,47 @@ export default function StockList() {
                                 size="sm"
                                 variant="ghost"
                                 aria-label="Next"
+                                onClick={handleNextPage}
                                 isDisabled={currentPage === totalPages}
                             />
+                        </HStack>
+                        <HStack spacing={2}>
+                            <Tooltip label="Issues">
+                                <IconButton
+                                    icon={<Icon as={MdVisibility} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Issues"
+                                    onClick={handleIssuesClick}
+                                />
+                            </Tooltip>
+                            <Tooltip label="Messages">
+                                <IconButton
+                                    icon={<Icon as={MdVisibility} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Messages"
+                                    onClick={handleMessagesClick}
+                                />
+                            </Tooltip>
+                            <Tooltip label="Reminders">
+                                <IconButton
+                                    icon={<Icon as={MdVisibility} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Reminders"
+                                    onClick={handleRemindersClick}
+                                />
+                            </Tooltip>
+                            <Tooltip label="Settings">
+                                <IconButton
+                                    icon={<Icon as={MdVisibility} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Settings"
+                                    onClick={handleSettingsClick}
+                                />
+                            </Tooltip>
                         </HStack>
                         <HStack spacing={2}>
                             <Tooltip label="Export">
@@ -234,6 +756,7 @@ export default function StockList() {
                                     size="sm"
                                     variant="ghost"
                                     aria-label="Export"
+                                    onClick={handleExportData}
                                 />
                             </Tooltip>
                             <Tooltip label="Print">
@@ -242,11 +765,68 @@ export default function StockList() {
                                     size="sm"
                                     variant="ghost"
                                     aria-label="Print"
+                                    onClick={handlePrintData}
                                 />
+                            </Tooltip>
+                            <Tooltip label="Refresh">
+                                <IconButton
+                                    icon={<Icon as={MdRefresh} />}
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Refresh"
+                                    onClick={handleRefreshData}
+                                />
+                            </Tooltip>
+                            <Tooltip label="Keyboard Shortcuts: Ctrl+N (New), Ctrl+F (Search), Ctrl+R (Refresh), Ctrl+E (Export), Ctrl+P (Print), Delete (Delete Selected)">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    fontSize="xs"
+                                    px={2}
+                                >
+                                    ⌨️
+                                </Button>
                             </Tooltip>
                         </HStack>
                     </HStack>
                 </Flex>
+
+                {/* Statistics Section */}
+                <Box px="25px" mb="20px">
+                    <HStack spacing={4} flexWrap="wrap">
+                        {(() => {
+                            const stats = getStockStatistics();
+                            return (
+                                <>
+                                    <Box bg="blue.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="blue.600" fontWeight="600">Total Items</Text>
+                                        <Text fontSize="lg" color="blue.700" fontWeight="bold">{stats.total}</Text>
+                                    </Box>
+                                    <Box bg="green.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="green.600" fontWeight="600">In Stock</Text>
+                                        <Text fontSize="lg" color="green.700" fontWeight="bold">{stats.inStock}</Text>
+                                    </Box>
+                                    <Box bg="red.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="red.600" fontWeight="600">Out of Stock</Text>
+                                        <Text fontSize="lg" color="red.700" fontWeight="bold">{stats.outOfStock}</Text>
+                                    </Box>
+                                    <Box bg="yellow.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="yellow.600" fontWeight="600">Pending</Text>
+                                        <Text fontSize="lg" color="yellow.700" fontWeight="bold">{stats.pending}</Text>
+                                    </Box>
+                                    <Box bg="purple.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="purple.600" fontWeight="600">Customs Submitted</Text>
+                                        <Text fontSize="lg" color="purple.700" fontWeight="bold">{stats.submittedToCustoms}</Text>
+                                    </Box>
+                                    <Box bg="teal.50" p={3} borderRadius="8px" minW="120px">
+                                        <Text fontSize="xs" color="teal.600" fontWeight="600">Total Value</Text>
+                                        <Text fontSize="lg" color="teal.700" fontWeight="bold">${stats.totalValue}</Text>
+                                    </Box>
+                                </>
+                            );
+                        })()}
+                    </HStack>
+                </Box>
 
                 {/* Filter Section */}
                 <Box px='25px' mb='20px'>
@@ -289,9 +869,89 @@ export default function StockList() {
                             variant="outline"
                             size="sm"
                             borderRadius="8px"
+                            onClick={handleFilterClick}
                         >
                             Filters
                         </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={handleDataValidation}
+                        >
+                            Validate Data
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={handleDuplicateCheck}
+                        >
+                            Check Duplicates
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={() => handleQuickActions('selectAll')}
+                        >
+                            Select All
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={() => handleQuickActions('clearSelection')}
+                            isDisabled={selectedItems.length === 0}
+                        >
+                            Clear Selection
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={() => handleQuickActions('exportSelected')}
+                            isDisabled={selectedItems.length === 0}
+                        >
+                            Export Selected
+                        </Button>
+
+                        {selectedItems.length > 0 && (
+                            <HStack spacing={2}>
+                                <Select
+                                    size="sm"
+                                    placeholder="Bulk Status"
+                                    onChange={(e) => handleBulkStatusChange(e.target.value)}
+                                    bg={inputBg}
+                                    color={inputText}
+                                    borderRadius="4px"
+                                    w="120px"
+                                >
+                                    <option value="In Stock">In Stock</option>
+                                    <option value="Out of Stock">Out of Stock</option>
+                                    <option value="Pending">Pending</option>
+                                </Select>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={handleBulkCustomsToggle}
+                                >
+                                    Toggle Customs
+                                </Button>
+                                <Button
+                                    colorScheme="red"
+                                    size="sm"
+                                    onClick={handleDeleteSelected}
+                                >
+                                    Delete Selected ({selectedItems.length})
+                        </Button>
+                            </HStack>
+                        )}
                     </HStack>
                 </Box>
 
@@ -325,28 +985,196 @@ export default function StockList() {
                                 <Tr>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                         <Checkbox
-                                            isChecked={selectedItems.length === stockData.length}
-                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < stockData.length}
+                                            isChecked={currentData.length > 0 && selectedItems.length === currentData.length}
+                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < currentData.length}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                         />
                                     </Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Stock Item ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">SO Number</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">PO Number</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Supplier</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Vessel Name</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Origin Country</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Destination Country</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Stock Status</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Item Description</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Item Value</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Number of Pcs</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Submitted to Customs</Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("stockItemId")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Stock Item ID {getSortIcon("stockItemId")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("soNumber")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        SO Number {getSortIcon("soNumber")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("poNumber")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        PO Number {getSortIcon("poNumber")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("supplier")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Supplier {getSortIcon("supplier")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("vesselName")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Vessel Name {getSortIcon("vesselName")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("originCountry")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Origin Country {getSortIcon("originCountry")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("destinationCountry")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Destination Country {getSortIcon("destinationCountry")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("stockStatus")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Stock Status {getSortIcon("stockStatus")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("itemDescription")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Item Description {getSortIcon("itemDescription")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("itemValue")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Item Value {getSortIcon("itemValue")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("numberOfPcs")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Number of Pcs {getSortIcon("numberOfPcs")}
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                        borderColor="gray.200"
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                        color="gray.600"
+                                        textTransform="uppercase"
+                                        cursor="pointer"
+                                        onClick={() => handleSort("submittedToCustoms")}
+                                        _hover={{ bg: "gray.200" }}
+                                    >
+                                        Submitted to Customs {getSortIcon("submittedToCustoms")}
+                                    </Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {stockData.map((item, index) => (
+                                {currentData.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? "white" : "gray.50"}
@@ -366,12 +1194,12 @@ export default function StockList() {
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.soNumber}
+                                                {item.soNumber || "-"}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.poNumber}
+                                                {item.poNumber || "-"}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -395,15 +1223,21 @@ export default function StockList() {
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Badge
-                                                colorScheme={item.stockStatus === "In Stock" ? "green" : "gray"}
-                                                variant="subtle"
+                                            <Select
+                                                size="sm"
+                                                value={item.stockStatus || ""}
+                                                onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderRadius="4px"
                                                 fontSize="xs"
-                                                px="8px"
-                                                py="4px"
-                                                borderRadius="full">
-                                                {item.stockStatus || "Unknown"}
-                                            </Badge>
+                                                minW="100px"
+                                            >
+                                                <option value="">Select Status</option>
+                                                <option value="In Stock">In Stock</option>
+                                                <option value="Out of Stock">Out of Stock</option>
+                                                <option value="Pending">Pending</option>
+                                            </Select>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
@@ -421,7 +1255,11 @@ export default function StockList() {
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Checkbox isChecked={item.submittedToCustoms} size="sm" />
+                                            <Checkbox
+                                                isChecked={item.submittedToCustoms}
+                                                size="sm"
+                                                onChange={() => handleCustomsToggle(item.id)}
+                                            />
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <HStack spacing={2}>
@@ -432,6 +1270,7 @@ export default function StockList() {
                                                         colorScheme="blue"
                                                         variant="ghost"
                                                         aria-label="View stock item"
+                                                        onClick={() => handleViewItem(item.id)}
                                                     />
                                                 </Tooltip>
                                                 <Tooltip label="Edit Stock Item">
@@ -441,6 +1280,7 @@ export default function StockList() {
                                                         colorScheme="blue"
                                                         variant="ghost"
                                                         aria-label="Edit stock item"
+                                                        onClick={() => handleEditItem(item.id)}
                                                     />
                                                 </Tooltip>
                                                 <Tooltip label="Delete Stock Item">
@@ -450,6 +1290,7 @@ export default function StockList() {
                                                         colorScheme="red"
                                                         variant="ghost"
                                                         aria-label="Delete stock item"
+                                                        onClick={() => handleDeleteItem(item.id)}
                                                     />
                                                 </Tooltip>
                                             </HStack>
@@ -464,20 +1305,23 @@ export default function StockList() {
                 {/* Pagination */}
                 <Flex px='25px' justify='space-between' align='center' py='20px'>
                     <Text fontSize='sm' color='gray.500'>
-                        Showing {stockData.length} of {stockData.length} results
+                        Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
                     </Text>
                     <HStack spacing={2}>
                         <Button
                             size="sm"
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            onClick={handlePreviousPage}
                             isDisabled={currentPage === 1}
                             variant="outline"
                         >
                             Previous
                         </Button>
+                        <Text fontSize="sm" color="gray.600">
+                            Page {currentPage} of {totalPages}
+                        </Text>
                         <Button
                             size="sm"
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            onClick={handleNextPage}
                             isDisabled={currentPage === totalPages}
                             variant="outline"
                         >
@@ -486,6 +1330,34 @@ export default function StockList() {
                     </HStack>
                 </Flex>
             </VStack>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                isOpen={isDeleteDialogOpen}
+                onClose={() => setIsDeleteDialogOpen(false)}
+                leastDestructiveRef={undefined}
+            >
+                <AlertDialogOverlay>
+                    <AlertDialogContent>
+                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                            Delete Stock Item
+                        </AlertDialogHeader>
+
+                        <AlertDialogBody>
+                            Are you sure you want to delete this stock item? This action cannot be undone.
+                        </AlertDialogBody>
+
+                        <AlertDialogFooter>
+                            <Button onClick={() => setIsDeleteDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button colorScheme="red" onClick={confirmDeleteItem} ml={3}>
+                                Delete
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialogOverlay>
+            </AlertDialog>
         </Box>
     );
 } 

@@ -16,7 +16,7 @@ import {
   barChartDataConsumption,
   barChartOptionsConsumption,
 } from "variables/charts";
-import { MdBarChart, MdDescription, MdMoreVert } from "react-icons/md";
+import { MdDescription, MdMoreVert } from "react-icons/md";
 
 export default function WeeklyRevenue(props) {
   const { ...rest } = props;

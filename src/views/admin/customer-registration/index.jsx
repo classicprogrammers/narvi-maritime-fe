@@ -13,7 +13,6 @@ import {
     useColorModeValue,
     VStack,
     HStack,
-    useToast,
     Icon,
 } from "@chakra-ui/react";
 // Custom components
@@ -28,10 +27,10 @@ import { useCustomer } from "redux/hooks/useCustomer";
 
 function CustomerRegistration() {
     const history = useHistory();
-    const toast = useToast();
 
     // Redux
     const { countries, isLoading: countriesLoading, getCountries, addCustomerToRedux } = useCustomer();
+    const countryList = countries?.countries;
 
     // Modal states
     const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
@@ -43,7 +42,6 @@ function CustomerRegistration() {
     const textColor = useColorModeValue("secondaryGray.900", "white");
     const textColorSecondary = useColorModeValue("gray.700", "gray.400");
     const textColorBrand = useColorModeValue("#174693", "white");
-    const brandStars = useColorModeValue("#174693", "#174693");
     const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
     const inputBg = useColorModeValue("white", "navy.900");
     const inputText = useColorModeValue("gray.700", "gray.100");
@@ -249,7 +247,7 @@ function CustomerRegistration() {
                                                 name="name"
                                                 value={formData.name}
                                                 onChange={handleInputChange}
-                                                placeholder="👤 e.g., John Smith, ABC Corporation..."
+                                                placeholder="e.g., John Smith, ABC Corporation..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -283,7 +281,7 @@ function CustomerRegistration() {
                                                 name="email"
                                                 value={formData.email}
                                                 onChange={handleInputChange}
-                                                placeholder="📧 e.g., john.smith@company.com..."
+                                                placeholder="e.g., john.smith@company.com..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -320,7 +318,7 @@ function CustomerRegistration() {
                                                 name="phone"
                                                 value={formData.phone}
                                                 onChange={handleInputChange}
-                                                placeholder="📞 e.g., +1-555-123-4567..."
+                                                placeholder="e.g., +1-555-123-4567..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -354,7 +352,7 @@ function CustomerRegistration() {
                                                 name="mobile"
                                                 value={formData.mobile}
                                                 onChange={handleInputChange}
-                                                placeholder="📱 e.g., +1-555-987-6543..."
+                                                placeholder="e.g., +1-555-987-6543..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -400,7 +398,7 @@ function CustomerRegistration() {
                                             name="street"
                                             value={formData.street}
                                             onChange={handleInputChange}
-                                            placeholder="🏠 e.g., 123 Main Street, Suite 100..."
+                                            placeholder="e.g., 123 Main Street, Suite 100..."
                                             size="lg"
                                             borderRadius="12px"
                                             bg={inputBg}
@@ -436,7 +434,7 @@ function CustomerRegistration() {
                                                 name="city"
                                                 value={formData.city}
                                                 onChange={handleInputChange}
-                                                placeholder="🏙️ e.g., New York, London, Tokyo..."
+                                                placeholder="e.g., New York, London, Tokyo..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -470,7 +468,7 @@ function CustomerRegistration() {
                                                 name="zip"
                                                 value={formData.zip}
                                                 onChange={handleInputChange}
-                                                placeholder="📮 e.g., 10001, SW1A 1AA, 100-0001..."
+                                                placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
                                                 size="lg"
                                                 borderRadius="12px"
                                                 bg={inputBg}
@@ -531,8 +529,9 @@ function CustomerRegistration() {
                                                 <option value="">
                                                     {countriesLoading ? "Loading countries..." : "Select Country"}
                                                 </option>
-                                                {countries && countries.length > 0 ? (
-                                                    countries.map((country) => (
+
+                                                {countryList && countryList.length > 0 ? (
+                                                    countryList.map((country) => (
                                                         <option key={country.id} value={country.id}>
                                                             {country.name}
                                                         </option>
@@ -588,8 +587,8 @@ function CustomerRegistration() {
                                                 },
                                             }}
                                         >
-                                            <option value="person">👤 Person</option>
-                                            <option value="company">🏢 Company</option>
+                                            <option value="person">Person</option>
+                                            <option value="company">Company</option>
                                         </Select>
                                     </FormControl>
                                 </Box>

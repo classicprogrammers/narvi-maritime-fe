@@ -27,6 +27,8 @@ import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
 import { useUser } from "redux/hooks/useUser";
+// API
+import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 
 function SignUp() {
   const history = useHistory();
@@ -73,6 +75,32 @@ function SignUp() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+  };
+
+  // Signup API call function
+  const handleSignupApi = async (userData) => {
+    try {
+      const response = await fetch(buildApiUrl(getApiEndpoint("SIGNUP")), {
+        method: "POST",
+        headers: API_CONFIG.DEFAULT_HEADERS,
+        body: JSON.stringify({
+          name: `${userData.firstName} ${userData.lastName}`,
+          email: userData.email,
+          password: userData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Signup failed");
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error("Signup API failed:", error);
+      throw error;
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -133,36 +161,51 @@ function SignUp() {
     try {
       console.log("Creating account..."); // Debug log
 
-      // Commented out API call - just show success message
-      const result = await signup({
+      // Call the signup API directly
+      const apiResult = await handleSignupApi({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         password: formData.password,
       });
 
-      // Mock success response
-      // const result = { success: true, data: { message: "Account created successfully" } };
+      console.log("Signup API Response:", apiResult);
 
-      console.log("Signup Response:", result);
-
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: "Account created successfully! Please sign in.",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
+      if (apiResult) {
+        // Update Redux state
+        const result = await signup({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
         });
 
-        // Redirect to signin page
-        setTimeout(() => {
-          history.push('/auth/sign-in');
-        }, 1500);
+        if (result.success) {
+          toast({
+            title: "Success",
+            description: "Account created successfully! Please sign in.",
+            status: "success",
+            duration: 3000,
+            isClosable: true,
+          });
+
+          // Redirect to signin page
+          setTimeout(() => {
+            history.push('/auth/sign-in');
+          }, 1500);
+        } else {
+          toast({
+            title: "Error",
+            description: result.error || "Failed to create account. Please try again.",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+        }
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to create account. Please try again.",
+          description: "Failed to create account. Please try again.",
           status: "error",
           duration: 3000,
           isClosable: true,
@@ -170,9 +213,18 @@ function SignUp() {
       }
     } catch (error) {
       console.error("Sign up error:", error); // Debug log
+      
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      
+      if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+        errorMessage = "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: errorMessage,
         status: "error",
         duration: 3000,
         isClosable: true,

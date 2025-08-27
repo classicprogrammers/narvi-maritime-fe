@@ -43,24 +43,14 @@ import {
     NumberIncrementStepper,
     NumberDecrementStepper,
     Grid,
-    Textarea,
     useToast,
     Tooltip,
-    Card,
-    CardBody,
 } from "@chakra-ui/react";
 import {
     MdAdd,
-    MdSettings,
     MdSearch,
     MdArrowBack,
     MdArrowForward,
-    MdReport,
-    MdChat,
-    MdAccessTime,
-    MdPerson,
-    MdDragIndicator,
-    MdMoreVert,
     MdDelete,
     MdEdit,
     MdVisibility,
@@ -121,8 +111,6 @@ export default function RateList() {
         }
     ]);
 
-    const bgColor = useColorModeValue("white", "gray.800");
-    const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
     const hoverBg = useColorModeValue("blue.50", "blue.900");
     const searchIconColor = useColorModeValue("gray.400", "gray.500");
@@ -347,11 +335,11 @@ export default function RateList() {
 
                 {/* Rate Items Table */}
                 <Box px="25px">
-                    <Box 
-                        maxH="400px" 
-                        overflowY="auto" 
-                        border="1px" 
-                        borderColor="gray.200" 
+                    <Box
+                        maxH="400px"
+                        overflowY="auto"
+                        border="1px"
+                        borderColor="gray.200"
                         borderRadius="8px"
                         sx={{
                             '&::-webkit-scrollbar': {

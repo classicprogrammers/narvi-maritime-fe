@@ -8,7 +8,6 @@ import {
   VStack,
   HStack,
   Grid,
-  GridItem,
   Badge,
   Icon,
   IconButton,
@@ -17,15 +16,11 @@ import {
   Input,
   FormControl,
   FormLabel,
-  Select,
-  Textarea,
   Tabs,
   TabList,
   TabPanels,
   Tab,
   TabPanel,
-  Avatar,
-  Divider,
   useToast,
 } from "@chakra-ui/react";
 
@@ -37,7 +32,6 @@ import {
   MdSettings,
   MdAdd,
   MdEdit,
-  MdSave,
   MdPrint,
   MdAttachMoney,
   MdCreditCard,
@@ -58,7 +52,6 @@ export default function CustomerDetail() {
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
-  const bgColor = useColorModeValue("white", "navy.800");
 
   useEffect(() => {
     // Find customer by ID

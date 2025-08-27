@@ -6,8 +6,7 @@ import { Provider } from "react-redux";
 import store from "./redux/store";
 import AuthLayout from "layouts/auth";
 import AdminLayout from "layouts/admin";
-import RtlLayout from "layouts/rtl";
-import { ChakraProvider, ColorModeProvider } from "@chakra-ui/react";
+import { ChakraProvider } from "@chakra-ui/react";
 import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
@@ -21,7 +20,6 @@ ReactDOM.render(
             <Switch>
               <Route path={`/auth`} component={AuthLayout} />
               <ProtectedRoute path={`/admin`} component={AdminLayout} />
-              <Route path={`/rtl`} component={RtlLayout} />
               <Redirect from="/" to="/auth/sign-in" />
             </Switch>
           </AppWrapper>

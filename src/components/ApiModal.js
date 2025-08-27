@@ -3,16 +3,13 @@ import {
   Modal,
   ModalOverlay,
   ModalContent,
-  ModalHeader,
   ModalBody,
-  ModalFooter,
   Button,
   Text,
   Icon,
-  useColorModeValue,
   Box,
 } from "@chakra-ui/react";
-import { MdCheckCircle, MdError, MdInfo } from "react-icons/md";
+import { MdCheckCircle, MdInfo } from "react-icons/md";
 
 // Global modal state
 let globalModalState = {

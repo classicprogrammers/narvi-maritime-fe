@@ -8,20 +8,16 @@ import {
   VStack,
   HStack,
   Grid,
-  GridItem,
   Badge,
   Progress,
   IconButton,
   useColorModeValue,
-  Divider,
-  Avatar,
   Icon,
 } from "@chakra-ui/react";
 import {
   MdPrint,
   MdSettings,
   MdChevronLeft,
-  MdChevronRight,
   MdHelpOutline,
   MdSave,
 } from "react-icons/md";

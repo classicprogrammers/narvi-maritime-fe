@@ -9,7 +9,6 @@ import {
   Button,
   Text,
   VStack,
-  HStack,
   useColorModeValue,
 } from "@chakra-ui/react";
 import { WarningIcon } from "@chakra-ui/icons";

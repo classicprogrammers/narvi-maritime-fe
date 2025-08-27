@@ -5,7 +5,6 @@ import {
     Flex,
     Text,
     Button,
-    Badge,
     Icon,
     HStack,
     VStack,
@@ -21,14 +20,9 @@ import {
     Textarea,
     FormControl,
     FormLabel,
-    FormHelperText,
 } from "@chakra-ui/react";
 import {
     MdSettings,
-    MdBugReport,
-    MdChat,
-    MdAccessTime,
-    MdPerson,
     MdChevronLeft,
     MdChevronRight,
     MdKeyboardArrowDown,
@@ -59,8 +53,6 @@ export default function NewStockItem() {
         exportDocument: null,
     });
 
-    const bgColor = useColorModeValue("white", "gray.800");
-    const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
 
     const handleInputChange = (field, value) => {

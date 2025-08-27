@@ -11,7 +11,6 @@ import {
     Tr,
     Th,
     Td,
-    Badge,
     Icon,
     HStack,
     VStack,
@@ -30,15 +29,11 @@ import {
     NumberInputStepper,
     NumberIncrementStepper,
     NumberDecrementStepper,
-    Divider,
-    Avatar,
     Grid,
-    GridItem,
     Menu,
     MenuButton,
     MenuList,
     MenuItem,
-    MenuDivider,
     Modal,
     ModalOverlay,
     ModalContent,
@@ -59,17 +54,9 @@ import {
 import {
     MdAdd,
     MdSettings,
-    MdSearch,
     MdArrowBack,
     MdArrowForward,
-    MdReport,
-    MdChat,
-    MdAccessTime,
-    MdPerson,
     MdDragIndicator,
-    MdMoreVert,
-    MdNotificationsNone,
-    MdInfoOutline,
     MdHelpOutline,
     MdKeyboardArrowDown,
     MdDelete,
@@ -113,7 +100,6 @@ export default function Quotations() {
         },
     ]);
 
-    const bgColor = useColorModeValue("white", "gray.800");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
 
