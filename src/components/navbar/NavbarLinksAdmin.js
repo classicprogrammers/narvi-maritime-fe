@@ -19,16 +19,27 @@ import { SidebarResponsive } from "components/sidebar/Sidebar";
 import PropTypes from "prop-types";
 import React, { useContext } from "react";
 import { SidebarContext } from "contexts/SidebarContext";
+import { useHistory } from "react-router-dom";
 // Assets
-import { MdNotificationsNone, MdMenu, MdClose, MdLightMode, MdDarkMode } from "react-icons/md";
+import {
+  MdNotificationsNone,
+  MdMenu,
+  MdClose,
+  MdLightMode,
+  MdDarkMode,
+} from "react-icons/md";
 import { FaEthereum } from "react-icons/fa";
 import routes from "routes.js";
+// Redux
+import { useUser } from "redux/hooks/useUser";
 // import { ThemeEditor } from "./ThemeEditor";
 
 export default function HeaderLinks(props) {
   const { secondary } = props;
   const { toggleSidebar, setToggleSidebar } = useContext(SidebarContext);
   const { colorMode, toggleColorMode } = useColorMode();
+  const history = useHistory();
+  const { logout, user } = useUser();
 
   // Chakra Color Mode
   const navbarIcon = useColorModeValue("gray.400", "white");
@@ -47,6 +58,20 @@ export default function HeaderLinks(props) {
   const handleToggleSidebar = () => {
     setToggleSidebar(!toggleSidebar);
   };
+
+  const handleLogout = () => {
+    logout();
+    history.push("/auth/sign-in");
+  };
+
+  const getUserDisplayName = () => {
+    if (user && user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    } else if (user && user.email) {
+      return user.email.split("@")[0];
+    }
+    return "User";
+  };
   return (
     <Flex
       w={{ sm: "100%", md: "auto" }}
@@ -63,10 +88,10 @@ export default function HeaderLinks(props) {
         me="10px"
         borderRadius="30px"
       />
-      
+
       {/* Theme Toggle Button */}
       <IconButton
-        icon={<Icon as={colorMode === 'light' ? MdDarkMode : MdLightMode} />}
+        icon={<Icon as={colorMode === "light" ? MdDarkMode : MdLightMode} />}
         variant="ghost"
         aria-label="Toggle theme"
         onClick={toggleColorMode}
@@ -75,7 +100,7 @@ export default function HeaderLinks(props) {
         me="10px"
         size="sm"
       />
-      
+
       <Flex
         bg={ethBg}
         display={secondary ? "flex" : "none"}
@@ -217,7 +242,7 @@ export default function HeaderLinks(props) {
               fontWeight="700"
               color={textColor}
             >
-              👋&nbsp; Hey, Adela
+              👋&nbsp; Hey, {getUserDisplayName()}
             </Text>
           </Flex>
           <Flex flexDirection="column" p="10px">
@@ -235,6 +260,7 @@ export default function HeaderLinks(props) {
               color="red.400"
               borderRadius="8px"
               px="14px"
+              onClick={handleLogout}
             >
               <Text fontSize="sm">Log out</Text>
             </MenuItem>

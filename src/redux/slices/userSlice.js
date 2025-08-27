@@ -42,7 +42,13 @@ const userSlice = createSlice({
       state.isAuthenticated = false;
       state.token = null;
       state.error = null;
+      state.signupLoading = false;
+      state.signupError = null;
+      state.forgotPasswordLoading = false;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = false;
       localStorage.removeItem("token");
+      localStorage.removeItem("user");
     },
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };

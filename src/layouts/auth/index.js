@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Redirect, Route, Switch } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Redirect, Route, Switch, useHistory } from "react-router-dom";
 import routes from "routes.js";
 
 // Chakra imports
@@ -9,11 +9,23 @@ import { Box, useColorModeValue } from "@chakra-ui/react";
 import { SidebarContext } from "contexts/SidebarContext";
 // API Modal component
 import ApiModal from "components/ApiModal";
+// Redux
+import { useUser } from "redux/hooks/useUser";
 
 // Custom Chakra theme
 export default function Auth() {
   // states and functions
   const [toggleSidebar, setToggleSidebar] = useState(false);
+  const { isAuthenticated, token } = useUser();
+  const history = useHistory();
+
+  useEffect(() => {
+    // If user is already authenticated, redirect to dashboard
+    if (isAuthenticated && token) {
+      history.push("/admin/default");
+    }
+  }, [isAuthenticated, token, history]);
+
   // functions for changing the states from components
   const getRoute = () => {
     return window.location.pathname !== "/auth/full-screen-maps";
@@ -41,6 +53,12 @@ export default function Auth() {
   };
   const authBg = useColorModeValue("white", "navy.900");
   document.documentElement.dir = "ltr";
+
+  // Don't render auth pages if user is authenticated
+  if (isAuthenticated && token) {
+    return null;
+  }
+
   return (
     <Box>
       <SidebarContext.Provider
@@ -65,11 +83,7 @@ export default function Auth() {
             <Box mx="auto" minH="100vh">
               <Switch>
                 {getRoutes(routes)}
-                <Redirect
-                  from="/auth"
-                  to="/auth/sign-in/default
-                  "
-                />
+                <Redirect from="/auth" to="/auth/sign-in" />
               </Switch>
             </Box>
           ) : null}

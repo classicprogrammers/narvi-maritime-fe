@@ -157,8 +157,8 @@ function SignUp() {
 
         // Redirect to signin page
         setTimeout(() => {
-          history.push("/auth/sign-in");
-        }, 2000);
+          history.push('/auth/sign-in');
+        }, 1500);
       } else {
         toast({
           title: "Error",

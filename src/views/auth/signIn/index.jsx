@@ -95,10 +95,10 @@ function SignIn() {
         setModalMessage("Login successful! Redirecting to dashboard...");
         setIsSuccessModalOpen(true);
 
-        // Redirect to admin dashboard after modal closes
+        // Redirect to admin dashboard immediately after successful login
         setTimeout(() => {
-          history.push('/admin');
-        }, 2000);
+          history.push('/admin/default');
+        }, 1000);
       } else {
         setModalMessage(result.error || "Login failed. Please check your credentials.");
         setIsFailureModalOpen(true);

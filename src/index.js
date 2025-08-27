@@ -9,18 +9,22 @@ import AdminLayout from "layouts/admin";
 import RtlLayout from "layouts/rtl";
 import { ChakraProvider, ColorModeProvider } from "@chakra-ui/react";
 import theme from "theme/theme";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AppWrapper from "./components/AppWrapper";
 
 ReactDOM.render(
   <Provider store={store}>
     <ChakraProvider theme={theme}>
       <React.StrictMode>
         <BrowserRouter>
-          <Switch>
-            <Route path={`/auth`} component={AuthLayout} />
-            <Route path={`/admin`} component={AdminLayout} />
-            <Route path={`/rtl`} component={RtlLayout} />
-            <Redirect from="/" to="/admin" />
-          </Switch>
+          <AppWrapper>
+            <Switch>
+              <Route path={`/auth`} component={AuthLayout} />
+              <ProtectedRoute path={`/admin`} component={AdminLayout} />
+              <Route path={`/rtl`} component={RtlLayout} />
+              <Redirect from="/" to="/auth/sign-in" />
+            </Switch>
+          </AppWrapper>
         </BrowserRouter>
       </React.StrictMode>
     </ChakraProvider>

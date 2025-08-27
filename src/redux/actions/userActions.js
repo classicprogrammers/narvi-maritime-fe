@@ -26,6 +26,9 @@ export const loginUser = (email, password) => async (dispatch) => {
 
     // Check if the API call was successful
     if (result.success && result.user && result.token) {
+      // Store user data in localStorage
+      localStorage.setItem("user", JSON.stringify(result.user));
+
       dispatch(
         loginSuccess({
           user: result.user,
@@ -84,13 +87,24 @@ export const checkUserAuth = () => (dispatch) => {
   if (token && userData) {
     try {
       const user = JSON.parse(userData);
-      dispatch(checkAuth({ token, user }));
+      // Validate that we have both token and user data
+      if (user && user.id) {
+        dispatch(checkAuth({ token, user }));
+      } else {
+        // Invalid user data, clear everything
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        dispatch(logout());
+      }
     } catch (error) {
       // If parsing fails, clear invalid data
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       dispatch(logout());
     }
+  } else {
+    // No token or user data, ensure logged out state
+    dispatch(logout());
   }
 };
 
