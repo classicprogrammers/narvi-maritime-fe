@@ -18,6 +18,13 @@ const initializeApiConfig = () => {
         CUSTOMER_REGISTER: "/api/customer/register",
         CUSTOMER_UPDATE: "/api/customer/update",
         CUSTOMER_DELETE: "/api/customer/delete",
+        VENDOR_REGISTER: "/api/vendor/register",
+        VENDORS: "/api/vendors",
+        // Product endpoints
+        PRODUCTS: "/api/products",
+        PRODUCT_CREATE: "/api/product/create",
+        PRODUCT_UPDATE: "/api/product/update",
+        PRODUCT_DELETE: "/api/product/delete",
       },
 
       // Request timeout in milliseconds
@@ -43,6 +50,11 @@ const initializeApiConfig = () => {
         CUSTOMER_REGISTER: "/api/customer/register",
         CUSTOMER_UPDATE: "/api/customer/update",
         CUSTOMER_DELETE: "/api/customer/delete",
+        // Product endpoints
+        PRODUCTS: "/api/products",
+        PRODUCT_CREATE: "/api/product/create",
+        PRODUCT_UPDATE: "/api/product/update",
+        PRODUCT_DELETE: "/api/product/delete",
       },
       TIMEOUT: 30000,
       DEFAULT_HEADERS: {

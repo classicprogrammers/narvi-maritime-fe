@@ -125,43 +125,50 @@ function CustomerRegistration() {
                 company_type: formData.company_type,
             });
 
-            // Add the new customer to Redux
-            const newCustomer = {
-                id: result.id || Date.now(), // Use API response ID or generate one
-                name: formData.name,
-                email: formData.email,
-                phone: formData.phone,
-                mobile: formData.mobile,
-                street: formData.street,
-                city: formData.city,
-                zip: formData.zip,
-                country_id: parseInt(formData.country_id) || null,
-                company_type: formData.company_type,
-                status: "Active",
-                joinDate: new Date().toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "2-digit",
-                }),
-            };
+            // Check if the API call was actually successful
+            if (result && result.result && result.result.status === "success") {
+                // Add the new customer to Redux
+                const newCustomer = {
+                    id: result.result.id || Date.now(), // Use API response ID or generate one
+                    name: formData.name,
+                    email: formData.email,
+                    phone: formData.phone,
+                    mobile: formData.mobile,
+                    street: formData.street,
+                    city: formData.city,
+                    zip: formData.zip,
+                    country_id: parseInt(formData.country_id) || null,
+                    company_type: formData.company_type,
+                    status: "Active",
+                    joinDate: new Date().toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "2-digit",
+                    }),
+                };
 
-            addCustomerToRedux(newCustomer);
+                addCustomerToRedux(newCustomer);
 
-            setModalMessage("Customer registered successfully!");
-            setIsSuccessModalOpen(true);
+                setModalMessage("Customer registered successfully!");
+                setIsSuccessModalOpen(true);
 
-            // Reset form after success
-            setFormData({
-                name: "",
-                email: "",
-                phone: "",
-                mobile: "",
-                street: "",
-                city: "",
-                zip: "",
-                country_id: "",
-                company_type: "person",
-            });
+                // Reset form after success
+                setFormData({
+                    name: "",
+                    email: "",
+                    phone: "",
+                    mobile: "",
+                    street: "",
+                    city: "",
+                    zip: "",
+                    country_id: "",
+                    company_type: "person",
+                });
+            } else {
+                // API returned an error or invalid response
+                setModalMessage("Registration failed. Please try again.");
+                setIsFailureModalOpen(true);
+            }
         } catch (error) {
             console.error("Registration error:", error);
             setModalMessage(error.message || "An unexpected error occurred. Please try again.");

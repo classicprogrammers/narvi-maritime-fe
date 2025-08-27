@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
     Box,
     Flex,
@@ -53,11 +53,11 @@ import {
     MdArrowForward,
     MdDelete,
     MdEdit,
-    MdVisibility,
     MdFilterList,
     MdDownload,
     MdPrint,
 } from "react-icons/md";
+import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -65,57 +65,305 @@ export default function RateList() {
     const [totalPages, setTotalPages] = useState(1);
     const [searchValue, setSearchValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    
+    // Filter states - similar to customer table
+    const [filters, setFilters] = useState({
+        name: "",
+        type: "",
+        list_price: "",
+        standard_price: "",
+        default_code: "",
+    });
+    const [showFilterFields, setShowFilterFields] = useState(false);
 
     // Modal states
     const { isOpen: isNewRateOpen, onOpen: onNewRateOpen, onClose: onNewRateClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const [deleteItemId, setDeleteItemId] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingItem, setEditingItem] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
     // Form states for new rate item
     const [newRateItem, setNewRateItem] = useState({
-        location: "",
-        handling: "",
-        currency: "",
-        rateType: "",
-        rateType2: "",
-        baseRate: "",
-        rateCalculation: "Per AWB",
-        fixedSurcharge: "",
-        validUntil: "",
-        remaining: "",
-        rateCalculation2: "Per AWB",
-        includeInTariff: false,
-        tariffGroup: "",
-        sortOrder: "0.00"
+        name: "",
+        list_price: "",
+        standard_price: "",
+        type: "",
+        default_code: ""
     });
 
-    // Rate items state
-    const [rateItems, setRateItems] = useState([
-        {
-            id: "AGP Ag...",
-            location: "AGP",
-            handling: "Agunca",
-            currency: "abp",
-            rateType: "",
-            rateType2: "",
-            baseRate: "3.00",
-            rateCalculation: "Per AWB",
-            fixedSurcharge: "4.00",
-            validUntil: "",
-            remaining: "",
-            rateCalculation2: "Per AWB",
-            includeInTariff: false,
-            tariffGroup: "",
-            sortOrder: "0.00"
-        }
-    ]);
+    // Rate items state - will be populated from API
+    const [rateItems, setRateItems] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const hoverBg = useColorModeValue("blue.50", "blue.900");
     const searchIconColor = useColorModeValue("gray.400", "gray.500");
     const inputBg = useColorModeValue("white", "gray.700");
     const inputText = useColorModeValue("gray.700", "white");
+    const borderColor = useColorModeValue("gray.200", "gray.600");
+
+    // Fetch products from API
+    const fetchProducts = async () => {
+        try {
+            setIsLoading(true);
+            const userToken = localStorage.getItem("token");
+            if (!userToken) {
+                throw new Error("User not authenticated. Please login again.");
+            }
+
+            const headers = {
+                ...API_CONFIG.DEFAULT_HEADERS,
+                Authorization: `Bearer ${userToken}`,
+                "X-User-Token": userToken,
+            };
+
+            const response = await fetch(
+                buildApiUrl(getApiEndpoint("PRODUCTS")),
+                {
+                    method: "GET",
+                    headers: headers,
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === "success" && result.products) {
+                setRateItems(result.products);
+            } else {
+                setRateItems([]);
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to fetch products: ${error.message}`,
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Create new product
+    const handleCreateProduct = async () => {
+        try {
+            setIsLoading(true);
+            const userToken = localStorage.getItem("token");
+            if (!userToken) {
+                throw new Error("User not authenticated. Please login again.");
+            }
+
+            const userData = localStorage.getItem("user");
+            if (!userData) {
+                throw new Error("User data not found. Please login again.");
+            }
+            
+            const user = JSON.parse(userData);
+            const userId = user.id;
+
+            const headers = {
+                ...API_CONFIG.DEFAULT_HEADERS,
+                Authorization: `Bearer ${userToken}`,
+                "X-User-Token": userToken,
+            };
+
+            const payload = {
+                ...newRateItem,
+                user_id: userId,
+            };
+
+            const response = await fetch(
+                buildApiUrl(getApiEndpoint("PRODUCT_CREATE")),
+                {
+                    method: "POST",
+                    headers: headers,
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                toast({
+                    title: "Product Created",
+                    description: "New product has been successfully created.",
+                    status: "success",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                
+                onNewRateClose();
+                setNewRateItem({
+                    name: "",
+                    list_price: "",
+                    standard_price: "",
+                    type: "",
+                    default_code: ""
+                });
+                
+                // Refresh products list
+                fetchProducts();
+            } else {
+                throw new Error(result.message || "Failed to create product");
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to create product: ${error.message}`,
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Update product
+    const handleUpdateProduct = async () => {
+        try {
+            setIsLoading(true);
+            const userToken = localStorage.getItem("token");
+            if (!userToken) {
+                throw new Error("User not authenticated. Please login again.");
+            }
+
+            const headers = {
+                ...API_CONFIG.DEFAULT_HEADERS,
+                Authorization: `Bearer ${userToken}`,
+                "X-User-Token": userToken,
+            };
+
+            const payload = {
+                ...editingItem,
+                id: editingItem.id,
+            };
+
+            const response = await fetch(
+                buildApiUrl(getApiEndpoint("PRODUCT_UPDATE")),
+                {
+                    method: "POST",
+                    headers: headers,
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                toast({
+                    title: "Product Updated",
+                    description: "Product has been successfully updated.",
+                    status: "success",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                
+                setIsEditing(false);
+                setEditingItem(null);
+                onNewRateClose();
+                
+                // Refresh products list
+                fetchProducts();
+            } else {
+                throw new Error(result.message || "Failed to update product");
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to update product: ${error.message}`,
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Delete product
+    const handleDeleteProduct = async () => {
+        try {
+            setIsLoading(true);
+            const userToken = localStorage.getItem("token");
+            if (!userToken) {
+                throw new Error("User not authenticated. Please login again.");
+            }
+
+            const headers = {
+                ...API_CONFIG.DEFAULT_HEADERS,
+                Authorization: `Bearer ${userToken}`,
+                "X-User-Token": userToken,
+            };
+
+            const payload = {
+                id: deleteItemId,
+            };
+
+            const response = await fetch(
+                buildApiUrl(getApiEndpoint("PRODUCT_DELETE")),
+                {
+                    method: "POST",
+                    headers: headers,
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                toast({
+                    title: "Product Deleted",
+                    description: "Product has been successfully deleted.",
+                    status: "success",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                
+                setDeleteItemId(null);
+                onDeleteClose();
+                
+                // Refresh products list
+                fetchProducts();
+            } else {
+                throw new Error(result.message || "Failed to delete product");
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to delete product: ${error.message}`,
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Load products on component mount
+    useEffect(() => {
+        fetchProducts();
+    }, []);
 
     const handleSelectAll = (isChecked) => {
         if (isChecked) {
@@ -135,60 +383,30 @@ export default function RateList() {
 
     // Handler functions for modals
     const handleNewRate = () => {
+        setIsEditing(false);
+        setEditingItem(null);
+        setNewRateItem({
+            name: "",
+            list_price: "",
+            standard_price: "",
+            type: "",
+            default_code: ""
+        });
+        onNewRateOpen();
+    };
+
+    const handleEditRate = (item) => {
+        setIsEditing(true);
+        setEditingItem({ ...item });
         onNewRateOpen();
     };
 
     const handleSaveRate = () => {
-        // Here you would typically save to backend
-        console.log("Saving new rate item:", newRateItem);
-
-        // Add new rate item to the rateItems array
-        const newRateItemData = {
-            id: `${newRateItem.location} ${newRateItem.handling}...`,
-            location: newRateItem.location,
-            handling: newRateItem.handling,
-            currency: newRateItem.currency,
-            rateType: newRateItem.rateType,
-            rateType2: newRateItem.rateType2,
-            baseRate: newRateItem.baseRate || "0.00",
-            rateCalculation: newRateItem.rateCalculation,
-            fixedSurcharge: newRateItem.fixedSurcharge || "0.00",
-            validUntil: newRateItem.validUntil,
-            remaining: newRateItem.remaining,
-            rateCalculation2: newRateItem.rateCalculation2,
-            includeInTariff: newRateItem.includeInTariff,
-            tariffGroup: newRateItem.tariffGroup,
-            sortOrder: newRateItem.sortOrder
-        };
-
-        setRateItems([...rateItems, newRateItemData]);
-
-        toast({
-            title: "Rate Item Created",
-            description: "New rate item has been successfully created.",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-
-        onNewRateClose();
-        // Reset form
-        setNewRateItem({
-            location: "",
-            handling: "",
-            currency: "",
-            rateType: "",
-            rateType2: "",
-            baseRate: "",
-            rateCalculation: "Per AWB",
-            fixedSurcharge: "",
-            validUntil: "",
-            remaining: "",
-            rateCalculation2: "Per AWB",
-            includeInTariff: false,
-            tariffGroup: "",
-            sortOrder: "0.00"
-        });
+        if (isEditing) {
+            handleUpdateProduct();
+        } else {
+            handleCreateProduct();
+        }
     };
 
     const handleDeleteItem = (itemId) => {
@@ -198,19 +416,8 @@ export default function RateList() {
 
     const confirmDelete = () => {
         if (deleteItemId !== null) {
-            const newRateItems = rateItems.filter(item => item.id !== deleteItemId);
-            setRateItems(newRateItems);
-            setDeleteItemId(null);
-
-            toast({
-                title: "Rate Item Deleted",
-                description: "Rate item has been successfully deleted.",
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-            });
+            handleDeleteProduct();
         }
-        onDeleteClose();
     };
 
     const handleInputChange = (field, value) => {
@@ -219,6 +426,88 @@ export default function RateList() {
             [field]: value
         }));
     };
+
+    // Filter handling functions - similar to customer table
+    const handleFilterChange = (field, value) => {
+        setFilters((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
+
+    const clearAllFilters = () => {
+        setFilters({
+            name: "",
+            type: "",
+            list_price: "",
+            standard_price: "",
+            default_code: "",
+        });
+    };
+
+    const clearAllFiltersAndSearch = () => {
+        clearAllFilters();
+        setSearchValue("");
+        setStatusFilter("all");
+    };
+
+    // Filter data based on search and filters
+    const filteredData = useMemo(() => {
+        let filtered = rateItems;
+
+        // Apply search filter
+        if (searchValue) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
+                    item.default_code.toLowerCase().includes(searchValue.toLowerCase()) ||
+                    item.type.toLowerCase().includes(searchValue.toLowerCase())
+            );
+        }
+
+        // Apply status filter
+        if (statusFilter !== "all") {
+            filtered = filtered.filter((item) => item.status === statusFilter);
+        }
+
+        // Apply specific filters
+        if (filters.name) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.name && item.name.toLowerCase().includes(filters.name.toLowerCase())
+            );
+        }
+
+        if (filters.type) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.type && item.type.toLowerCase().includes(filters.type.toLowerCase())
+            );
+        }
+
+        if (filters.list_price) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.list_price && item.list_price.toString().includes(filters.list_price)
+            );
+        }
+
+        if (filters.standard_price) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.standard_price && item.standard_price.toString().includes(filters.standard_price)
+            );
+        }
+
+        if (filters.default_code) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.default_code && item.default_code.toLowerCase().includes(filters.default_code.toLowerCase())
+            );
+        }
+
+        return filtered;
+    }, [rateItems, searchValue, statusFilter, filters]);
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -232,14 +521,14 @@ export default function RateList() {
                             size="sm"
                             onClick={handleNewRate}
                         >
-                            New Rate Item
+                            New Product
                         </Button>
                         <VStack align="start" spacing={1}>
                             <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                                Rate List
+                                Product Rate List
                             </Text>
                             <Text fontSize="sm" color="gray.500">
-                                Manage shipping rates and tariffs
+                                Manage product pricing and rates
                             </Text>
                         </VStack>
                     </HStack>
@@ -247,7 +536,7 @@ export default function RateList() {
                     <HStack spacing={4}>
                         <HStack spacing={2}>
                             <Text fontSize="sm" color="gray.600">
-                                {rateItems.length} items
+                                {filteredData.length} items
                             </Text>
                             <IconButton
                                 icon={<Icon as={MdArrowBack} />}
@@ -300,7 +589,7 @@ export default function RateList() {
                                 fontWeight='500'
                                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
                                 borderRadius="8px"
-                                placeholder="Search rate items..."
+                                placeholder="Search products..."
                                 value={searchValue}
                                 onChange={(e) => setSearchValue(e.target.value)}
                             />
@@ -327,10 +616,116 @@ export default function RateList() {
                             variant="outline"
                             size="sm"
                             borderRadius="8px"
+                            onClick={() => setShowFilterFields(!showFilterFields)}
                         >
-                            Filters
+                            {showFilterFields ? "Hide Filters" : "Show Filters"}
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            borderRadius="8px"
+                            onClick={clearAllFiltersAndSearch}
+                        >
+                            Clear All
                         </Button>
                     </HStack>
+
+                    {/* Expandable Filter Fields - Customer Table Style */}
+                    {showFilterFields && (
+                        <Box
+                            mt={4}
+                            pt={4}
+                            borderTop="2px"
+                            borderColor={borderColor}
+                            bg={inputBg}
+                            borderRadius="12px"
+                            p="20px"
+                        >
+                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
+                                Filter by Specific Fields
+                            </Text>
+
+                            {/* First Row */}
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                                {/* Name Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Product Name
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by name"
+                                        value={filters.name}
+                                        onChange={(e) => handleFilterChange("name", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+
+                                {/* Type Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Product Type
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by type"
+                                        value={filters.type}
+                                        onChange={(e) => handleFilterChange("type", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+                            </HStack>
+
+                            {/* Second Row */}
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                                {/* List Price Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        List Price
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by list price"
+                                        value={filters.list_price}
+                                        onChange={(e) => handleFilterChange("list_price", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+
+                                {/* Standard Price Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Standard Price
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by standard price"
+                                        value={filters.standard_price}
+                                        onChange={(e) => handleFilterChange("standard_price", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+                            </HStack>
+
+                            {/* Third Row */}
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                                {/* Default Code Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Default Code
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by default code"
+                                        value={filters.default_code}
+                                        onChange={(e) => handleFilterChange("default_code", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+                            </HStack>
+                        </Box>
+                    )}
                 </Box>
 
                 {/* Rate Items Table */}
@@ -363,26 +758,22 @@ export default function RateList() {
                                 <Tr>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                         <Checkbox
-                                            isChecked={selectedItems.length === rateItems.length}
-                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < rateItems.length}
+                                            isChecked={selectedItems.length === filteredData.length}
+                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < filteredData.length}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                         />
                                     </Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Location</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Handling</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Currency</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Type</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Base Rate</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate Calc</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Fixed Surcharge</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Valid Until</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Include in Tariff</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Name</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">List Price</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Standard Price</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Type</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Default Code</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {rateItems.map((item, index) => (
+                                {filteredData.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? "white" : "gray.50"}
@@ -402,12 +793,17 @@ export default function RateList() {
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.location}
+                                                {item.name}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.handling}
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                ${item.list_price}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
+                                                ${item.standard_price}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -418,48 +814,16 @@ export default function RateList() {
                                                 px="8px"
                                                 py="4px"
                                                 borderRadius="full">
-                                                {item.currency}
+                                                {item.type}
                                             </Badge>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.rateType || "-"}
+                                                {item.default_code}
                                             </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                ${item.baseRate}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.rateCalculation}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                ${item.fixedSurcharge}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.validUntil || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Checkbox isChecked={item.includeInTariff} size="sm" />
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <HStack spacing={2}>
-                                                <Tooltip label="View Rate">
-                                                    <IconButton
-                                                        icon={<Icon as={MdVisibility} />}
-                                                        size="sm"
-                                                        colorScheme="blue"
-                                                        variant="ghost"
-                                                        aria-label="View rate"
-                                                    />
-                                                </Tooltip>
                                                 <Tooltip label="Edit Rate">
                                                     <IconButton
                                                         icon={<Icon as={MdEdit} />}
@@ -467,6 +831,7 @@ export default function RateList() {
                                                         colorScheme="blue"
                                                         variant="ghost"
                                                         aria-label="Edit rate"
+                                                        onClick={() => handleEditRate(item)}
                                                     />
                                                 </Tooltip>
                                                 <Tooltip label="Delete Rate">
@@ -491,7 +856,7 @@ export default function RateList() {
                 {/* Pagination */}
                 <Flex px='25px' justify='space-between' align='center' py='20px'>
                     <Text fontSize='sm' color='gray.500'>
-                        Showing {rateItems.length} of {rateItems.length} results
+                        Showing {filteredData.length} of {rateItems.length} results
                     </Text>
                     <HStack spacing={2}>
                         <Button
@@ -505,7 +870,6 @@ export default function RateList() {
                         <Button
                             size="sm"
                             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                            isDisabled={currentPage === totalPages}
                             variant="outline"
                         >
                             Next
@@ -514,14 +878,14 @@ export default function RateList() {
                 </Flex>
             </VStack>
 
-            {/* New Rate Item Modal */}
+            {/* New/Edit Product Modal */}
             <Modal isOpen={isNewRateOpen} onClose={onNewRateClose} size="6xl">
                 <ModalOverlay />
                 <ModalContent>
                     <ModalHeader bg="blue.600" color="white" borderRadius="md">
                         <HStack spacing={3}>
-                            <Icon as={MdAdd} />
-                            <Text>Create New Rate Item</Text>
+                            <Icon as={isEditing ? MdEdit : MdAdd} />
+                            <Text>{isEditing ? "Edit Product" : "Create New Product"}</Text>
                         </HStack>
                     </ModalHeader>
                     <ModalCloseButton color="white" />
@@ -530,12 +894,18 @@ export default function RateList() {
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Name</FormLabel>
                                     <Input
                                         size="md"
-                                        value={newRateItem.location}
-                                        onChange={(e) => handleInputChange('location', e.target.value)}
-                                        placeholder="Enter location code"
+                                        value={isEditing ? editingItem?.name || "" : newRateItem.name}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, name: e.target.value }));
+                                            } else {
+                                                handleInputChange('name', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Enter product name"
                                         borderRadius="md"
                                         _focus={{
                                             borderColor: "blue.500",
@@ -545,84 +915,17 @@ export default function RateList() {
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Handling</FormLabel>
-                                    <Input
-                                        size="md"
-                                        value={newRateItem.handling}
-                                        onChange={(e) => handleInputChange('handling', e.target.value)}
-                                        placeholder="Enter handling type"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "blue.500",
-                                            boxShadow: "0 0 0 1px blue.500",
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency</FormLabel>
-                                    <Select
-                                        size="md"
-                                        value={newRateItem.currency}
-                                        onChange={(e) => handleInputChange('currency', e.target.value)}
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "blue.500",
-                                            boxShadow: "0 0 0 1px blue.500",
-                                        }}
-                                    >
-                                        <option value="">Select currency</option>
-                                        <option value="USD">USD</option>
-                                        <option value="EUR">EUR</option>
-                                        <option value="GBP">GBP</option>
-                                        <option value="JPY">JPY</option>
-                                        <option value="abp">abp</option>
-                                    </Select>
-                                </FormControl>
-
-                                <HStack spacing="4">
-                                    <FormControl>
-                                        <FormLabel fontSize="sm" color={textColor}>Rate Type</FormLabel>
-                                        <Input
-                                            size="sm"
-                                            value={newRateItem.rateType}
-                                            onChange={(e) => handleInputChange('rateType', e.target.value)}
-                                            placeholder="Enter rate type"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm" color={textColor}>Rate Type 2</FormLabel>
-                                        <Input
-                                            size="sm"
-                                            value={newRateItem.rateType2}
-                                            onChange={(e) => handleInputChange('rateType2', e.target.value)}
-                                            placeholder="Enter rate type 2"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                    </FormControl>
-                                </HStack>
-
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Base Rate</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">List Price</FormLabel>
                                     <NumberInput
                                         size="sm"
-                                        value={newRateItem.baseRate}
-                                        onChange={(value) => handleInputChange('baseRate', value)}
+                                        value={isEditing ? editingItem?.list_price || "" : newRateItem.list_price}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, list_price: value }));
+                                            } else {
+                                                handleInputChange('list_price', value);
+                                            }
+                                        }}
                                         min={0}
                                         step={0.01}
                                         borderRadius="md"
@@ -656,12 +959,18 @@ export default function RateList() {
                                     </NumberInput>
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Fixed Surcharge</FormLabel>
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Standard Price</FormLabel>
                                     <NumberInput
                                         size="sm"
-                                        value={newRateItem.fixedSurcharge}
-                                        onChange={(value) => handleInputChange('fixedSurcharge', value)}
+                                        value={isEditing ? editingItem?.standard_price || "" : newRateItem.standard_price}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, standard_price: value }));
+                                            } else {
+                                                handleInputChange('standard_price', value);
+                                            }
+                                        }}
                                         min={0}
                                         step={0.01}
                                         borderRadius="md"
@@ -694,160 +1003,51 @@ export default function RateList() {
                                         </NumberInputStepper>
                                     </NumberInput>
                                 </FormControl>
-                            </VStack>
 
-                            {/* Right Column */}
-                            <VStack spacing="4" align="stretch">
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Valid Until</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        type="date"
-                                        value={newRateItem.validUntil}
-                                        onChange={(e) => handleInputChange('validUntil', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Remaining</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newRateItem.remaining}
-                                        onChange={(e) => handleInputChange('remaining', e.target.value)}
-                                        placeholder="Enter remaining value"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Rate Calculation</FormLabel>
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Type</FormLabel>
                                     <Select
-                                        size="sm"
-                                        value={newRateItem.rateCalculation}
-                                        onChange={(e) => handleInputChange('rateCalculation', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
+                                        size="md"
+                                        value={isEditing ? editingItem?.type || "" : newRateItem.type}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, type: e.target.value }));
+                                            } else {
+                                                handleInputChange('type', e.target.value);
+                                            }
+                                        }}
                                         borderRadius="md"
                                         _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
                                         }}
                                     >
-                                        <option value="Per AWB">Per AWB</option>
-                                        <option value="Per KG">Per KG</option>
-                                        <option value="Per Piece">Per Piece</option>
-                                        <option value="Fixed">Fixed</option>
+                                        <option value="">Select type</option>
+                                        <option value="consu">Consumable</option>
+                                        <option value="service">Service</option>
+                                        <option value="product">Product</option>
                                     </Select>
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Rate Calculation 2</FormLabel>
-                                    <Select
-                                        size="sm"
-                                        value={newRateItem.rateCalculation2}
-                                        onChange={(e) => handleInputChange('rateCalculation2', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    >
-                                        <option value="Per AWB">Per AWB</option>
-                                        <option value="Per KG">Per KG</option>
-                                        <option value="Per Piece">Per Piece</option>
-                                        <option value="Fixed">Fixed</option>
-                                    </Select>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Tariff Group</FormLabel>
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Default Code</FormLabel>
                                     <Input
-                                        size="sm"
-                                        value={newRateItem.tariffGroup}
-                                        onChange={(e) => handleInputChange('tariffGroup', e.target.value)}
-                                        placeholder="Enter tariff group"
-                                        border="1px"
-                                        borderColor="gray.300"
+                                        size="md"
+                                        value={isEditing ? editingItem?.default_code || "" : newRateItem.default_code}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, default_code: e.target.value }));
+                                            } else {
+                                                handleInputChange('default_code', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Enter default code"
                                         borderRadius="md"
                                         _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
                                         }}
                                     />
-                                </FormControl>
-
-                                <HStack spacing="4">
-                                    <FormControl>
-                                        <FormLabel fontSize="sm" color={textColor}>Sort Order</FormLabel>
-                                        <NumberInput
-                                            size="sm"
-                                            value={newRateItem.sortOrder}
-                                            onChange={(value) => handleInputChange('sortOrder', value)}
-                                            min={0}
-                                            step={0.01}
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        >
-                                            <NumberInputField
-                                                border="1px"
-                                                borderColor="gray.300"
-                                                _hover={{ borderColor: "gray.400" }}
-                                            />
-                                            <NumberInputStepper>
-                                                <NumberIncrementStepper
-                                                    h="16px"
-                                                    fontSize="10px"
-                                                    border="none"
-                                                    bg="transparent"
-                                                    _hover={{ bg: "gray.100" }}
-                                                />
-                                                <NumberDecrementStepper
-                                                    h="16px"
-                                                    fontSize="10px"
-                                                    border="none"
-                                                    bg="transparent"
-                                                    _hover={{ bg: "gray.100" }}
-                                                />
-                                            </NumberInputStepper>
-                                        </NumberInput>
-                                    </FormControl>
-
-                                </HStack>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Include in Tariff</FormLabel>
-                                    <Checkbox
-                                        size="sm"
-                                        colorScheme="blue"
-                                        isChecked={newRateItem.includeInTariff}
-                                        onChange={(e) => handleInputChange('includeInTariff', e.target.checked)}
-                                    >
-                                        Include this rate in tariff calculations
-                                    </Checkbox>
                                 </FormControl>
                             </VStack>
                         </Grid>
@@ -859,8 +1059,9 @@ export default function RateList() {
                         <Button
                             colorScheme="blue"
                             onClick={handleSaveRate}
+                            isLoading={isLoading}
                         >
-                            Create Rate Item
+                            {isEditing ? "Update Product" : "Create Product"}
                         </Button>
                     </ModalFooter>
                 </ModalContent>
@@ -871,16 +1072,16 @@ export default function RateList() {
                 <AlertDialogOverlay />
                 <AlertDialogContent borderRadius="lg">
                     <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
-                        Delete Rate Item
+                        Delete Product
                     </AlertDialogHeader>
                     <AlertDialogBody>
-                        Are you sure you want to delete this rate item? This action cannot be undone.
+                        Are you sure you want to delete this product? This action cannot be undone.
                     </AlertDialogBody>
                     <AlertDialogFooter>
                         <Button variant="outline" onClick={onDeleteClose}>
                             Cancel
                         </Button>
-                        <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                        <Button colorScheme="red" onClick={confirmDelete} ml={3} isLoading={isLoading}>
                             Delete
                         </Button>
                     </AlertDialogFooter>
@@ -888,4 +1089,4 @@ export default function RateList() {
             </AlertDialog>
         </Box>
     );
-} 
+}

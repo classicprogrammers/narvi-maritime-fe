@@ -80,25 +80,32 @@ function SignUp() {
   // Signup API call function
   const handleSignupApi = async (userData) => {
     try {
+      const payload = {
+        name: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        password: userData.password,
+      };
+
+      console.log("🔐 Signup API Payload:", payload);
+      console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("SIGNUP")));
+
       const response = await fetch(buildApiUrl(getApiEndpoint("SIGNUP")), {
         method: "POST",
         headers: API_CONFIG.DEFAULT_HEADERS,
-        body: JSON.stringify({
-          name: `${userData.firstName} ${userData.lastName}`,
-          email: userData.email,
-          password: userData.password,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.log("🔐 Signup error response:", errorData);
         throw new Error(errorData.message || "Signup failed");
       }
 
       const result = await response.json();
+      console.log("🔐 Signup API Response:", result);
       return result;
     } catch (error) {
-      console.error("Signup API failed:", error);
+      console.error("🔐 Signup API failed:", error);
       throw error;
     }
   };
@@ -213,15 +220,15 @@ function SignUp() {
       }
     } catch (error) {
       console.error("Sign up error:", error); // Debug log
-      
+
       let errorMessage = "An unexpected error occurred. Please try again.";
-      
+
       if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
         errorMessage = "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast({
         title: "Error",
         description: errorMessage,

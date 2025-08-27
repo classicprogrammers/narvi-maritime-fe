@@ -49,18 +49,36 @@ import {
   MdAdd,
   MdEdit,
   MdDelete,
+  MdFilterList,
 } from "react-icons/md";
+
+// API
+import {
+  buildApiUrl,
+  getApiEndpoint,
+  API_CONFIG,
+} from "../../../../config/api";
 
 export default function VendorsTable(props) {
   const { columnsData, tableData } = props;
   const [searchValue, setSearchValue] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [newVendor, setNewVendor] = useState({
-    name: "",
-    company: "",
+  const [vendors, setVendors] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filters, setFilters] = useState({
     email: "",
     phone: "",
-    status: "Active",
+    mobile: "",
+    street: "",
+    zip: "",
+  });
+  const [showFilterFields, setShowFilterFields] = useState(false);
+  const [newVendor, setNewVendor] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    mobile: "",
+    street: "",
+    zip: "",
   });
   const [editingVendor, setEditingVendor] = useState(null);
 
@@ -73,28 +91,180 @@ export default function VendorsTable(props) {
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
-  // Filter data based on search and status
-  const filteredData = useMemo(() => {
-    let filtered = tableData;
+  // Fetch vendors from API
+  const fetchVendors = async () => {
+    try {
+      setIsLoading(true);
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((item) => item.status === statusFilter);
+      // Get user token from localStorage for authentication
+      const userToken = localStorage.getItem("token");
+      if (!userToken) {
+        throw new Error("User not authenticated. Please login again.");
+      }
+
+      // Create headers with authentication token
+      const headers = {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        Authorization: `Bearer ${userToken}`,
+        "X-User-Token": userToken,
+      };
+
+      console.log("🔧 Fetching vendors from API...");
+
+      // Try the main API endpoint first
+      try {
+        const response = await fetch(buildApiUrl(getApiEndpoint("VENDORS")), {
+          method: "GET",
+          headers: headers,
+        });
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ message: "Unknown error" }));
+          const error = new Error(
+            errorData.message ||
+              `HTTP ${response.status}: ${response.statusText}`
+          );
+          error.status = response.status;
+          throw error;
+        }
+
+        const result = await response.json();
+        console.log("🔧 Vendors API Response:", result);
+
+        if (result.vendors && Array.isArray(result.vendors)) {
+          setVendors(result.vendors);
+        } else {
+          setVendors([]);
+        }
+        return;
+      } catch (mainError) {
+        // If main endpoint fails, try alternative backend URLs
+        if (
+          mainError.name === "TypeError" &&
+          mainError.message.includes("Failed to fetch")
+        ) {
+          console.log("🔧 Main endpoint failed, trying alternative URLs...");
+
+          const alternativeUrls = [
+            "http://localhost:8069",
+            "http://127.0.0.1:8069",
+            "http://3.6.118.75:8069",
+          ];
+
+          for (const baseUrl of alternativeUrls) {
+            try {
+              console.log(`🔧 Trying ${baseUrl}...`);
+              const url = `${baseUrl}/api/vendors`;
+
+              const response = await fetch(url, {
+                method: "GET",
+                headers: headers,
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                console.log("🔧 Alternative backend worked:", result);
+
+                if (result.vendors && Array.isArray(result.vendors)) {
+                  setVendors(result.vendors);
+                  return;
+                }
+              }
+            } catch (altError) {
+              console.log(`🔧 ${baseUrl} failed:`, altError.message);
+              continue;
+            }
+          }
+        }
+
+        throw mainError;
+      }
+    } catch (error) {
+      console.error("🔧 Failed to fetch vendors:", error);
+
+      // Provide more specific error messages
+      if (
+        error.name === "TypeError" &&
+        error.message.includes("Failed to fetch")
+      ) {
+        console.error(
+          "🔧 CORS or network error. Please check backend server and CORS configuration."
+        );
+      }
+
+      setVendors([]);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Load vendors on component mount
+  React.useEffect(() => {
+    fetchVendors();
+  }, []);
+
+  // Filter data based on search
+  const filteredData = useMemo(() => {
+    let filtered = vendors;
 
     // Apply search filter
     if (searchValue) {
       filtered = filtered.filter(
         (item) =>
           item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-          item.company.toLowerCase().includes(searchValue.toLowerCase()) ||
           item.email.toLowerCase().includes(searchValue.toLowerCase()) ||
-          item.phone.includes(searchValue)
+          item.phone.includes(searchValue) ||
+          item.mobile.includes(searchValue) ||
+          item.street.toLowerCase().includes(searchValue.toLowerCase()) ||
+          item.zip.includes(searchValue)
+      );
+    }
+
+    // Apply email filter
+    if (filters.email) {
+      filtered = filtered.filter(
+        (item) =>
+          item.email &&
+          item.email.toLowerCase().includes(filters.email.toLowerCase())
+      );
+    }
+
+    // Apply phone filter
+    if (filters.phone) {
+      filtered = filtered.filter(
+        (item) =>
+          (item.phone && item.phone.toString().includes(filters.phone)) ||
+          (item.mobile && item.mobile.toString().includes(filters.phone))
+      );
+    }
+
+    // Apply mobile filter
+    if (filters.mobile) {
+      filtered = filtered.filter(
+        (item) => item.mobile && item.mobile.toString().includes(filters.mobile)
+      );
+    }
+
+    // Apply street filter
+    if (filters.street) {
+      filtered = filtered.filter(
+        (item) =>
+          item.street &&
+          item.street.toLowerCase().includes(filters.street.toLowerCase())
+      );
+    }
+
+    // Apply zip filter
+    if (filters.zip) {
+      filtered = filtered.filter(
+        (item) => item.zip && item.zip.toString().includes(filters.zip)
       );
     }
 
     return filtered;
-  }, [tableData, searchValue, statusFilter]);
+  }, [vendors, searchValue, filters]);
 
   const data = useMemo(() => filteredData, [filteredData]);
 
@@ -125,6 +295,166 @@ export default function VendorsTable(props) {
     }));
   };
 
+  // Filter handling functions
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const clearAllFilters = () => {
+    setFilters({
+      email: "",
+      phone: "",
+      mobile: "",
+      street: "",
+      zip: "",
+    });
+  };
+
+  const clearAllFiltersAndSearch = () => {
+    clearAllFilters();
+    setSearchValue("");
+  };
+
+  // Vendor Registration API call function
+  const handleVendorRegistrationApi = async (vendorData) => {
+    try {
+      // Get user token from localStorage for authentication
+      const userToken = localStorage.getItem("token");
+      if (!userToken) {
+        throw new Error("User not authenticated. Please login again.");
+      }
+
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      if (!userData) {
+        throw new Error("User data not found. Please login again.");
+      }
+
+      const user = JSON.parse(userData);
+      const userId = user.id;
+
+      // Create headers with authentication token
+      const headers = {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        Authorization: `Bearer ${userToken}`,
+        "X-User-Token": userToken,
+      };
+
+      // Prepare vendor data with user_id
+      const payload = {
+        ...vendorData,
+        user_id: userId,
+      };
+
+      console.log("🔧 Vendor Registration API Payload:", payload);
+      console.log(
+        "🔧 API URL:",
+        buildApiUrl(getApiEndpoint("VENDOR_REGISTER"))
+      );
+
+      // Try the main API endpoint first
+      try {
+        const response = await fetch(
+          buildApiUrl(getApiEndpoint("VENDOR_REGISTER")),
+          {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload),
+          }
+        );
+
+        console.log("🔧 Response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ message: "Unknown error" }));
+          const error = new Error(
+            errorData.message ||
+              `HTTP ${response.status}: ${response.statusText}`
+          );
+          error.status = response.status;
+          throw error;
+        }
+
+        const result = await response.json();
+        console.log("🔧 Vendor Registration API Response:", result);
+
+        // Check if the JSON-RPC response indicates an error
+        if (result.result && result.result.status === "error") {
+          throw new Error(
+            result.result.message || "Vendor registration failed"
+          );
+        }
+
+        // Check if the response has the expected structure
+        if (!result.result || result.result.status !== "success") {
+          throw new Error("Invalid response from server");
+        }
+
+        return result;
+      } catch (mainError) {
+        // If main endpoint fails, try alternative backend URLs
+        if (
+          mainError.name === "TypeError" &&
+          mainError.message.includes("Failed to fetch")
+        ) {
+          console.log("🔧 Main endpoint failed, trying alternative URLs...");
+
+          const alternativeUrls = [
+            "http://localhost:8069",
+            "http://127.0.0.1:8069",
+            "http://3.6.118.75:8069",
+          ];
+
+          for (const baseUrl of alternativeUrls) {
+            try {
+              console.log(`🔧 Trying ${baseUrl}...`);
+              const url = `${baseUrl}/api/vendor/register`;
+
+              const response = await fetch(url, {
+                method: "POST",
+                headers: headers,
+                body: JSON.stringify(payload),
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                console.log("🔧 Alternative backend worked:", result);
+
+                if (result.result && result.result.status === "success") {
+                  return result;
+                }
+              }
+            } catch (altError) {
+              console.log(`🔧 ${baseUrl} failed:`, altError.message);
+              continue;
+            }
+          }
+        }
+
+        throw mainError;
+      }
+    } catch (error) {
+      console.error("🔧 Vendor Registration API failed:", error);
+
+      // Provide more specific error messages
+      if (
+        error.name === "TypeError" &&
+        error.message.includes("Failed to fetch")
+      ) {
+        throw new Error(
+          "Cannot connect to backend server. Please check if the server is running and CORS is properly configured."
+        );
+      }
+
+      throw error;
+    }
+  };
+
   const handleEditInputChange = (field, value) => {
     setEditingVendor((prev) => ({
       ...prev,
@@ -132,22 +462,39 @@ export default function VendorsTable(props) {
     }));
   };
 
-  const handleSaveVendor = () => {
-    // Here you would typically save to your backend
-    console.log("Saving new vendor:", newVendor);
+  const handleSaveVendor = async () => {
+    try {
+      console.log("Saving new vendor:", newVendor);
 
-    // For demo purposes, we'll just close the modal
-    // In a real app, you'd add the vendor to your data source
-    onClose();
+      // Call the vendor registration API
+      const result = await handleVendorRegistrationApi(newVendor);
 
-    // Reset form
-    setNewVendor({
-      name: "",
-      company: "",
-      email: "",
-      phone: "",
-      status: "Active",
-    });
+      if (result && result.result && result.result.status === "success") {
+        console.log("Vendor registered successfully:", result);
+
+        // Show success message (you can add a toast or modal here)
+        alert("Vendor registered successfully!");
+
+        // Close modal and reset form
+        onClose();
+        setNewVendor({
+          name: "",
+          email: "",
+          phone: "",
+          mobile: "",
+          street: "",
+          zip: "",
+        });
+
+        // Refresh vendors list to show the new vendor
+        fetchVendors();
+      } else {
+        alert("Vendor registration failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Failed to register vendor:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const handleSaveEdit = () => {
@@ -177,10 +524,11 @@ export default function VendorsTable(props) {
     // Reset form
     setNewVendor({
       name: "",
-      company: "",
       email: "",
       phone: "",
-      status: "Active",
+      mobile: "",
+      street: "",
+      zip: "",
     });
   };
 
@@ -237,38 +585,212 @@ export default function VendorsTable(props) {
               />
             </InputGroup>
 
-            <Select
-              w={{ base: "100%", md: "200px" }}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              bg={inputBg}
-              color={inputText}
-              borderRadius="30px"
-              fontSize="sm"
-              border="2px"
-              borderColor={borderColor}
-              _focus={{
-                borderColor: "blue.400",
-                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-              }}
-              _hover={{
-                borderColor: "blue.300",
-              }}
-              sx={{
-                option: {
-                  bg: inputBg,
-                  color: inputText,
-                  _hover: {
-                    bg: useColorModeValue("blue.50", "blue.900"),
-                  },
-                },
-              }}
-            >
-              <option value="all">📊 All Status</option>
-              <option value="Active">✅ Active</option>
-              <option value="Inactive">❌ Inactive</option>
-            </Select>
+            {/* Filter Button */}
+            <Box>
+              <Button
+                size="md"
+                variant={showFilterFields ? "solid" : "outline"}
+                colorScheme={
+                  filters.email ||
+                  filters.phone ||
+                  filters.mobile ||
+                  filters.street ||
+                  filters.zip
+                    ? "blue"
+                    : "gray"
+                }
+                leftIcon={<Icon as={MdFilterList} />}
+                onClick={() => setShowFilterFields(!showFilterFields)}
+                borderRadius="10px"
+                border="2px"
+              >
+                {showFilterFields ? "Hide Filters" : "Show Filters"}
+              </Button>
+            </Box>
+
+            {/* Clear All Button */}
+            {(filters.email ||
+              filters.phone ||
+              filters.mobile ||
+              filters.street ||
+              filters.zip ||
+              searchValue) && (
+              <Box>
+                <Button
+                  size="md"
+                  variant="outline"
+                  onClick={clearAllFiltersAndSearch}
+                  colorScheme="red"
+                  _hover={{ bg: "red.50" }}
+                  borderRadius="10px"
+                  border="2px"
+                >
+                  Clear All
+                </Button>
+              </Box>
+            )}
           </HStack>
+
+          {/* Expandable Filter Fields */}
+          {showFilterFields && (
+            <Box
+              mt={4}
+              pt={4}
+              borderTop="2px"
+              borderColor={borderColor}
+              bg={inputBg}
+              borderRadius="12px"
+              p="20px"
+            >
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
+                Filter by Specific Fields
+              </Text>
+
+              {/* First Row - Contact Info */}
+              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                {/* Email Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Email
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="📧 e.g., vendor@example.com"
+                    value={filters.email}
+                    onChange={(e) =>
+                      handleFilterChange("email", e.target.value)
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  />
+                </Box>
+
+                {/* Phone Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Phone
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="📞 e.g., +1-234-567-8900"
+                    value={filters.phone}
+                    onChange={(e) =>
+                      handleFilterChange("phone", e.target.value)
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  />
+                </Box>
+
+                {/* Mobile Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Mobile
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="📱 e.g., +1-234-567-8900"
+                    value={filters.mobile}
+                    onChange={(e) =>
+                      handleFilterChange("mobile", e.target.value)
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  />
+                </Box>
+              </HStack>
+
+              {/* Second Row - Address Info */}
+              <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                {/* Street Filter */}
+                <Box minW="250px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Street
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="🏠 e.g., 123 Main Street"
+                    value={filters.street}
+                    onChange={(e) =>
+                      handleFilterChange("street", e.target.value)
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  />
+                </Box>
+
+                {/* Zip Filter */}
+                <Box minW="150px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    ZIP Code
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="📮 e.g., 12345"
+                    value={filters.zip}
+                    onChange={(e) => handleFilterChange("zip", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  />
+                </Box>
+              </HStack>
+            </Box>
+          )}
         </Box>
 
         <Table {...getTableProps()} variant="simple" color="gray.500" mb="24px">
@@ -308,42 +830,35 @@ export default function VendorsTable(props) {
                           {cell.value}
                         </Text>
                       );
-                    } else if (cell.column.Header === "COMPANY") {
+                    } else if (cell.column.Header === "EMAIL") {
                       data = (
                         <Text color={textColor} fontSize="sm" fontWeight="700">
                           {cell.value}
                         </Text>
                       );
-                    } else if (cell.column.Header === "STATUS") {
+                    } else if (cell.column.Header === "PHONE") {
                       data = (
-                        <Flex align="center">
-                          <Icon
-                            w="24px"
-                            h="24px"
-                            me="5px"
-                            color={
-                              cell.value === "Active"
-                                ? "green.500"
-                                : cell.value === "Inactive"
-                                ? "red.500"
-                                : null
-                            }
-                            as={
-                              cell.value === "Active"
-                                ? MdCheckCircle
-                                : cell.value === "Inactive"
-                                ? MdCancel
-                                : null
-                            }
-                          />
-                          <Text
-                            color={textColor}
-                            fontSize="sm"
-                            fontWeight="700"
-                          >
-                            {cell.value}
-                          </Text>
-                        </Flex>
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
+                          {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "MOBILE") {
+                      data = (
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
+                          {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "STREET") {
+                      data = (
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
+                          {cell.value}
+                        </Text>
+                      );
+                    } else if (cell.column.Header === "ZIP") {
+                      data = (
+                        <Text color={textColor} fontSize="sm" fontWeight="700">
+                          {cell.value}
+                        </Text>
                       );
                     } else if (cell.column.Header === "ACTIONS") {
                       data = (
@@ -414,15 +929,6 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Company</FormLabel>
-                <Input
-                  placeholder="Enter company name"
-                  value={newVendor.company}
-                  onChange={(e) => handleInputChange("company", e.target.value)}
-                />
-              </FormControl>
-
-              <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
@@ -441,35 +947,31 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Status</FormLabel>
-                <Select
-                  value={newVendor.status}
-                  onChange={(e) => handleInputChange("status", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
-                  sx={{
-                    option: {
-                      bg: inputBg,
-                      color: inputText,
-                      _hover: {
-                        bg: useColorModeValue("blue.50", "blue.900"),
-                      },
-                    },
-                  }}
-                >
-                  <option value="Active">✅ Active</option>
-                  <option value="Inactive">❌ Inactive</option>
-                </Select>
+              <FormControl isRequired>
+                <FormLabel>Mobile</FormLabel>
+                <Input
+                  placeholder="Enter mobile number"
+                  value={newVendor.mobile}
+                  onChange={(e) => handleInputChange("mobile", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Street</FormLabel>
+                <Input
+                  placeholder="Enter street address"
+                  value={newVendor.street}
+                  onChange={(e) => handleInputChange("street", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Zip</FormLabel>
+                <Input
+                  placeholder="Enter zip code"
+                  value={newVendor.zip}
+                  onChange={(e) => handleInputChange("zip", e.target.value)}
+                />
               </FormControl>
             </VStack>
           </ModalBody>
@@ -483,9 +985,11 @@ export default function VendorsTable(props) {
               onClick={handleSaveVendor}
               isDisabled={
                 !newVendor.name ||
-                !newVendor.company ||
                 !newVendor.email ||
-                !newVendor.phone
+                !newVendor.phone ||
+                !newVendor.mobile ||
+                !newVendor.street ||
+                !newVendor.zip
               }
             >
               Save Vendor
@@ -514,17 +1018,6 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl isRequired>
-                <FormLabel>Company</FormLabel>
-                <Input
-                  placeholder="Enter company name"
-                  value={editingVendor?.company || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("company", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
@@ -547,37 +1040,35 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Status</FormLabel>
-                <Select
-                  value={editingVendor?.status || "Active"}
+              <FormControl isRequired>
+                <FormLabel>Mobile</FormLabel>
+                <Input
+                  placeholder="Enter mobile number"
+                  value={editingVendor?.mobile || ""}
                   onChange={(e) =>
-                    handleEditInputChange("status", e.target.value)
+                    handleEditInputChange("mobile", e.target.value)
                   }
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
-                  sx={{
-                    option: {
-                      bg: inputBg,
-                      color: inputText,
-                      _hover: {
-                        bg: useColorModeValue("blue.50", "blue.900"),
-                      },
-                    },
-                  }}
-                >
-                  <option value="Active">✅ Active</option>
-                  <option value="Inactive">❌ Inactive</option>
-                </Select>
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Street</FormLabel>
+                <Input
+                  placeholder="Enter street address"
+                  value={editingVendor?.street || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("street", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Zip</FormLabel>
+                <Input
+                  placeholder="Enter zip code"
+                  value={editingVendor?.zip || ""}
+                  onChange={(e) => handleEditInputChange("zip", e.target.value)}
+                />
               </FormControl>
             </VStack>
           </ModalBody>
@@ -591,9 +1082,11 @@ export default function VendorsTable(props) {
               onClick={handleSaveEdit}
               isDisabled={
                 !editingVendor?.name ||
-                !editingVendor?.company ||
                 !editingVendor?.email ||
-                !editingVendor?.phone
+                !editingVendor?.phone ||
+                !editingVendor?.mobile ||
+                !editingVendor?.street ||
+                !editingVendor?.zip
               }
             >
               Update Vendor

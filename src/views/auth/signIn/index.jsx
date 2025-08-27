@@ -26,6 +26,8 @@ import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
 import { useUser } from "redux/hooks/useUser";
+import { useDispatch } from "react-redux";
+import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 
@@ -35,6 +37,7 @@ function SignIn() {
 
   // Redux user state and actions
   const { login, isLoading, error, clearError } = useUser();
+  const dispatch = useDispatch();
 
   // Modal states
   const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
@@ -74,6 +77,7 @@ function SignIn() {
       };
 
       console.log("🔐 Login API Payload:", payload);
+      console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("LOGIN")));
 
       const response = await fetch(buildApiUrl(getApiEndpoint("LOGIN")), {
         method: "POST",
@@ -81,42 +85,101 @@ function SignIn() {
         body: JSON.stringify(payload),
       });
 
+      console.log("🔐 Response status:", response.status);
+      console.log("🔐 Response headers:", response.headers);
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || "Login failed");
+        console.log("🔐 Error response data:", errorData);
+        throw new Error(errorData.message || `HTTP ${response.status}: Login failed`);
       }
 
       const result = await response.json();
 
       console.log("🔐 Login API Response:", result);
 
-      // Check if authentication was successful
-      if (result.result && result.result.user_id) {
+      // Check if authentication was successful based on backend response format
+      if (result.result && result.result.status === "success") {
+        console.log("🔐 Login successful, user data:", result.result);
         return {
           success: true,
           user: {
-            id: result.result.user_id,
+            id: result.result.user_id || Date.now(),
             email: email,
             name: result.result.name || email,
-            role: "user",
+            role: result.result.role || "user",
             avatar: null,
             permissions: ["read"],
             createdAt: new Date().toISOString(),
           },
-          token: result.result.session_id || "session_token",
+          token: result.result.session_id || result.result.token || "session_token",
         };
+      } else if (result.result && result.result.status === "error") {
+        console.log("🔐 Login failed:", result.result);
+        throw new Error(result.result.message || "Login failed");
       } else {
-        throw new Error("Invalid credentials");
+        console.log("🔐 Invalid response structure:", result);
+        throw new Error("Invalid response from server");
       }
     } catch (error) {
-      console.error("Login API failed:", error);
+      console.error("🔐 Login API failed:", error);
+
+      // If it's a network error, try alternative backend URLs
+      if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+        console.log("🔐 Trying alternative backend URLs...");
+
+        // Try alternative URLs from backend config
+        const alternativeUrls = [
+          "http://localhost:8069",
+          "http://127.0.0.1:8069",
+          "http://3.6.118.75:8069"
+        ];
+
+        for (const baseUrl of alternativeUrls) {
+          try {
+            console.log(`🔐 Trying ${baseUrl}...`);
+            const url = `${baseUrl}/api/login`;
+
+            const response = await fetch(url, {
+              method: "POST",
+              headers: API_CONFIG.DEFAULT_HEADERS,
+              body: JSON.stringify({ login: email, password }),
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              console.log("🔐 Alternative backend worked:", result);
+
+              if (result.result && result.result.status === "success") {
+                return {
+                  success: true,
+                  user: {
+                    id: result.result.user_id || Date.now(),
+                    email: email,
+                    name: result.result.name || email,
+                    role: result.result.role || "user",
+                    avatar: null,
+                    permissions: ["read"],
+                    createdAt: new Date().toISOString(),
+                  },
+                  token: result.result.session_id || result.result.token || "session_token",
+                };
+              }
+            }
+          } catch (altError) {
+            console.log(`🔐 ${baseUrl} failed:`, altError.message);
+            continue;
+          }
+        }
+      }
+
       throw error;
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted'); // Debug log
+    console.log('🔐 Login attempt with:', { email: formData.email, password: formData.password });
 
     if (!formData.email || !formData.password) {
       setModalMessage("Please fill in all required fields");
@@ -125,47 +188,41 @@ function SignIn() {
     }
 
     try {
-      console.log('Attempting login...'); // Debug log
+      console.log('🔐 Calling login API...');
 
       // Call the login API directly
       const apiResult = await handleLoginApi(formData.email, formData.password);
 
+      console.log('🔐 API result:', apiResult);
+
       if (apiResult.success) {
+        console.log('🔐 Login successful, updating state...');
+
         // Store user data in localStorage
         localStorage.setItem("user", JSON.stringify(apiResult.user));
         localStorage.setItem("token", apiResult.token);
 
-        // Update Redux state
-        const result = await login(formData.email, formData.password);
+        // Update Redux state directly
+        dispatch(loginSuccess({
+          user: apiResult.user,
+          token: apiResult.token,
+        }));
 
-        if (result.success) {
-          setModalMessage("Login successful! Redirecting to dashboard...");
-          setIsSuccessModalOpen(true);
+        setModalMessage("Login successful! Redirecting to dashboard...");
+        setIsSuccessModalOpen(true);
 
-          // Redirect to admin dashboard immediately after successful login
-          setTimeout(() => {
-            history.push('/admin/default');
-          }, 1000);
-        } else {
-          setModalMessage(result.error || "Login failed. Please check your credentials.");
-          setIsFailureModalOpen(true);
-        }
+        // Redirect to admin dashboard immediately after successful login
+        setTimeout(() => {
+          history.push('/admin/default');
+        }, 1000);
       } else {
+        console.log('🔐 Login failed:', apiResult);
         setModalMessage("Login failed. Please check your credentials.");
         setIsFailureModalOpen(true);
       }
     } catch (error) {
-      console.error('Login error:', error); // Debug log
-
-      let errorMessage = "An unexpected error occurred. Please try again.";
-
-      if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
-        errorMessage = "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      setModalMessage(errorMessage);
+      console.error('🔐 Login error:', error);
+      setModalMessage(error.message || "Login failed. Please try again.");
       setIsFailureModalOpen(true);
     }
   };

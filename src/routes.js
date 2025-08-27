@@ -199,6 +199,7 @@ const routes = [
     path: "/sign-in",
     icon: <Icon as={MdLock} width="20px" height="20px" color="inherit" />,
     component: SignInCentered,
+    hidden: true,
   },
   {
     name: "Forgot Password",
@@ -206,6 +207,7 @@ const routes = [
     path: "/forgot-password",
     icon: <Icon as={MdLock} width="20px" height="20px" color="inherit" />,
     component: ForgotPassword,
+    hidden: true,
   },
   {
     name: "Sign Up",
@@ -213,6 +215,7 @@ const routes = [
     path: "/sign-up",
     icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
     component: SignUp,
+    hidden: true,
   },
 ];
 

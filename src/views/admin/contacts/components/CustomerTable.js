@@ -49,7 +49,6 @@ import {
 // Custom components
 import Card from "components/card/Card";
 import { useCustomer } from "redux/hooks/useCustomer";
-import { testBackendConnection, testCountriesApi } from "config/backend";
 
 // Assets
 import {
@@ -355,6 +354,8 @@ export default function CustomerTable(props) {
       if (result.success) {
         onEditClose();
         setEditingCustomer(null);
+        // Refresh the customers list to show updated data
+        getCustomers();
       }
       // Error handling is done by the API modal system
     } catch (error) {
@@ -393,6 +394,8 @@ export default function CustomerTable(props) {
       if (result.success) {
         onDeleteClose();
         setCustomerToDelete(null);
+        // Refresh the customers list to show updated data
+        getCustomers();
       }
       // Error handling is done by the API modal system
     } catch (error) {
@@ -461,6 +464,8 @@ export default function CustomerTable(props) {
       }
 
       setSelectedItems([]);
+      // Refresh the customers list to show updated data
+      getCustomers();
       // Success/error handling is done by the API modal system
     } catch (error) {
       // Error handling is done by the API modal system
@@ -485,40 +490,6 @@ export default function CustomerTable(props) {
             Customer Management
           </Text>
           <HStack spacing={3}>
-            <Button
-              leftIcon={<Icon as={MdSearch} />}
-              colorScheme="gray"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const result = await testBackendConnection();
-                  if (result.success) {
-                    // Refresh customer data when connection is restored
-                    getCustomers();
-                  }
-                  // Success/error handling is done by the API modal system
-                } catch (error) {
-                  // Error handling is done by the API modal system
-                }
-              }}
-            >
-              Test Connection
-            </Button>
-            <Button
-              leftIcon={<Icon as={MdSearch} />}
-              colorScheme="teal"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const result = await testCountriesApi();
-                  // Success/error handling is done by the API modal system
-                } catch (error) {
-                  // Error handling is done by the API modal system
-                }
-              }}
-            >
-              Test Countries API
-            </Button>
             {selectedItems.length > 0 && (
               <Button
                 leftIcon={<Icon as={MdDelete} />}

@@ -43,10 +43,6 @@ export const columnsDataVendors = [
     accessor: "name",
   },
   {
-    Header: "COMPANY",
-    accessor: "company",
-  },
-  {
     Header: "EMAIL",
     accessor: "email",
   },
@@ -55,8 +51,16 @@ export const columnsDataVendors = [
     accessor: "phone",
   },
   {
-    Header: "STATUS",
-    accessor: "status",
+    Header: "MOBILE",
+    accessor: "mobile",
+  },
+  {
+    Header: "STREET",
+    accessor: "street",
+  },
+  {
+    Header: "ZIP",
+    accessor: "zip",
   },
   {
     Header: "ACTIONS",

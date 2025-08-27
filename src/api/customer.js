@@ -34,7 +34,9 @@ export const getCountriesApi = async () => {
   try {
     const response = await fetch(buildApiUrl(getApiEndpoint("COUNTRIES")), {
       method: "GET",
-      headers: API_CONFIG.DEFAULT_HEADERS,
+      headers: {
+        ...API_CONFIG.DEFAULT_HEADERS,
+      },
     });
 
     if (!response.ok) {
@@ -52,6 +54,10 @@ export const getCountriesApi = async () => {
 
     return result;
   } catch (error) {
+    console.error("Get countries error details:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     handleApiError(error, "Get countries");
   }
 };
@@ -66,11 +72,30 @@ export const registerCustomerApi = async (customerData) => {
       );
     }
 
+    // Get user token from localStorage for authentication
+    const userToken = localStorage.getItem("token");
+
+    // Create headers with or without authentication token
+    const headers = {
+      ...API_CONFIG.DEFAULT_HEADERS,
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-User-Token",
+    };
+
+    // Add authentication if token exists
+    if (userToken) {
+      headers.Authorization = `Bearer ${userToken}`;
+      headers["X-User-Token"] = userToken;
+    }
+
     const response = await fetch(
       buildApiUrl(getApiEndpoint("CUSTOMER_REGISTER")),
       {
         method: "POST",
-        headers: API_CONFIG.DEFAULT_HEADERS,
+        headers: headers,
+        mode: "cors",
         body: JSON.stringify(customerData),
       }
     );
@@ -88,8 +113,22 @@ export const registerCustomerApi = async (customerData) => {
 
     const result = await response.json();
 
+    // Check if the JSON-RPC response indicates an error
+    if (result.result && result.result.status === "error") {
+      throw new Error(result.result.message || "Registration failed");
+    }
+
+    // Check if the response has the expected structure
+    if (!result.result || result.result.status !== "success") {
+      throw new Error("Invalid response from server");
+    }
+
     return result;
   } catch (error) {
+    console.error("Register customer error details:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     handleApiError(error, "Register customer");
   }
 };
@@ -97,9 +136,25 @@ export const registerCustomerApi = async (customerData) => {
 // Get Customers API
 export const getCustomersApi = async () => {
   try {
+    // Get user token from localStorage for authentication
+    const userToken = localStorage.getItem("token");
+
+    // Create headers with or without authentication token
+    const headers = {
+      ...API_CONFIG.DEFAULT_HEADERS,
+    };
+
+    // Add authentication if token exists
+    if (userToken) {
+      headers.Authorization = `Bearer ${userToken}`;
+      headers["X-User-Token"] = userToken;
+    }
+
+    // Try to fetch customers
     const response = await fetch(buildApiUrl(getApiEndpoint("CUSTOMERS")), {
       method: "GET",
-      headers: API_CONFIG.DEFAULT_HEADERS,
+      headers: headers,
+      mode: "cors",
     });
 
     if (!response.ok) {
@@ -117,6 +172,10 @@ export const getCustomersApi = async () => {
 
     return result;
   } catch (error) {
+    console.error("Get customers error details:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     handleApiError(error, "Get customers");
   }
 };
@@ -128,7 +187,14 @@ export const updateCustomerApi = async (customerId, data) => {
       buildApiUrl(`${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`),
       {
         method: "PUT",
-        headers: API_CONFIG.DEFAULT_HEADERS,
+        headers: {
+          ...API_CONFIG.DEFAULT_HEADERS,
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers":
+            "Content-Type, Authorization, X-User-Token",
+        },
+        mode: "cors",
         body: JSON.stringify(data),
       }
     );
@@ -148,6 +214,10 @@ export const updateCustomerApi = async (customerId, data) => {
 
     return result;
   } catch (error) {
+    console.error("Update customer error details:", error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     handleApiError(error, "Update customer");
   }
 };
@@ -159,7 +229,14 @@ export const deleteCustomerApi = async (customerId) => {
       buildApiUrl(`${getApiEndpoint("CUSTOMER_DELETE")}/${customerId}`),
       {
         method: "DELETE",
-        headers: API_CONFIG.DEFAULT_HEADERS,
+        headers: {
+          ...API_CONFIG.DEFAULT_HEADERS,
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers":
+            "Content-Type, Authorization, X-User-Token",
+        },
+        mode: "cors",
       }
     );
 
