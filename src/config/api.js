@@ -19,6 +19,8 @@ const initializeApiConfig = () => {
         CUSTOMER_UPDATE: "/api/customer/update",
         CUSTOMER_DELETE: "/api/customer/delete",
         VENDOR_REGISTER: "/api/vendor/register",
+        VENDOR_UPDATE: "/api/vendor/update",
+        VENDOR_DELETE: "/api/vendor/delete",
         VENDORS: "/api/vendors",
         // Product endpoints
         PRODUCTS: "/api/products",
@@ -38,9 +40,10 @@ const initializeApiConfig = () => {
     };
   } catch (error) {
     console.error("Failed to initialize API config:", error);
-    // Fallback configuration
+    // Fallback configuration - use main backend URL
     return {
-      BASE_URL: "http://localhost:8069",
+      BASE_URL:
+        process.env.REACT_APP_API_BASE_URL || "http://13.61.187.51:8069",
       ENDPOINTS: {
         LOGIN: "/api/login",
         FORGOT_PASSWORD: "/api/forgot_password",
@@ -50,6 +53,10 @@ const initializeApiConfig = () => {
         CUSTOMER_REGISTER: "/api/customer/register",
         CUSTOMER_UPDATE: "/api/customer/update",
         CUSTOMER_DELETE: "/api/customer/delete",
+        VENDOR_REGISTER: "/api/vendor/register",
+        VENDOR_UPDATE: "/api/vendor/update",
+        VENDOR_DELETE: "/api/vendor/delete",
+        VENDORS: "/api/vendors",
         // Product endpoints
         PRODUCTS: "/api/products",
         PRODUCT_CREATE: "/api/product/create",

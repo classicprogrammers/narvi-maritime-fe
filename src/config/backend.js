@@ -2,14 +2,17 @@
 import { showApiModal } from "../components/ApiModal";
 
 // Backend Configuration
-// Change this URL when your backend CORS is fixed
+// Main backend URL from environment or fallback
+const MAIN_BACKEND_URL =
+  process.env.REACT_APP_BACKEND_URL || "http://13.61.187.51:8069";
 
 export const BACKEND_CONFIG = {
-  // Current backend URL (change this when CORS is fixed)
-  CURRENT_URL: "http://13.61.187.51:8069",
+  // Current backend URL from environment
+  CURRENT_URL: MAIN_BACKEND_URL,
 
   // Alternative URLs you can try:
   ALTERNATIVE_URLS: [
+    MAIN_BACKEND_URL,
     "http://3.6.118.75:8069",
     "http://localhost:8069",
     "http://127.0.0.1:8069",

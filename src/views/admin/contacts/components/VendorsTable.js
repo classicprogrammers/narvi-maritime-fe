@@ -109,7 +109,7 @@ export default function VendorsTable(props) {
         "X-User-Token": userToken,
       };
 
-      console.log("🔧 Fetching vendors from API...");
+      console.log("Fetching vendors from API...");
 
       // Try the main API endpoint first
       try {
@@ -131,7 +131,7 @@ export default function VendorsTable(props) {
         }
 
         const result = await response.json();
-        console.log("🔧 Vendors API Response:", result);
+        console.log("Vendors API Response:", result);
 
         if (result.vendors && Array.isArray(result.vendors)) {
           setVendors(result.vendors);
@@ -145,7 +145,7 @@ export default function VendorsTable(props) {
           mainError.name === "TypeError" &&
           mainError.message.includes("Failed to fetch")
         ) {
-          console.log("🔧 Main endpoint failed, trying alternative URLs...");
+          console.log("Main endpoint failed, trying alternative URLs...");
 
           const alternativeUrls = [
             "http://localhost:8069",
@@ -155,7 +155,7 @@ export default function VendorsTable(props) {
 
           for (const baseUrl of alternativeUrls) {
             try {
-              console.log(`🔧 Trying ${baseUrl}...`);
+              console.log(` Trying ${baseUrl}...`);
               const url = `${baseUrl}/api/vendors`;
 
               const response = await fetch(url, {
@@ -165,7 +165,7 @@ export default function VendorsTable(props) {
 
               if (response.ok) {
                 const result = await response.json();
-                console.log("🔧 Alternative backend worked:", result);
+                console.log(" Alternative backend worked:", result);
 
                 if (result.vendors && Array.isArray(result.vendors)) {
                   setVendors(result.vendors);
@@ -173,7 +173,7 @@ export default function VendorsTable(props) {
                 }
               }
             } catch (altError) {
-              console.log(`🔧 ${baseUrl} failed:`, altError.message);
+              console.log(` ${baseUrl} failed:`, altError.message);
               continue;
             }
           }
@@ -182,7 +182,7 @@ export default function VendorsTable(props) {
         throw mainError;
       }
     } catch (error) {
-      console.error("🔧 Failed to fetch vendors:", error);
+      console.error(" Failed to fetch vendors:", error);
 
       // Provide more specific error messages
       if (
@@ -190,7 +190,7 @@ export default function VendorsTable(props) {
         error.message.includes("Failed to fetch")
       ) {
         console.error(
-          "🔧 CORS or network error. Please check backend server and CORS configuration."
+          "CORS or network error. Please check backend server and CORS configuration."
         );
       }
 
@@ -349,9 +349,9 @@ export default function VendorsTable(props) {
         user_id: userId,
       };
 
-      console.log("🔧 Vendor Registration API Payload:", payload);
+      console.log(" Vendor Registration API Payload:", payload);
       console.log(
-        "🔧 API URL:",
+        " API URL:",
         buildApiUrl(getApiEndpoint("VENDOR_REGISTER"))
       );
 
@@ -366,7 +366,7 @@ export default function VendorsTable(props) {
           }
         );
 
-        console.log("🔧 Response status:", response.status);
+        console.log("Response status:", response.status);
 
         if (!response.ok) {
           const errorData = await response
@@ -381,7 +381,7 @@ export default function VendorsTable(props) {
         }
 
         const result = await response.json();
-        console.log("🔧 Vendor Registration API Response:", result);
+        console.log(" Vendor Registration API Response:", result);
 
         // Check if the JSON-RPC response indicates an error
         if (result.result && result.result.status === "error") {
@@ -402,7 +402,7 @@ export default function VendorsTable(props) {
           mainError.name === "TypeError" &&
           mainError.message.includes("Failed to fetch")
         ) {
-          console.log("🔧 Main endpoint failed, trying alternative URLs...");
+          console.log(" Main endpoint failed, trying alternative URLs...");
 
           const alternativeUrls = [
             "http://localhost:8069",
@@ -412,7 +412,7 @@ export default function VendorsTable(props) {
 
           for (const baseUrl of alternativeUrls) {
             try {
-              console.log(`🔧 Trying ${baseUrl}...`);
+              console.log(` Trying ${baseUrl}...`);
               const url = `${baseUrl}/api/vendor/register`;
 
               const response = await fetch(url, {
@@ -423,14 +423,14 @@ export default function VendorsTable(props) {
 
               if (response.ok) {
                 const result = await response.json();
-                console.log("🔧 Alternative backend worked:", result);
+                console.log(" Alternative backend worked:", result);
 
                 if (result.result && result.result.status === "success") {
                   return result;
                 }
               }
             } catch (altError) {
-              console.log(`🔧 ${baseUrl} failed:`, altError.message);
+              console.log(`${baseUrl} failed:`, altError.message);
               continue;
             }
           }
@@ -439,7 +439,7 @@ export default function VendorsTable(props) {
         throw mainError;
       }
     } catch (error) {
-      console.error("🔧 Vendor Registration API failed:", error);
+      console.error(" Vendor Registration API failed:", error);
 
       // Provide more specific error messages
       if (
@@ -497,12 +497,128 @@ export default function VendorsTable(props) {
     }
   };
 
-  const handleSaveEdit = () => {
-    // Here you would typically update your backend
-    console.log("Updating vendor:", editingVendor);
+  const handleSaveEdit = async () => {
+    try {
+      console.log("Updating vendor:", editingVendor);
 
-    onEditClose();
-    setEditingVendor(null);
+      // Get user token from localStorage for authentication
+      const userToken = localStorage.getItem("token");
+      if (!userToken) {
+        throw new Error("User not authenticated. Please login again.");
+      }
+
+      // Create headers with authentication token
+      const headers = {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        Authorization: `Bearer ${userToken}`,
+        "X-User-Token": userToken,
+      };
+
+      // Prepare vendor data for update
+      const payload = {
+        ...editingVendor,
+      };
+
+      console.log(" Vendor Update API Payload:", payload);
+      console.log(" API URL:", buildApiUrl(getApiEndpoint("VENDOR_UPDATE")));
+
+      // Try the main API endpoint first
+      try {
+        const response = await fetch(
+          buildApiUrl(getApiEndpoint("VENDOR_UPDATE")),
+          {
+            method: "PUT",
+            headers: headers,
+            body: JSON.stringify(payload),
+          }
+        );
+
+        console.log(" Response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ message: "Unknown error" }));
+          const error = new Error(
+            errorData.message ||
+              `HTTP ${response.status}: ${response.statusText}`
+          );
+          error.status = response.status;
+          throw error;
+        }
+
+        const result = await response.json();
+        console.log(" Vendor Update API Response:", result);
+
+        // Check if the response indicates success
+        if (result.status === "success" || result.success) {
+          console.log("Vendor updated successfully:", result);
+          alert("Vendor updated successfully!");
+
+          // Close modal and reset form
+          onEditClose();
+          setEditingVendor(null);
+
+          // Refresh vendors list to show the updated vendor
+          fetchVendors();
+        } else {
+          throw new Error(result.message || "Vendor update failed");
+        }
+      } catch (mainError) {
+        // If main endpoint fails, try alternative backend URLs
+        if (
+          mainError.name === "TypeError" &&
+          mainError.message.includes("Failed to fetch")
+        ) {
+          console.log(" Main endpoint failed, trying alternative URLs...");
+
+          const alternativeUrls = [
+            "http://localhost:8069",
+            "http://127.0.0.1:8069",
+            "http://3.6.118.75:8069",
+          ];
+
+          for (const baseUrl of alternativeUrls) {
+            try {
+              console.log(` Trying ${baseUrl}...`);
+              const url = `${baseUrl}/api/vendor/update`;
+
+              const response = await fetch(url, {
+                method: "PUT",
+                headers: headers,
+                body: JSON.stringify(payload),
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                console.log(" Alternative backend worked:", result);
+
+                if (result.status === "success" || result.success) {
+                  console.log("Vendor updated successfully:", result);
+                  alert("Vendor updated successfully!");
+
+                  // Close modal and reset form
+                  onEditClose();
+                  setEditingVendor(null);
+
+                  // Refresh vendors list to show the updated vendor
+                  fetchVendors();
+                  return;
+                }
+              }
+            } catch (altError) {
+              console.log(` ${baseUrl} failed:`, altError.message);
+              continue;
+            }
+          }
+        }
+
+        throw mainError;
+      }
+    } catch (error) {
+      console.error("Failed to update vendor:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const handleEdit = (vendor) => {
@@ -510,13 +626,130 @@ export default function VendorsTable(props) {
     onEditOpen();
   };
 
-  const handleDelete = (vendor) => {
-    // Here you would typically delete from your backend
-    console.log("Deleting vendor:", vendor);
+  const handleDelete = async (vendor) => {
+    try {
+      // Confirm deletion
+      if (
+        !window.confirm(
+          `Are you sure you want to delete vendor "${vendor.name}"?`
+        )
+      ) {
+        return;
+      }
 
-    // For demo purposes, just log the action
-    // In a real app, you'd remove the vendor from your data source
-    alert(`Vendor "${vendor.name}" would be deleted`);
+      console.log("Deleting vendor:", vendor);
+
+      // Get user token from localStorage for authentication
+      const userToken = localStorage.getItem("token");
+      if (!userToken) {
+        throw new Error("User not authenticated. Please login again.");
+      }
+
+      // Create headers with authentication token
+      const headers = {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        Authorization: `Bearer ${userToken}`,
+        "X-User-Token": userToken,
+      };
+
+      // Prepare vendor data for deletion
+      const payload = {
+        id: vendor.id,
+        name: vendor.name,
+      };
+
+      console.log(" Vendor Delete API Payload:", payload);
+      console.log(" API URL:", buildApiUrl(getApiEndpoint("VENDOR_DELETE")));
+
+      // Try the main API endpoint first
+      try {
+        const response = await fetch(
+          buildApiUrl(getApiEndpoint("VENDOR_DELETE")),
+          {
+            method: "DELETE",
+            headers: headers,
+            body: JSON.stringify(payload),
+          }
+        );
+
+        console.log(" Response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ message: "Unknown error" }));
+          const error = new Error(
+            errorData.message ||
+              `HTTP ${response.status}: ${response.statusText}`
+          );
+          error.status = response.status;
+          throw error;
+        }
+
+        const result = await response.json();
+        console.log(" Vendor Delete API Response:", result);
+
+        // Check if the response indicates success
+        if (result.status === "success" || result.success) {
+          console.log("Vendor deleted successfully:", result);
+          alert("Vendor deleted successfully!");
+
+          // Refresh vendors list to remove the deleted vendor
+          fetchVendors();
+        } else {
+          throw new Error(result.message || "Vendor deletion failed");
+        }
+      } catch (mainError) {
+        // If main endpoint fails, try alternative backend URLs
+        if (
+          mainError.name === "TypeError" &&
+          mainError.message.includes("Failed to fetch")
+        ) {
+          console.log(" Main endpoint failed, trying alternative URLs...");
+
+          const alternativeUrls = [
+            "http://localhost:8069",
+            "http://127.0.0.1:8069",
+            "http://3.6.118.75:8069",
+          ];
+
+          for (const baseUrl of alternativeUrls) {
+            try {
+              console.log(` Trying ${baseUrl}...`);
+              const url = `${baseUrl}/api/vendor/delete`;
+
+              const response = await fetch(url, {
+                method: "DELETE",
+                headers: headers,
+                body: JSON.stringify(payload),
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                console.log(" Alternative backend worked:", result);
+
+                if (result.status === "success" || result.success) {
+                  console.log("Vendor deleted successfully:", result);
+                  alert("Vendor deleted successfully!");
+
+                  // Refresh vendors list to remove the deleted vendor
+                  fetchVendors();
+                  return;
+                }
+              }
+            } catch (altError) {
+              console.log(` ${baseUrl} failed:`, altError.message);
+              continue;
+            }
+          }
+        }
+
+        throw mainError;
+      }
+    } catch (error) {
+      console.error("Failed to delete vendor:", error);
+      alert(`Error: ${error.message}`);
+    }
   };
 
   const handleCancel = () => {
