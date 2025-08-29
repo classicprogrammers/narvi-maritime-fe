@@ -128,11 +128,14 @@ export default function VendorsTable(props) {
     if (searchValue) {
       filtered = filtered.filter(
         (item) =>
-          (item.name && item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.email && item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.name &&
+            item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.email &&
+            item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.phone && item.phone.toString().includes(searchValue)) ||
           (item.mobile && item.mobile.toString().includes(searchValue)) ||
-          (item.street && item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.street &&
+            item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.zip && item.zip.toString().includes(searchValue))
       );
     }
@@ -236,22 +239,50 @@ export default function VendorsTable(props) {
   // Vendor Registration API
   const handleVendorRegistrationApi = async (vendorData) => {
     try {
-      console.log("Vendor Registration API Payload:", vendorData);
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      let userId = null;
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          userId = user.id;
+        } catch (parseError) {
+          console.warn(
+            "Failed to parse user data from localStorage:",
+            parseError
+          );
+        }
+      }
+
+      // Add user_id to vendor data
+      const payload = {
+        ...vendorData,
+        user_id: userId,
+      };
+
+      console.log("Vendor Registration API Payload:", payload);
       console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_REGISTER")));
 
-      const response = await api.post(getApiEndpoint("VENDOR_REGISTER"), vendorData);
+      const response = await api.post(
+        getApiEndpoint("VENDOR_REGISTER"),
+        payload
+      );
       const result = response.data;
       console.log("Vendor Registration API Response:", result);
 
       // Simple success check - handle both response formats safely
       if (
-        result && result.status === "success" ||
-        result && result.success ||
-        result && result.result && result.result.status === "success"
+        (result && result.status === "success") ||
+        (result && result.success) ||
+        (result && result.result && result.result.status === "success")
       ) {
         return result;
       } else {
-        const errorMessage = result?.result?.message || result?.message || "Vendor registration failed";
+        const errorMessage =
+          result?.result?.message ||
+          result?.message ||
+          "Vendor registration failed";
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -311,12 +342,18 @@ export default function VendorsTable(props) {
         // Refresh vendors list to show the new vendor
         fetchVendors();
       } else {
-        const errorMessage = result?.result?.message || result?.message || "Vendor registration failed. Please try again.";
+        const errorMessage =
+          result?.result?.message ||
+          result?.message ||
+          "Vendor registration failed. Please try again.";
         alert(errorMessage);
       }
     } catch (error) {
       console.error("Failed to register vendor:", error);
-      const errorMessage = error?.result?.message || error?.message || "Unknown error occurred during registration";
+      const errorMessage =
+        error?.result?.message ||
+        error?.message ||
+        "Unknown error occurred during registration";
       alert(`Error: ${errorMessage}`);
     }
   };
@@ -325,25 +362,51 @@ export default function VendorsTable(props) {
     try {
       console.log("Updating vendor:", editingVendor);
 
-      console.log("Vendor Update API Payload:", editingVendor);
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      let userId = null;
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          userId = user.id;
+        } catch (parseError) {
+          console.warn(
+            "Failed to parse user data from localStorage:",
+            parseError
+          );
+        }
+      }
+
+      // Add user_id to vendor update data
+      const payload = {
+        ...editingVendor,
+        user_id: userId,
+        vendor_id: editingVendor.id,
+      };
+
+      console.log("Vendor Update API Payload:", payload);
       console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_UPDATE")));
 
-      const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), editingVendor);
+      const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), payload);
       const result = response.data;
+      // Refresh vendors list to show the updated vendor
+      fetchVendors();
 
       // Simple success check - handle both response formats safely
-      if (result && result.status === "success" || result && result.success) {
+      if (
+        (result && result.status === "success") ||
+        (result && result.success)
+      ) {
         console.log("Vendor updated successfully:", result);
         alert("Vendor updated successfully!");
 
         // Close edit modal
         onEditClose();
         setEditingVendor(null);
-
-        // Refresh vendors list to show the updated vendor
-        fetchVendors();
       } else {
-        const errorMessage = result?.result?.message || result?.message || "Vendor update failed";
+        const errorMessage =
+          result?.result?.message || result?.message || "Vendor update failed";
         throw new Error(errorMessage);
       }
     } catch (error) {
@@ -361,12 +424,20 @@ export default function VendorsTable(props) {
     try {
       console.log("Deleting vendor:", vendor);
 
-      const response = await api.post(getApiEndpoint("VENDOR_DELETE"), { vendor_id: vendor.id });
+      const response = await api.post(getApiEndpoint("VENDOR_DELETE"), {
+        vendor_id: vendor.id,
+      });
       const result = response.data;
       console.log("Vendor Delete API Response:", result);
 
+      // Refresh vendors list to remove the deleted vendor
+      fetchVendors();
       // Simple success check - handle both response formats safely
-      if (result && result.result && (result.result.status === "success" || result.result.success)) {
+      if (
+        result &&
+        result.result &&
+        (result.result.status === "success" || result.result.success)
+      ) {
         console.log("Vendor deleted successfully:", result);
         alert("Vendor deleted successfully!");
 
@@ -377,15 +448,19 @@ export default function VendorsTable(props) {
         console.log("Vendor deleted successfully:", result);
         alert("Vendor deleted successfully!");
 
-        // Refresh vendors list to remove the deleted vendor
-        fetchVendors();
       } else {
-        const errorMessage = result?.result?.message || result?.message || "Vendor deletion failed";
+        const errorMessage =
+          result?.result?.message ||
+          result?.message ||
+          "Vendor deletion failed";
         throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Failed to delete vendor:", error);
-      const errorMessage = error?.result?.message || error?.message || "Unknown error occurred during deletion";
+      const errorMessage =
+        error?.result?.message ||
+        error?.message ||
+        "Unknown error occurred during deletion";
       alert(`Error: ${errorMessage}`);
     }
   };
@@ -463,10 +538,10 @@ export default function VendorsTable(props) {
                 variant={showFilterFields ? "solid" : "outline"}
                 colorScheme={
                   filters.email ||
-                    filters.phone ||
-                    filters.mobile ||
-                    filters.street ||
-                    filters.zip
+                  filters.phone ||
+                  filters.mobile ||
+                  filters.street ||
+                  filters.zip
                     ? "blue"
                     : "gray"
                 }
@@ -486,20 +561,20 @@ export default function VendorsTable(props) {
               filters.street ||
               filters.zip ||
               searchValue) && (
-                <Box>
-                  <Button
-                    size="md"
-                    variant="outline"
-                    onClick={clearAllFiltersAndSearch}
-                    colorScheme="red"
-                    _hover={{ bg: "red.50" }}
-                    borderRadius="10px"
-                    border="2px"
-                  >
-                    Clear All
-                  </Button>
-                </Box>
-              )}
+              <Box>
+                <Button
+                  size="md"
+                  variant="outline"
+                  onClick={clearAllFiltersAndSearch}
+                  colorScheme="red"
+                  _hover={{ bg: "red.50" }}
+                  borderRadius="10px"
+                  border="2px"
+                >
+                  Clear All
+                </Button>
+              </Box>
+            )}
           </HStack>
 
           {/* Expandable Filter Fields */}

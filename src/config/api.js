@@ -3,13 +3,14 @@
 // Simple and clean API configuration
 export const API_CONFIG = {
   // Base URL for all API calls
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL,
+  BASE_URL:
+    process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL,
 
   // API Endpoints - only include what actually exists in the backend
   ENDPOINTS: {
-    LOGIN: "/api/auth/login",
-    FORGOT_PASSWORD: "/api/auth/forgot-password",
-    SIGNUP: "/api/auth/signup",
+    LOGIN: "/api/login",
+    FORGOT_PASSWORD: "/api/forgot_password",
+    SIGNUP: "/api/signup",
     COUNTRIES: "/api/countries",
     CUSTOMERS: "/api/customers",
     CUSTOMER_REGISTER: "/api/customer/register",

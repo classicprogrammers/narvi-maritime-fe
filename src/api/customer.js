@@ -19,8 +19,9 @@ const handleApiError = (error, operation) => {
 
   // HTTP errors (4xx, 5xx)
   if (error.status) {
-    errorMessage = `Backend error (${error.status}): ${error.message || "Unknown error occurred"
-      }`;
+    errorMessage = `Backend error (${error.status}): ${
+      error.message || "Unknown error occurred"
+    }`;
   }
 
   // Show error modal
@@ -43,7 +44,10 @@ export const getCountriesApi = async () => {
 // Register Customer API
 export const registerCustomerApi = async (customerData) => {
   try {
-    const response = await api.post(getApiEndpoint("CUSTOMER_REGISTER"), customerData);
+    const response = await api.post(
+      getApiEndpoint("CUSTOMER_REGISTER"),
+      customerData
+    );
     const result = response.data;
 
     // Check if the JSON-RPC response indicates an error
@@ -77,7 +81,10 @@ export const getCustomersApi = async () => {
 // Update Customer API
 export const updateCustomerApi = async (customerId, data) => {
   try {
-    const response = await api.put(`${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`, data);
+    const response = await api.post(
+      `${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`,
+      data
+    );
     return response.data;
   } catch (error) {
     console.error("Update customer error:", error);
@@ -88,7 +95,9 @@ export const updateCustomerApi = async (customerId, data) => {
 // Delete Customer API
 export const deleteCustomerApi = async (customerId) => {
   try {
-    const response = await api.delete(`${getApiEndpoint("CUSTOMER_DELETE")}/${customerId}`);
+    const response = await api.delete(
+      `${getApiEndpoint("CUSTOMER_DELETE")}/${customerId}`
+    );
     return response.data;
   } catch (error) {
     console.error("Delete customer error:", error);

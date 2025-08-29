@@ -150,7 +150,7 @@ export default function RateList() {
             const response = await api.post(getApiEndpoint("PRODUCT_CREATE"), payload);
             const result = response.data;
 
-            if (result.status === "success") {
+            if (result.result.status === "success") {
                 toast({
                     title: "Product Created",
                     description: "New product has been successfully created.",
@@ -169,7 +169,7 @@ export default function RateList() {
                 });
                 fetchProducts();
             } else {
-                throw new Error(result.message || "Failed to create product");
+                throw new Error(result.result.message || "Failed to create product");
             }
         } catch (error) {
             toast({
@@ -205,7 +205,7 @@ export default function RateList() {
             const response = await api.post(getApiEndpoint("PRODUCT_UPDATE"), payload);
             const result = response.data;
 
-            if (result.status === "success") {
+            if (result.result.status === "success") {
                 toast({
                     title: "Product Updated",
                     description: "Product has been successfully updated.",
@@ -221,7 +221,7 @@ export default function RateList() {
                 // Refresh products list
                 fetchProducts();
             } else {
-                throw new Error(result.message || "Failed to update product");
+                throw new Error(result.result.message || "Failed to update product");
             }
         } catch (error) {
             toast({
@@ -240,14 +240,29 @@ export default function RateList() {
     const handleDeleteProduct = async () => {
         try {
             setIsLoading(true);
+
+            // Get user ID from localStorage
+            const userData = localStorage.getItem("user");
+            let userId = null;
+
+            if (userData) {
+                try {
+                    const user = JSON.parse(userData);
+                    userId = user.id;
+                } catch (parseError) {
+                    console.warn("Failed to parse user data from localStorage:", parseError);
+                }
+            }
+
             const payload = {
                 id: deleteItemId,
+                user_id: userId
             };
 
             const response = await api.post(getApiEndpoint("PRODUCT_DELETE"), payload);
             const result = response.data;
 
-            if (result.status === "success") {
+            if (result.result.status === "success") {
                 toast({
                     title: "Product Deleted",
                     description: "Product has been successfully deleted.",
@@ -262,7 +277,7 @@ export default function RateList() {
                 // Refresh products list
                 fetchProducts();
             } else {
-                throw new Error(result.message || "Failed to delete product");
+                throw new Error(result.result.message || "Failed to delete product");
             }
         } catch (error) {
             toast({
