@@ -80,14 +80,11 @@ export const registerCustomerApi = async (customerData) => {
       ...API_CONFIG.DEFAULT_HEADERS,
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Content-Type, Authorization, X-User-Token",
     };
 
     // Add authentication if token exists
     if (userToken) {
       headers.Authorization = `Bearer ${userToken}`;
-      headers["X-User-Token"] = userToken;
     }
 
     const response = await fetch(
@@ -147,7 +144,6 @@ export const getCustomersApi = async () => {
     // Add authentication if token exists
     if (userToken) {
       headers.Authorization = `Bearer ${userToken}`;
-      headers["X-User-Token"] = userToken;
     }
 
     // Try to fetch customers
@@ -191,8 +187,7 @@ export const updateCustomerApi = async (customerId, data) => {
           ...API_CONFIG.DEFAULT_HEADERS,
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Content-Type, Authorization, X-User-Token",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
         mode: "cors",
         body: JSON.stringify(data),
@@ -233,8 +228,7 @@ export const deleteCustomerApi = async (customerId) => {
           ...API_CONFIG.DEFAULT_HEADERS,
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Content-Type, Authorization, X-User-Token",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
         mode: "cors",
       }

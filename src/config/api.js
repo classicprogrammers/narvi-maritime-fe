@@ -1,95 +1,50 @@
 // API Configuration
 import { getBackendUrl } from "./backend";
 
-// Ensure proper initialization order
-const initializeApiConfig = () => {
-  try {
-    return {
-      // Base URL for all API calls
-      BASE_URL: process.env.REACT_APP_API_BASE_URL || getBackendUrl(),
+// Simple and clean API configuration
+export const API_CONFIG = {
+  // Base URL for all API calls
+  BASE_URL: process.env.REACT_APP_API_BASE_URL || getBackendUrl(),
 
-      // API Endpoints
-      ENDPOINTS: {
-        LOGIN: "/api/login",
-        FORGOT_PASSWORD: "/api/forgot_password",
-        SIGNUP: "/api/signup",
-        COUNTRIES: "/api/countries",
-        CUSTOMERS: "/api/customers",
-        CUSTOMER_REGISTER: "/api/customer/register",
-        CUSTOMER_UPDATE: "/api/customer/update",
-        CUSTOMER_DELETE: "/api/customer/delete",
-        VENDOR_REGISTER: "/api/vendor/register",
-        VENDOR_UPDATE: "/api/vendor/update",
-        VENDOR_DELETE: "/api/vendor/delete",
-        VENDORS: "/api/vendors",
-        // Product endpoints
-        PRODUCTS: "/api/products",
-        PRODUCT_CREATE: "/api/product/create",
-        PRODUCT_UPDATE: "/api/product/update",
-        PRODUCT_DELETE: "/api/product/delete",
-      },
+  // API Endpoints - only include what actually exists in the backend
+  ENDPOINTS: {
+    LOGIN: "/api/auth/login",
+    FORGOT_PASSWORD: "/api/auth/forgot-password",
+    SIGNUP: "/api/auth/signup",
+    COUNTRIES: "/api/countries",
+    CUSTOMERS: "/api/customers",
+    CUSTOMER_REGISTER: "/api/customer/register",
+    CUSTOMER_UPDATE: "/api/customer/update",
+    CUSTOMER_DELETE: "/api/customer/delete",
+    VENDOR_REGISTER: "/api/vendor/register",
+    VENDOR_UPDATE: "/api/vendor/update",
+    VENDOR_DELETE: "/api/vendor/delete",
+    VENDORS: "/api/vendor/list",
+    // Product endpoints
+    PRODUCTS: "/api/products",
+    PRODUCT_CREATE: "/api/product/create",
+    PRODUCT_UPDATE: "/api/product/update",
+    PRODUCT_DELETE: "/api/product/delete",
+  },
 
-      // Request timeout in milliseconds
-      TIMEOUT: 30000,
+  // Request timeout in milliseconds
+  TIMEOUT: 30000,
 
-      // Default headers
-      DEFAULT_HEADERS: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    };
-  } catch (error) {
-    console.error("Failed to initialize API config:", error);
-    // Fallback configuration - use main backend URL
-    return {
-      BASE_URL:
-        process.env.REACT_APP_API_BASE_URL || "http://13.61.187.51:8069",
-      ENDPOINTS: {
-        LOGIN: "/api/login",
-        FORGOT_PASSWORD: "/api/forgot_password",
-        SIGNUP: "/api/signup",
-        COUNTRIES: "/api/countries",
-        CUSTOMERS: "/api/customers",
-        CUSTOMER_REGISTER: "/api/customer/register",
-        CUSTOMER_UPDATE: "/api/customer/update",
-        CUSTOMER_DELETE: "/api/customer/delete",
-        VENDOR_REGISTER: "/api/vendor/register",
-        VENDOR_UPDATE: "/api/vendor/update",
-        VENDOR_DELETE: "/api/vendor/delete",
-        VENDORS: "/api/vendors",
-        // Product endpoints
-        PRODUCTS: "/api/products",
-        PRODUCT_CREATE: "/api/product/create",
-        PRODUCT_UPDATE: "/api/product/update",
-        PRODUCT_DELETE: "/api/product/delete",
-      },
-      TIMEOUT: 30000,
-      DEFAULT_HEADERS: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    };
-  }
+  // Default headers
+  DEFAULT_HEADERS: {
+    "Content-Type": "application/json",
+  },
 };
-
-export const API_CONFIG = initializeApiConfig();
 
 // Helper function to build full API URL
 export const buildApiUrl = (endpoint) => {
-  if (!API_CONFIG || !API_CONFIG.BASE_URL) {
-    throw new Error(
-      "API_CONFIG not initialized. Please check your configuration."
-    );
+  if (!API_CONFIG.BASE_URL) {
+    throw new Error("API base URL not configured");
   }
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
 
 // Helper function to get API endpoint
 export const getApiEndpoint = (key) => {
-  if (!API_CONFIG || !API_CONFIG.ENDPOINTS) {
-    throw new Error(
-      "API_CONFIG not initialized. Please check your configuration."
-    );
-  }
   return API_CONFIG.ENDPOINTS[key] || key;
 };

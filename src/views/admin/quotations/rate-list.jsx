@@ -65,7 +65,7 @@ export default function RateList() {
     const [totalPages, setTotalPages] = useState(1);
     const [searchValue, setSearchValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
-    
+
     // Filter states - similar to customer table
     const [filters, setFilters] = useState({
         name: "",
@@ -116,7 +116,6 @@ export default function RateList() {
             const headers = {
                 ...API_CONFIG.DEFAULT_HEADERS,
                 Authorization: `Bearer ${userToken}`,
-                "X-User-Token": userToken,
             };
 
             const response = await fetch(
@@ -164,14 +163,13 @@ export default function RateList() {
             if (!userData) {
                 throw new Error("User data not found. Please login again.");
             }
-            
+
             const user = JSON.parse(userData);
             const userId = user.id;
 
             const headers = {
                 ...API_CONFIG.DEFAULT_HEADERS,
                 Authorization: `Bearer ${userToken}`,
-                "X-User-Token": userToken,
             };
 
             const payload = {
@@ -202,7 +200,7 @@ export default function RateList() {
                     duration: 3000,
                     isClosable: true,
                 });
-                
+
                 onNewRateClose();
                 setNewRateItem({
                     name: "",
@@ -211,7 +209,7 @@ export default function RateList() {
                     type: "",
                     default_code: ""
                 });
-                
+
                 // Refresh products list
                 fetchProducts();
             } else {
@@ -239,15 +237,23 @@ export default function RateList() {
                 throw new Error("User not authenticated. Please login again.");
             }
 
+            const userData = localStorage.getItem("user");
+            if (!userData) {
+                throw new Error("User data not found. Please login again.");
+            }
+
+            const user = JSON.parse(userData);
+            const userId = user.id;
+
             const headers = {
                 ...API_CONFIG.DEFAULT_HEADERS,
                 Authorization: `Bearer ${userToken}`,
-                "X-User-Token": userToken,
             };
 
             const payload = {
                 ...editingItem,
                 id: editingItem.id,
+                user_id: userId,
             };
 
             const response = await fetch(
@@ -273,11 +279,11 @@ export default function RateList() {
                     duration: 3000,
                     isClosable: true,
                 });
-                
+
                 setIsEditing(false);
                 setEditingItem(null);
                 onNewRateClose();
-                
+
                 // Refresh products list
                 fetchProducts();
             } else {
@@ -308,7 +314,6 @@ export default function RateList() {
             const headers = {
                 ...API_CONFIG.DEFAULT_HEADERS,
                 Authorization: `Bearer ${userToken}`,
-                "X-User-Token": userToken,
             };
 
             const payload = {
@@ -338,10 +343,10 @@ export default function RateList() {
                     duration: 3000,
                     isClosable: true,
                 });
-                
+
                 setDeleteItemId(null);
                 onDeleteClose();
-                
+
                 // Refresh products list
                 fetchProducts();
             } else {

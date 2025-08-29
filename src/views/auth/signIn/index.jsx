@@ -124,53 +124,9 @@ function SignIn() {
     } catch (error) {
       console.error("🔐 Login API failed:", error);
 
-      // If it's a network error, try alternative backend URLs
+      // If it's a network error, log it
       if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
-        console.log("🔐 Trying alternative backend URLs...");
-
-        // Try alternative URLs from backend config
-        const alternativeUrls = [
-          "http://localhost:8069",
-          "http://127.0.0.1:8069",
-          "http://3.6.118.75:8069"
-        ];
-
-        for (const baseUrl of alternativeUrls) {
-          try {
-            console.log(`🔐 Trying ${baseUrl}...`);
-            const url = `${baseUrl}/api/login`;
-
-            const response = await fetch(url, {
-              method: "POST",
-              headers: API_CONFIG.DEFAULT_HEADERS,
-              body: JSON.stringify({ login: email, password }),
-            });
-
-            if (response.ok) {
-              const result = await response.json();
-              console.log("🔐 Alternative backend worked:", result);
-
-              if (result.result && result.result.status === "success") {
-                return {
-                  success: true,
-                  user: {
-                    id: result.result.user_id || Date.now(),
-                    email: email,
-                    name: result.result.name || email,
-                    role: result.result.role || "user",
-                    avatar: null,
-                    permissions: ["read"],
-                    createdAt: new Date().toISOString(),
-                  },
-                  token: result.result.session_id || result.result.token || "session_token",
-                };
-              }
-            }
-          } catch (altError) {
-            console.log(`🔐 ${baseUrl} failed:`, altError.message);
-            continue;
-          }
-        }
+        console.log("🔐 Network error - backend server may be down");
       }
 
       throw error;
