@@ -58,6 +58,7 @@ import {
   getApiEndpoint,
   API_CONFIG,
 } from "../../../../config/api";
+import api from "../../../../api/axios";
 
 export default function VendorsTable(props) {
   const { columnsData, tableData } = props;
@@ -95,38 +96,10 @@ export default function VendorsTable(props) {
   const fetchVendors = async () => {
     try {
       setIsLoading(true);
-
-      // Get user token from localStorage for authentication
-      const userToken = localStorage.getItem("token");
-      if (!userToken) {
-        console.warn("User not authenticated");
-        setVendors([]);
-        return;
-      }
-
-      // Simple headers - only what's needed
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${userToken}`,
-      };
-
       console.log("Fetching vendors from API...");
 
-      const response = await fetch(buildApiUrl(getApiEndpoint("VENDORS")), {
-        method: "GET",
-        headers: headers,
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`
-        );
-      }
-
-      const result = await response.json();
+      const response = await api.get(getApiEndpoint("VENDORS"));
+      const result = response.data;
       console.log("Vendors API Response:", result);
 
       if (result.vendors && Array.isArray(result.vendors)) {
@@ -155,12 +128,12 @@ export default function VendorsTable(props) {
     if (searchValue) {
       filtered = filtered.filter(
         (item) =>
-          item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-          item.email.toLowerCase().includes(searchValue.toLowerCase()) ||
-          item.phone.includes(searchValue) ||
-          item.mobile.includes(searchValue) ||
-          item.street.toLowerCase().includes(searchValue.toLowerCase()) ||
-          item.zip.includes(searchValue)
+          (item.name && item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.email && item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.phone && item.phone.toString().includes(searchValue)) ||
+          (item.mobile && item.mobile.toString().includes(searchValue)) ||
+          (item.street && item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.zip && item.zip.toString().includes(searchValue))
       );
     }
 
@@ -260,57 +233,26 @@ export default function VendorsTable(props) {
     setSearchValue("");
   };
 
-  // Vendor Registration API call function
+  // Vendor Registration API
   const handleVendorRegistrationApi = async (vendorData) => {
     try {
-      // Get user token from localStorage for authentication
-      const userToken = localStorage.getItem("token");
-      if (!userToken) {
-        throw new Error("User not authenticated. Please login again.");
-      }
-
-      // Simple headers - only what's needed
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${userToken}`,
-      };
-
-      // Simple payload without extra user_id
-      const payload = { ...vendorData };
-
-      console.log("Vendor Registration API Payload:", payload);
+      console.log("Vendor Registration API Payload:", vendorData);
       console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_REGISTER")));
 
-      const response = await fetch(
-        buildApiUrl(getApiEndpoint("VENDOR_REGISTER")),
-        {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`
-        );
-      }
-
-      const result = await response.json();
+      const response = await api.post(getApiEndpoint("VENDOR_REGISTER"), vendorData);
+      const result = response.data;
       console.log("Vendor Registration API Response:", result);
 
-      // Simple success check
+      // Simple success check - handle both response formats safely
       if (
-        result.status === "success" ||
-        result.success ||
-        result.result?.status === "success"
+        result && result.status === "success" ||
+        result && result.success ||
+        result && result.result && result.result.status === "success"
       ) {
         return result;
       } else {
-        throw new Error(result.message || "Vendor registration failed");
+        const errorMessage = result?.result?.message || result?.message || "Vendor registration failed";
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Vendor Registration API failed:", error);
@@ -332,10 +274,27 @@ export default function VendorsTable(props) {
       // Call the vendor registration API
       const result = await handleVendorRegistrationApi(newVendor);
 
+      // Handle both response formats safely
       if (result && result.result && result.result.status === "success") {
         console.log("Vendor registered successfully:", result);
+        alert("Vendor registered successfully!");
 
-        // Show success message (you can add a toast or modal here)
+        // Close modal and reset form
+        onClose();
+        setNewVendor({
+          name: "",
+          email: "",
+          phone: "",
+          mobile: "",
+          street: "",
+          zip: "",
+        });
+
+        // Refresh vendors list to show the new vendor
+        fetchVendors();
+      } else if (result && (result.status === "success" || result.success)) {
+        // Handle direct response format
+        console.log("Vendor registered successfully:", result);
         alert("Vendor registered successfully!");
 
         // Close modal and reset form
@@ -352,11 +311,13 @@ export default function VendorsTable(props) {
         // Refresh vendors list to show the new vendor
         fetchVendors();
       } else {
-        alert("Vendor registration failed. Please try again.");
+        const errorMessage = result?.result?.message || result?.message || "Vendor registration failed. Please try again.";
+        alert(errorMessage);
       }
     } catch (error) {
       console.error("Failed to register vendor:", error);
-      alert(`Error: ${error.message}`);
+      const errorMessage = error?.result?.message || error?.message || "Unknown error occurred during registration";
+      alert(`Error: ${errorMessage}`);
     }
   };
 
@@ -364,58 +325,26 @@ export default function VendorsTable(props) {
     try {
       console.log("Updating vendor:", editingVendor);
 
-      // Get user token from localStorage for authentication
-      const userToken = localStorage.getItem("token");
-      if (!userToken) {
-        throw new Error("User not authenticated. Please login again.");
-      }
-
-      // Simple headers - only what's needed
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${userToken}`,
-      };
-
-      // Simple payload
-      const payload = { ...editingVendor };
-
-      console.log("Vendor Update API Payload:", payload);
+      console.log("Vendor Update API Payload:", editingVendor);
       console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_UPDATE")));
 
-      const response = await fetch(
-        buildApiUrl(getApiEndpoint("VENDOR_UPDATE")),
-        {
-          method: "PUT",
-          headers: headers,
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), editingVendor);
+      const result = response.data;
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`
-        );
-      }
-
-      const result = await response.json();
-      console.log("Vendor Update API Response:", result);
-
-      // Simple success check
-      if (result.status === "success" || result.success) {
+      // Simple success check - handle both response formats safely
+      if (result && result.status === "success" || result && result.success) {
         console.log("Vendor updated successfully:", result);
         alert("Vendor updated successfully!");
 
-        // Close modal and reset form
+        // Close edit modal
         onEditClose();
         setEditingVendor(null);
 
         // Refresh vendors list to show the updated vendor
         fetchVendors();
       } else {
-        throw new Error(result.message || "Vendor update failed");
+        const errorMessage = result?.result?.message || result?.message || "Vendor update failed";
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Failed to update vendor:", error);
@@ -428,71 +357,36 @@ export default function VendorsTable(props) {
     onEditOpen();
   };
 
-  const handleDelete = async (vendor) => {
+  const handleDeleteVendor = async (vendor) => {
     try {
-      // Confirm deletion
-      if (
-        !window.confirm(
-          `Are you sure you want to delete vendor "${vendor.name}"?`  
-        )
-      ) {
-        return;
-      }
-
       console.log("Deleting vendor:", vendor);
 
-      // Get user token from localStorage for authentication
-      const userToken = localStorage.getItem("token");
-      if (!userToken) {
-        throw new Error("User not authenticated. Please login again.");
-      }
-
-      // Simple headers - only what's needed
-      const headers = {
-        "Content-Type": "application/json",
-        // Authorization: `Bearer ${userToken}`,
-      };
-
-      // Simple payload
-      const payload = { vendor_id: vendor.id };
-
-      console.log("Vendor Delete API Payload:", payload);
-      console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_DELETE")));
-
-      const response = await fetch(
-'http://13.61.187.51:8069/api/vendor/delete',
-        {
-          method: "DELETE",
-          // headers: headers,
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ message: "Unknown error" }));
-        throw new Error(
-          errorData.message || `HTTP ${response.status}: ${response.statusText}`
-        );
-      }
-
-      const result = await response.json();
+      const response = await api.post(getApiEndpoint("VENDOR_DELETE"), { vendor_id: vendor.id });
+      const result = response.data;
       console.log("Vendor Delete API Response:", result);
 
-      // Simple success check
-      if (result.status === "success" || result.success) {
+      // Simple success check - handle both response formats safely
+      if (result && result.result && (result.result.status === "success" || result.result.success)) {
+        console.log("Vendor deleted successfully:", result);
+        alert("Vendor deleted successfully!");
+
+        // Refresh vendors list to remove the deleted vendor
+        fetchVendors();
+      } else if (result && (result.status === "success" || result.success)) {
+        // Handle direct response format
         console.log("Vendor deleted successfully:", result);
         alert("Vendor deleted successfully!");
 
         // Refresh vendors list to remove the deleted vendor
         fetchVendors();
       } else {
-        throw new Error(result.message || "Vendor deletion failed");
+        const errorMessage = result?.result?.message || result?.message || "Vendor deletion failed";
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Failed to delete vendor:", error);
-      alert(`Error: ${error.message}`);
+      const errorMessage = error?.result?.message || error?.message || "Unknown error occurred during deletion";
+      alert(`Error: ${errorMessage}`);
     }
   };
 
@@ -569,10 +463,10 @@ export default function VendorsTable(props) {
                 variant={showFilterFields ? "solid" : "outline"}
                 colorScheme={
                   filters.email ||
-                  filters.phone ||
-                  filters.mobile ||
-                  filters.street ||
-                  filters.zip
+                    filters.phone ||
+                    filters.mobile ||
+                    filters.street ||
+                    filters.zip
                     ? "blue"
                     : "gray"
                 }
@@ -592,20 +486,20 @@ export default function VendorsTable(props) {
               filters.street ||
               filters.zip ||
               searchValue) && (
-              <Box>
-                <Button
-                  size="md"
-                  variant="outline"
-                  onClick={clearAllFiltersAndSearch}
-                  colorScheme="red"
-                  _hover={{ bg: "red.50" }}
-                  borderRadius="10px"
-                  border="2px"
-                >
-                  Clear All
-                </Button>
-              </Box>
-            )}
+                <Box>
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={clearAllFiltersAndSearch}
+                    colorScheme="red"
+                    _hover={{ bg: "red.50" }}
+                    borderRadius="10px"
+                    border="2px"
+                  >
+                    Clear All
+                  </Button>
+                </Box>
+              )}
           </HStack>
 
           {/* Expandable Filter Fields */}
@@ -856,7 +750,7 @@ export default function VendorsTable(props) {
                               size="sm"
                               colorScheme="red"
                               variant="ghost"
-                              onClick={() => handleDelete(row.original)}
+                              onClick={() => handleDeleteVendor(row.original)}
                               aria-label="Delete vendor"
                             />
                           </Tooltip>

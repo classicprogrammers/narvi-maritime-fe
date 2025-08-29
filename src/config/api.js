@@ -1,10 +1,9 @@
 // API Configuration
-import { getBackendUrl } from "./backend";
 
 // Simple and clean API configuration
 export const API_CONFIG = {
   // Base URL for all API calls
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || getBackendUrl(),
+  BASE_URL: process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL,
 
   // API Endpoints - only include what actually exists in the backend
   ENDPOINTS: {

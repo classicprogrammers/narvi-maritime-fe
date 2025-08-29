@@ -30,6 +30,7 @@ import { useDispatch } from "react-redux";
 import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import api from "../../../api/axios";
 
 function SignIn() {
   const history = useHistory();
@@ -79,22 +80,12 @@ function SignIn() {
       console.log("🔐 Login API Payload:", payload);
       console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("LOGIN")));
 
-      const response = await fetch(buildApiUrl(getApiEndpoint("LOGIN")), {
-        method: "POST",
-        headers: API_CONFIG.DEFAULT_HEADERS,
-        body: JSON.stringify(payload),
-      });
+      const response = await api.post(getApiEndpoint("LOGIN"), payload);
 
       console.log("🔐 Response status:", response.status);
       console.log("🔐 Response headers:", response.headers);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log("🔐 Error response data:", errorData);
-        throw new Error(errorData.message || `HTTP ${response.status}: Login failed`);
-      }
-
-      const result = await response.json();
+      const result = response.data;
 
       console.log("🔐 Login API Response:", result);
 

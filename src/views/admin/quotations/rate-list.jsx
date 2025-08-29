@@ -58,6 +58,7 @@ import {
     MdPrint,
 } from "react-icons/md";
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import api from "../../../api/axios";
 
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -104,33 +105,12 @@ export default function RateList() {
     const inputText = useColorModeValue("gray.700", "white");
     const borderColor = useColorModeValue("gray.200", "gray.600");
 
-    // Fetch products from API
+    // Fetch products
     const fetchProducts = async () => {
         try {
             setIsLoading(true);
-            const userToken = localStorage.getItem("token");
-            if (!userToken) {
-                throw new Error("User not authenticated. Please login again.");
-            }
-
-            const headers = {
-                ...API_CONFIG.DEFAULT_HEADERS,
-                Authorization: `Bearer ${userToken}`,
-            };
-
-            const response = await fetch(
-                buildApiUrl(getApiEndpoint("PRODUCTS")),
-                {
-                    method: "GET",
-                    headers: headers,
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const response = await api.get(getApiEndpoint("PRODUCTS"));
+            const result = response.data;
 
             if (result.status === "success" && result.products) {
                 setRateItems(result.products);
@@ -154,11 +134,6 @@ export default function RateList() {
     const handleCreateProduct = async () => {
         try {
             setIsLoading(true);
-            const userToken = localStorage.getItem("token");
-            if (!userToken) {
-                throw new Error("User not authenticated. Please login again.");
-            }
-
             const userData = localStorage.getItem("user");
             if (!userData) {
                 throw new Error("User data not found. Please login again.");
@@ -167,30 +142,13 @@ export default function RateList() {
             const user = JSON.parse(userData);
             const userId = user.id;
 
-            const headers = {
-                ...API_CONFIG.DEFAULT_HEADERS,
-                Authorization: `Bearer ${userToken}`,
-            };
-
             const payload = {
                 ...newRateItem,
                 user_id: userId,
             };
 
-            const response = await fetch(
-                buildApiUrl(getApiEndpoint("PRODUCT_CREATE")),
-                {
-                    method: "POST",
-                    headers: headers,
-                    body: JSON.stringify(payload),
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const response = await api.post(getApiEndpoint("PRODUCT_CREATE"), payload);
+            const result = response.data;
 
             if (result.status === "success") {
                 toast({
@@ -209,8 +167,6 @@ export default function RateList() {
                     type: "",
                     default_code: ""
                 });
-
-                // Refresh products list
                 fetchProducts();
             } else {
                 throw new Error(result.message || "Failed to create product");
@@ -232,11 +188,6 @@ export default function RateList() {
     const handleUpdateProduct = async () => {
         try {
             setIsLoading(true);
-            const userToken = localStorage.getItem("token");
-            if (!userToken) {
-                throw new Error("User not authenticated. Please login again.");
-            }
-
             const userData = localStorage.getItem("user");
             if (!userData) {
                 throw new Error("User data not found. Please login again.");
@@ -245,31 +196,14 @@ export default function RateList() {
             const user = JSON.parse(userData);
             const userId = user.id;
 
-            const headers = {
-                ...API_CONFIG.DEFAULT_HEADERS,
-                Authorization: `Bearer ${userToken}`,
-            };
-
             const payload = {
                 ...editingItem,
                 id: editingItem.id,
                 user_id: userId,
             };
 
-            const response = await fetch(
-                buildApiUrl(getApiEndpoint("PRODUCT_UPDATE")),
-                {
-                    method: "POST",
-                    headers: headers,
-                    body: JSON.stringify(payload),
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const response = await api.post(getApiEndpoint("PRODUCT_UPDATE"), payload);
+            const result = response.data;
 
             if (result.status === "success") {
                 toast({
@@ -306,34 +240,12 @@ export default function RateList() {
     const handleDeleteProduct = async () => {
         try {
             setIsLoading(true);
-            const userToken = localStorage.getItem("token");
-            if (!userToken) {
-                throw new Error("User not authenticated. Please login again.");
-            }
-
-            const headers = {
-                ...API_CONFIG.DEFAULT_HEADERS,
-                Authorization: `Bearer ${userToken}`,
-            };
-
             const payload = {
                 id: deleteItemId,
             };
 
-            const response = await fetch(
-                buildApiUrl(getApiEndpoint("PRODUCT_DELETE")),
-                {
-                    method: "POST",
-                    headers: headers,
-                    body: JSON.stringify(payload),
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
+            const response = await api.post(getApiEndpoint("PRODUCT_DELETE"), payload);
+            const result = response.data;
 
             if (result.status === "success") {
                 toast({

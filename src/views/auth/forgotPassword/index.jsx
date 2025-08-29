@@ -24,6 +24,7 @@ import { FaArrowLeft } from "react-icons/fa";
 import { useUser } from "redux/hooks/useUser";
 // API
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import api from "../../../api/axios";
 
 function ForgotPassword() {
   const history = useHistory();
@@ -59,26 +60,11 @@ function ForgotPassword() {
   // Forgot Password API call function
   const handleForgotPasswordApi = async (email) => {
     try {
-      const response = await fetch(
-        buildApiUrl(getApiEndpoint("FORGOT_PASSWORD")),
-        {
-          method: "POST",
-          headers: API_CONFIG.DEFAULT_HEADERS,
-          mode: "cors", // Enable CORS
-          credentials: "include", // Include cookies if needed
-          body: JSON.stringify({
-            email: email,
-          }),
-        }
-      );
+      const response = await api.post(getApiEndpoint("FORGOT_PASSWORD"), {
+        email: email,
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Password reset request failed");
-      }
-
-      const result = await response.json();
-      return result;
+      return response.data;
     } catch (error) {
       console.error("Forgot password API failed:", error);
       throw error;
@@ -88,18 +74,10 @@ function ForgotPassword() {
   // Test API connection
   const handleTestConnection = async () => {
     try {
-      const response = await fetch(API_CONFIG.BASE_URL, {
-        method: "GET",
-        headers: API_CONFIG.DEFAULT_HEADERS,
-      });
-
-      if (response.ok) {
-        setModalMessage("API connection successful! Server is reachable.");
-        setIsSuccessModalOpen(true);
-      } else {
-        setModalMessage("API connection failed");
-        setIsFailureModalOpen(true);
-      }
+      const response = await api.get("/");
+      
+      setModalMessage("API connection successful! Server is reachable.");
+      setIsSuccessModalOpen(true);
     } catch (error) {
       setModalMessage("Cannot connect to backend server. Please check if the server is running and CORS is properly configured.");
       setIsFailureModalOpen(true);

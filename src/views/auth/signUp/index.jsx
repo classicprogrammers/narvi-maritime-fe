@@ -29,6 +29,7 @@ import { RiEyeCloseLine } from "react-icons/ri";
 import { useUser } from "redux/hooks/useUser";
 // API
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import api from "../../../api/axios";
 
 function SignUp() {
   const history = useHistory();
@@ -89,19 +90,9 @@ function SignUp() {
       console.log("🔐 Signup API Payload:", payload);
       console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("SIGNUP")));
 
-      const response = await fetch(buildApiUrl(getApiEndpoint("SIGNUP")), {
-        method: "POST",
-        headers: API_CONFIG.DEFAULT_HEADERS,
-        body: JSON.stringify(payload),
-      });
+      const response = await api.post(getApiEndpoint("SIGNUP"), payload);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log("🔐 Signup error response:", errorData);
-        throw new Error(errorData.message || "Signup failed");
-      }
-
-      const result = await response.json();
+      const result = response.data;
       console.log("🔐 Signup API Response:", result);
       return result;
     } catch (error) {

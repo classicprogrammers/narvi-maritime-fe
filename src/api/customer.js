@@ -1,5 +1,6 @@
 // Customer API functions
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../config/api";
+import api from "./axios";
 
 // Import the global modal system
 import { showApiModal } from "../components/ApiModal";
@@ -18,9 +19,8 @@ const handleApiError = (error, operation) => {
 
   // HTTP errors (4xx, 5xx)
   if (error.status) {
-    errorMessage = `Backend error (${error.status}): ${
-      error.message || "Unknown error occurred"
-    }`;
+    errorMessage = `Backend error (${error.status}): ${error.message || "Unknown error occurred"
+      }`;
   }
 
   // Show error modal
@@ -32,32 +32,10 @@ const handleApiError = (error, operation) => {
 // Get Countries API
 export const getCountriesApi = async () => {
   try {
-    const response = await fetch(buildApiUrl(getApiEndpoint("COUNTRIES")), {
-      method: "GET",
-      headers: {
-        ...API_CONFIG.DEFAULT_HEADERS,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Unknown error" }));
-      const error = new Error(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
-      error.status = response.status;
-      throw error;
-    }
-
-    const result = await response.json();
-
-    return result;
+    const response = await api.get(getApiEndpoint("COUNTRIES"));
+    return response.data;
   } catch (error) {
-    console.error("Get countries error details:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Get countries error:", error);
     handleApiError(error, "Get countries");
   }
 };
@@ -65,50 +43,8 @@ export const getCountriesApi = async () => {
 // Register Customer API
 export const registerCustomerApi = async (customerData) => {
   try {
-    // Ensure API_CONFIG is initialized
-    if (!API_CONFIG || !API_CONFIG.DEFAULT_HEADERS) {
-      throw new Error(
-        "API configuration not initialized. Please refresh the page."
-      );
-    }
-
-    // Get user token from localStorage for authentication
-    const userToken = localStorage.getItem("token");
-
-    // Create headers with or without authentication token
-    const headers = {
-      ...API_CONFIG.DEFAULT_HEADERS,
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    };
-
-    // Add authentication if token exists
-    if (userToken) {
-      headers.Authorization = `Bearer ${userToken}`;
-    }
-
-    const response = await fetch(
-      buildApiUrl(getApiEndpoint("CUSTOMER_REGISTER")),
-      {
-        method: "POST",
-        headers: headers,
-        mode: "cors",
-        body: JSON.stringify(customerData),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Unknown error" }));
-      const error = new Error(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
-      error.status = response.status;
-      throw error;
-    }
-
-    const result = await response.json();
+    const response = await api.post(getApiEndpoint("CUSTOMER_REGISTER"), customerData);
+    const result = response.data;
 
     // Check if the JSON-RPC response indicates an error
     if (result.result && result.result.status === "error") {
@@ -122,10 +58,7 @@ export const registerCustomerApi = async (customerData) => {
 
     return result;
   } catch (error) {
-    console.error("Register customer error details:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Register customer error:", error);
     handleApiError(error, "Register customer");
   }
 };
@@ -133,45 +66,10 @@ export const registerCustomerApi = async (customerData) => {
 // Get Customers API
 export const getCustomersApi = async () => {
   try {
-    // Get user token from localStorage for authentication
-    const userToken = localStorage.getItem("token");
-
-    // Create headers with or without authentication token
-    const headers = {
-      ...API_CONFIG.DEFAULT_HEADERS,
-    };
-
-    // Add authentication if token exists
-    if (userToken) {
-      headers.Authorization = `Bearer ${userToken}`;
-    }
-
-    // Try to fetch customers
-    const response = await fetch(buildApiUrl(getApiEndpoint("CUSTOMERS")), {
-      method: "GET",
-      headers: headers,
-      mode: "cors",
-    });
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Unknown error" }));
-      const error = new Error(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
-      error.status = response.status;
-      throw error;
-    }
-
-    const result = await response.json();
-
-    return result;
+    const response = await api.get(getApiEndpoint("CUSTOMERS"));
+    return response.data;
   } catch (error) {
-    console.error("Get customers error details:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Get customers error:", error);
     handleApiError(error, "Get customers");
   }
 };
@@ -179,40 +77,10 @@ export const getCustomersApi = async () => {
 // Update Customer API
 export const updateCustomerApi = async (customerId, data) => {
   try {
-    const response = await fetch(
-      buildApiUrl(`${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`),
-      {
-        method: "PUT",
-        headers: {
-          ...API_CONFIG.DEFAULT_HEADERS,
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
-        mode: "cors",
-        body: JSON.stringify(data),
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Unknown error" }));
-      const error = new Error(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
-      error.status = response.status;
-      throw error;
-    }
-
-    const result = await response.json();
-
-    return result;
+    const response = await api.put(`${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`, data);
+    return response.data;
   } catch (error) {
-    console.error("Update customer error details:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Update customer error:", error);
     handleApiError(error, "Update customer");
   }
 };
@@ -220,34 +88,10 @@ export const updateCustomerApi = async (customerId, data) => {
 // Delete Customer API
 export const deleteCustomerApi = async (customerId) => {
   try {
-    const response = await fetch(
-      buildApiUrl(`${getApiEndpoint("CUSTOMER_DELETE")}/${customerId}`),
-      {
-        method: "DELETE",
-        headers: {
-          ...API_CONFIG.DEFAULT_HEADERS,
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
-        mode: "cors",
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Unknown error" }));
-      const error = new Error(
-        errorData.message || `HTTP ${response.status}: ${response.statusText}`
-      );
-      throw error;
-    }
-
-    const result = await response.json();
-
-    return result;
+    const response = await api.delete(`${getApiEndpoint("CUSTOMER_DELETE")}/${customerId}`);
+    return response.data;
   } catch (error) {
+    console.error("Delete customer error:", error);
     handleApiError(error, "Delete customer");
   }
 };

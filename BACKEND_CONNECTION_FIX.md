@@ -84,7 +84,7 @@ Your backend should have these endpoints working:
 - `GET /api/customers` - Get all customers
 - `POST /api/customer/register` - Register new customer
 - `PUT /api/customer/update/{id}` - Update customer
-- `DELETE /api/customer/delete/{id}` - Delete customer
+- `POST /api/customer/delete/{id}` - Delete customer
 - `GET /api/countries` - Get all countries
 
 ## Troubleshooting
