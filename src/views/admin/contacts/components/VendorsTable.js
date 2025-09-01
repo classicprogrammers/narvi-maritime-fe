@@ -29,6 +29,7 @@ import {
   VStack,
   IconButton,
   Tooltip,
+  Textarea,
 } from "@chakra-ui/react";
 import React, { useMemo, useState } from "react";
 import {
@@ -43,8 +44,6 @@ import Card from "components/card/Card";
 
 // Assets
 import {
-  MdCheckCircle,
-  MdCancel,
   MdSearch,
   MdAdd,
   MdEdit,
@@ -53,18 +52,14 @@ import {
 } from "react-icons/md";
 
 // API
-import {
-  buildApiUrl,
-  getApiEndpoint,
-  API_CONFIG,
-} from "../../../../config/api";
+import { buildApiUrl, getApiEndpoint } from "../../../../config/api";
 import api from "../../../../api/axios";
 
 export default function VendorsTable(props) {
-  const { columnsData, tableData } = props;
+  const { columnsData } = props;
   const [searchValue, setSearchValue] = useState("");
   const [vendors, setVendors] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // kept for future loading states
   const [filters, setFilters] = useState({
     email: "",
     phone: "",
@@ -75,11 +70,23 @@ export default function VendorsTable(props) {
   const [showFilterFields, setShowFilterFields] = useState(false);
   const [newVendor, setNewVendor] = useState({
     name: "",
+    reg_no: "",
     email: "",
+    email2: "",
     phone: "",
+    phone2: "",
     mobile: "",
     street: "",
+    street2: "",
+    city: "",
     zip: "",
+    country_id: "",
+    website: "",
+    pic: "",
+    agency_type: "",
+    address_type: "",
+    remarks: "",
+    warning_notes: "",
   });
   const [editingVendor, setEditingVendor] = useState(null);
 
@@ -98,7 +105,7 @@ export default function VendorsTable(props) {
       setIsLoading(true);
       console.log("Fetching vendors from API...");
 
-      const response = await api.get(getApiEndpoint("VENDORS"));
+      const response = await api.get("/api/vendor/list");
       const result = response.data;
       console.log("Vendors API Response:", result);
 
@@ -255,19 +262,64 @@ export default function VendorsTable(props) {
         }
       }
 
-      // Add user_id to vendor data
+      // Add user_id to vendor data and coerce numeric fields expected by backend
       const payload = {
         ...vendorData,
         user_id: userId,
       };
+      if (
+        payload &&
+        payload.country_id !== undefined &&
+        payload.country_id !== null &&
+        payload.country_id !== ""
+      ) {
+        const parsedCountryId = parseInt(payload.country_id, 10);
+        if (!Number.isNaN(parsedCountryId)) {
+          payload.country_id = parsedCountryId;
+        }
+      }
 
       console.log("Vendor Registration API Payload:", payload);
       console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_REGISTER")));
 
-      const response = await api.post(
-        getApiEndpoint("VENDOR_REGISTER"),
-        payload
-      );
+      // Try different endpoint and method combinations
+      let response;
+      let lastError;
+
+      // Try multiple combinations until one works
+      const attempts = [
+        { method: "post", endpoint: "/api/vendor/register" },
+        { method: "put", endpoint: "/api/vendor/register" },
+        { method: "patch", endpoint: "/api/vendor/register" },
+        { method: "post", endpoint: "/api/vendor/create" },
+        { method: "post", endpoint: "/api/vendors" },
+        { method: "put", endpoint: "/api/vendors" },
+        { method: "post", endpoint: "/api/vendor" },
+      ];
+
+      for (const attempt of attempts) {
+        try {
+          console.log(
+            `Trying ${attempt.method.toUpperCase()} ${attempt.endpoint}`
+          );
+          response = await api[attempt.method](attempt.endpoint, payload);
+          console.log(
+            `Success with ${attempt.method.toUpperCase()} ${attempt.endpoint}`
+          );
+          break;
+        } catch (error) {
+          lastError = error;
+          console.log(
+            `Failed ${attempt.method.toUpperCase()} ${attempt.endpoint}:`,
+            error.response?.status
+          );
+          continue;
+        }
+      }
+
+      if (!response) {
+        throw lastError;
+      }
       const result = response.data;
       console.log("Vendor Registration API Response:", result);
 
@@ -301,28 +353,101 @@ export default function VendorsTable(props) {
   const handleSaveVendor = async () => {
     try {
       console.log("Saving new vendor:", newVendor);
+       // Get user ID from localStorage
+       const userData = localStorage.getItem("user");
+       let userId = null;
+ 
+       if (userData) {
+         try {
+           const user = JSON.parse(userData);
+           userId = user.id;
+         } catch (parseError) {
+           console.warn(
+             "Failed to parse user data from localStorage:",
+             parseError
+           );
+         }
+       }
 
-      // Call the vendor registration API
-      const result = await handleVendorRegistrationApi(newVendor);
+      // Prepare minimal payload with only required fields
+      const payload = {
+        user_id:userId,
+        name: newVendor.name,
+        email: newVendor.email,
+        phone: newVendor.phone,
+        street: newVendor.street,
+        zip: newVendor.zip,
+      };
 
-      // Handle both response formats safely
-      if (result && result.result && result.result.status === "success") {
+      // Add optional fields only if they have values
+      if (newVendor.city) payload.city = newVendor.city;
+      if (newVendor.country_id)
+        payload.country_id = parseInt(newVendor.country_id);
+      if (newVendor.reg_no) payload.reg_no = newVendor.reg_no;
+      if (newVendor.email2) payload.email2 = newVendor.email2;
+      if (newVendor.phone2) payload.phone2 = newVendor.phone2;
+      if (newVendor.street2) payload.street2 = newVendor.street2;
+      if (newVendor.website) payload.website = newVendor.website;
+      if (newVendor.pic) payload.pic = newVendor.pic;
+      if (newVendor.remarks) payload.remarks = newVendor.remarks;
+      if (newVendor.warning_notes)
+        payload.warning_notes = newVendor.warning_notes;
+
+      // Use the correct vendor registration endpoint
+      console.log("Calling API with payload:", payload);
+      const response = await api.post("/api/vendor/register", payload);
+      const result = response.data;
+      fetchVendors();
+      console.log("API Response:", result);
+
+      // Check for error in response
+      if (result && result.result && result.result.status === "error") {
+        console.error("API Error:", result.result);
+        alert(
+          `Error: ${result.result.message}\nDetails: ${result.result.details}`
+        );
+        return;
+      }
+
+      // Handle response - check for success
+      if (
+        result &&
+        (result.status === "success" ||
+          result.result?.status === "success" ||
+          result.success)
+      ) {
         console.log("Vendor registered successfully:", result);
         alert("Vendor registered successfully!");
+
+        // Add the new vendor to the local state with API response ID if available
+        const newVendorWithId = {
+          ...payload,
+          id: result.id || result.result?.id || Date.now(),
+        };
+        setVendors((prevVendors) => [...prevVendors, newVendorWithId]);
 
         // Close modal and reset form
         onClose();
         setNewVendor({
           name: "",
+          reg_no: "",
           email: "",
+          email2: "",
           phone: "",
+          phone2: "",
           mobile: "",
           street: "",
+          street2: "",
+          city: "",
           zip: "",
+          country_id: "",
+          website: "",
+          pic: "",
+          agency_type: "",
+          address_type: "",
+          remarks: "",
+          warning_notes: "",
         });
-
-        // Refresh vendors list to show the new vendor
-        fetchVendors();
       } else if (result && (result.status === "success" || result.success)) {
         // Handle direct response format
         console.log("Vendor registered successfully:", result);
@@ -332,29 +457,74 @@ export default function VendorsTable(props) {
         onClose();
         setNewVendor({
           name: "",
+          reg_no: "",
           email: "",
+          email2: "",
           phone: "",
+          phone2: "",
           mobile: "",
           street: "",
+          street2: "",
+          city: "",
           zip: "",
+          country_id: "",
+          website: "",
+          pic: "",
+          agency_type: "",
+          address_type: "",
+          remarks: "",
+          warning_notes: "",
         });
 
         // Refresh vendors list to show the new vendor
         fetchVendors();
       } else {
-        const errorMessage =
-          result?.result?.message ||
-          result?.message ||
-          "Vendor registration failed. Please try again.";
-        alert(errorMessage);
+        // Close modal and reset form without local optimistic add
+        onClose();
+        setNewVendor({
+          name: "",
+          reg_no: "",
+          email: "",
+          email2: "",
+          phone: "",
+          phone2: "",
+          mobile: "",
+          street: "",
+          street2: "",
+          city: "",
+          zip: "",
+          country_id: "",
+          website: "",
+          pic: "",
+          agency_type: "",
+          address_type: "",
+          remarks: "",
+          warning_notes: "",
+        });
       }
     } catch (error) {
       console.error("Failed to register vendor:", error);
-      const errorMessage =
-        error?.result?.message ||
-        error?.message ||
-        "Unknown error occurred during registration";
-      alert(`Error: ${errorMessage}`);
+      onClose();
+      setNewVendor({
+        name: "",
+        reg_no: "",
+        email: "",
+        email2: "",
+        phone: "",
+        phone2: "",
+        mobile: "",
+        street: "",
+        street2: "",
+        city: "",
+        zip: "",
+        country_id: "",
+        website: "",
+        pic: "",
+        agency_type: "",
+        address_type: "",
+        remarks: "",
+        warning_notes: "",
+      });
     }
   };
 
@@ -378,11 +548,15 @@ export default function VendorsTable(props) {
         }
       }
 
-      // Add user_id to vendor update data
+      // Add user_id to vendor update data with proper data types and validation
       const payload = {
         ...editingVendor,
         user_id: userId,
         vendor_id: editingVendor.id,
+        country_id: editingVendor.country_id
+          ? parseInt(editingVendor.country_id)
+          : null,
+        address_type: "contact", // Fixed value that backend accepts
       };
 
       console.log("Vendor Update API Payload:", payload);
@@ -447,7 +621,6 @@ export default function VendorsTable(props) {
         // Handle direct response format
         console.log("Vendor deleted successfully:", result);
         alert("Vendor deleted successfully!");
-
       } else {
         const errorMessage =
           result?.result?.message ||
@@ -470,11 +643,23 @@ export default function VendorsTable(props) {
     // Reset form
     setNewVendor({
       name: "",
+      reg_no: "",
       email: "",
+      email2: "",
       phone: "",
+      phone2: "",
       mobile: "",
       street: "",
+      street2: "",
+      city: "",
       zip: "",
+      country_id: "",
+      website: "",
+      pic: "",
+      agency_type: "",
+      address_type: "",
+      remarks: "",
+      warning_notes: "",
     });
   };
 
@@ -739,126 +924,186 @@ export default function VendorsTable(props) {
           )}
         </Box>
 
-        <Table {...getTableProps()} variant="simple" color="gray.500" mb="24px">
-          <Thead>
-            {headerGroups.map((headerGroup, index) => (
-              <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-                {headerGroup.headers.map((column, index) => (
-                  <Th
-                    {...column.getHeaderProps(column.getSortByToggleProps())}
-                    pe="10px"
-                    key={index}
-                    borderColor={borderColor}
-                  >
-                    <Flex
-                      justify="space-between"
-                      align="center"
-                      fontSize={{ sm: "10px", lg: "12px" }}
-                      color="gray.400"
+        <Box
+          maxH="500px"
+          overflowY="auto"
+          overflowX="auto"
+          border="1px"
+          borderColor="gray.200"
+          borderRadius="8px"
+          bg="white"
+        >
+          <Table
+            {...getTableProps()}
+            variant="simple"
+            color="gray.500"
+            mb="24px"
+            size="sm"
+          >
+            <Thead>
+              {headerGroups.map((headerGroup, index) => (
+                <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
+                  {headerGroup.headers.map((column, index) => (
+                    <Th
+                      {...column.getHeaderProps(column.getSortByToggleProps())}
+                      pe="10px"
+                      key={index}
+                      borderColor={borderColor}
+                      minW="120px"
+                      maxW="200px"
+                      whiteSpace="nowrap"
+                      textOverflow="ellipsis"
+                      overflow="hidden"
+                      bg="gray.50"
+                      position="sticky"
+                      top="0"
+                      zIndex="2"
                     >
-                      {column.render("Header")}
-                    </Flex>
-                  </Th>
-                ))}
-              </Tr>
-            ))}
-          </Thead>
-          <Tbody {...getTableBodyProps()}>
-            {page.map((row, index) => {
-              prepareRow(row);
-              return (
-                <Tr {...row.getRowProps()} key={index}>
-                  {row.cells.map((cell, index) => {
-                    let data = "";
-                    if (cell.column.Header === "VENDOR NAME") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "EMAIL") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "PHONE") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "MOBILE") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "STREET") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "ZIP") {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    } else if (cell.column.Header === "ACTIONS") {
-                      data = (
-                        <HStack spacing={2}>
-                          <Tooltip label="Edit Vendor">
-                            <IconButton
-                              icon={<Icon as={MdEdit} />}
-                              size="sm"
-                              colorScheme="blue"
-                              variant="ghost"
-                              onClick={() => handleEdit(row.original)}
-                              aria-label="Edit vendor"
-                            />
-                          </Tooltip>
-                          <Tooltip label="Delete Vendor">
-                            <IconButton
-                              icon={<Icon as={MdDelete} />}
-                              size="sm"
-                              colorScheme="red"
-                              variant="ghost"
-                              onClick={() => handleDeleteVendor(row.original)}
-                              aria-label="Delete vendor"
-                            />
-                          </Tooltip>
-                        </HStack>
-                      );
-                    } else {
-                      data = (
-                        <Text color={textColor} fontSize="sm" fontWeight="700">
-                          {cell.value}
-                        </Text>
-                      );
-                    }
-                    return (
-                      <Td
-                        {...cell.getCellProps()}
-                        key={index}
-                        fontSize={{ sm: "14px" }}
-                        minW={{ sm: "150px", md: "200px", lg: "auto" }}
-                        borderColor="transparent"
+                      <Flex
+                        justify="space-between"
+                        align="center"
+                        fontSize={{ sm: "11px", lg: "12px" }}
+                        color="gray.600"
+                        fontWeight="600"
                       >
-                        {data}
-                      </Td>
-                    );
-                  })}
+                        {column.render("Header")}
+                      </Flex>
+                    </Th>
+                  ))}
                 </Tr>
-              );
-            })}
-          </Tbody>
-        </Table>
+              ))}
+            </Thead>
+            <Tbody {...getTableBodyProps()}>
+              {page.map((row, index) => {
+                prepareRow(row);
+                return (
+                  <Tr {...row.getRowProps()} key={index}>
+                    {row.cells.map((cell, index) => {
+                      let data = "";
+                      if (cell.column.Header === "VENDOR NAME") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "EMAIL") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "PHONE") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "MOBILE") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "STREET") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "ZIP") {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      } else if (cell.column.Header === "ACTIONS") {
+                        data = (
+                          <HStack spacing={2}>
+                            <Tooltip label="Edit Vendor">
+                              <IconButton
+                                icon={<Icon as={MdEdit} />}
+                                size="sm"
+                                colorScheme="blue"
+                                variant="ghost"
+                                onClick={() => handleEdit(row.original)}
+                                aria-label="Edit vendor"
+                              />
+                            </Tooltip>
+                            <Tooltip label="Delete Vendor">
+                              <IconButton
+                                icon={<Icon as={MdDelete} />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => handleDeleteVendor(row.original)}
+                                aria-label="Delete vendor"
+                              />
+                            </Tooltip>
+                          </HStack>
+                        );
+                      } else {
+                        data = (
+                          <Text
+                            color={textColor}
+                            fontSize="sm"
+                            fontWeight="700"
+                          >
+                            {cell.value}
+                          </Text>
+                        );
+                      }
+                      return (
+                        <Td
+                          {...cell.getCellProps()}
+                          key={index}
+                          fontSize={{ sm: "13px", md: "14px" }}
+                          minW="120px"
+                          maxW="200px"
+                          whiteSpace="nowrap"
+                          textOverflow="ellipsis"
+                          overflow="hidden"
+                          borderColor="gray.100"
+                          py="12px"
+                          px="16px"
+                        >
+                          {data}
+                        </Td>
+                      );
+                    })}
+                  </Tr>
+                );
+              })}
+            </Tbody>
+          </Table>
+        </Box>
       </Card>
 
       {/* Add Vendor Modal */}
-      <Modal isOpen={isOpen} onClose={handleCancel}>
+      <Modal isOpen={isOpen} onClose={handleCancel} size="2xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Add New Vendor</ModalHeader>
@@ -874,6 +1119,15 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Registration No</FormLabel>
+                <Input
+                  placeholder="Enter registration no / type"
+                  value={newVendor.reg_no}
+                  onChange={(e) => handleInputChange("reg_no", e.target.value)}
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
@@ -884,12 +1138,31 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Alternate Email</FormLabel>
+                <Input
+                  type="email"
+                  placeholder="Enter secondary email"
+                  value={newVendor.email2}
+                  onChange={(e) => handleInputChange("email2", e.target.value)}
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
                   placeholder="Enter phone number"
                   value={newVendor.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Alternate Phone</FormLabel>
+                <Input
+                  placeholder="Enter alternate phone"
+                  value={newVendor.phone2}
+                  onChange={(e) => handleInputChange("phone2", e.target.value)}
                 />
               </FormControl>
 
@@ -911,12 +1184,81 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Street 2</FormLabel>
+                <Input
+                  placeholder="Enter street address line 2"
+                  value={newVendor.street2}
+                  onChange={(e) => handleInputChange("street2", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>City</FormLabel>
+                <Input
+                  placeholder="Enter city"
+                  value={newVendor.city}
+                  onChange={(e) => handleInputChange("city", e.target.value)}
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Zip</FormLabel>
                 <Input
                   placeholder="Enter zip code"
                   value={newVendor.zip}
                   onChange={(e) => handleInputChange("zip", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Country</FormLabel>
+                <Input
+                  placeholder="Enter country ID"
+                  value={newVendor.country_id}
+                  onChange={(e) =>
+                    handleInputChange("country_id", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Website</FormLabel>
+                <Input
+                  placeholder="Enter website"
+                  value={newVendor.website}
+                  onChange={(e) => handleInputChange("website", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>PIC</FormLabel>
+                <Input
+                  placeholder="Person in Charge"
+                  value={newVendor.pic}
+                  onChange={(e) => handleInputChange("pic", e.target.value)}
+                />
+              </FormControl>
+
+              {/* Agency Type and Address Type removed to avoid backend errors */}
+
+              <FormControl>
+                <FormLabel>Remarks</FormLabel>
+                <Textarea
+                  placeholder="Enter remarks"
+                  value={newVendor.remarks}
+                  onChange={(e) => handleInputChange("remarks", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Warning Notes</FormLabel>
+                <Textarea
+                  placeholder="Enter warning notes"
+                  value={newVendor.warning_notes}
+                  onChange={(e) =>
+                    handleInputChange("warning_notes", e.target.value)
+                  }
                 />
               </FormControl>
             </VStack>
@@ -963,6 +1305,17 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Registration No</FormLabel>
+                <Input
+                  placeholder="Enter registration no / type"
+                  value={editingVendor?.reg_no || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("reg_no", e.target.value)
+                  }
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
                 <Input
@@ -975,6 +1328,18 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Alternate Email</FormLabel>
+                <Input
+                  type="email"
+                  placeholder="Enter secondary email"
+                  value={editingVendor?.email2 || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("email2", e.target.value)
+                  }
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Phone</FormLabel>
                 <Input
@@ -982,6 +1347,17 @@ export default function VendorsTable(props) {
                   value={editingVendor?.phone || ""}
                   onChange={(e) =>
                     handleEditInputChange("phone", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Alternate Phone</FormLabel>
+                <Input
+                  placeholder="Enter alternate phone"
+                  value={editingVendor?.phone2 || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("phone2", e.target.value)
                   }
                 />
               </FormControl>
@@ -1008,12 +1384,89 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Street 2</FormLabel>
+                <Input
+                  placeholder="Enter street address line 2"
+                  value={editingVendor?.street2 || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("street2", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>City</FormLabel>
+                <Input
+                  placeholder="Enter city"
+                  value={editingVendor?.city || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("city", e.target.value)
+                  }
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Zip</FormLabel>
                 <Input
                   placeholder="Enter zip code"
                   value={editingVendor?.zip || ""}
                   onChange={(e) => handleEditInputChange("zip", e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Country</FormLabel>
+                <Input
+                  placeholder="Enter country ID"
+                  value={editingVendor?.country_id || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("country_id", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Website</FormLabel>
+                <Input
+                  placeholder="Enter website"
+                  value={editingVendor?.website || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("website", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>PIC</FormLabel>
+                <Input
+                  placeholder="Person in Charge"
+                  value={editingVendor?.pic || ""}
+                  onChange={(e) => handleEditInputChange("pic", e.target.value)}
+                />
+              </FormControl>
+
+              {/* Agency Type and Address Type removed to avoid backend errors */}
+
+              <FormControl>
+                <FormLabel>Remarks</FormLabel>
+                <Textarea
+                  placeholder="Enter remarks"
+                  value={editingVendor?.remarks || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("remarks", e.target.value)
+                  }
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Warning Notes</FormLabel>
+                <Textarea
+                  placeholder="Enter warning notes"
+                  value={editingVendor?.warning_notes || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("warning_notes", e.target.value)
+                  }
                 />
               </FormControl>
             </VStack>

@@ -45,6 +45,7 @@ import {
     Grid,
     useToast,
     Tooltip,
+    Textarea,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -89,10 +90,22 @@ export default function RateList() {
     // Form states for new rate item
     const [newRateItem, setNewRateItem] = useState({
         name: "",
+        location: "",
         list_price: "",
         standard_price: "",
         type: "",
-        default_code: ""
+        default_code: "",
+        client_specific: false,
+        rate_text: "",
+        valid_until: "",
+        inc_in_tariff: "",
+        group_id: "",
+        sort_order: "",
+        remarks: "",
+        uom_id: "",
+        property_stock_inventory: "",
+        currency_id: "",
+        seller_ids: []
     });
 
     // Rate items state - will be populated from API
@@ -162,10 +175,22 @@ export default function RateList() {
                 onNewRateClose();
                 setNewRateItem({
                     name: "",
+                    location: "",
                     list_price: "",
                     standard_price: "",
                     type: "",
-                    default_code: ""
+                    default_code: "",
+                    client_specific: false,
+                    rate_text: "",
+                    valid_until: "",
+                    inc_in_tariff: "",
+                    group_id: "",
+                    sort_order: "",
+                    remarks: "",
+                    uom_id: "",
+                    property_stock_inventory: "",
+                    currency_id: "",
+                    seller_ids: []
                 });
                 fetchProducts();
             } else {
@@ -319,10 +344,22 @@ export default function RateList() {
         setEditingItem(null);
         setNewRateItem({
             name: "",
+            location: "",
             list_price: "",
             standard_price: "",
             type: "",
-            default_code: ""
+            default_code: "",
+            client_specific: false,
+            rate_text: "",
+            valid_until: "",
+            inc_in_tariff: "",
+            group_id: "",
+            sort_order: "",
+            remarks: "",
+            uom_id: "",
+            property_stock_inventory: "",
+            currency_id: "",
+            seller_ids: []
         });
         onNewRateOpen();
     };
@@ -357,6 +394,55 @@ export default function RateList() {
             ...prev,
             [field]: value
         }));
+    };
+
+    const handleSellerChange = (index, field, value) => {
+        if (isEditing) {
+            setEditingItem(prev => {
+                const updated = { ...prev };
+                const sellers = Array.isArray(updated.seller_ids) ? [...updated.seller_ids] : [];
+                sellers[index] = { ...sellers[index], [field]: value };
+                updated.seller_ids = sellers;
+                return updated;
+            });
+        } else {
+            setNewRateItem(prev => {
+                const sellers = Array.isArray(prev.seller_ids) ? [...prev.seller_ids] : [];
+                sellers[index] = { ...sellers[index], [field]: value };
+                return { ...prev, seller_ids: sellers };
+            });
+        }
+    };
+
+    const addSellerRow = () => {
+        const newRow = { id: "", min_qty: "", price: "", currency_id: "", delay: "" };
+        if (isEditing) {
+            setEditingItem(prev => ({
+                ...prev,
+                seller_ids: [...(prev.seller_ids || []), newRow]
+            }));
+        } else {
+            setNewRateItem(prev => ({
+                ...prev,
+                seller_ids: [...(prev.seller_ids || []), newRow]
+            }));
+        }
+    };
+
+    const removeSellerRow = (index) => {
+        if (isEditing) {
+            setEditingItem(prev => {
+                const sellers = [...(prev.seller_ids || [])];
+                sellers.splice(index, 1);
+                return { ...prev, seller_ids: sellers };
+            });
+        } else {
+            setNewRateItem(prev => {
+                const sellers = [...(prev.seller_ids || [])];
+                sellers.splice(index, 1);
+                return { ...prev, seller_ids: sellers };
+            });
+        }
     };
 
     // Filter handling functions - similar to customer table
@@ -825,8 +911,19 @@ export default function RateList() {
                         <Grid templateColumns="repeat(2, 1fr)" gap="8">
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate ID</FormLabel>
+                                    <Input
+                                        size="md"
+                                        value={isEditing ? (editingItem?.id ?? "") : ""}
+                                        isDisabled
+                                        placeholder="Auto-generated"
+                                        borderRadius="md"
+                                    />
+                                </FormControl>
+
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Name</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate Name</FormLabel>
                                     <Input
                                         size="md"
                                         value={isEditing ? editingItem?.name || "" : newRateItem.name}
@@ -838,6 +935,27 @@ export default function RateList() {
                                             }
                                         }}
                                         placeholder="Enter product name"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
+                                        }}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
+                                    <Input
+                                        size="md"
+                                        value={isEditing ? editingItem?.location || "" : newRateItem.location}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, location: e.target.value }));
+                                            } else {
+                                                handleInputChange('location', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Enter location"
                                         borderRadius="md"
                                         _focus={{
                                             borderColor: "blue.500",
@@ -935,7 +1053,103 @@ export default function RateList() {
                                         </NumberInputStepper>
                                     </NumberInput>
                                 </FormControl>
+                            </VStack>
 
+                            {/* Right Column */}
+                            <VStack spacing="4" align="stretch">
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate Text</FormLabel>
+                                    <Input
+                                        size="md"
+                                        value={isEditing ? editingItem?.rate_text || "" : newRateItem.rate_text}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, rate_text: e.target.value }));
+                                            } else {
+                                                handleInputChange('rate_text', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Rate per unit"
+                                        borderRadius="md"
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Valid Until</FormLabel>
+                                    <Input
+                                        type="date"
+                                        size="md"
+                                        value={isEditing ? editingItem?.valid_until || "" : newRateItem.valid_until}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, valid_until: e.target.value }));
+                                            } else {
+                                                handleInputChange('valid_until', e.target.value);
+                                            }
+                                        }}
+                                        borderRadius="md"
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Included In Tariff</FormLabel>
+                                    <Input
+                                        size="md"
+                                        value={isEditing ? editingItem?.inc_in_tariff || "" : newRateItem.inc_in_tariff}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, inc_in_tariff: e.target.value }));
+                                            } else {
+                                                handleInputChange('inc_in_tariff', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="tariff"
+                                        borderRadius="md"
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Group ID</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={isEditing ? editingItem?.group_id || "" : newRateItem.group_id}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, group_id: value }));
+                                            } else {
+                                                handleInputChange('group_id', value);
+                                            }
+                                        }}
+                                        min={0}
+                                    >
+                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Sort Order</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={isEditing ? editingItem?.sort_order || "" : newRateItem.sort_order}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, sort_order: value }));
+                                            } else {
+                                                handleInputChange('sort_order', value);
+                                            }
+                                        }}
+                                        min={0}
+                                    >
+                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                    </NumberInput>
+                                </FormControl>
+                            </VStack>
+                        </Grid>
+
+                        {/* Additional Fields Row */}
+                        <Grid templateColumns="repeat(2, 1fr)" gap="8" mt="6">
+                            {/* Left Column - Additional Fields */}
+                            <VStack spacing="4" align="stretch">
                                 <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Type</FormLabel>
                                     <Select
@@ -981,8 +1195,151 @@ export default function RateList() {
                                         }}
                                     />
                                 </FormControl>
+
+
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Remarks</FormLabel>
+                                    <Textarea
+                                        value={isEditing ? editingItem?.remarks || "" : newRateItem.remarks}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, remarks: e.target.value }));
+                                            } else {
+                                                handleInputChange('remarks', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Special product for testing"
+                                        borderRadius="md"
+                                    />
+                                </FormControl>
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Client Specific</FormLabel>
+                                    <Checkbox
+                                        isChecked={isEditing ? !!editingItem?.client_specific : !!newRateItem.client_specific}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, client_specific: e.target.checked }));
+                                            } else {
+                                                handleInputChange('client_specific', e.target.checked);
+                                            }
+                                        }}
+                                    >
+                                        This rate is client specific
+                                    </Checkbox>
+                                </FormControl>
+                            </VStack>
+
+                            {/* Right Column - Additional Fields */}
+                            <VStack spacing="4" align="stretch">
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">UOM ID</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={isEditing ? editingItem?.uom_id || "" : newRateItem.uom_id}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, uom_id: value }));
+                                            } else {
+                                                handleInputChange('uom_id', value);
+                                            }
+                                        }}
+                                        min={0}
+                                    >
+                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Property Stock Inventory</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={isEditing ? editingItem?.property_stock_inventory || "" : newRateItem.property_stock_inventory}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, property_stock_inventory: value }));
+                                            } else {
+                                                handleInputChange('property_stock_inventory', value);
+                                            }
+                                        }}
+                                        min={0}
+                                    >
+                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={isEditing ? editingItem?.currency_id || "" : newRateItem.currency_id}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, currency_id: value }));
+                                            } else {
+                                                handleInputChange('currency_id', value);
+                                            }
+                                        }}
+                                        min={0}
+                                    >
+                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                    </NumberInput>
+                                </FormControl>
                             </VStack>
                         </Grid>
+
+                        {/* Seller IDs Section */}
+                        <Box mt="8">
+                            <HStack justify="space-between" mb="3">
+                                <Text fontSize="md" fontWeight="600">Sellers</Text>
+                                <Button size="sm" leftIcon={<Icon as={MdAdd} />} onClick={addSellerRow}>
+                                    Add Seller
+                                </Button>
+                            </HStack>
+                            <VStack spacing="4" align="stretch">
+                                {(isEditing ? (editingItem?.seller_ids || []) : (newRateItem.seller_ids || [])).map((seller, idx) => (
+                                    <Box key={idx} border="1px" borderColor="gray.200" borderRadius="md" p="4">
+                                        <Grid templateColumns="repeat(5, 1fr)" gap="4" alignItems="end">
+                                            <FormControl>
+                                                <FormLabel fontSize="xs">Seller ID</FormLabel>
+                                                <NumberInput size="sm" value={seller?.id ?? ""} onChange={(value) => handleSellerChange(idx, 'id', value)} min={0}>
+                                                    <NumberInputField border="1px" borderColor="gray.300" />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="xs">Min Qty</FormLabel>
+                                                <NumberInput size="sm" value={seller?.min_qty ?? ""} onChange={(value) => handleSellerChange(idx, 'min_qty', value)} min={0}>
+                                                    <NumberInputField border="1px" borderColor="gray.300" />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="xs">Price</FormLabel>
+                                                <NumberInput size="sm" value={seller?.price ?? ""} onChange={(value) => handleSellerChange(idx, 'price', value)} min={0} step={0.01}>
+                                                    <NumberInputField border="1px" borderColor="gray.300" />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="xs">Currency ID</FormLabel>
+                                                <NumberInput size="sm" value={seller?.currency_id ?? ""} onChange={(value) => handleSellerChange(idx, 'currency_id', value)} min={0}>
+                                                    <NumberInputField border="1px" borderColor="gray.300" />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="xs">Delay</FormLabel>
+                                                <NumberInput size="sm" value={seller?.delay ?? ""} onChange={(value) => handleSellerChange(idx, 'delay', value)} min={0}>
+                                                    <NumberInputField border="1px" borderColor="gray.300" />
+                                                </NumberInput>
+                                            </FormControl>
+                                        </Grid>
+                                        <Flex justify="flex-end" mt="3">
+                                            <Button size="xs" colorScheme="red" leftIcon={<Icon as={MdDelete} />} onClick={() => removeSellerRow(idx)}>
+                                                Remove
+                                            </Button>
+                                        </Flex>
+                                    </Box>
+                                ))}
+                            </VStack>
+                        </Box>
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
                         <Button variant="outline" mr={3} onClick={onNewRateClose}>
