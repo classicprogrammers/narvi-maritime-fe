@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from "react";
 import {
     Box,
@@ -60,6 +61,9 @@ import {
 } from "react-icons/md";
 import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
 import api from "../../../api/axios";
+import uomAPI from "../../../api/uom";
+import currenciesAPI from "../../../api/currencies";
+import locationsAPI from "../../../api/locations";
 
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -105,11 +109,20 @@ export default function RateList() {
         uom_id: "",
         property_stock_inventory: "",
         currency_id: "",
-        seller_ids: []
+        seller_ids: [],
+        seller_id: ""
     });
 
     // Rate items state - will be populated from API
     const [rateItems, setRateItems] = useState([]);
+
+    // Vendors state for seller dropdown
+    const [vendors, setVendors] = useState([]);
+
+    // Master data states
+    const [uomList, setUomList] = useState([]);
+    const [currenciesList, setCurrenciesList] = useState([]);
+    const [locationsList, setLocationsList] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -117,6 +130,57 @@ export default function RateList() {
     const inputBg = useColorModeValue("white", "gray.700");
     const inputText = useColorModeValue("gray.700", "white");
     const borderColor = useColorModeValue("gray.200", "gray.600");
+
+    // Fetch vendors for seller dropdown
+    const fetchVendors = async () => {
+        try {
+            const response = await api.get("/api/vendor/list");
+            const result = response.data;
+
+            if (result.vendors && Array.isArray(result.vendors)) {
+                setVendors(result.vendors);
+            } else {
+                setVendors([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch vendors:", error);
+            setVendors([]);
+        }
+    };
+
+    // Fetch master data
+    const fetchMasterData = async () => {
+        try {
+            // Fetch UOM
+            const uomResponse = await uomAPI.getUOM();
+            if (uomResponse.uom && Array.isArray(uomResponse.uom)) {
+                setUomList(uomResponse.uom);
+            } else {
+                setUomList([]);
+            }
+
+            // Fetch Currencies
+            const currenciesResponse = await currenciesAPI.getCurrencies();
+            if (currenciesResponse.currencies && Array.isArray(currenciesResponse.currencies)) {
+                setCurrenciesList(currenciesResponse.currencies);
+            } else {
+                setCurrenciesList([]);
+            }
+
+            // Fetch Locations
+            const locationsResponse = await locationsAPI.getLocations();
+            if (locationsResponse.locations && Array.isArray(locationsResponse.locations)) {
+                setLocationsList(locationsResponse.locations);
+            } else {
+                setLocationsList([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch master data:", error);
+            setUomList([]);
+            setCurrenciesList([]);
+            setLocationsList([]);
+        }
+    };
 
     // Fetch products
     const fetchProducts = async () => {
@@ -317,9 +381,11 @@ export default function RateList() {
         }
     };
 
-    // Load products on component mount
+    // Load products, vendors and master data on component mount
     useEffect(() => {
         fetchProducts();
+        fetchVendors();
+        fetchMasterData();
     }, []);
 
     const handleSelectAll = (isChecked) => {
@@ -359,7 +425,8 @@ export default function RateList() {
             uom_id: "",
             property_stock_inventory: "",
             currency_id: "",
-            seller_ids: []
+            seller_ids: [],
+            seller_id: ""
         });
         onNewRateOpen();
     };
@@ -911,15 +978,31 @@ export default function RateList() {
                         <Grid templateColumns="repeat(2, 1fr)" gap="8">
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
-                                <FormControl>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate ID</FormLabel>
-                                    <Input
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Seller</FormLabel>
+                                    <Select
                                         size="md"
-                                        value={isEditing ? (editingItem?.id ?? "") : ""}
-                                        isDisabled
-                                        placeholder="Auto-generated"
+                                        value={isEditing ? editingItem?.seller_id || "" : newRateItem.seller_id}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, seller_id: e.target.value }));
+                                            } else {
+                                                handleInputChange('seller_id', e.target.value);
+                                            }
+                                        }}
+                                        placeholder="Select Seller"
                                         borderRadius="md"
-                                    />
+                                        _focus={{
+                                            borderColor: "blue.500",
+                                            boxShadow: "0 0 0 1px blue.500",
+                                        }}
+                                    >
+                                        {vendors.map((vendor) => (
+                                            <option key={vendor.id} value={vendor.id}>
+                                                {vendor.name}
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </FormControl>
 
                                 <FormControl isRequired>
@@ -945,7 +1028,7 @@ export default function RateList() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
-                                    <Input
+                                    <Select
                                         size="md"
                                         value={isEditing ? editingItem?.location || "" : newRateItem.location}
                                         onChange={(e) => {
@@ -955,13 +1038,19 @@ export default function RateList() {
                                                 handleInputChange('location', e.target.value);
                                             }
                                         }}
-                                        placeholder="Enter location"
+                                        placeholder="Select Location"
                                         borderRadius="md"
                                         _focus={{
                                             borderColor: "blue.500",
                                             boxShadow: "0 0 0 1px blue.500",
                                         }}
-                                    />
+                                    >
+                                        {locationsList.map((location) => (
+                                            <option key={location.id} value={location.id}>
+                                                {location.name}
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </FormControl>
 
                                 <FormControl isRequired>
@@ -1234,20 +1323,24 @@ export default function RateList() {
                             <VStack spacing="4" align="stretch">
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">UOM ID</FormLabel>
-                                    <NumberInput
+                                    <Select
                                         size="sm"
                                         value={isEditing ? editingItem?.uom_id || "" : newRateItem.uom_id}
-                                        onChange={(value) => {
+                                        onChange={(e) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, uom_id: value }));
+                                                setEditingItem(prev => ({ ...prev, uom_id: e.target.value }));
                                             } else {
-                                                handleInputChange('uom_id', value);
+                                                handleInputChange('uom_id', e.target.value);
                                             }
                                         }}
-                                        min={0}
+                                        placeholder="Select UOM"
                                     >
-                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
-                                    </NumberInput>
+                                        {uomList.map((uom) => (
+                                            <option key={uom.id} value={uom.id}>
+                                                {uom.id} - {uom.name}
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </FormControl>
 
                                 <FormControl>
@@ -1270,76 +1363,29 @@ export default function RateList() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
-                                    <NumberInput
+                                    <Select
                                         size="sm"
                                         value={isEditing ? editingItem?.currency_id || "" : newRateItem.currency_id}
-                                        onChange={(value) => {
+                                        onChange={(e) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, currency_id: value }));
+                                                setEditingItem(prev => ({ ...prev, currency_id: e.target.value }));
                                             } else {
-                                                handleInputChange('currency_id', value);
+                                                handleInputChange('currency_id', e.target.value);
                                             }
                                         }}
-                                        min={0}
+                                        placeholder="Select Currency"
                                     >
-                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
-                                    </NumberInput>
+                                        {currenciesList.map((currency) => (
+                                            <option key={currency.id} value={currency.id}>
+                                                {currency.id} - {currency.name} ({currency.code})
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </FormControl>
                             </VStack>
                         </Grid>
 
-                        {/* Seller IDs Section */}
-                        <Box mt="8">
-                            <HStack justify="space-between" mb="3">
-                                <Text fontSize="md" fontWeight="600">Sellers</Text>
-                                <Button size="sm" leftIcon={<Icon as={MdAdd} />} onClick={addSellerRow}>
-                                    Add Seller
-                                </Button>
-                            </HStack>
-                            <VStack spacing="4" align="stretch">
-                                {(isEditing ? (editingItem?.seller_ids || []) : (newRateItem.seller_ids || [])).map((seller, idx) => (
-                                    <Box key={idx} border="1px" borderColor="gray.200" borderRadius="md" p="4">
-                                        <Grid templateColumns="repeat(5, 1fr)" gap="4" alignItems="end">
-                                            <FormControl>
-                                                <FormLabel fontSize="xs">Seller ID</FormLabel>
-                                                <NumberInput size="sm" value={seller?.id ?? ""} onChange={(value) => handleSellerChange(idx, 'id', value)} min={0}>
-                                                    <NumberInputField border="1px" borderColor="gray.300" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="xs">Min Qty</FormLabel>
-                                                <NumberInput size="sm" value={seller?.min_qty ?? ""} onChange={(value) => handleSellerChange(idx, 'min_qty', value)} min={0}>
-                                                    <NumberInputField border="1px" borderColor="gray.300" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="xs">Price</FormLabel>
-                                                <NumberInput size="sm" value={seller?.price ?? ""} onChange={(value) => handleSellerChange(idx, 'price', value)} min={0} step={0.01}>
-                                                    <NumberInputField border="1px" borderColor="gray.300" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="xs">Currency ID</FormLabel>
-                                                <NumberInput size="sm" value={seller?.currency_id ?? ""} onChange={(value) => handleSellerChange(idx, 'currency_id', value)} min={0}>
-                                                    <NumberInputField border="1px" borderColor="gray.300" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="xs">Delay</FormLabel>
-                                                <NumberInput size="sm" value={seller?.delay ?? ""} onChange={(value) => handleSellerChange(idx, 'delay', value)} min={0}>
-                                                    <NumberInputField border="1px" borderColor="gray.300" />
-                                                </NumberInput>
-                                            </FormControl>
-                                        </Grid>
-                                        <Flex justify="flex-end" mt="3">
-                                            <Button size="xs" colorScheme="red" leftIcon={<Icon as={MdDelete} />} onClick={() => removeSellerRow(idx)}>
-                                                Remove
-                                            </Button>
-                                        </Flex>
-                                    </Box>
-                                ))}
-                            </VStack>
-                        </Box>
+
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
                         <Button variant="outline" mr={3} onClick={onNewRateClose}>
