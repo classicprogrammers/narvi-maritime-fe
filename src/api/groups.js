@@ -26,7 +26,7 @@ const groupsAPI = {
     // Create new group
     createGroup: async (groupData) => {
         try {
-            const response = await api.post('/api/groups', groupData);
+            const response = await api.post('/api/group/create', groupData);
             return response.data;
         } catch (error) {
             console.error('Error creating group:', error);
@@ -37,7 +37,7 @@ const groupsAPI = {
     // Update group
     updateGroup: async (id, groupData) => {
         try {
-            const response = await api.put(`/api/groups/${id}`, groupData);
+            const response = await api.post('/api/group/update', { group_id: id, ...groupData });
             return response.data;
         } catch (error) {
             console.error('Error updating group:', error);
@@ -48,7 +48,7 @@ const groupsAPI = {
     // Delete group
     deleteGroup: async (id) => {
         try {
-            const response = await api.delete(`/api/groups/${id}`);
+            const response = await api.post('/api/group/delete', { group_id: id });
             return response.data;
         } catch (error) {
             console.error('Error deleting group:', error);

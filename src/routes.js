@@ -18,6 +18,11 @@ import {
   MdConfirmationNumber,
   MdDeliveryDining,
   MdAdd,
+  MdSettings,
+  MdGroups,
+  MdLocationOn,
+  MdAttachMoney,
+  MdStraighten,
 } from "react-icons/md";
 
 // Admin Imports
@@ -47,6 +52,13 @@ import ShippingConfirmation from "views/admin/forms/shipping-confirmation";
 
 // Customer Detail Import
 import CustomerDetail from "views/admin/contacts/CustomerDetail";
+
+// Configurations Imports
+import Configurations from "views/admin/configurations";
+import Groups from "views/admin/configurations/groups";
+import Locations from "views/admin/configurations/locations";
+import Currencies from "views/admin/configurations/currencies";
+import UOM from "views/admin/configurations/uom";
 
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
@@ -190,6 +202,37 @@ const routes = [
           />
         ),
         component: DeliveryConfirmation,
+      },
+    ],
+  },
+  {
+    name: "Configurations",
+    layout: "/admin",
+    icon: <Icon as={MdSettings} width="20px" height="20px" color="inherit" />,
+    submenu: [
+      {
+        name: "Groups",
+        path: "/configurations/groups",
+        icon: <Icon as={MdGroups} width="20px" height="20px" color="inherit" />,
+        component: Groups,
+      },
+      {
+        name: "Locations",
+        path: "/configurations/locations",
+        icon: <Icon as={MdLocationOn} width="20px" height="20px" color="inherit" />,
+        component: Locations,
+      },
+      {
+        name: "Unit of Measurement",
+        path: "/configurations/uom",
+        icon: <Icon as={MdStraighten} width="20px" height="20px" color="inherit" />,
+        component: UOM,
+      },
+      {
+        name: "Currencies",
+        path: "/configurations/currencies",
+        icon: <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />,
+        component: Currencies,
       },
     ],
   },

@@ -177,6 +177,7 @@ const SearchableSelect = ({
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const [searchValue, setSearchValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -663,10 +664,9 @@ export default function RateList() {
     // Reset pagination when search or filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchValue, filters, statusFilter]);
+    }, [searchValue, filters, statusFilter, itemsPerPage]);
 
     // Pagination logic
-    const itemsPerPage = 10;
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
 
@@ -1208,24 +1208,89 @@ export default function RateList() {
 
                 {/* Pagination */}
                 <Flex px='25px' justify='space-between' align='center' py='20px'>
+                    {/* Records per page selector and info */}
+                    <HStack spacing={3}>
                     <Text fontSize='sm' color='gray.500'>
-                        Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
+                            Records per page:
                     </Text>
+                        <Select
+                            size="sm"
+                            w="80px"
+                            value={itemsPerPage}
+                            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                        </Select>
+                        <Text fontSize='sm' color='gray.500'>
+                            Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
+                        </Text>
+                    </HStack>
+
+                    {/* Pagination buttons */}
                     <HStack spacing={2}>
                         <Button
                             size="sm"
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                            isDisabled={currentPage === 1}
                             variant="outline"
+                            onClick={() => setCurrentPage(1)}
+                            isDisabled={currentPage === 1}
                         >
-                            Previous
+                            First
                         </Button>
                         <Button
                             size="sm"
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                             variant="outline"
+                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                            isDisabled={currentPage === 1}
+                        >
+                            Previous
+                        </Button>
+                        
+                        {/* Page numbers */}
+                        <HStack spacing={1}>
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                } else {
+                                    pageNum = currentPage - 2 + i;
+                                }
+                                
+                                return (
+                        <Button
+                                        key={pageNum}
+                            size="sm"
+                                        variant={currentPage === pageNum ? "solid" : "outline"}
+                                        colorScheme={currentPage === pageNum ? "blue" : "gray"}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                    >
+                                        {pageNum}
+                                    </Button>
+                                );
+                            })}
+                        </HStack>
+
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                            isDisabled={currentPage === totalPages}
                         >
                             Next
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setCurrentPage(totalPages)}
+                            isDisabled={currentPage === totalPages}
+                        >
+                            Last
                         </Button>
                     </HStack>
                 </Flex>
