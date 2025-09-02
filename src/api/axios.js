@@ -12,10 +12,10 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Commented out Bearer token injection - making simple API calls without auth
-    // const token = localStorage.getItem("token");
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {

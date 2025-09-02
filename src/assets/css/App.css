@@ -6,6 +6,9 @@ body {
 option {
   color: black;
 }
+.chakra-form-control .chakra-popover__popper{
+  min-width: 100% !important;
+}
 
 /* input{
   padding: 6px 10px !important;

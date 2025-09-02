@@ -47,6 +47,12 @@ import {
     useToast,
     Tooltip,
     Textarea,
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    PopoverBody,
+    List,
+    ListItem,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -58,17 +64,120 @@ import {
     MdFilterList,
     MdDownload,
     MdPrint,
+    MdKeyboardArrowDown,
 } from "react-icons/md";
-import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+
 import api from "../../../api/axios";
 import uomAPI from "../../../api/uom";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
+import groupsAPI from "../../../api/groups";
+
+// Custom Searchable Select Component
+const SearchableSelect = ({
+    value,
+    onChange,
+    options,
+    placeholder,
+    displayKey = "name",
+    valueKey = "id",
+    formatOption = (option) => `${option[valueKey]} - ${option[displayKey]}`,
+    isRequired = false,
+    label
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+    const [filteredOptions, setFilteredOptions] = useState(options);
+
+    useEffect(() => {
+        if (searchValue) {
+            const filtered = options.filter(option =>
+                formatOption(option).toLowerCase().includes(searchValue.toLowerCase())
+            );
+            setFilteredOptions(filtered);
+        } else {
+            setFilteredOptions(options);
+        }
+    }, [searchValue, options, formatOption]);
+
+    const selectedOption = options.find(option => option[valueKey] == value);
+
+    const handleSelect = (option) => {
+        onChange(option[valueKey]);
+        setSearchValue("");
+        setIsOpen(false);
+    };
+
+    return (
+        <Popover minW="100%" isOpen={isOpen} onClose={() => setIsOpen(false)} placement="bottom-start" >
+            <PopoverTrigger>
+                <Button
+                    w="100%"
+                    minW="100%"
+                    justifyContent="space-between"
+                    variant="outline"
+                    size="md"
+                    bg="white"
+                    borderColor="gray.300"
+                    _hover={{ borderColor: "gray.400" }}
+                    _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95", bg: "#f0f4ff" }}
+                    onClick={() => setIsOpen(!isOpen)}
+                    borderRadius="md"
+                    fontWeight="normal"
+                    fontSize="sm"
+                    h="40px"
+                >
+                    {selectedOption ? formatOption(selectedOption) : placeholder}
+                    <Icon as={MdKeyboardArrowDown} />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
+                <PopoverBody p={0}>
+                    <Input
+                        placeholder="Search..."
+                        value={searchValue}
+                        onChange={(e) => setSearchValue(e.target.value)}
+                        border="none"
+                        borderRadius="0"
+                        borderBottom="1px"
+                        borderColor="gray.200"
+                        _focus={{ borderColor: "#1c4a95" }}
+                        px={3}
+                        py={2}
+                        fontSize="sm"
+                    />
+                    <List spacing={0}>
+                        {filteredOptions.map((option) => (
+                            <ListItem
+                                key={option[valueKey]}
+                                px={3}
+                                py={2}
+                                cursor="pointer"
+                                _hover={{ bg: "gray.100" }}
+                                onClick={() => handleSelect(option)}
+                                borderBottom="1px"
+                                borderColor="gray.100"
+                                fontSize="sm"
+                            >
+                                {formatOption(option)}
+                            </ListItem>
+                        ))}
+                        {filteredOptions.length === 0 && (
+                            <ListItem px={3} py={2} color="gray.500" fontSize="sm">
+                                No options found
+                            </ListItem>
+                        )}
+                    </List>
+                </PopoverBody>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
+
     const [searchValue, setSearchValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
 
@@ -79,6 +188,9 @@ export default function RateList() {
         list_price: "",
         standard_price: "",
         default_code: "",
+        client_specific: "",
+        uom_id: "",
+        currency_id: "",
     });
     const [showFilterFields, setShowFilterFields] = useState(false);
 
@@ -102,15 +214,14 @@ export default function RateList() {
         client_specific: false,
         rate_text: "",
         valid_until: "",
-        inc_in_tariff: "",
+        inc_in_tariff: false,
         group_id: "",
         sort_order: "",
         remarks: "",
         uom_id: "",
         property_stock_inventory: "",
         currency_id: "",
-        seller_ids: [],
-        seller_id: ""
+        seller_ids: []
     });
 
     // Rate items state - will be populated from API
@@ -123,6 +234,7 @@ export default function RateList() {
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
     const [locationsList, setLocationsList] = useState([]);
+    const [groupsList, setGroupsList] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const hoverBg = useColorModeValue("blue.50", "blue.900");
@@ -174,11 +286,20 @@ export default function RateList() {
             } else {
                 setLocationsList([]);
             }
+
+            // Fetch Groups
+            const groupsResponse = await groupsAPI.getGroups();
+            if (groupsResponse.groups && Array.isArray(groupsResponse.groups)) {
+                setGroupsList(groupsResponse.groups);
+            } else {
+                setGroupsList([]);
+            }
         } catch (error) {
             console.error("Failed to fetch master data:", error);
             setUomList([]);
             setCurrenciesList([]);
             setLocationsList([]);
+            setGroupsList([]);
         }
     };
 
@@ -186,7 +307,7 @@ export default function RateList() {
     const fetchProducts = async () => {
         try {
             setIsLoading(true);
-            const response = await api.get(getApiEndpoint("PRODUCTS"));
+            const response = await api.get("/api/products");
             const result = response.data;
 
             if (result.status === "success" && result.products) {
@@ -224,7 +345,7 @@ export default function RateList() {
                 user_id: userId,
             };
 
-            const response = await api.post(getApiEndpoint("PRODUCT_CREATE"), payload);
+            const response = await api.post("/api/product/create", payload);
             const result = response.data;
 
             if (result.result.status === "success") {
@@ -287,11 +408,11 @@ export default function RateList() {
 
             const payload = {
                 ...editingItem,
-                id: editingItem.id,
+                product_id: editingItem.id,
                 user_id: userId,
             };
 
-            const response = await api.post(getApiEndpoint("PRODUCT_UPDATE"), payload);
+            const response = await api.post("/api/product/update", payload);
             const result = response.data;
 
             if (result.result.status === "success") {
@@ -348,7 +469,7 @@ export default function RateList() {
                 user_id: userId
             };
 
-            const response = await api.post(getApiEndpoint("PRODUCT_DELETE"), payload);
+            const response = await api.post("/api/product/delete", payload);
             const result = response.data;
 
             if (result.result.status === "success") {
@@ -418,15 +539,14 @@ export default function RateList() {
             client_specific: false,
             rate_text: "",
             valid_until: "",
-            inc_in_tariff: "",
+            inc_in_tariff: false,
             group_id: "",
             sort_order: "",
             remarks: "",
             uom_id: "",
             property_stock_inventory: "",
             currency_id: "",
-            seller_ids: [],
-            seller_id: ""
+            seller_ids: []
         });
         onNewRateOpen();
     };
@@ -527,6 +647,9 @@ export default function RateList() {
             list_price: "",
             standard_price: "",
             default_code: "",
+            client_specific: "",
+            uom_id: "",
+            currency_id: "",
         });
     };
 
@@ -534,7 +657,18 @@ export default function RateList() {
         clearAllFilters();
         setSearchValue("");
         setStatusFilter("all");
+        setCurrentPage(1);
     };
+
+    // Reset pagination when search or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchValue, filters, statusFilter]);
+
+    // Pagination logic
+    const itemsPerPage = 10;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
 
     // Filter data based on search and filters
     const filteredData = useMemo(() => {
@@ -543,10 +677,28 @@ export default function RateList() {
         // Apply search filter
         if (searchValue) {
             filtered = filtered.filter(
-                (item) =>
-                    item.name.toLowerCase().includes(searchValue.toLowerCase()) ||
-                    item.default_code.toLowerCase().includes(searchValue.toLowerCase()) ||
-                    item.type.toLowerCase().includes(searchValue.toLowerCase())
+                (item) => {
+                    const searchLower = searchValue.toLowerCase();
+
+                    // Search in basic fields
+                    const basicMatch =
+                        (item.rate_id && item.rate_id.toString().toLowerCase().includes(searchLower)) ||
+                        (item.name && item.name.toLowerCase().includes(searchLower)) ||
+                        (item.type && item.type.toLowerCase().includes(searchLower)) ||
+                        (item.inc_in_tariff && item.inc_in_tariff.toString().toLowerCase().includes(searchLower));
+
+                    // Search in seller names
+                    let sellerMatch = false;
+                    if (Array.isArray(item.seller_ids) && item.seller_ids.length > 0) {
+                        sellerMatch = item.seller_ids.some(seller => {
+                            const sellerId = seller.id || seller;
+                            const vendor = vendors.find(v => v.id == sellerId);
+                            return vendor && vendor.name && vendor.name.toLowerCase().includes(searchLower);
+                        });
+                    }
+
+                    return basicMatch || sellerMatch;
+                }
             );
         }
 
@@ -591,8 +743,36 @@ export default function RateList() {
             );
         }
 
+        if (filters.client_specific !== "") {
+            filtered = filtered.filter(
+                (item) => item.client_specific === (filters.client_specific === "true")
+            );
+        }
+
+        if (filters.uom_id) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.uom_id && item.uom_id.toString().includes(filters.uom_id)
+            );
+        }
+
+        if (filters.currency_id) {
+            filtered = filtered.filter(
+                (item) =>
+                    item.currency_id && item.currency_id.toString().includes(filters.currency_id)
+            );
+        }
+
         return filtered;
-    }, [rateItems, searchValue, statusFilter, filters]);
+    }, [rateItems, searchValue, statusFilter, filters, vendors]);
+
+    // Get paginated data
+    const paginatedData = useMemo(() => {
+        return filteredData.slice(startIndex, endIndex);
+    }, [filteredData, startIndex, endIndex]);
+
+    // Calculate total pages
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -618,51 +798,12 @@ export default function RateList() {
                         </VStack>
                     </HStack>
 
-                    <HStack spacing={4}>
-                        <HStack spacing={2}>
-                            <Text fontSize="sm" color="gray.600">
-                                {filteredData.length} items
-                            </Text>
-                            <IconButton
-                                icon={<Icon as={MdArrowBack} />}
-                                size="sm"
-                                variant="ghost"
-                                aria-label="Previous"
-                                isDisabled={currentPage === 1}
-                            />
-                            <IconButton
-                                icon={<Icon as={MdArrowForward} />}
-                                size="sm"
-                                variant="ghost"
-                                aria-label="Next"
-                                isDisabled={currentPage === totalPages}
-                            />
-                        </HStack>
-                        <HStack spacing={2}>
-                            <Tooltip label="Export">
-                                <IconButton
-                                    icon={<Icon as={MdDownload} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Export"
-                                />
-                            </Tooltip>
-                            <Tooltip label="Print">
-                                <IconButton
-                                    icon={<Icon as={MdPrint} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Print"
-                                />
-                            </Tooltip>
-                        </HStack>
-                    </HStack>
                 </Flex>
 
                 {/* Filter Section */}
                 <Box px='25px' mb='20px'>
                     <HStack spacing={4} flexWrap="wrap">
-                        <InputGroup w={{ base: "100%", md: "300px" }}>
+                        <InputGroup w={{ base: "100%", md: "600px" }}>
                             <InputLeftElement>
                                 <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
                             </InputLeftElement>
@@ -674,27 +815,11 @@ export default function RateList() {
                                 fontWeight='500'
                                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
                                 borderRadius="8px"
-                                placeholder="Search products..."
+                                placeholder="Search by rate ID, name, type, inc in tariff, or seller name..."
                                 value={searchValue}
                                 onChange={(e) => setSearchValue(e.target.value)}
                             />
                         </InputGroup>
-
-                        <Select
-                            w={{ base: "100%", md: "200px" }}
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            bg={inputBg}
-                            color={inputText}
-                            borderRadius="8px"
-                            fontSize="sm"
-                            zIndex={1000}
-                            position="relative"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </Select>
 
                         <Button
                             leftIcon={<Icon as={MdFilterList} />}
@@ -794,7 +919,7 @@ export default function RateList() {
                             </HStack>
 
                             {/* Third Row */}
-                            <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
                                 {/* Default Code Filter */}
                                 <Box minW="200px" flex="1">
                                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
@@ -808,6 +933,54 @@ export default function RateList() {
                                         borderRadius="md"
                                     />
                                 </Box>
+
+                                {/* Client Specific Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Client Specific
+                                    </Text>
+                                    <Select
+                                        size="sm"
+                                        value={filters.client_specific}
+                                        onChange={(e) => handleFilterChange("client_specific", e.target.value)}
+                                        borderRadius="md"
+                                    >
+                                        <option value="">All</option>
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </Select>
+                                </Box>
+                            </HStack>
+
+                            {/* Fourth Row */}
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                                {/* UOM ID Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        UOM ID
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by UOM ID"
+                                        value={filters.uom_id}
+                                        onChange={(e) => handleFilterChange("uom_id", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
+
+                                {/* Currency ID Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Currency ID
+                                    </Text>
+                                    <Input
+                                        size="sm"
+                                        placeholder="Filter by currency ID"
+                                        value={filters.currency_id}
+                                        onChange={(e) => handleFilterChange("currency_id", e.target.value)}
+                                        borderRadius="md"
+                                    />
+                                </Box>
                             </HStack>
                         </Box>
                     )}
@@ -816,14 +989,16 @@ export default function RateList() {
                 {/* Rate Items Table */}
                 <Box px="25px">
                     <Box
-                        maxH="400px"
+                        maxH="600px"
                         overflowY="auto"
+                        overflowX="auto"
                         border="1px"
                         borderColor="gray.200"
                         borderRadius="8px"
                         sx={{
                             '&::-webkit-scrollbar': {
                                 width: '8px',
+                                height: '8px',
                             },
                             '&::-webkit-scrollbar-track': {
                                 background: 'gray.100',
@@ -838,7 +1013,7 @@ export default function RateList() {
                             },
                         }}
                     >
-                        <Table variant="unstyled" size="sm" minW="100%">
+                        <Table variant="unstyled" size="sm" minW="2000px">
                             <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
                                 <Tr>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -848,17 +1023,29 @@ export default function RateList() {
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                         />
                                     </Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Rate ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Name</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">List Price</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Standard Price</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Type</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Default Code</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
+
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Name</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Client Specific</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate Text</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Valid Until</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Inc In Tariff</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Group ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Sort Order</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">List Price</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Standard Price</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Remarks</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Type</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">UOM ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Default Code</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Stock Inventory</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Seller IDs</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {filteredData.map((item, index) => (
+                                {paginatedData.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? "white" : "gray.50"}
@@ -871,24 +1058,72 @@ export default function RateList() {
                                                 onChange={(e) => handleSelectItem(item.id, e.target.checked)}
                                             />
                                         </Td>
+
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                {item.id}
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.rate_id || '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.name}
+                                                {item.name || '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Badge
+                                                colorScheme={item.client_specific ? "green" : "gray"}
+                                                variant="subtle"
+                                                fontSize="xs"
+                                                px="8px"
+                                                py="4px"
+                                                borderRadius="full">
+                                                {item.client_specific ? "Yes" : "No"}
+                                            </Badge>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.rate_text || '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.valid_until ? new Date(item.valid_until).toLocaleDateString() : '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Checkbox
+                                                isChecked={!!item.inc_in_tariff}
+                                                isReadOnly
+                                                colorScheme="green"
+                                                size="md"
+                                            />
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {(() => {
+                                                    const group = groupsList.find(g => g.id == item.group_id);
+                                                    return group ? group.name : (item.group_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.sort_order || '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                ${item.list_price}
+                                                {item.list_price ? `$${item.list_price}` : '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                ${item.standard_price}
+                                                {item.standard_price ? `$${item.standard_price}` : '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.remarks || '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -899,12 +1134,45 @@ export default function RateList() {
                                                 px="8px"
                                                 py="4px"
                                                 borderRadius="full">
-                                                {item.type}
+                                                {item.type || '-'}
                                             </Badge>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
-                                                {item.default_code}
+                                                {(() => {
+                                                    const uom = uomList.find(u => u.id == item.uom_id);
+                                                    return uom ? uom.name : (item.uom_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.default_code || '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {item.property_stock_inventory || '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {(() => {
+                                                    const currency = currenciesList.find(c => c.id == item.currency_id);
+                                                    return currency ? `${currency.name} (${currency.symbol})` : (item.currency_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {Array.isArray(item.seller_ids) && item.seller_ids.length > 0
+                                                    ? item.seller_ids.map(seller => {
+                                                        const sellerId = seller.id || seller;
+                                                        const vendor = vendors.find(v => v.id == sellerId);
+                                                        return vendor ? vendor.name : sellerId;
+                                                    }).join(', ')
+                                                    : '-'
+                                                }
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -941,7 +1209,7 @@ export default function RateList() {
                 {/* Pagination */}
                 <Flex px='25px' justify='space-between' align='center' py='20px'>
                     <Text fontSize='sm' color='gray.500'>
-                        Showing {filteredData.length} of {rateItems.length} results
+                        Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
                     </Text>
                     <HStack spacing={2}>
                         <Button
@@ -978,32 +1246,7 @@ export default function RateList() {
                         <Grid templateColumns="repeat(2, 1fr)" gap="8">
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Seller</FormLabel>
-                                    <Select
-                                        size="md"
-                                        value={isEditing ? editingItem?.seller_id || "" : newRateItem.seller_id}
-                                        onChange={(e) => {
-                                            if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, seller_id: e.target.value }));
-                                            } else {
-                                                handleInputChange('seller_id', e.target.value);
-                                            }
-                                        }}
-                                        placeholder="Select Seller"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "blue.500",
-                                            boxShadow: "0 0 0 1px blue.500",
-                                        }}
-                                    >
-                                        {vendors.map((vendor) => (
-                                            <option key={vendor.id} value={vendor.id}>
-                                                {vendor.name}
-                                            </option>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+
 
                                 <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate Name</FormLabel>
@@ -1028,29 +1271,21 @@ export default function RateList() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
-                                    <Select
-                                        size="md"
+                                    <SearchableSelect
                                         value={isEditing ? editingItem?.location || "" : newRateItem.location}
-                                        onChange={(e) => {
+                                        onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, location: e.target.value }));
+                                                setEditingItem(prev => ({ ...prev, location: value }));
                                             } else {
-                                                handleInputChange('location', e.target.value);
+                                                handleInputChange('location', value);
                                             }
                                         }}
-                                        placeholder="Select Location"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "blue.500",
-                                            boxShadow: "0 0 0 1px blue.500",
-                                        }}
-                                    >
-                                        {locationsList.map((location) => (
-                                            <option key={location.id} value={location.id}>
-                                                {location.name}
-                                            </option>
-                                        ))}
-                                    </Select>
+                                        options={locationsList}
+                                        placeholder="Search and select location..."
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(location) => `${location.id} - ${location.name}`}
+                                    />
                                 </FormControl>
 
                                 <FormControl isRequired>
@@ -1182,25 +1417,25 @@ export default function RateList() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Included In Tariff</FormLabel>
-                                    <Input
-                                        size="md"
-                                        value={isEditing ? editingItem?.inc_in_tariff || "" : newRateItem.inc_in_tariff}
+                                    <Checkbox
+                                        isChecked={isEditing ? !!editingItem?.inc_in_tariff : !!newRateItem.inc_in_tariff}
                                         onChange={(e) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, inc_in_tariff: e.target.value }));
+                                                setEditingItem(prev => ({ ...prev, inc_in_tariff: e.target.checked }));
                                             } else {
-                                                handleInputChange('inc_in_tariff', e.target.value);
+                                                handleInputChange('inc_in_tariff', e.target.checked);
                                             }
                                         }}
-                                        placeholder="tariff"
-                                        borderRadius="md"
-                                    />
+                                        colorScheme="green"
+                                        size="md"
+                                    >
+                                        Include this rate in tariff
+                                    </Checkbox>
                                 </FormControl>
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Group ID</FormLabel>
-                                    <NumberInput
-                                        size="sm"
+                                    <SearchableSelect
                                         value={isEditing ? editingItem?.group_id || "" : newRateItem.group_id}
                                         onChange={(value) => {
                                             if (isEditing) {
@@ -1209,10 +1444,12 @@ export default function RateList() {
                                                 handleInputChange('group_id', value);
                                             }
                                         }}
-                                        min={0}
-                                    >
-                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
-                                    </NumberInput>
+                                        options={groupsList}
+                                        placeholder="Search and select group..."
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(group) => `${group.id} - ${group.name}`}
+                                    />
                                 </FormControl>
 
                                 <FormControl>
@@ -1323,24 +1560,21 @@ export default function RateList() {
                             <VStack spacing="4" align="stretch">
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">UOM ID</FormLabel>
-                                    <Select
-                                        size="sm"
+                                    <SearchableSelect
                                         value={isEditing ? editingItem?.uom_id || "" : newRateItem.uom_id}
-                                        onChange={(e) => {
+                                        onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, uom_id: e.target.value }));
+                                                setEditingItem(prev => ({ ...prev, uom_id: value }));
                                             } else {
-                                                handleInputChange('uom_id', e.target.value);
+                                                handleInputChange('uom_id', value);
                                             }
                                         }}
-                                        placeholder="Select UOM"
-                                    >
-                                        {uomList.map((uom) => (
-                                            <option key={uom.id} value={uom.id}>
-                                                {uom.id} - {uom.name}
-                                            </option>
-                                        ))}
-                                    </Select>
+                                        options={uomList}
+                                        placeholder="Search and select UOM..."
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(uom) => `${uom.id} - ${uom.name}`}
+                                    />
                                 </FormControl>
 
                                 <FormControl>
@@ -1363,29 +1597,131 @@ export default function RateList() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
-                                    <Select
-                                        size="sm"
+                                    <SearchableSelect
                                         value={isEditing ? editingItem?.currency_id || "" : newRateItem.currency_id}
-                                        onChange={(e) => {
+                                        onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, currency_id: e.target.value }));
+                                                setEditingItem(prev => ({ ...prev, currency_id: value }));
                                             } else {
-                                                handleInputChange('currency_id', e.target.value);
+                                                handleInputChange('currency_id', value);
                                             }
                                         }}
-                                        placeholder="Select Currency"
-                                    >
-                                        {currenciesList.map((currency) => (
-                                            <option key={currency.id} value={currency.id}>
-                                                {currency.id} - {currency.name} ({currency.code})
-                                            </option>
-                                        ))}
-                                    </Select>
+                                        options={currenciesList}
+                                        placeholder="Search and select currency..."
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(currency) => `${currency.id} - ${currency.name} (${currency.symbol})`}
+                                    />
                                 </FormControl>
                             </VStack>
                         </Grid>
 
+                        {/* Seller IDs Section */}
+                        <Box mt="6" p="4" border="1px" borderColor="gray.200" borderRadius="md">
+                            <HStack justify="space-between" mb="4">
+                                <Text fontSize="sm" fontWeight="600" color="gray.700">
+                                    Seller Pricing Details
+                                </Text>
+                                <Button
+                                    size="sm"
+                                    colorScheme="blue"
+                                    variant="outline"
+                                    onClick={addSellerRow}
+                                    leftIcon={<Icon as={MdAdd} />}
+                                >
+                                    Add Seller
+                                </Button>
+                            </HStack>
 
+                            {(isEditing ? editingItem?.seller_ids : newRateItem.seller_ids)?.map((seller, index) => (
+                                <Box key={index} p="4" border="1px" borderColor="gray.200" borderRadius="md" mb="3">
+                                    <HStack justify="space-between" mb="3">
+                                        <Text fontSize="sm" fontWeight="500" color="gray.600">
+                                            Seller {index + 1}
+                                        </Text>
+                                        <IconButton
+                                            size="sm"
+                                            colorScheme="red"
+                                            variant="ghost"
+                                            icon={<Icon as={MdDelete} />}
+                                            onClick={() => removeSellerRow(index)}
+                                            aria-label="Remove seller"
+                                        />
+                                    </HStack>
+
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="4">
+                                        <FormControl>
+                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Seller ID</FormLabel>
+                                            <SearchableSelect
+                                                value={seller.id || ""}
+                                                onChange={(value) => handleSellerChange(index, 'id', value)}
+                                                options={vendors}
+                                                placeholder="Select seller..."
+                                                displayKey="name"
+                                                valueKey="id"
+                                                formatOption={(vendor) => `${vendor.id} - ${vendor.name}`}
+                                            />
+                                        </FormControl>
+
+                                        <FormControl>
+                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Min Quantity</FormLabel>
+                                            <NumberInput
+                                                size="sm"
+                                                value={seller.min_qty || ""}
+                                                onChange={(value) => handleSellerChange(index, 'min_qty', value)}
+                                                min={0}
+                                            >
+                                                <NumberInputField border="1px" borderColor="gray.300" />
+                                            </NumberInput>
+                                        </FormControl>
+
+                                        <FormControl>
+                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Price</FormLabel>
+                                            <NumberInput
+                                                size="sm"
+                                                value={seller.price || ""}
+                                                onChange={(value) => handleSellerChange(index, 'price', value)}
+                                                min={0}
+                                                step={0.01}
+                                            >
+                                                <NumberInputField border="1px" borderColor="gray.300" />
+                                            </NumberInput>
+                                        </FormControl>
+
+                                        <FormControl>
+                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency</FormLabel>
+                                            <SearchableSelect
+                                                value={seller.currency_id || ""}
+                                                onChange={(value) => handleSellerChange(index, 'currency_id', value)}
+                                                options={currenciesList}
+                                                placeholder="Select currency..."
+                                                displayKey="name"
+                                                valueKey="id"
+                                                formatOption={(currency) => `${currency.id} - ${currency.name} (${currency.symbol})`}
+                                            />
+                                        </FormControl>
+
+                                        <FormControl>
+                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Delay (days)</FormLabel>
+                                            <NumberInput
+                                                size="sm"
+                                                value={seller.delay || ""}
+                                                onChange={(value) => handleSellerChange(index, 'delay', value)}
+                                                min={0}
+                                            >
+                                                <NumberInputField border="1px" borderColor="gray.300" />
+                                            </NumberInput>
+                                        </FormControl>
+                                    </Grid>
+                                </Box>
+                            ))}
+
+                            {(!isEditing ? newRateItem.seller_ids : editingItem?.seller_ids)?.length === 0 && (
+                                <Text color="gray.500" textAlign="center" py="4">
+                                    No sellers added. Click "Add Seller" to add pricing details.
+                                </Text>
+                            )}
+                        </Box>
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
                         <Button variant="outline" mr={3} onClick={onNewRateClose}>
