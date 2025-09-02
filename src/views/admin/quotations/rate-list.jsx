@@ -53,6 +53,7 @@ import {
     PopoverBody,
     List,
     ListItem,
+    Divider,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -65,6 +66,7 @@ import {
     MdDownload,
     MdPrint,
     MdKeyboardArrowDown,
+    MdInfo,
 } from "react-icons/md";
 
 import api from "../../../api/axios";
@@ -198,9 +200,11 @@ export default function RateList() {
     // Modal states
     const { isOpen: isNewRateOpen, onOpen: onNewRateOpen, onClose: onNewRateClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+    const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
     const [deleteItemId, setDeleteItemId] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
+    const [detailItem, setDetailItem] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
@@ -558,10 +562,48 @@ export default function RateList() {
         onNewRateOpen();
     };
 
+    const handleViewDetail = (item) => {
+        setDetailItem({ ...item });
+        onDetailOpen();
+    };
+
     const handleSaveRate = () => {
         if (isEditing) {
+            // For updates, skip validation and directly update
             handleUpdateProduct();
         } else {
+            // For new items, validate required fields
+            const currentItem = newRateItem;
+
+            // Check if all required fields are filled
+            if (!currentItem.name || !currentItem.rate_text || !currentItem.group_id ||
+                !currentItem.sort_order || !currentItem.uom_id || !currentItem.currency_id ||
+                !currentItem.list_price || !currentItem.standard_price || !currentItem.type ||
+                !currentItem.location || !currentItem.property_stock_inventory || !currentItem.default_code) {
+                toast({
+                    title: "Validation Error",
+                    description: "Please fill in all required fields",
+                    status: "error",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                return;
+            }
+
+            // Check if vendor is selected
+            if (!currentItem.seller_ids || currentItem.seller_ids.length === 0 ||
+                !currentItem.seller_ids[0]?.id) {
+                toast({
+                    title: "Validation Error",
+                    description: "Please select a vendor",
+                    status: "error",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                return;
+            }
+
+            // Create new product
             handleCreateProduct();
         }
     };
@@ -584,54 +626,7 @@ export default function RateList() {
         }));
     };
 
-    const handleSellerChange = (index, field, value) => {
-        if (isEditing) {
-            setEditingItem(prev => {
-                const updated = { ...prev };
-                const sellers = Array.isArray(updated.seller_ids) ? [...updated.seller_ids] : [];
-                sellers[index] = { ...sellers[index], [field]: value };
-                updated.seller_ids = sellers;
-                return updated;
-            });
-        } else {
-            setNewRateItem(prev => {
-                const sellers = Array.isArray(prev.seller_ids) ? [...prev.seller_ids] : [];
-                sellers[index] = { ...sellers[index], [field]: value };
-                return { ...prev, seller_ids: sellers };
-            });
-        }
-    };
 
-    const addSellerRow = () => {
-        const newRow = { id: "", min_qty: "", price: "", currency_id: "", delay: "" };
-        if (isEditing) {
-            setEditingItem(prev => ({
-                ...prev,
-                seller_ids: [...(prev.seller_ids || []), newRow]
-            }));
-        } else {
-            setNewRateItem(prev => ({
-                ...prev,
-                seller_ids: [...(prev.seller_ids || []), newRow]
-            }));
-        }
-    };
-
-    const removeSellerRow = (index) => {
-        if (isEditing) {
-            setEditingItem(prev => {
-                const sellers = [...(prev.seller_ids || [])];
-                sellers.splice(index, 1);
-                return { ...prev, seller_ids: sellers };
-            });
-        } else {
-            setNewRateItem(prev => {
-                const sellers = [...(prev.seller_ids || [])];
-                sellers.splice(index, 1);
-                return { ...prev, seller_ids: sellers };
-            });
-        }
-    };
 
     // Filter handling functions - similar to customer table
     const handleFilterChange = (field, value) => {
@@ -687,7 +682,7 @@ export default function RateList() {
                         (item.type && item.type.toLowerCase().includes(searchLower)) ||
                         (item.inc_in_tariff && item.inc_in_tariff.toString().toLowerCase().includes(searchLower));
 
-                    // Search in seller names
+                    // Search in vendor names
                     let sellerMatch = false;
                     if (Array.isArray(item.seller_ids) && item.seller_ids.length > 0) {
                         sellerMatch = item.seller_ids.some(seller => {
@@ -776,6 +771,15 @@ export default function RateList() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            {/* Print Styles */}
+            <style jsx>{`
+                @media print {
+                    .no-print { display: none !important; }
+                    .print-break { page-break-before: always; }
+                    body { margin: 0; padding: 20px; }
+                    .modal-content { box-shadow: none !important; border: none !important; }
+                }
+            `}</style>
             <VStack spacing={6} align="stretch">
                 {/* Header Section */}
                 <Flex justify="space-between" align="center" px="25px">
@@ -815,7 +819,7 @@ export default function RateList() {
                                 fontWeight='500'
                                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
                                 borderRadius="8px"
-                                placeholder="Search by rate ID, name, type, inc in tariff, or seller name..."
+                                placeholder="Search by rate ID, name, vendor, type, inc in tariff..."
                                 value={searchValue}
                                 onChange={(e) => setSearchValue(e.target.value)}
                             />
@@ -856,103 +860,6 @@ export default function RateList() {
                                 Filter by Specific Fields
                             </Text>
 
-                            {/* First Row */}
-                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                                {/* Name Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Product Name
-                                    </Text>
-                                    <Input
-                                        size="sm"
-                                        placeholder="Filter by name"
-                                        value={filters.name}
-                                        onChange={(e) => handleFilterChange("name", e.target.value)}
-                                        borderRadius="md"
-                                    />
-                                </Box>
-
-                                {/* Type Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Product Type
-                                    </Text>
-                                    <Input
-                                        size="sm"
-                                        placeholder="Filter by type"
-                                        value={filters.type}
-                                        onChange={(e) => handleFilterChange("type", e.target.value)}
-                                        borderRadius="md"
-                                    />
-                                </Box>
-                            </HStack>
-
-                            {/* Second Row */}
-                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                                {/* List Price Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        List Price
-                                    </Text>
-                                    <Input
-                                        size="sm"
-                                        placeholder="Filter by list price"
-                                        value={filters.list_price}
-                                        onChange={(e) => handleFilterChange("list_price", e.target.value)}
-                                        borderRadius="md"
-                                    />
-                                </Box>
-
-                                {/* Standard Price Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Standard Price
-                                    </Text>
-                                    <Input
-                                        size="sm"
-                                        placeholder="Filter by standard price"
-                                        value={filters.standard_price}
-                                        onChange={(e) => handleFilterChange("standard_price", e.target.value)}
-                                        borderRadius="md"
-                                    />
-                                </Box>
-                            </HStack>
-
-                            {/* Third Row */}
-                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                                {/* Default Code Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Default Code
-                                    </Text>
-                                    <Input
-                                        size="sm"
-                                        placeholder="Filter by default code"
-                                        value={filters.default_code}
-                                        onChange={(e) => handleFilterChange("default_code", e.target.value)}
-                                        borderRadius="md"
-                                    />
-                                </Box>
-
-                                {/* Client Specific Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Client Specific
-                                    </Text>
-                                    <Select
-                                        size="sm"
-                                        value={filters.client_specific}
-                                        onChange={(e) => handleFilterChange("client_specific", e.target.value)}
-                                        borderRadius="md"
-                                    >
-                                        <option value="">All</option>
-                                        <option value="true">Yes</option>
-                                        <option value="false">No</option>
-                                    </Select>
-                                </Box>
-                            </HStack>
-
-                            {/* Fourth Row */}
                             <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
                                 {/* UOM ID Filter */}
                                 <Box minW="200px" flex="1">
@@ -981,7 +888,29 @@ export default function RateList() {
                                         borderRadius="md"
                                     />
                                 </Box>
+
+                                {/* Type Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Product Type
+                                    </Text>
+                                    <SearchableSelect
+                                        value={filters.type}
+                                        onChange={(value) => handleFilterChange("type", value)}
+                                        options={[
+                                            { id: "", name: "All Types" },
+                                            { id: "consu", name: "Consumable" },
+                                            { id: "service", name: "Service" },
+                                            { id: "product", name: "Product" }
+                                        ]}
+                                        placeholder="Select product type"
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(option) => option.name}
+                                    />
+                                </Box>
                             </HStack>
+
                         </Box>
                     )}
                 </Box>
@@ -1026,6 +955,7 @@ export default function RateList() {
 
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate ID</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Name</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Vendor</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Client Specific</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate Text</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Valid Until</Th>
@@ -1040,7 +970,7 @@ export default function RateList() {
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Default Code</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Stock Inventory</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Seller IDs</Th>
+
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
                             </Thead>
@@ -1060,13 +990,31 @@ export default function RateList() {
                                         </Td>
 
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
+                                            <Text
+                                                color="blue.500"
+                                                fontSize='sm'
+                                                cursor="pointer"
+                                                _hover={{ textDecoration: "underline" }}
+                                                onClick={() => handleViewDetail(item)}
+                                            >
                                                 {item.rate_id || '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
                                                 {item.name || '-'}
+                                            </Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                                            <Text color={textColor} fontSize='sm'>
+                                                {Array.isArray(item.seller_ids) && item.seller_ids.length > 0
+                                                    ? item.seller_ids.map(seller => {
+                                                        const sellerId = seller.id || seller;
+                                                        const vendor = vendors.find(v => v.id == sellerId);
+                                                        return vendor ? vendor.name : sellerId;
+                                                    }).join(', ')
+                                                    : '-'
+                                                }
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -1164,18 +1112,6 @@ export default function RateList() {
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {Array.isArray(item.seller_ids) && item.seller_ids.length > 0
-                                                    ? item.seller_ids.map(seller => {
-                                                        const sellerId = seller.id || seller;
-                                                        const vendor = vendors.find(v => v.id == sellerId);
-                                                        return vendor ? vendor.name : sellerId;
-                                                    }).join(', ')
-                                                    : '-'
-                                                }
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <HStack spacing={2}>
                                                 <Tooltip label="Edit Rate">
                                                     <IconButton
@@ -1210,9 +1146,9 @@ export default function RateList() {
                 <Flex px='25px' justify='space-between' align='center' py='20px'>
                     {/* Records per page selector and info */}
                     <HStack spacing={3}>
-                    <Text fontSize='sm' color='gray.500'>
+                        <Text fontSize='sm' color='gray.500'>
                             Records per page:
-                    </Text>
+                        </Text>
                         <Select
                             size="sm"
                             w="80px"
@@ -1247,7 +1183,7 @@ export default function RateList() {
                         >
                             Previous
                         </Button>
-                        
+
                         {/* Page numbers */}
                         <HStack spacing={1}>
                             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -1261,11 +1197,11 @@ export default function RateList() {
                                 } else {
                                     pageNum = currentPage - 2 + i;
                                 }
-                                
+
                                 return (
-                        <Button
+                                    <Button
                                         key={pageNum}
-                            size="sm"
+                                        size="sm"
                                         variant={currentPage === pageNum ? "solid" : "outline"}
                                         colorScheme={currentPage === pageNum ? "blue" : "gray"}
                                         onClick={() => setCurrentPage(pageNum)}
@@ -1334,7 +1270,29 @@ export default function RateList() {
                                     />
                                 </FormControl>
 
-                                <FormControl>
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Vendor</FormLabel>
+                                    <SearchableSelect
+                                        value={isEditing ? editingItem?.seller_ids?.[0]?.id || "" : newRateItem.seller_ids?.[0]?.id || ""}
+                                        onChange={(value) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({
+                                                    ...prev,
+                                                    seller_ids: value ? [{ id: value }] : []
+                                                }));
+                                            } else {
+                                                handleInputChange('seller_ids', value ? [{ id: value }] : []);
+                                            }
+                                        }}
+                                        options={vendors}
+                                        placeholder="Search and select vendor..."
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(vendor) => `${vendor.id} - ${vendor.name}`}
+                                    />
+                                </FormControl>
+
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
                                     <SearchableSelect
                                         value={isEditing ? editingItem?.location || "" : newRateItem.location}
@@ -1446,7 +1404,7 @@ export default function RateList() {
 
                             {/* Right Column */}
                             <VStack spacing="4" align="stretch">
-                                <FormControl>
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate Text</FormLabel>
                                     <Input
                                         size="md"
@@ -1498,7 +1456,7 @@ export default function RateList() {
                                     </Checkbox>
                                 </FormControl>
 
-                                <FormControl>
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Group ID</FormLabel>
                                     <SearchableSelect
                                         value={isEditing ? editingItem?.group_id || "" : newRateItem.group_id}
@@ -1517,7 +1475,7 @@ export default function RateList() {
                                     />
                                 </FormControl>
 
-                                <FormControl>
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Sort Order</FormLabel>
                                     <NumberInput
                                         size="sm"
@@ -1530,8 +1488,36 @@ export default function RateList() {
                                             }
                                         }}
                                         min={0}
+                                        step={1}
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
                                     >
-                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                        <NumberInputField
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            _hover={{ borderColor: "gray.400" }}
+                                            type="number"
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper
+                                                h="16px"
+                                                fontSize="10px"
+                                                border="none"
+                                                bg="transparent"
+                                                _hover={{ bg: "gray.100" }}
+                                            />
+                                            <NumberDecrementStepper
+                                                h="16px"
+                                                fontSize="10px"
+                                                border="none"
+                                                bg="transparent"
+                                                _hover={{ bg: "gray.100" }}
+                                            />
+                                        </NumberInputStepper>
                                     </NumberInput>
                                 </FormControl>
                             </VStack>
@@ -1566,7 +1552,7 @@ export default function RateList() {
                                     </Select>
                                 </FormControl>
 
-                                <FormControl isRequired>
+                                <FormControl>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Default Code</FormLabel>
                                     <Input
                                         size="md"
@@ -1623,7 +1609,7 @@ export default function RateList() {
 
                             {/* Right Column - Additional Fields */}
                             <VStack spacing="4" align="stretch">
-                                <FormControl>
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">UOM ID</FormLabel>
                                     <SearchableSelect
                                         value={isEditing ? editingItem?.uom_id || "" : newRateItem.uom_id}
@@ -1655,12 +1641,40 @@ export default function RateList() {
                                             }
                                         }}
                                         min={0}
+                                        step={1}
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
                                     >
-                                        <NumberInputField border="1px" borderColor="gray.300" _hover={{ borderColor: "gray.400" }} />
+                                        <NumberInputField
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            _hover={{ borderColor: "gray.400" }}
+                                            type="number"
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper
+                                                h="16px"
+                                                fontSize="10px"
+                                                border="none"
+                                                bg="transparent"
+                                                _hover={{ bg: "gray.100" }}
+                                            />
+                                            <NumberDecrementStepper
+                                                h="16px"
+                                                fontSize="10px"
+                                                border="none"
+                                                bg="transparent"
+                                                _hover={{ bg: "gray.100" }}
+                                            />
+                                        </NumberInputStepper>
                                     </NumberInput>
                                 </FormControl>
 
-                                <FormControl>
+                                <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
                                     <SearchableSelect
                                         value={isEditing ? editingItem?.currency_id || "" : newRateItem.currency_id}
@@ -1681,112 +1695,7 @@ export default function RateList() {
                             </VStack>
                         </Grid>
 
-                        {/* Seller IDs Section */}
-                        <Box mt="6" p="4" border="1px" borderColor="gray.200" borderRadius="md">
-                            <HStack justify="space-between" mb="4">
-                                <Text fontSize="sm" fontWeight="600" color="gray.700">
-                                    Seller Pricing Details
-                                </Text>
-                                <Button
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="outline"
-                                    onClick={addSellerRow}
-                                    leftIcon={<Icon as={MdAdd} />}
-                                >
-                                    Add Seller
-                                </Button>
-                            </HStack>
 
-                            {(isEditing ? editingItem?.seller_ids : newRateItem.seller_ids)?.map((seller, index) => (
-                                <Box key={index} p="4" border="1px" borderColor="gray.200" borderRadius="md" mb="3">
-                                    <HStack justify="space-between" mb="3">
-                                        <Text fontSize="sm" fontWeight="500" color="gray.600">
-                                            Seller {index + 1}
-                                        </Text>
-                                        <IconButton
-                                            size="sm"
-                                            colorScheme="red"
-                                            variant="ghost"
-                                            icon={<Icon as={MdDelete} />}
-                                            onClick={() => removeSellerRow(index)}
-                                            aria-label="Remove seller"
-                                        />
-                                    </HStack>
-
-                                    <Grid templateColumns="repeat(2, 1fr)" gap="4">
-                                        <FormControl>
-                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Seller ID</FormLabel>
-                                            <SearchableSelect
-                                                value={seller.id || ""}
-                                                onChange={(value) => handleSellerChange(index, 'id', value)}
-                                                options={vendors}
-                                                placeholder="Select seller..."
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(vendor) => `${vendor.id} - ${vendor.name}`}
-                                            />
-                                        </FormControl>
-
-                                        <FormControl>
-                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Min Quantity</FormLabel>
-                                            <NumberInput
-                                                size="sm"
-                                                value={seller.min_qty || ""}
-                                                onChange={(value) => handleSellerChange(index, 'min_qty', value)}
-                                                min={0}
-                                            >
-                                                <NumberInputField border="1px" borderColor="gray.300" />
-                                            </NumberInput>
-                                        </FormControl>
-
-                                        <FormControl>
-                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Price</FormLabel>
-                                            <NumberInput
-                                                size="sm"
-                                                value={seller.price || ""}
-                                                onChange={(value) => handleSellerChange(index, 'price', value)}
-                                                min={0}
-                                                step={0.01}
-                                            >
-                                                <NumberInputField border="1px" borderColor="gray.300" />
-                                            </NumberInput>
-                                        </FormControl>
-
-                                        <FormControl>
-                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency</FormLabel>
-                                            <SearchableSelect
-                                                value={seller.currency_id || ""}
-                                                onChange={(value) => handleSellerChange(index, 'currency_id', value)}
-                                                options={currenciesList}
-                                                placeholder="Select currency..."
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(currency) => `${currency.id} - ${currency.name} (${currency.symbol})`}
-                                            />
-                                        </FormControl>
-
-                                        <FormControl>
-                                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Delay (days)</FormLabel>
-                                            <NumberInput
-                                                size="sm"
-                                                value={seller.delay || ""}
-                                                onChange={(value) => handleSellerChange(index, 'delay', value)}
-                                                min={0}
-                                            >
-                                                <NumberInputField border="1px" borderColor="gray.300" />
-                                            </NumberInput>
-                                        </FormControl>
-                                    </Grid>
-                                </Box>
-                            ))}
-
-                            {(!isEditing ? newRateItem.seller_ids : editingItem?.seller_ids)?.length === 0 && (
-                                <Text color="gray.500" textAlign="center" py="4">
-                                    No sellers added. Click "Add Seller" to add pricing details.
-                                </Text>
-                            )}
-                        </Box>
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
                         <Button variant="outline" mr={3} onClick={onNewRateClose}>
@@ -1798,6 +1707,370 @@ export default function RateList() {
                             isLoading={isLoading}
                         >
                             {isEditing ? "Update Product" : "Create Product"}
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
+            {/* Detail View Modal */}
+            <Modal isOpen={isDetailOpen} onClose={onDetailClose} size="4xl">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)" color="white" borderRadius="md" position="relative">
+                        <HStack spacing={3} justify="space-between" w="100%">
+                            <HStack spacing={3}>
+                                <Icon as={MdInfo} boxSize={6} />
+                                <VStack align="start" spacing={0}>
+                                    <Text fontSize="xl" fontWeight="700">Rate Item Details</Text>
+                                    <Text fontSize="sm" opacity={0.9}>Complete information overview</Text>
+                                </VStack>
+                            </HStack>
+                            <Button
+                                leftIcon={<Icon as={MdPrint} />}
+                                colorScheme="whiteAlpha"
+                                variant="solid"
+                                size="sm"
+                                onClick={() => window.print()}
+                                _hover={{ bg: "whiteAlpha.300" }}
+                            >
+                                Print
+                            </Button>
+                        </HStack>
+                    </ModalHeader>
+                    <ModalCloseButton color="white" className="no-print" />
+                    <ModalBody py="6">
+                        {detailItem && (
+                            <VStack spacing={6} align="stretch">
+                                {/* Print Header - Hidden on screen, visible on print */}
+                                <Box className="no-print" display={{ base: "none", print: "block" }}>
+                                    <VStack spacing={2} align="center" mb="6">
+                                        <Text fontSize="2xl" fontWeight="700" color="gray.800">
+                                            Rate Item Details Report
+                                        </Text>
+                                        <Text fontSize="sm" color="gray.600">
+                                            Generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+                                        </Text>
+                                        <Divider />
+                                    </VStack>
+                                </Box>
+                                {/* Basic Information Section */}
+                                <Box>
+                                    <Box
+                                        bg="linear-gradient(90deg, #f7fafc 0%, #edf2f7 100%)"
+                                        p="4"
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor="gray.200"
+                                        mb="4"
+                                    >
+                                        <HStack spacing={3}>
+                                            <Box bg="blue.500" p="2" borderRadius="full">
+                                                <Icon as={MdInfo} color="white" boxSize={4} />
+                                            </Box>
+                                            <Text fontSize="lg" fontWeight="700" color="gray.800">
+                                                Basic Information
+                                            </Text>
+                                        </HStack>
+                                    </Box>
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="6">
+                                        <Box
+                                            bg="white"
+                                            p="4"
+                                            borderRadius="lg"
+                                            border="1px"
+                                            borderColor="gray.200"
+                                            _hover={{ borderColor: "blue.300", boxShadow: "sm" }}
+                                            transition="all 0.2s"
+                                        >
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Rate ID</Text>
+                                            <Text fontSize="md" color="gray.800" fontWeight="500">{detailItem.rate_id || '-'}</Text>
+                                        </Box>
+                                        <Box
+                                            bg="white"
+                                            p="4"
+                                            borderRadius="lg"
+                                            border="1px"
+                                            borderColor="gray.200"
+                                            _hover={{ borderColor: "blue.300", boxShadow: "sm" }}
+                                            transition="all 0.2s"
+                                        >
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Name</Text>
+                                            <Text fontSize="lg" color="blue.600" fontWeight="700">{detailItem.name || '-'}</Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Type</Text>
+                                            <Badge colorScheme="blue" variant="subtle" fontSize="sm">
+                                                {detailItem.type || '-'}
+                                            </Badge>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Default Code</Text>
+                                            <Text fontSize="md" color="gray.800">{detailItem.default_code || '-'}</Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Rate Text</Text>
+                                            <Text fontSize="md" color="gray.800">{detailItem.rate_text || '-'}</Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Remarks</Text>
+                                            <Text fontSize="md" color="gray.800">{detailItem.remarks || '-'}</Text>
+                                        </Box>
+                                    </Grid>
+                                </Box>
+
+                                {/* Pricing Information Section */}
+                                <Box>
+                                    <Box
+                                        bg="linear-gradient(90deg, #f0fff4 0%, #e6fffa 100%)"
+                                        p="4"
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor="green.200"
+                                        mb="4"
+                                    >
+                                        <HStack spacing={3}>
+                                            <Box bg="green.500" p="2" borderRadius="full">
+                                                <Icon as={MdSearch} color="white" boxSize={4} />
+                                            </Box>
+                                            <Text fontSize="lg" fontWeight="700" color="gray.800">
+                                                Pricing Information
+                                            </Text>
+                                        </HStack>
+                                    </Box>
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="6">
+                                        <Box
+                                            bg="white"
+                                            p="4"
+                                            borderRadius="lg"
+                                            border="1px"
+                                            borderColor="green.200"
+                                            _hover={{ borderColor: "green.300", boxShadow: "sm" }}
+                                            transition="all 0.2s"
+                                        >
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">List Price</Text>
+                                            <Text fontSize="xl" color="green.600" fontWeight="700">
+                                                ${detailItem.list_price || '-'}
+                                            </Text>
+                                        </Box>
+                                        <Box
+                                            bg="white"
+                                            p="4"
+                                            borderRadius="lg"
+                                            border="1px"
+                                            borderColor="blue.200"
+                                            _hover={{ borderColor: "blue.300", boxShadow: "sm" }}
+                                            transition="all 0.2s"
+                                        >
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Standard Price</Text>
+                                            <Text fontSize="xl" color="blue.600" fontWeight="700">
+                                                ${detailItem.standard_price || '-'}
+                                            </Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Currency</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {(() => {
+                                                    const currency = currenciesList.find(c => c.id == detailItem.currency_id);
+                                                    return currency ? `${currency.name} (${currency.symbol})` : (detailItem.currency_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Valid Until</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {detailItem.valid_until ? new Date(detailItem.valid_until).toLocaleDateString() : '-'}
+                                            </Text>
+                                        </Box>
+                                    </Grid>
+                                </Box>
+
+                                {/* Configuration Section */}
+                                <Box>
+                                    <Box
+                                        bg="linear-gradient(90deg, #fffaf0 0%, #fef5e7 100%)"
+                                        p="4"
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor="orange.200"
+                                        mb="4"
+                                    >
+                                        <HStack spacing={3}>
+                                            <Box bg="orange.500" p="2" borderRadius="full">
+                                                <Icon as={MdEdit} color="white" boxSize={4} />
+                                            </Box>
+                                            <Text fontSize="lg" fontWeight="700" color="gray.800">
+                                                Configuration
+                                            </Text>
+                                        </HStack>
+                                    </Box>
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="6">
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Group</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {(() => {
+                                                    const group = groupsList.find(g => g.id == detailItem.group_id);
+                                                    return group ? group.name : (detailItem.group_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">UOM</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {(() => {
+                                                    const uom = uomList.find(u => u.id == detailItem.uom_id);
+                                                    return uom ? uom.name : (detailItem.uom_id || '-');
+                                                })()}
+                                            </Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Location</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {(() => {
+                                                    const location = locationsList.find(l => l.id == detailItem.location);
+                                                    return location ? location.name : (detailItem.location || '-');
+                                                })()}
+                                            </Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Sort Order</Text>
+                                            <Text fontSize="md" color="gray.800">{detailItem.sort_order || '-'}</Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Property Stock Inventory</Text>
+                                            <Text fontSize="md" color="gray.800">{detailItem.property_stock_inventory || '-'}</Text>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Category</Text>
+                                            <Text fontSize="md" color="gray.800">
+                                                {(() => {
+                                                    const uom = uomList.find(u => u.id == detailItem.uom_id);
+                                                    return uom ? uom.category_name : '-';
+                                                })()}
+                                            </Text>
+                                        </Box>
+                                    </Grid>
+                                </Box>
+
+                                {/* Flags Section */}
+                                <Box>
+                                    <Box
+                                        bg="linear-gradient(90deg, #fef5e7 0%, #fed7aa 100%)"
+                                        p="4"
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor="yellow.200"
+                                        mb="4"
+                                    >
+                                        <HStack spacing={3}>
+                                            <Box bg="yellow.500" p="2" borderRadius="full">
+                                                <Icon as={MdFilterList} color="white" boxSize={4} />
+                                            </Box>
+                                            <Text fontSize="lg" fontWeight="700" color="gray.800">
+                                                Flags & Settings
+                                            </Text>
+                                        </HStack>
+                                    </Box>
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="6">
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Client Specific</Text>
+                                            <Badge colorScheme={detailItem.client_specific ? "green" : "gray"} variant="subtle">
+                                                {detailItem.client_specific ? "Yes" : "No"}
+                                            </Badge>
+                                        </Box>
+                                        <Box>
+                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Include in Tariff</Text>
+                                            <Badge colorScheme={detailItem.inc_in_tariff ? "green" : "gray"} variant="subtle">
+                                                {detailItem.inc_in_tariff ? "Yes" : "No"}
+                                            </Badge>
+                                        </Box>
+                                    </Grid>
+                                </Box>
+
+                                {/* Vendor Information Section */}
+                                <Box>
+                                    <Box
+                                        bg="linear-gradient(90deg, #e6fffa 0%, #b2f5ea 100%)"
+                                        p="4"
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor="teal.200"
+                                        mb="4"
+                                    >
+                                        <HStack spacing={3}>
+                                            <Box bg="teal.500" p="2" borderRadius="full">
+                                                <Icon as={MdAdd} color="white" boxSize={4} />
+                                            </Box>
+                                            <Text fontSize="lg" fontWeight="700" color="gray.800">
+                                                Vendor Information
+                                            </Text>
+                                        </HStack>
+                                    </Box>
+                                    {detailItem.seller_ids && detailItem.seller_ids.length > 0 ? (
+                                        <VStack spacing={3} align="stretch">
+                                            {detailItem.seller_ids.map((seller, index) => {
+                                                const vendor = vendors.find(v => v.id == seller.id);
+                                                return (
+                                                    <Box
+                                                        key={index}
+                                                        p="4"
+                                                        bg="white"
+                                                        border="1px"
+                                                        borderColor="teal.200"
+                                                        borderRadius="lg"
+                                                        _hover={{ borderColor: "teal.300", boxShadow: "md" }}
+                                                        transition="all 0.2s"
+                                                    >
+                                                        <HStack justify="space-between" mb="3">
+                                                            <HStack spacing={2}>
+                                                                <Box bg="teal.500" p="1" borderRadius="full">
+                                                                    <Text color="white" fontSize="xs" fontWeight="700">
+                                                                        {index + 1}
+                                                                    </Text>
+                                                                </Box>
+                                                                <Text fontSize="sm" fontWeight="600" color="gray.700">
+                                                                    Vendor {index + 1}
+                                                                </Text>
+                                                            </HStack>
+                                                            <Badge colorScheme="teal" variant="solid" fontSize="xs">
+                                                                ID: {seller.id || '-'}
+                                                            </Badge>
+                                                        </HStack>
+                                                        <Text fontSize="md" color="gray.800" fontWeight="500">
+                                                            {vendor ? vendor.name : 'Unknown Vendor'}
+                                                        </Text>
+                                                    </Box>
+                                                );
+                                            })}
+                                        </VStack>
+                                    ) : (
+                                        <Text color="gray.500" textAlign="center" py="4">
+                                            No vendors assigned to this rate item.
+                                        </Text>
+                                    )}
+                                </Box>
+                            </VStack>
+                        )}
+                    </ModalBody>
+                    <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200" className="no-print">
+                        <Button
+                            variant="outline"
+                            mr={3}
+                            onClick={onDetailClose}
+                            _hover={{ bg: "gray.100" }}
+                        >
+                            Close
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            leftIcon={<Icon as={MdEdit} />}
+                            onClick={() => {
+                                onDetailClose();
+                                handleEditRate(detailItem);
+                            }}
+                            _hover={{ transform: "translateY(-1px)", boxShadow: "lg" }}
+                            transition="all 0.2s"
+                        >
+                            Edit Rate Item
                         </Button>
                     </ModalFooter>
                 </ModalContent>

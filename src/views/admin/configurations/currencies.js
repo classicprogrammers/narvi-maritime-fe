@@ -165,21 +165,51 @@ export default function Currencies() {
       
       if (editingCurrency) {
         // Update existing currency
-        await currenciesAPI.updateCurrency(editingCurrency.id, formData);
+        const response = await currenciesAPI.updateCurrency(editingCurrency.id, formData);
+        
+        // Extract success message from API response
+        let successMessage = "Currency updated successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Currency updated successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
       } else {
         // Create new currency
-        await currenciesAPI.createCurrency(formData);
+        const response = await currenciesAPI.createCurrency(formData);
+        
+        // Extract success message from API response
+        let successMessage = "Currency created successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Currency created successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
@@ -189,11 +219,28 @@ export default function Currencies() {
       resetForm();
       fetchCurrencies();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = `Failed to ${editingCurrency ? 'update' : 'create'} currency`;
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to ${editingCurrency ? 'update' : 'create'} currency: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -211,11 +258,27 @@ export default function Currencies() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      await currenciesAPI.deleteCurrency(deleteCurrencyId);
+      const response = await currenciesAPI.deleteCurrency(deleteCurrencyId);
+
+      // Extract success message from API response
+      let successMessage = "Currency deleted successfully";
+      let status = "success";
+
+      if (response && response.result) {
+        // Handle JSON-RPC response format
+        if (response.result && response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        } else if (response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        }
+      }
+
       toast({
-        title: "Success",
-        description: "Currency deleted successfully",
-        status: "success",
+        title: status,
+        description: successMessage,
+        status: status,
         duration: 3000,
         isClosable: true,
       });
@@ -223,11 +286,29 @@ export default function Currencies() {
       setDeleteCurrencyId(null);
       fetchCurrencies();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = "Failed to delete currency";
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        // Handle JSON-RPC response format
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to delete currency: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {

@@ -90,7 +90,7 @@ export default function HeaderLinks(props) {
       />
 
       {/* Theme Toggle Button */}
-      <IconButton
+      {/* <IconButton
         icon={<Icon as={colorMode === "light" ? MdDarkMode : MdLightMode} />}
         variant="ghost"
         aria-label="Toggle theme"
@@ -99,7 +99,7 @@ export default function HeaderLinks(props) {
         _hover={{ bg: "gray.100" }}
         me="10px"
         size="sm"
-      />
+      /> */}
 
       <Flex
         bg={ethBg}

@@ -316,21 +316,51 @@ export default function UOM() {
 
       if (editingUOM) {
         // Update existing UOM
-        await uomAPI.updateUOM(editingUOM.id, formData);
+        const response = await uomAPI.updateUOM(editingUOM.id, formData);
+        
+        // Extract success message from API response
+        let successMessage = "Unit of Measurement updated successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Unit of Measurement updated successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
       } else {
         // Create new UOM
-        await uomAPI.createUOM(formData);
+        const response = await uomAPI.createUOM(formData);
+        
+        // Extract success message from API response
+        let successMessage = "Unit of Measurement created successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Unit of Measurement created successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
@@ -340,11 +370,28 @@ export default function UOM() {
       resetForm();
       fetchUOM();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = `Failed to ${editingUOM ? 'update' : 'create'} UOM`;
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to ${editingUOM ? 'update' : 'create'} UOM: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -386,21 +433,51 @@ export default function UOM() {
 
       if (editingCategory) {
         // Update existing category
-        await uomAPI.updateUOMCategory(editingCategory.id, categoryFormData);
+        const response = await uomAPI.updateUOMCategory(editingCategory.id, categoryFormData);
+        
+        // Extract success message from API response
+        let successMessage = "UOM Category updated successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "UOM Category updated successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
       } else {
         // Create new category
-        await uomAPI.createUOMCategory(categoryFormData);
+        const response = await uomAPI.createUOMCategory(categoryFormData);
+        
+        // Extract success message from API response
+        let successMessage = "UOM Category created successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "UOM Category created successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
@@ -410,11 +487,28 @@ export default function UOM() {
       resetCategoryForm();
       fetchCategories();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = `Failed to ${editingCategory ? 'update' : 'create'} UOM Category`;
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to ${editingCategory ? 'update' : 'create'} UOM Category: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -430,11 +524,27 @@ export default function UOM() {
   const confirmDeleteCategory = async () => {
     try {
       setIsLoading(true);
-      await uomAPI.deleteUOMCategory(deleteCategoryId);
+      const response = await uomAPI.deleteUOMCategory(deleteCategoryId);
+
+      // Extract success message from API response
+      let successMessage = "UOM Category deleted successfully";
+      let status = "success";
+
+      if (response && response.result) {
+        // Handle JSON-RPC response format
+        if (response.result && response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        } else if (response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        }
+      }
+
       toast({
-        title: "Success",
-        description: "UOM Category deleted successfully",
-        status: "success",
+        title: status,
+        description: successMessage,
+        status: status,
         duration: 3000,
         isClosable: true,
       });
@@ -442,11 +552,29 @@ export default function UOM() {
       setDeleteCategoryId(null);
       fetchCategories();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = "Failed to delete UOM Category";
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        // Handle JSON-RPC response format
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to delete UOM Category: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -464,11 +592,27 @@ export default function UOM() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      await uomAPI.deleteUOM(deleteUOMId);
+      const response = await uomAPI.deleteUOM(deleteUOMId);
+
+      // Extract success message from API response
+      let successMessage = "Unit of Measurement deleted successfully";
+      let status = "success";
+
+      if (response && response.result) {
+        // Handle JSON-RPC response format
+        if (response.result && response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        } else if (response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        }
+      }
+ 
       toast({
-        title: "Success",
-        description: "Unit of Measurement deleted successfully",
-        status: "success",
+        title: status,
+        description: successMessage,
+        status: status,
         duration: 3000,
         isClosable: true,
       });
@@ -476,11 +620,29 @@ export default function UOM() {
       setDeleteUOMId(null);
       fetchUOM();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = "Failed to delete UOM";
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        // Handle JSON-RPC response format
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to delete UOM: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {

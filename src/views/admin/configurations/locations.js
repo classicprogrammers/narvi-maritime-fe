@@ -160,21 +160,51 @@ export default function Locations() {
 
       if (editingLocation) {
         // Update existing location
-        await locationsAPI.updateLocation(editingLocation.id, formData);
+        const response = await locationsAPI.updateLocation(editingLocation.id, formData);
+        
+        // Extract success message from API response
+        let successMessage = "Location updated successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Location updated successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
       } else {
         // Create new location
-        await locationsAPI.createLocation(formData);
+        const response = await locationsAPI.createLocation(formData);
+        
+        // Extract success message from API response
+        let successMessage = "Location created successfully";
+        let status = "success";
+
+        if (response && response.result) {
+          if (response.result && response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          } else if (response.result.message) {
+            successMessage = response.result.message;
+            status = response.result.status;
+          }
+        }
+
         toast({
-          title: "Success",
-          description: "Location created successfully",
-          status: "success",
+          title: status,
+          description: successMessage,
+          status: status,
           duration: 3000,
           isClosable: true,
         });
@@ -184,11 +214,28 @@ export default function Locations() {
       resetForm();
       fetchLocations();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = `Failed to ${editingLocation ? 'update' : 'create'} location`;
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to ${editingLocation ? 'update' : 'create'} location: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
@@ -206,11 +253,27 @@ export default function Locations() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      await locationsAPI.deleteLocation(deleteLocationId);
+      const response = await locationsAPI.deleteLocation(deleteLocationId);
+
+      // Extract success message from API response
+      let successMessage = "Location deleted successfully";
+      let status = "success";
+
+      if (response && response.result) {
+        // Handle JSON-RPC response format
+        if (response.result && response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        } else if (response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        }
+      }
+
       toast({
-        title: "Success",
-        description: "Location deleted successfully",
-        status: "success",
+        title: status,
+        description: successMessage,
+        status: status,
         duration: 3000,
         isClosable: true,
       });
@@ -218,11 +281,29 @@ export default function Locations() {
       setDeleteLocationId(null);
       fetchLocations();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = "Failed to delete location";
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        // Handle JSON-RPC response format
+        if (error.response.data.result && error.response.data.result.message) {
+          errorMessage = error.response.data.result.message;
+          status = error.response.data.result.status;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          status = error.response.data.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to delete location: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {

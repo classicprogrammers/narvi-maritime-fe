@@ -205,11 +205,27 @@ export default function Groups() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      await groupsAPI.deleteGroup(deleteGroupId);
+      const response = await groupsAPI.deleteGroup(deleteGroupId);
+
+      // Extract success message from API response
+      let successMessage = "Group deleted successfully";
+      let status = "success";
+
+      if (response && response.result) {
+        // Handle JSON-RPC response format
+        if (response.result && response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        } else if (response.result.message) {
+          successMessage = response.result.message;
+          status = response.result.status;
+        }
+      }
+
       toast({
-        title: "Success",
-        description: "Group deleted successfully",
-        status: "success",
+        title: status,
+        description: successMessage,
+        status: status,
         duration: 3000,
         isClosable: true,
       });
@@ -217,11 +233,29 @@ export default function Groups() {
       setDeleteGroupId(null);
       fetchGroups();
     } catch (error) {
+      // Extract error message from API response
+      let errorMessage = "Failed to delete group";
+      let status = "error";
+
+      if (error.response && error.response.data) {
+        // Handle JSON-RPC response format
+        if (error.response.result && error.response.result.message) {
+          errorMessage = error.response.result.message;
+          status = error.response.result.status;
+        } else if (error.response.result.message) {
+          errorMessage = error.response.result.message;
+          status = error.response.result.status;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        status = "error";
+      }
+
       toast({
-        title: "Error",
-        description: `Failed to delete group: ${error.message}`,
-        status: "error",
-        duration: 3000,
+        title: status,
+        description: errorMessage,
+        status: status,
+        duration: 5000,
         isClosable: true,
       });
     } finally {
