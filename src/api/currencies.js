@@ -26,7 +26,7 @@ const currenciesAPI = {
   // Create new currency
   createCurrency: async (currencyData) => {
     try {
-      const response = await api.post("/api/currency/create", currencyData);
+      const response = await api.post("/api/currencies/create", currencyData);
       return response.data;
     } catch (error) {
       console.error("Error creating currency:", error);
@@ -37,7 +37,7 @@ const currenciesAPI = {
   // Update currency
   updateCurrency: async (id, currencyData) => {
     try {
-      const response = await api.post("/api/currency/update", { currency_id: id, ...currencyData });
+      const response = await api.post("/api/currencies/update", { currency_id: id, ...currencyData });
       return response.data;
     } catch (error) {
       console.error("Error updating currency:", error);
@@ -48,7 +48,7 @@ const currenciesAPI = {
   // Delete currency
   deleteCurrency: async (id) => {
     try {
-      const response = await api.post("/api/currency/delete", { currency_id: id });
+      const response = await api.post("/api/currencies/delete", { currency_id: id });
       return response.data;
     } catch (error) {
       console.error("Error deleting currency:", error);

@@ -211,7 +211,6 @@ export default function RateList() {
     // Form states for new rate item
     const [newRateItem, setNewRateItem] = useState({
         name: "",
-        location: "",
         list_price: "",
         standard_price: "",
         type: "",
@@ -365,7 +364,6 @@ export default function RateList() {
                 onNewRateClose();
                 setNewRateItem({
                     name: "",
-                    location: "",
                     list_price: "",
                     standard_price: "",
                     type: "",
@@ -536,7 +534,6 @@ export default function RateList() {
         setEditingItem(null);
         setNewRateItem({
             name: "",
-            location: "",
             list_price: "",
             standard_price: "",
             type: "",
@@ -579,7 +576,7 @@ export default function RateList() {
             if (!currentItem.name || !currentItem.rate_text || !currentItem.group_id ||
                 !currentItem.sort_order || !currentItem.uom_id || !currentItem.currency_id ||
                 !currentItem.list_price || !currentItem.standard_price || !currentItem.type ||
-                !currentItem.location || !currentItem.property_stock_inventory || !currentItem.default_code) {
+                !currentItem.property_stock_inventory || !currentItem.default_code) {
                 toast({
                     title: "Validation Error",
                     description: "Please fill in all required fields",
@@ -1293,14 +1290,14 @@ export default function RateList() {
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Location</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Property Stock Inventory</FormLabel>
                                     <SearchableSelect
-                                        value={isEditing ? editingItem?.location || "" : newRateItem.location}
+                                        value={isEditing ? editingItem?.property_stock_inventory || "" : newRateItem.property_stock_inventory}
                                         onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, location: value }));
+                                                setEditingItem(prev => ({ ...prev, property_stock_inventory: value }));
                                             } else {
-                                                handleInputChange('location', value);
+                                                handleInputChange('property_stock_inventory', value);
                                             }
                                         }}
                                         options={locationsList}
@@ -1590,21 +1587,6 @@ export default function RateList() {
                                         borderRadius="md"
                                     />
                                 </FormControl>
-                                <FormControl>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Client Specific</FormLabel>
-                                    <Checkbox
-                                        isChecked={isEditing ? !!editingItem?.client_specific : !!newRateItem.client_specific}
-                                        onChange={(e) => {
-                                            if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, client_specific: e.target.checked }));
-                                            } else {
-                                                handleInputChange('client_specific', e.target.checked);
-                                            }
-                                        }}
-                                    >
-                                        This rate is client specific
-                                    </Checkbox>
-                                </FormControl>
                             </VStack>
 
                             {/* Right Column - Additional Fields */}
@@ -1628,52 +1610,6 @@ export default function RateList() {
                                     />
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Property Stock Inventory</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={isEditing ? editingItem?.property_stock_inventory || "" : newRateItem.property_stock_inventory}
-                                        onChange={(value) => {
-                                            if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, property_stock_inventory: value }));
-                                            } else {
-                                                handleInputChange('property_stock_inventory', value);
-                                            }
-                                        }}
-                                        min={0}
-                                        step={1}
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    >
-                                        <NumberInputField
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            _hover={{ borderColor: "gray.400" }}
-                                            type="number"
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper
-                                                h="16px"
-                                                fontSize="10px"
-                                                border="none"
-                                                bg="transparent"
-                                                _hover={{ bg: "gray.100" }}
-                                            />
-                                            <NumberDecrementStepper
-                                                h="16px"
-                                                fontSize="10px"
-                                                border="none"
-                                                bg="transparent"
-                                                _hover={{ bg: "gray.100" }}
-                                            />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
                                 <FormControl isRequired>
                                     <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
                                     <SearchableSelect
@@ -1691,6 +1627,21 @@ export default function RateList() {
                                         valueKey="id"
                                         formatOption={(currency) => `${currency.id} - ${currency.name} (${currency.symbol})`}
                                     />
+                                </FormControl>
+                                <FormControl>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Client Specific</FormLabel>
+                                    <Checkbox
+                                        isChecked={isEditing ? !!editingItem?.client_specific : !!newRateItem.client_specific}
+                                        onChange={(e) => {
+                                            if (isEditing) {
+                                                setEditingItem(prev => ({ ...prev, client_specific: e.target.checked }));
+                                            } else {
+                                                handleInputChange('client_specific', e.target.checked);
+                                            }
+                                        }}
+                                    >
+                                        This rate is client specific
+                                    </Checkbox>
                                 </FormControl>
                             </VStack>
                         </Grid>
@@ -1919,15 +1870,6 @@ export default function RateList() {
                                                 {(() => {
                                                     const uom = uomList.find(u => u.id == detailItem.uom_id);
                                                     return uom ? uom.name : (detailItem.uom_id || '-');
-                                                })()}
-                                            </Text>
-                                        </Box>
-                                        <Box>
-                                            <Text fontSize="sm" fontWeight="500" color="gray.600">Location</Text>
-                                            <Text fontSize="md" color="gray.800">
-                                                {(() => {
-                                                    const location = locationsList.find(l => l.id == detailItem.location);
-                                                    return location ? location.name : (detailItem.location || '-');
                                                 })()}
                                             </Text>
                                         </Box>

@@ -23,6 +23,7 @@ import {
   MdLocationOn,
   MdAttachMoney,
   MdStraighten,
+  MdPublic,
 } from "react-icons/md";
 
 // Admin Imports
@@ -58,6 +59,7 @@ import Configurations from "views/admin/configurations";
 import Groups from "views/admin/configurations/groups";
 import Locations from "views/admin/configurations/locations";
 import Currencies from "views/admin/configurations/currencies";
+import Countries from "views/admin/configurations/countries";
 import UOM from "views/admin/configurations/uom";
 
 // Auth Imports
@@ -233,6 +235,12 @@ const routes = [
         path: "/configurations/currencies",
         icon: <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />,
         component: Currencies,
+      },
+      {
+        name: "Countries",
+        path: "/configurations/countries",
+        icon: <Icon as={MdPublic} width="20px" height="20px" color="inherit" />,
+        component: Countries,
       },
     ],
   },

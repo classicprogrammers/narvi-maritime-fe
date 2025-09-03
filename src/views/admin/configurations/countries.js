@@ -45,16 +45,16 @@ import {
   MdSearch,
   MdEdit,
   MdDelete,
+  MdPublic,
 } from "react-icons/md";
-import currenciesAPI from "../../../api/currencies";
+import countriesAPI from "../../../api/countries";
 
-export default function Currencies() {
-  const [currencies, setCurrencies] = useState([]);
+export default function Countries() {
+  const [countries, setCountries] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [editingCurrency, setEditingCurrency] = useState(null);
-  const [deleteCurrencyId, setDeleteCurrencyId] = useState(null);
+  const [editingCountry, setEditingCountry] = useState(null);
+  const [deleteCountryId, setDeleteCountryId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -72,72 +72,63 @@ export default function Currencies() {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
-    full_name: "",
-    symbol: "",
-    active: true,
+    code: "",
   });
 
-  // Fetch currencies
-  const fetchCurrencies = async () => {
+  // Fetch countries
+  const fetchCountries = async () => {
     try {
       setIsLoading(true);
-      const response = await currenciesAPI.getCurrencies();
-      if (response.currencies && Array.isArray(response.currencies)) {
-        setCurrencies(response.currencies);
+      const response = await countriesAPI.getCountries();
+      if (response.countries && Array.isArray(response.countries)) {
+        setCountries(response.countries);
       } else {
-        setCurrencies([]);
+        setCountries([]);
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to fetch currencies: ${error.message}`,
+        description: `Failed to fetch countries: ${error.message}`,
         status: "error",
         duration: 3000,
         isClosable: true,
       });
-      setCurrencies([]);
+      setCountries([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Load currencies on component mount
+  // Load countries on component mount
   useEffect(() => {
-    fetchCurrencies();
+    fetchCountries();
   }, []);
 
-  // Filter currencies based on search and status
-  const filteredCurrencies = useMemo(() => {
-    let filtered = currencies;
+  // Filter countries based on search and status
+  const filteredCountries = useMemo(() => {
+    let filtered = countries;
 
     // Filter by search
     if (searchValue) {
-      filtered = filtered.filter(currency =>
-        currency.name?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        currency.full_name?.toLowerCase().includes(searchValue.toLowerCase()) ||
-        currency.symbol?.toLowerCase().includes(searchValue.toLowerCase())
+      filtered = filtered.filter(country =>
+        country.name?.toLowerCase().includes(searchValue.toLowerCase()) ||
+        country.code?.toLowerCase().includes(searchValue.toLowerCase())
       );
     }
 
-    // Filter by status
-    if (statusFilter !== "all") {
-      const isActive = statusFilter === "active";
-      filtered = filtered.filter(currency => currency.active === isActive);
-    }
-
     return filtered;
-  }, [currencies, searchValue, statusFilter]);
+  }, [countries, searchValue]);
 
   // Pagination logic
-  const totalPages = Math.ceil(filteredCurrencies.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredCountries.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedCurrencies = filteredCurrencies.slice(startIndex, endIndex);
+  const paginatedCountries = filteredCountries.slice(startIndex, endIndex);
 
   // Reset to first page when search, status filter, or items per page changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchValue, statusFilter, itemsPerPage]);
+  }, [searchValue, itemsPerPage]);
 
   // Handle form input changes
   const handleInputChange = (field, value) => {
@@ -151,28 +142,26 @@ export default function Currencies() {
   const resetForm = () => {
     setFormData({
       name: "",
-      full_name: "",
-      symbol: "",
+      code: "",
       active: true,
     });
-    setEditingCurrency(null);
+    setEditingCountry(null);
   };
 
-  // Open modal for creating new currency
-  const handleNewCurrency = () => {
+  // Open modal for creating new country
+  const handleNewCountry = () => {
     resetForm();
     onModalOpen();
   };
 
-  // Open modal for editing currency
-  const handleEditCurrency = (currency) => {
+  // Open modal for editing country
+  const handleEditCountry = (country) => {
     setFormData({
-      name: currency.name || "",
-      full_name: currency.full_name || "",
-      symbol: currency.symbol || "",
-      active: currency.active !== undefined ? currency.active : true,
+      name: country.name || "",
+      code: country.code || "",
+      active: country.active !== undefined ? country.active : true,
     });
-    setEditingCurrency(currency);
+    setEditingCountry(country);
     onModalOpen();
   };
 
@@ -181,12 +170,12 @@ export default function Currencies() {
     try {
       setIsLoading(true);
 
-      if (editingCurrency) {
-        // Update existing currency
-        const response = await currenciesAPI.updateCurrency(editingCurrency.id, formData);
+      if (editingCountry) {
+        // Update existing country
+        const response = await countriesAPI.updateCountry(editingCountry.id, formData);
 
         // Extract success message from API response
-        let successMessage = "Currency updated successfully";
+        let successMessage = "Country updated successfully";
         let status = "success";
 
         if (response && response.result) {
@@ -207,11 +196,11 @@ export default function Currencies() {
           isClosable: true,
         });
       } else {
-        // Create new currency
-        const response = await currenciesAPI.createCurrency(formData);
+        // Create new country
+        const response = await countriesAPI.createCountry(formData);
 
         // Extract success message from API response
-        let successMessage = "Currency created successfully";
+        let successMessage = "Country created successfully";
         let status = "success";
 
         if (response && response.result) {
@@ -235,10 +224,10 @@ export default function Currencies() {
 
       onModalClose();
       resetForm();
-      fetchCurrencies();
+      fetchCountries();
     } catch (error) {
       // Extract error message from API response
-      let errorMessage = `Failed to ${editingCurrency ? 'update' : 'create'} currency`;
+      let errorMessage = `Failed to ${editingCountry ? 'update' : 'create'} country`;
       let status = "error";
 
       if (error.response && error.response.data) {
@@ -266,9 +255,9 @@ export default function Currencies() {
     }
   };
 
-  // Handle delete currency
-  const handleDeleteCurrency = (currencyId) => {
-    setDeleteCurrencyId(currencyId);
+  // Handle delete country
+  const handleDeleteCountry = (countryId) => {
+    setDeleteCountryId(countryId);
     onDeleteOpen();
   };
 
@@ -276,10 +265,10 @@ export default function Currencies() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-      const response = await currenciesAPI.deleteCurrency(deleteCurrencyId);
+      const response = await countriesAPI.deleteCountry(deleteCountryId);
 
       // Extract success message from API response
-      let successMessage = "Currency deleted successfully";
+      let successMessage = "Country deleted successfully";
       let status = "success";
 
       if (response && response.result) {
@@ -301,11 +290,11 @@ export default function Currencies() {
         isClosable: true,
       });
       onDeleteClose();
-      setDeleteCurrencyId(null);
-      fetchCurrencies();
+      setDeleteCountryId(null);
+      fetchCountries();
     } catch (error) {
       // Extract error message from API response
-      let errorMessage = "Failed to delete currency";
+      let errorMessage = "Failed to delete country";
       let status = "error";
 
       if (error.response && error.response.data) {
@@ -342,18 +331,18 @@ export default function Currencies() {
           <HStack spacing={4}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              colorScheme="yellow"
+              colorScheme="green"
               size="sm"
-              onClick={handleNewCurrency}
+              onClick={handleNewCountry}
             >
-              New Currency
+              New Country
             </Button>
             <VStack align="start" spacing={1}>
-              <Text fontSize="xl" fontWeight="bold" color="yellow.600">
-                Currencies
+              <Text fontSize="xl" fontWeight="bold" color="green.600">
+                Countries
               </Text>
               <Text fontSize="sm" color="gray.500">
-                Manage supported currencies
+                Manage supported countries
               </Text>
             </VStack>
           </HStack>
@@ -374,33 +363,15 @@ export default function Currencies() {
                 fontWeight="500"
                 _placeholder={{ color: "gray.400", fontSize: "14px" }}
                 borderRadius="8px"
-                placeholder="Search by currency name, full name, or symbol..."
+                placeholder="Search by country name or code..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
               />
             </InputGroup>
-            
-            <Box minW="150px">
-              <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                Status Filter
-              </Text>
-              <Select
-                size="sm"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                bg={inputBg}
-                color={inputText}
-                borderRadius="8px"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </Select>
-            </Box>
           </HStack>
         </Box>
 
-        {/* Currencies Table */}
+        {/* Countries Table */}
         <Box px="25px">
           <Box
             maxH="600px"
@@ -433,13 +404,7 @@ export default function Currencies() {
                     Name
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Full Name
-                  </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Symbol
-                  </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Status
+                    Code
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Actions
@@ -447,61 +412,47 @@ export default function Currencies() {
                 </Tr>
               </Thead>
               <Tbody>
-                {paginatedCurrencies.map((currency, index) => (
+                {paginatedCountries.map((country, index) => (
                   <Tr
-                    key={currency.id}
+                    key={country.id}
                     bg={index % 2 === 0 ? "white" : "gray.50"}
                     _hover={{ bg: hoverBg }}
                     borderBottom="1px"
                     borderColor="gray.200"
                   >
                     <Td py="12px" px="16px">
-                      <Text color={textColor} fontSize="sm" fontWeight="500">
-                        {currency.name || "-"}
-                      </Text>
-                    </Td>
-                    <Td py="12px" px="16px">
-                      <Text color={textColor} fontSize="sm">
-                        {currency.full_name || "-"}
-                      </Text>
+                      <HStack spacing={2}>
+                        <Icon as={MdPublic} color="green.500" w="16px" h="16px" />
+                        <Text color={textColor} fontSize="sm" fontWeight="500">
+                          {country.name || "-"}
+                        </Text>
+                      </HStack>
                     </Td>
                     <Td py="12px" px="16px">
                       <Text color={textColor} fontSize="sm" fontWeight="600">
-                        {currency.symbol || "-"}
+                        {country.code || "-"}
                       </Text>
                     </Td>
                     <Td py="12px" px="16px">
-                      <Badge
-                        colorScheme={currency.active ? "green" : "red"}
-                        variant="subtle"
-                        fontSize="xs"
-                        px="2"
-                        py="1"
-                        borderRadius="md"
-                      >
-                        {currency.active ? "Active" : "Inactive"}
-                      </Badge>
-                    </Td>
-                    <Td py="12px" px="16px">
                       <HStack spacing={2}>
-                        <Tooltip label="Edit Currency">
+                        <Tooltip label="Edit Country">
                           <IconButton
                             icon={<Icon as={MdEdit} />}
                             size="sm"
                             colorScheme="blue"
                             variant="ghost"
-                            aria-label="Edit currency"
-                            onClick={() => handleEditCurrency(currency)}
+                            aria-label="Edit country"
+                            onClick={() => handleEditCountry(country)}
                           />
                         </Tooltip>
-                        <Tooltip label="Delete Currency">
+                        <Tooltip label="Delete Country">
                           <IconButton
                             icon={<Icon as={MdDelete} />}
                             size="sm"
                             colorScheme="red"
                             variant="ghost"
-                            aria-label="Delete currency"
-                            onClick={() => handleDeleteCurrency(currency.id)}
+                            aria-label="Delete country"
+                            onClick={() => handleDeleteCountry(country.id)}
                           />
                         </Tooltip>
                       </HStack>
@@ -533,7 +484,7 @@ export default function Currencies() {
                 <option value={50}>50</option>
               </Select>
               <Text fontSize="sm" color="gray.600">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredCurrencies.length)} of {filteredCurrencies.length} records
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredCountries.length)} of {filteredCountries.length} records
               </Text>
             </HStack>
 
@@ -609,10 +560,10 @@ export default function Currencies() {
       <Modal isOpen={isModalOpen} onClose={onModalClose} size="lg">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader bg="yellow.600" color="white" borderRadius="md">
+          <ModalHeader bg="green.600" color="white" borderRadius="md">
             <HStack spacing={3}>
-              <Icon as={editingCurrency ? MdEdit : MdAdd} />
-              <Text>{editingCurrency ? "Edit Currency" : "Create New Currency"}</Text>
+              <Icon as={editingCountry ? MdEdit : MdAdd} />
+              <Text>{editingCountry ? "Edit Country" : "Create New Country"}</Text>
             </HStack>
           </ModalHeader>
           <ModalCloseButton color="white" />
@@ -620,56 +571,32 @@ export default function Currencies() {
             <VStack spacing="4" align="stretch">
               <FormControl isRequired>
                 <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Currency Name
+                  Country Name
                 </FormLabel>
                 <Input
                   size="md"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter currency name (e.g., CAD)"
+                  placeholder="Enter country name (e.g., Canada)"
                   borderRadius="md"
                 />
               </FormControl>
 
               <FormControl isRequired>
                 <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Full Name
+                  Country Code
                 </FormLabel>
                 <Input
                   size="md"
-                  value={formData.full_name}
-                  onChange={(e) => handleInputChange("full_name", e.target.value)}
-                  placeholder="Enter full currency name (e.g., Canadian dollar)"
+                  value={formData.code}
+                  onChange={(e) => handleInputChange("code", e.target.value)}
+                  placeholder="Enter country code (e.g., CA)"
                   borderRadius="md"
+                  maxLength={3}
+                  textTransform="uppercase"
                 />
               </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Symbol
-                </FormLabel>
-                <Input
-                  size="md"
-                  value={formData.symbol}
-                  onChange={(e) => handleInputChange("symbol", e.target.value)}
-                  placeholder="e.g., $, €, £"
-                  borderRadius="md"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                  Status
-                </FormLabel>
-                <Checkbox
-                  isChecked={formData.active}
-                  onChange={(e) => handleInputChange("active", e.target.checked)}
-                  colorScheme="green"
-                  size="md"
-                >
-                  Active
-                </Checkbox>
-              </FormControl>
+              
             </VStack>
           </ModalBody>
           <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
@@ -677,11 +604,11 @@ export default function Currencies() {
               Cancel
             </Button>
             <Button
-              colorScheme="yellow"
+              colorScheme="green"
               onClick={handleSubmit}
               isLoading={isLoading}
             >
-              {editingCurrency ? "Update Currency" : "Create Currency"}
+              {editingCountry ? "Update Country" : "Create Country"}
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -692,10 +619,10 @@ export default function Currencies() {
         <AlertDialogOverlay />
         <AlertDialogContent borderRadius="lg">
           <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
-            Delete Currency
+            Delete Country
           </AlertDialogHeader>
           <AlertDialogBody>
-            Are you sure you want to delete this currency? This action cannot be undone.
+            Are you sure you want to delete this country? This action cannot be undone.
           </AlertDialogBody>
           <AlertDialogFooter>
             <Button variant="outline" onClick={onDeleteClose}>

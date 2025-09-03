@@ -15,6 +15,7 @@ import {
   MdLocationOn,
   MdAttachMoney,
   MdStraighten,
+  MdPublic,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 
@@ -97,6 +98,13 @@ export default function Configurations() {
       icon: MdAttachMoney,
       path: "/admin/configurations/currencies",
       color: "yellow",
+    },
+    {
+      title: "Countries",
+      description: "Manage supported countries",
+      icon: MdPublic,
+      path: "/admin/configurations/countries",
+      color: "teal",
     },
   ];
 

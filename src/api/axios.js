@@ -32,27 +32,27 @@ api.interceptors.response.use(
     if (error.response) {
       // Server responded with error status
       console.error("API Error:", error.response.data);
-      
+
       // Check for authentication errors
       const responseData = error.response.data;
-      
+
       // Check for JSON-RPC format
       if (responseData.result && responseData.result.message === "Invalid token") {
         // Clear authentication state
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        
+
         // Redirect to login page
         window.location.href = '/auth/sign-in';
         return Promise.reject(error);
       }
-      
+
       // Check for direct format
       if (responseData.message === "Invalid token") {
         // Clear authentication state
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        
+
         // Redirect to login page
         window.location.href = '/auth/sign-in';
         return Promise.reject(error);
