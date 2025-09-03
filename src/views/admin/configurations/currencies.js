@@ -26,12 +26,7 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay,
+
   FormControl,
   FormLabel,
   useToast,
@@ -44,7 +39,6 @@ import {
   MdAdd,
   MdSearch,
   MdEdit,
-  MdDelete,
 } from "react-icons/md";
 import currenciesAPI from "../../../api/currencies";
 
@@ -54,12 +48,10 @@ export default function Currencies() {
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingCurrency, setEditingCurrency] = useState(null);
-  const [deleteCurrencyId, setDeleteCurrencyId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
-  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const toast = useToast();
 
@@ -266,73 +258,7 @@ export default function Currencies() {
     }
   };
 
-  // Handle delete currency
-  const handleDeleteCurrency = (currencyId) => {
-    setDeleteCurrencyId(currencyId);
-    onDeleteOpen();
-  };
 
-  // Confirm delete
-  const confirmDelete = async () => {
-    try {
-      setIsLoading(true);
-      const response = await currenciesAPI.deleteCurrency(deleteCurrencyId);
-
-      // Extract success message from API response
-      let successMessage = "Currency deleted successfully";
-      let status = "success";
-
-      if (response && response.result) {
-        // Handle JSON-RPC response format
-        if (response.result && response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        } else if (response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        }
-      }
-
-      toast({
-        title: status,
-        description: successMessage,
-        status: status,
-        duration: 3000,
-        isClosable: true,
-      });
-      onDeleteClose();
-      setDeleteCurrencyId(null);
-      fetchCurrencies();
-    } catch (error) {
-      // Extract error message from API response
-      let errorMessage = "Failed to delete currency";
-      let status = "error";
-
-      if (error.response && error.response.data) {
-        // Handle JSON-RPC response format
-        if (error.response.data.result && error.response.data.result.message) {
-          errorMessage = error.response.data.result.message;
-          status = error.response.data.result.status;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-          status = error.response.data.result.status;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-        status = "error";
-      }
-
-      toast({
-        title: status,
-        description: errorMessage,
-        status: status,
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -379,7 +305,7 @@ export default function Currencies() {
                 onChange={(e) => setSearchValue(e.target.value)}
               />
             </InputGroup>
-            
+
             <Box minW="150px">
               <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                 Status Filter
@@ -492,16 +418,6 @@ export default function Currencies() {
                             variant="ghost"
                             aria-label="Edit currency"
                             onClick={() => handleEditCurrency(currency)}
-                          />
-                        </Tooltip>
-                        <Tooltip label="Delete Currency">
-                          <IconButton
-                            icon={<Icon as={MdDelete} />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            aria-label="Delete currency"
-                            onClick={() => handleDeleteCurrency(currency.id)}
                           />
                         </Tooltip>
                       </HStack>
@@ -687,26 +603,7 @@ export default function Currencies() {
         </ModalContent>
       </Modal>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog isOpen={isDeleteOpen} onClose={onDeleteClose}>
-        <AlertDialogOverlay />
-        <AlertDialogContent borderRadius="lg">
-          <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
-            Delete Currency
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            Are you sure you want to delete this currency? This action cannot be undone.
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={onDeleteClose}>
-              Cancel
-            </Button>
-            <Button colorScheme="red" onClick={confirmDelete} ml={3} isLoading={isLoading}>
-              Delete
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </Box>
   );
 }

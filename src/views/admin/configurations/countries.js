@@ -26,12 +26,7 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogContent,
-  AlertDialogOverlay,
+
   FormControl,
   FormLabel,
   useToast,
@@ -44,7 +39,6 @@ import {
   MdAdd,
   MdSearch,
   MdEdit,
-  MdDelete,
   MdPublic,
 } from "react-icons/md";
 import countriesAPI from "../../../api/countries";
@@ -54,12 +48,10 @@ export default function Countries() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingCountry, setEditingCountry] = useState(null);
-  const [deleteCountryId, setDeleteCountryId] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
-  const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
   const toast = useToast();
 
@@ -255,73 +247,7 @@ export default function Countries() {
     }
   };
 
-  // Handle delete country
-  const handleDeleteCountry = (countryId) => {
-    setDeleteCountryId(countryId);
-    onDeleteOpen();
-  };
 
-  // Confirm delete
-  const confirmDelete = async () => {
-    try {
-      setIsLoading(true);
-      const response = await countriesAPI.deleteCountry(deleteCountryId);
-
-      // Extract success message from API response
-      let successMessage = "Country deleted successfully";
-      let status = "success";
-
-      if (response && response.result) {
-        // Handle JSON-RPC response format
-        if (response.result && response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        } else if (response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        }
-      }
-
-      toast({
-        title: status,
-        description: successMessage,
-        status: status,
-        duration: 3000,
-        isClosable: true,
-      });
-      onDeleteClose();
-      setDeleteCountryId(null);
-      fetchCountries();
-    } catch (error) {
-      // Extract error message from API response
-      let errorMessage = "Failed to delete country";
-      let status = "error";
-
-      if (error.response && error.response.data) {
-        // Handle JSON-RPC response format
-        if (error.response.data.result && error.response.data.result.message) {
-          errorMessage = error.response.data.result.message;
-          status = error.response.data.result.status;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-          status = error.response.data.result.status;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-        status = "error";
-      }
-
-      toast({
-        title: status,
-        description: errorMessage,
-        status: status,
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -443,16 +369,6 @@ export default function Countries() {
                             variant="ghost"
                             aria-label="Edit country"
                             onClick={() => handleEditCountry(country)}
-                          />
-                        </Tooltip>
-                        <Tooltip label="Delete Country">
-                          <IconButton
-                            icon={<Icon as={MdDelete} />}
-                            size="sm"
-                            colorScheme="red"
-                            variant="ghost"
-                            aria-label="Delete country"
-                            onClick={() => handleDeleteCountry(country.id)}
                           />
                         </Tooltip>
                       </HStack>
@@ -614,26 +530,7 @@ export default function Countries() {
         </ModalContent>
       </Modal>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog isOpen={isDeleteOpen} onClose={onDeleteClose}>
-        <AlertDialogOverlay />
-        <AlertDialogContent borderRadius="lg">
-          <AlertDialogHeader fontSize="lg" fontWeight="bold" color="red.600">
-            Delete Country
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            Are you sure you want to delete this country? This action cannot be undone.
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={onDeleteClose}>
-              Cancel
-            </Button>
-            <Button colorScheme="red" onClick={confirmDelete} ml={3} isLoading={isLoading}>
-              Delete
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </Box>
   );
 }
