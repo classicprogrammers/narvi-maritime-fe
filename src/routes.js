@@ -60,6 +60,7 @@ import Groups from "views/admin/configurations/groups";
 import Locations from "views/admin/configurations/locations";
 import Currencies from "views/admin/configurations/currencies";
 import Countries from "views/admin/configurations/countries";
+import Vessels from "views/admin/configurations/vessels";
 import UOM from "views/admin/configurations/uom";
 
 // Auth Imports
@@ -241,6 +242,12 @@ const routes = [
         path: "/configurations/countries",
         icon: <Icon as={MdPublic} width="20px" height="20px" color="inherit" />,
         component: Countries,
+      },
+      {
+        name: "Vessels",
+        path: "/configurations/vessels",
+        icon: <Icon as={MdDirectionsBoat} width="20px" height="20px" color="inherit" />,
+        component: Vessels,
       },
     ],
   },

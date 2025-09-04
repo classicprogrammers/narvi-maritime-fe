@@ -16,6 +16,7 @@ import {
   MdAttachMoney,
   MdStraighten,
   MdPublic,
+  MdDirectionsBoat,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 
@@ -105,6 +106,13 @@ export default function Configurations() {
       icon: MdPublic,
       path: "/admin/configurations/countries",
       color: "teal",
+    },
+    {
+      title: "Vessels",
+      description: "Manage vessel information",
+      icon: MdDirectionsBoat,
+      path: "/admin/configurations/vessels",
+      color: "blue",
     },
   ];
 
