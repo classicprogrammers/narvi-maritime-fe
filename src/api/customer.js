@@ -19,9 +19,8 @@ const handleApiError = (error, operation) => {
 
   // HTTP errors (4xx, 5xx)
   if (error.status) {
-    errorMessage = `Backend error (${error.status}): ${
-      error.message || "Unknown error occurred"
-    }`;
+    errorMessage = `Backend error (${error.status}): ${error.message || "Unknown error occurred"
+      }`;
   }
 
   // Show error modal
@@ -44,9 +43,34 @@ export const getCountriesApi = async () => {
 // Register Customer API
 export const registerCustomerApi = async (customerData) => {
   try {
+    // Get user ID from localStorage
+    const userData = localStorage.getItem("user");
+    let userId = null;
+
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        userId = user.id;
+      } catch (parseError) {
+        console.warn(
+          "Failed to parse user data from localStorage:",
+          parseError
+        );
+      }
+    }
+
+    // Add user_id to customer data
+    const payload = {
+      ...customerData,
+      user_id: userId,
+    };
+
+    console.log("Customer Registration API Payload:", payload);
+    console.log("API URL:", buildApiUrl(getApiEndpoint("CUSTOMER_REGISTER")));
+
     const response = await api.post(
       getApiEndpoint("CUSTOMER_REGISTER"),
-      customerData
+      payload
     );
     const result = response.data;
 

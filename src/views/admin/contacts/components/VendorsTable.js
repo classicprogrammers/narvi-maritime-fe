@@ -31,6 +31,7 @@ import {
   Tooltip,
   Textarea,
   Grid,
+  Checkbox,
 } from "@chakra-ui/react";
 import React, { useMemo, useState } from "react";
 import {
@@ -42,6 +43,8 @@ import {
 
 // Custom components
 import Card from "components/card/Card";
+import SuccessModal from "components/modals/SuccessModal";
+import FailureModal from "components/modals/FailureModal";
 
 // Assets
 import {
@@ -50,6 +53,9 @@ import {
   MdEdit,
   MdDelete,
   MdFilterList,
+  MdKeyboardArrowDown,
+  MdKeyboardArrowUp,
+  MdUnfoldMore,
 } from "react-icons/md";
 
 // API
@@ -61,10 +67,10 @@ export default function VendorsTable(props) {
   const [searchValue, setSearchValue] = useState("");
   const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(false); // kept for future loading states
+  const [countries, setCountries] = useState([]);
   const [filters, setFilters] = useState({
     email: "",
     phone: "",
-    mobile: "",
     street: "",
     zip: "",
   });
@@ -76,7 +82,6 @@ export default function VendorsTable(props) {
     email2: "",
     phone: "",
     phone2: "",
-    mobile: "",
     street: "",
     street2: "",
     city: "",
@@ -84,12 +89,23 @@ export default function VendorsTable(props) {
     country_id: "",
     website: "",
     pic: "",
-    agency_type: "",
-    address_type: "",
+    agency_type: false,
+    address_type: false,
     remarks: "",
     warning_notes: "",
   });
   const [editingVendor, setEditingVendor] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [successModal, setSuccessModal] = useState({
+    isOpen: false,
+    title: "",
+    message: ""
+  });
+  const [errorModal, setErrorModal] = useState({
+    isOpen: false,
+    title: "",
+    message: ""
+  });
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
@@ -123,9 +139,29 @@ export default function VendorsTable(props) {
     }
   };
 
-  // Load vendors on component mount
+  // Fetch countries from API
+  const fetchCountries = async () => {
+    try {
+      console.log("Fetching countries from API...");
+      const response = await api.get("/api/countries");
+      const result = response.data;
+      console.log("Countries API Response:", result);
+
+      if (result.countries && Array.isArray(result.countries)) {
+        setCountries(result.countries);
+      } else {
+        setCountries([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch countries:", error);
+      setCountries([]);
+    }
+  };
+
+  // Load vendors and countries on component mount
   React.useEffect(() => {
     fetchVendors();
+    fetchCountries();
   }, []);
 
   // Filter data based on search
@@ -141,7 +177,6 @@ export default function VendorsTable(props) {
           (item.email &&
             item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.phone && item.phone.toString().includes(searchValue)) ||
-          (item.mobile && item.mobile.toString().includes(searchValue)) ||
           (item.street &&
             item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.zip && item.zip.toString().includes(searchValue))
@@ -161,17 +196,10 @@ export default function VendorsTable(props) {
     if (filters.phone) {
       filtered = filtered.filter(
         (item) =>
-          (item.phone && item.phone.toString().includes(filters.phone)) ||
-          (item.mobile && item.mobile.toString().includes(filters.phone))
+          (item.phone && item.phone.toString().includes(filters.phone))
       );
     }
 
-    // Apply mobile filter
-    if (filters.mobile) {
-      filtered = filtered.filter(
-        (item) => item.mobile && item.mobile.toString().includes(filters.mobile)
-      );
-    }
 
     // Apply street filter
     if (filters.street) {
@@ -222,8 +250,27 @@ export default function VendorsTable(props) {
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
   const searchIconColor = useColorModeValue("gray.700", "white");
-  const inputBg = useColorModeValue("secondaryGray.300", "navy.900");
+  const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.700", "gray.100");
+  const hoverBg = useColorModeValue("blue.50", "gray.700");
+  const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
+  const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
+  const tableRowBg = useColorModeValue("white", "gray.800");
+  const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+  const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+  const tableTextColor = useColorModeValue("gray.600", "gray.300");
+  const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+  const scrollbarTrackBg = useColorModeValue("#f1f1f1", "#2d3748");
+  const scrollbarThumbBg = useColorModeValue("#c1c1c1", "#4a5568");
+  const scrollbarThumbHoverBg = useColorModeValue("#a8a8a8", "#718096");
+  const dropdownBg = useColorModeValue("white", "gray.800");
+  const dropdownText = useColorModeValue("gray.700", "gray.100");
+  const dropdownHoverBg = useColorModeValue("gray.50", "gray.700");
+  const dropdownBorder = useColorModeValue("gray.200", "whiteAlpha.200");
+  const modalBg = useColorModeValue("white", "gray.800");
+  const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
+  const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
+  const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
   const handleInputChange = (field, value) => {
     setNewVendor((prev) => ({
@@ -244,7 +291,6 @@ export default function VendorsTable(props) {
     setFilters({
       email: "",
       phone: "",
-      mobile: "",
       street: "",
       zip: "",
     });
@@ -253,6 +299,125 @@ export default function VendorsTable(props) {
   const clearAllFiltersAndSearch = () => {
     clearAllFilters();
     setSearchValue("");
+  };
+
+  // Checkbox selection functions
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedItems([...page]);
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (item, checked) => {
+    if (checked) {
+      setSelectedItems([...selectedItems, item]);
+    } else {
+      setSelectedItems(selectedItems.filter((selected) => selected.id !== item.id));
+    }
+  };
+
+  // Helper function to show success modal
+  const showSuccessModal = (title, message) => {
+    setSuccessModal({
+      isOpen: true,
+      title,
+      message
+    });
+  };
+
+  // Helper function to close success modal
+  const closeSuccessModal = () => {
+    setSuccessModal({
+      isOpen: false,
+      title: "",
+      message: ""
+    });
+  };
+
+  // Helper function to show error modal
+  const showErrorModal = (title, message) => {
+    setErrorModal({
+      isOpen: true,
+      title,
+      message
+    });
+  };
+
+  // Helper function to close error modal
+  const closeErrorModal = () => {
+    setErrorModal({
+      isOpen: false,
+      title: "",
+      message: ""
+    });
+  };
+
+  // SearchableSelect Component for Country Selection
+  const SearchableSelect = ({ value, onChange, options, placeholder, displayKey = "name", valueKey = "id" }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const filteredOptions = options.filter(option =>
+      option[displayKey]?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const selectedOption = options.find(option => option[valueKey] === value);
+
+    return (
+      <Box position="relative">
+        <Input
+          value={selectedOption ? selectedOption[displayKey] : ""}
+          placeholder={placeholder}
+          readOnly
+          onClick={() => setIsOpen(!isOpen)}
+          cursor="pointer"
+          _focus={{ borderColor: "blue.400" }}
+        />
+        {isOpen && (
+          <Box
+            position="absolute"
+            top="100%"
+            left="0"
+            right="0"
+            bg="white"
+            border="1px solid"
+            borderColor="gray.200"
+            borderRadius="md"
+            boxShadow="lg"
+            zIndex="1000"
+            maxH="200px"
+            overflowY="auto"
+          >
+            <Input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              border="none"
+              borderRadius="0"
+              _focus={{ boxShadow: "none" }}
+            />
+            {filteredOptions.map((option) => (
+              <Box
+                key={option[valueKey]}
+                px="3"
+                py="2"
+                cursor="pointer"
+                _hover={{ bg: "gray.100" }}
+                onClick={() => {
+                  onChange(option[valueKey]);
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+              >
+                {option[displayKey]}
+              </Box>
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
   };
 
   // Vendor Registration API
@@ -429,7 +594,7 @@ export default function VendorsTable(props) {
           result.success)
       ) {
         console.log("Vendor registered successfully:", result);
-        alert("Vendor registered successfully!");
+        showSuccessModal("Success!", "Vendor registered successfully!");
 
         // Add the new vendor to the local state with API response ID if available
         const newVendorWithId = {
@@ -447,7 +612,6 @@ export default function VendorsTable(props) {
           email2: "",
           phone: "",
           phone2: "",
-          mobile: "",
           street: "",
           street2: "",
           city: "",
@@ -455,15 +619,15 @@ export default function VendorsTable(props) {
           country_id: "",
           website: "",
           pic: "",
-          agency_type: "",
-          address_type: "",
+          agency_type: false,
+          address_type: false,
           remarks: "",
           warning_notes: "",
         });
       } else if (result && (result.status === "success" || result.success)) {
         // Handle direct response format
         console.log("Vendor registered successfully:", result);
-        alert("Vendor registered successfully!");
+        showSuccessModal("Success!", "Vendor registered successfully!");
 
         // Close modal and reset form
         onClose();
@@ -474,7 +638,6 @@ export default function VendorsTable(props) {
           email2: "",
           phone: "",
           phone2: "",
-          mobile: "",
           street: "",
           street2: "",
           city: "",
@@ -482,8 +645,8 @@ export default function VendorsTable(props) {
           country_id: "",
           website: "",
           pic: "",
-          agency_type: "",
-          address_type: "",
+          agency_type: false,
+          address_type: false,
           remarks: "",
           warning_notes: "",
         });
@@ -500,7 +663,6 @@ export default function VendorsTable(props) {
           email2: "",
           phone: "",
           phone2: "",
-          mobile: "",
           street: "",
           street2: "",
           city: "",
@@ -508,8 +670,8 @@ export default function VendorsTable(props) {
           country_id: "",
           website: "",
           pic: "",
-          agency_type: "",
-          address_type: "",
+          agency_type: false,
+          address_type: false,
           remarks: "",
           warning_notes: "",
         });
@@ -524,7 +686,6 @@ export default function VendorsTable(props) {
         email2: "",
         phone: "",
         phone2: "",
-        mobile: "",
         street: "",
         street2: "",
         city: "",
@@ -568,7 +729,6 @@ export default function VendorsTable(props) {
         country_id: editingVendor.country_id
           ? parseInt(editingVendor.country_id)
           : null,
-        address_type: "contact", // Fixed value that backend accepts
       };
 
       console.log("Vendor Update API Payload:", payload);
@@ -579,13 +739,14 @@ export default function VendorsTable(props) {
       // Refresh vendors list to show the updated vendor
       fetchVendors();
 
-      // Simple success check - handle both response formats safely
+      // Check if the response indicates success
       if (
         (result && result.status === "success") ||
-        (result && result.success)
+        (result && result.success) ||
+        (result && result.result && result.result.status === "success")
       ) {
         console.log("Vendor updated successfully:", result);
-        alert("Vendor updated successfully!");
+        showSuccessModal("Success!", "Vendor updated successfully!");
 
         // Close edit modal
         onEditClose();
@@ -597,7 +758,7 @@ export default function VendorsTable(props) {
       }
     } catch (error) {
       console.error("Failed to update vendor:", error);
-      alert(`Error: ${error.message}`);
+      showErrorModal("Error", `Failed to update vendor: ${error.message}`);
     }
   };
 
@@ -625,14 +786,14 @@ export default function VendorsTable(props) {
         (result.result.status === "success" || result.result.success)
       ) {
         console.log("Vendor deleted successfully:", result);
-        alert("Vendor deleted successfully!");
+        showSuccessModal("Success!", "Vendor deleted successfully!");
 
         // Refresh vendors list to remove the deleted vendor
         fetchVendors();
       } else if (result && (result.status === "success" || result.success)) {
         // Handle direct response format
         console.log("Vendor deleted successfully:", result);
-        alert("Vendor deleted successfully!");
+        showSuccessModal("Success!", "Vendor deleted successfully!");
       } else {
         const errorMessage =
           result?.result?.message ||
@@ -660,7 +821,6 @@ export default function VendorsTable(props) {
       email2: "",
       phone: "",
       phone2: "",
-      mobile: "",
       street: "",
       street2: "",
       city: "",
@@ -687,31 +847,23 @@ export default function VendorsTable(props) {
           {/* Header Section */}
           <Flex justify="space-between" align="center" px="25px">
             <HStack spacing={4}>
-              <Button
-                leftIcon={<Icon as={MdAdd} />}
-                colorScheme="blue"
-                size="sm"
-                onClick={onOpen}
-              >
-                New Vendor
-              </Button>
-              <VStack align="start" spacing={1}>
-                <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                  Vendor Management
-                </Text>
-                <Text fontSize="sm" color="gray.500">
-                  Manage vendor information and contacts
-                </Text>
-              </VStack>
+              <Text fontSize="2xl" fontWeight="bold" color={textColor}>
+                Vendors
+              </Text>
             </HStack>
-
-            <HStack spacing={4}>
-              <HStack spacing={2}>
-                <Text fontSize="sm" color="gray.600">
-                  {vendors.length} vendors
-                </Text>
-              </HStack>
-            </HStack>
+            <Button
+              leftIcon={<Icon as={MdAdd} />}
+              bg="#1c4a95"
+              color="white"
+              size="md"
+              px="6"
+              py="3"
+              borderRadius="md"
+              _hover={{ bg: "#173f7c" }}
+              onClick={onOpen}
+            >
+              New Vendor
+            </Button>
           </Flex>
 
           {/* Filter Section */}
@@ -843,38 +995,6 @@ export default function VendorsTable(props) {
                     />
                   </Box>
 
-                  {/* Mobile Filter */}
-                  <Box minW="200px" flex="1">
-                    <Text
-                      fontSize="sm"
-                      fontWeight="500"
-                      color={textColor}
-                      mb={2}
-                    >
-                      Mobile
-                    </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
-                      placeholder="📱 e.g., +1-234-567-8900"
-                      value={filters.mobile}
-                      onChange={(e) =>
-                        handleFilterChange("mobile", e.target.value)
-                      }
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
-                    />
-                  </Box>
                 </HStack>
 
                 {/* Second Row - Address Info */}
@@ -949,207 +1069,247 @@ export default function VendorsTable(props) {
             )}
           </Box>
 
-          {/* Vendor Table */}
-          <Box px="25px">
-            <Box
-              maxH="400px"
-              overflowY="auto"
-              border="1px"
-              borderColor="gray.200"
-              borderRadius="8px"
-              sx={{
-                "&::-webkit-scrollbar": {
-                  width: "8px",
-                },
-                "&::-webkit-scrollbar-track": {
-                  background: "gray.100",
-                  borderRadius: "4px",
-                },
-                "&::-webkit-scrollbar-thumb": {
-                  background: "gray.300",
-                  borderRadius: "4px",
-                  "&:hover": {
-                    background: "gray.400",
-                  },
-                },
-              }}
+          {/* Table Container with Horizontal Scroll */}
+          <Box
+            pr="25px"
+            overflowX="auto"
+            css={{
+              "&::-webkit-scrollbar": {
+                height: "8px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: scrollbarTrackBg,
+                borderRadius: "4px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: scrollbarThumbBg,
+                borderRadius: "4px",
+              },
+              "&::-webkit-scrollbar-thumb:hover": {
+                background: scrollbarThumbHoverBg,
+              },
+            }}
+          >
+            <Table
+              {...getTableProps()}
+              variant="unstyled"
+              size="sm"
+              minW="1000px"
+              ml="25px"
             >
-              <Table
-                {...getTableProps()}
-                variant="simple"
-                color="gray.500"
-                mb="24px"
-                size="sm"
-              >
-                <Thead>
-                  {headerGroups.map((headerGroup, index) => (
-                    <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-                      {headerGroup.headers.map((column, index) => (
-                        <Th
-                          {...column.getHeaderProps(
-                            column.getSortByToggleProps()
-                          )}
-                          pe="10px"
-                          key={index}
-                          borderColor={borderColor}
-                          minW="120px"
-                          maxW="200px"
-                          whiteSpace="nowrap"
-                          textOverflow="ellipsis"
-                          overflow="hidden"
-                          bg="gray.50"
-                          position="sticky"
-                          top="0"
-                          zIndex="2"
-                        >
-                          <Flex
-                            justify="space-between"
-                            align="center"
-                            fontSize={{ sm: "11px", lg: "12px" }}
-                            color="gray.600"
-                            fontWeight="600"
-                          >
-                            {column.render("Header")}
+              <Thead bg={tableHeaderBg}>
+                {headerGroups.map((headerGroup, index) => (
+                  <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
+                    <Th
+                      borderRight="1px"
+                      borderColor={tableBorderColor}
+                      py="12px"
+                      px="16px"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedItems.length === page.length && page.length > 0
+                        }
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </Th>
+                    {headerGroup.headers.map((column, index) => (
+                      <Th
+                        {...column.getHeaderProps(column.getSortByToggleProps())}
+                        borderRight="1px"
+                        borderColor={tableBorderColor}
+                        py="12px"
+                        px="16px"
+                        key={index}
+                        fontSize="12px"
+                        fontWeight="600"
+                        color={tableTextColor}
+                        textTransform="uppercase"
+                        cursor="pointer"
+                        _hover={{ bg: tableHeaderBg }}
+                        transition="all 0.2s"
+                      >
+                        <Flex justify="space-between" align="center">
+                          {column.render("Header")}
+                          <Flex direction="column" align="center" ml={2}>
+                            {column.isSorted ? (
+                              column.isSortedDesc ? (
+                                <Icon
+                                  as={MdKeyboardArrowDown}
+                                  color="blue.500"
+                                  boxSize={4}
+                                />
+                              ) : (
+                                <Icon
+                                  as={MdKeyboardArrowUp}
+                                  color="blue.500"
+                                  boxSize={4}
+                                />
+                              )
+                            ) : (
+                              <Icon
+                                as={MdUnfoldMore}
+                                color={tableTextColorSecondary}
+                                boxSize={4}
+                              />
+                            )}
                           </Flex>
-                        </Th>
-                      ))}
-                    </Tr>
-                  ))}
-                </Thead>
-                <Tbody {...getTableBodyProps()}>
-                  {page.map((row, index) => {
-                    prepareRow(row);
-                    return (
-                      <Tr {...row.getRowProps()} key={index}>
-                        {row.cells.map((cell, index) => {
-                          let data = "";
-                          if (cell.column.Header === "VENDOR NAME") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "EMAIL") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "PHONE") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "MOBILE") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "STREET") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "ZIP") {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
-                          } else if (cell.column.Header === "ACTIONS") {
-                            data = (
-                              <HStack spacing={2}>
-                                <Tooltip label="Edit Vendor">
-                                  <IconButton
-                                    icon={<Icon as={MdEdit} />}
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="ghost"
-                                    onClick={() => handleEdit(row.original)}
-                                    aria-label="Edit vendor"
-                                  />
-                                </Tooltip>
-                                <Tooltip label="Delete Vendor">
-                                  <IconButton
-                                    icon={<Icon as={MdDelete} />}
-                                    size="sm"
-                                    colorScheme="red"
-                                    variant="ghost"
-                                    onClick={() =>
-                                      handleDeleteVendor(row.original)
-                                    }
-                                    aria-label="Delete vendor"
-                                  />
-                                </Tooltip>
-                              </HStack>
-                            );
-                          } else {
-                            data = (
-                              <Text
-                                color={textColor}
-                                fontSize="sm"
-                                fontWeight="700"
-                              >
-                                {cell.value}
-                              </Text>
-                            );
+                        </Flex>
+                      </Th>
+                    ))}
+                  </Tr>
+                ))}
+              </Thead>
+              <Tbody>
+                {page.map((row, index) => {
+                  prepareRow(row);
+                  return (
+                    <Tr
+                      {...row.getRowProps()}
+                      key={index}
+                      bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
+                      _hover={{ bg: hoverBg }}
+                      borderBottom="1px"
+                      borderColor={tableBorderColor}
+                    >
+                      <Td
+                        borderRight="1px"
+                        borderColor={tableBorderColor}
+                        py="12px"
+                        px="16px"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(row.original)}
+                          onChange={(e) =>
+                            handleSelectItem(row.original, e.target.checked)
                           }
-                          return (
-                            <Td
-                              {...cell.getCellProps()}
-                              key={index}
-                              fontSize={{ sm: "13px", md: "14px" }}
-                              minW="120px"
-                              maxW="200px"
-                              whiteSpace="nowrap"
-                              textOverflow="ellipsis"
-                              overflow="hidden"
-                              borderColor="gray.100"
-                              py="12px"
-                              px="16px"
+                        />
+                      </Td>
+                      {row.cells.map((cell, index) => {
+                        let data = "";
+                        if (cell.column.Header === "VENDOR NAME") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
                             >
-                              {data}
-                            </Td>
+                              {cell.value}
+                            </Text>
                           );
-                        })}
-                      </Tr>
-                    );
-                  })}
-                </Tbody>
-              </Table>
-            </Box>
+                        } else if (cell.column.Header === "EMAIL") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "PHONE") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "MOBILE") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "STREET") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "ZIP") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "ACTIONS") {
+                          data = (
+                            <HStack spacing={2}>
+                              <Tooltip label="Edit Vendor">
+                                <IconButton
+                                  icon={<Icon as={MdEdit} />}
+                                  size="sm"
+                                  colorScheme="blue"
+                                  variant="ghost"
+                                  onClick={() => handleEdit(row.original)}
+                                  aria-label="Edit vendor"
+                                />
+                              </Tooltip>
+                              <Tooltip label="Delete Vendor">
+                                <IconButton
+                                  icon={<Icon as={MdDelete} />}
+                                  size="sm"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleDeleteVendor(row.original)
+                                  }
+                                  aria-label="Delete vendor"
+                                />
+                              </Tooltip>
+                            </HStack>
+                          );
+                        } else {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="700"
+                            >
+                              {cell.value}
+                            </Text>
+                          );
+                        }
+                        return (
+                          <Td
+                            {...cell.getCellProps()}
+                            key={index}
+                            borderRight="1px"
+                            borderColor={tableBorderColor}
+                            py="12px"
+                            px="16px"
+                          >
+                            {data}
+                          </Td>
+                        );
+                      })}
+                    </Tr>
+                  );
+                })}
+              </Tbody>
+            </Table>
           </Box>
 
           {/* Pagination */}
           <Flex px="25px" justify="space-between" align="center" py="20px">
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color={tableTextColorSecondary}>
               Showing {page?.length || 0} of {vendors.length} results
             </Text>
             <HStack spacing={2}>
@@ -1158,10 +1318,19 @@ export default function VendorsTable(props) {
                 onClick={previousPage}
                 isDisabled={!canPreviousPage}
                 variant="outline"
+                colorScheme="blue"
+                _hover={{ bg: "blue.50" }}
               >
                 Previous
               </Button>
-              <Button size="sm" onClick={nextPage} variant="outline">
+              <Button
+                size="sm"
+                onClick={nextPage}
+                variant="outline"
+                colorScheme="blue"
+                _hover={{ bg: "blue.50" }}
+                isDisabled={!canNextPage}
+              >
                 Next
               </Button>
             </HStack>
@@ -1333,24 +1502,6 @@ export default function VendorsTable(props) {
                   />
                 </FormControl>
 
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Mobile
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter mobile number"
-                    value={newVendor.mobile}
-                    onChange={(e) =>
-                      handleInputChange("mobile", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
 
                 <FormControl isRequired>
                   <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
@@ -1428,18 +1579,13 @@ export default function VendorsTable(props) {
                   <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
                     Country
                   </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter country ID"
+                  <SearchableSelect
                     value={newVendor.country_id}
-                    onChange={(e) =>
-                      handleInputChange("country_id", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
+                    onChange={(value) => handleInputChange("country_id", value)}
+                    options={countries}
+                    placeholder="Select country"
+                    displayKey="name"
+                    valueKey="id"
                   />
                 </FormControl>
 
@@ -1478,6 +1624,32 @@ export default function VendorsTable(props) {
                     }}
                   />
                 </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                    Agency Type
+                  </FormLabel>
+                  <Checkbox
+                    isChecked={newVendor.agency_type}
+                    onChange={(e) => handleInputChange("agency_type", e.target.checked)}
+                    colorScheme="blue"
+                  >
+                    Enable Agency Type
+                  </Checkbox>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                    Address Type
+                  </FormLabel>
+                  <Checkbox
+                    isChecked={newVendor.address_type}
+                    onChange={(e) => handleInputChange("address_type", e.target.checked)}
+                    colorScheme="blue"
+                  >
+                    Enable Address Type
+                  </Checkbox>
+                </FormControl>
               </VStack>
             </Grid>
           </ModalBody>
@@ -1493,7 +1665,6 @@ export default function VendorsTable(props) {
                 !newVendor.name ||
                 !newVendor.email ||
                 !newVendor.phone ||
-                !newVendor.mobile ||
                 !newVendor.street ||
                 !newVendor.zip
               }
@@ -1580,16 +1751,6 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>Mobile</FormLabel>
-                <Input
-                  placeholder="Enter mobile number"
-                  value={editingVendor?.mobile || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("mobile", e.target.value)
-                  }
-                />
-              </FormControl>
 
               <FormControl isRequired>
                 <FormLabel>Street</FormLabel>
@@ -1635,12 +1796,13 @@ export default function VendorsTable(props) {
 
               <FormControl>
                 <FormLabel>Country</FormLabel>
-                <Input
-                  placeholder="Enter country ID"
+                <SearchableSelect
                   value={editingVendor?.country_id || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("country_id", e.target.value)
-                  }
+                  onChange={(value) => handleEditInputChange("country_id", value)}
+                  options={countries}
+                  placeholder="Select country"
+                  displayKey="name"
+                  valueKey="id"
                 />
               </FormControl>
 
@@ -1664,7 +1826,27 @@ export default function VendorsTable(props) {
                 />
               </FormControl>
 
-              {/* Agency Type and Address Type removed to avoid backend errors */}
+              <FormControl>
+                <FormLabel>Agency Type</FormLabel>
+                <Checkbox
+                  isChecked={editingVendor?.agency_type || false}
+                  onChange={(e) => handleEditInputChange("agency_type", e.target.checked)}
+                  colorScheme="blue"
+                >
+                  Enable Agency Type
+                </Checkbox>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Address Type</FormLabel>
+                <Checkbox
+                  isChecked={editingVendor?.address_type || false}
+                  onChange={(e) => handleEditInputChange("address_type", e.target.checked)}
+                  colorScheme="blue"
+                >
+                  Enable Address Type
+                </Checkbox>
+              </FormControl>
 
               <FormControl>
                 <FormLabel>Remarks</FormLabel>
@@ -1701,7 +1883,6 @@ export default function VendorsTable(props) {
                 !editingVendor?.name ||
                 !editingVendor?.email ||
                 !editingVendor?.phone ||
-                !editingVendor?.mobile ||
                 !editingVendor?.street ||
                 !editingVendor?.zip
               }
@@ -1711,6 +1892,22 @@ export default function VendorsTable(props) {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        onClose={closeSuccessModal}
+        title={successModal.title}
+        message={successModal.message}
+      />
+
+      {/* Error Modal */}
+      <FailureModal
+        isOpen={errorModal.isOpen}
+        onClose={closeErrorModal}
+        title={errorModal.title}
+        message={errorModal.message}
+      />
     </>
   );
 }

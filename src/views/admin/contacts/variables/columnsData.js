@@ -63,10 +63,6 @@ export const columnsDataVendors = [
     accessor: "phone2",
   },
   {
-    Header: "MOBILE",
-    accessor: "mobile",
-  },
-  {
     Header: "STREET",
     accessor: "street",
   },

@@ -340,15 +340,15 @@ export default function Quotations() {
 
     const handleEditQuotation = (quotation) => {
         setEditingQuotation(quotation);
-        
+
         // Debug: Log the quotation data to see what we're working with
         console.log('Editing quotation:', quotation);
         console.log('Quotation lines:', quotation.quotation_line_ids);
-        
+
         // Process quotation lines to ensure all fields are properly mapped
         // Note: API returns quotation_line_ids instead of quotation_lines
         const quotationLines = quotation.quotation_line_ids || quotation.quotation_lines || [];
-        const processedQuotationLines = Array.isArray(quotationLines) 
+        const processedQuotationLines = Array.isArray(quotationLines)
             ? quotationLines.map(line => ({
                 name: line.name || "",
                 vendor_id: line.vendor_id || "",
@@ -378,9 +378,9 @@ export default function Quotations() {
                 status: line.status || "current"
             }))
             : [];
-        
+
         console.log('Processed quotation lines:', processedQuotationLines);
-        
+
         setNewQuotation({
             partner_id: quotation.partner_id || "",
             vessel_id: quotation.vessel_id || "",
@@ -877,7 +877,7 @@ export default function Quotations() {
                                                             py="2px"
                                                             borderRadius="full"
                                                         >
-                                                            {(quotation.quotation_line_ids || quotation.quotation_lines) && Array.isArray(quotation.quotation_line_ids || quotation.quotation_lines) 
+                                                            {(quotation.quotation_line_ids || quotation.quotation_lines) && Array.isArray(quotation.quotation_line_ids || quotation.quotation_lines)
                                                                 ? `${(quotation.quotation_line_ids || quotation.quotation_lines).length} line${(quotation.quotation_line_ids || quotation.quotation_lines).length !== 1 ? 's' : ''}`
                                                                 : '0 lines'
                                                             }
@@ -1606,8 +1606,6 @@ export default function Quotations() {
                                                         }}
                                                     >
                                                         <option value="current">Current</option>
-                                                        <option value="draft">Draft</option>
-                                                        <option value="cancelled">Cancelled</option>
                                                     </Select>
                                                 </FormControl>
                                             </Grid>
