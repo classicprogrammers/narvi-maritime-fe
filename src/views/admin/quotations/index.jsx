@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Box,
     Flex,
     Text,
     Button,
+    Badge,
     Input,
     Table,
     Thead,
@@ -16,11 +17,6 @@ import {
     VStack,
     IconButton,
     useColorModeValue,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
     FormControl,
     FormLabel,
     Select,
@@ -30,10 +26,6 @@ import {
     NumberIncrementStepper,
     NumberDecrementStepper,
     Grid,
-    Menu,
-    MenuButton,
-    MenuList,
-    MenuItem,
     Modal,
     ModalOverlay,
     ModalContent,
@@ -49,139 +41,550 @@ import {
     AlertDialogContent,
     AlertDialogOverlay,
     Textarea,
-    Checkbox,
+    useToast,
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    PopoverBody,
+    List,
+    ListItem,
 } from "@chakra-ui/react";
 import {
     MdAdd,
     MdSettings,
-    MdArrowBack,
-    MdArrowForward,
-    MdDragIndicator,
-    MdHelpOutline,
-    MdKeyboardArrowDown,
     MdDelete,
+    MdEdit,
+    MdKeyboardArrowDown,
 } from "react-icons/md";
+import quotationsAPI from "../../../api/quotations";
+import { getCustomersApi } from "../../../api/customer";
+import vesselsAPI from "../../../api/vessels";
+import api from "../../../api/axios";
+import uomAPI from "../../../api/uom";
+import currenciesAPI from "../../../api/currencies";
+
+const SearchableSelect = ({
+    value,
+    onChange,
+    options,
+    placeholder,
+    displayKey = "name",
+    valueKey = "id",
+    formatOption = (option) => `${option[valueKey]} - ${option[displayKey]}`,
+    isRequired = false,
+    label
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+    const [filteredOptions, setFilteredOptions] = useState(options);
+
+    useEffect(() => {
+        if (searchValue) {
+            const filtered = options.filter(option =>
+                formatOption(option).toLowerCase().includes(searchValue.toLowerCase())
+            );
+            setFilteredOptions(filtered);
+        } else {
+            setFilteredOptions(options);
+        }
+    }, [searchValue, options, formatOption]);
+
+    const selectedOption = options.find(option => option[valueKey] === value);
+
+    const handleSelect = (option) => {
+        onChange(option[valueKey]);
+        setSearchValue("");
+        setIsOpen(false);
+    };
+
+    return (
+        <Popover minW="100%" isOpen={isOpen} onClose={() => setIsOpen(false)} placement="bottom-start" >
+            <PopoverTrigger>
+                <Button
+                    w="100%"
+                    minW="100%"
+                    justifyContent="space-between"
+                    variant="outline"
+                    size="sm"
+                    bg="white"
+                    borderColor="gray.300"
+                    _hover={{ borderColor: "gray.400" }}
+                    _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95", bg: "#f0f4ff" }}
+                    onClick={() => setIsOpen(!isOpen)}
+                    borderRadius="md"
+                    fontWeight="normal"
+                    fontSize="sm"
+                    h="32px"
+                >
+                    {selectedOption ? formatOption(selectedOption) : placeholder}
+                    <Icon as={MdKeyboardArrowDown} />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
+                <PopoverBody p={0}>
+                    <Input
+                        placeholder="Search..."
+                        value={searchValue}
+                        onChange={(e) => setSearchValue(e.target.value)}
+                        border="none"
+                        borderRadius="0"
+                        borderBottom="1px"
+                        borderColor="gray.200"
+                        _focus={{ borderColor: "#1c4a95" }}
+                        px={3}
+                        py={2}
+                        fontSize="sm"
+                    />
+                    <List spacing={0}>
+                        {filteredOptions.map((option) => (
+                            <ListItem
+                                key={option[valueKey]}
+                                px={3}
+                                py={2}
+                                cursor="pointer"
+                                _hover={{ bg: "gray.100" }}
+                                onClick={() => handleSelect(option)}
+                                borderBottom="1px"
+                                borderColor="gray.100"
+                                fontSize="sm"
+                            >
+                                {formatOption(option)}
+                            </ListItem>
+                        ))}
+                        {filteredOptions.length === 0 && (
+                            <ListItem px={3} py={2} color="gray.500" fontSize="sm">
+                                No options found
+                            </ListItem>
+                        )}
+                    </List>
+                </PopoverBody>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 export default function Quotations() {
-    const [activeTab, setActiveTab] = useState("order-lines");
+    const [quotations, setQuotations] = useState([]);
+    const [customers, setCustomers] = useState([]);
+    const [vessels, setVessels] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [editingQuotation, setEditingQuotation] = useState(null);
+
+    // Master data for quotation lines
+    const [rateItems, setRateItems] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [uomList, setUomList] = useState([]);
+    const [currenciesList, setCurrenciesList] = useState([]);
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-    const [deleteItemIndex, setDeleteItemIndex] = useState(null);
+    const [deleteQuotationId, setDeleteQuotationId] = useState(null);
 
-    // Form states for new quotation
+    const toast = useToast();
+
+    // Form states for new quotation - matching API payload
     const [newQuotation, setNewQuotation] = useState({
-        customer: "",
-        address: "",
-        city: "",
-        country: "",
-        expiration: "",
-        vessel: "",
-        paymentTerms: "",
-        invoiceAddress: "",
-        deliveryAddress: "",
-        quotationTemplate: "",
-        pricelist: "Default USD pricelist (USD)",
+        partner_id: "",
+        vessel_id: "",
+        est_to_usd: "",
+        est_profit_usd: "",
+        eta: "",
+        eta_date: "",
+        deadline_date: "",
+        deadline_info: "",
+        estimated_to: "",
+        estimated_profit: "",
+        oc_number: "",
+        client_remark: "",
+        internal_remark: "",
+        delivery_note: "",
+        done: "active",
+        destination: "",
+        usd_roe: "",
+        general_mu: "",
+        caf: "",
+        quotation_lines: []
     });
 
-    // Order lines state
-    const [orderLines, setOrderLines] = useState([
-        {
-            product: "[FURN_1118] Corner Desk Left Sit",
-            description: "[FURN_1118] Corner Desk Left Sit",
-            route: "",
-            quantity: 1.00,
-            uom: "Units",
-            unitPrice: 85.00,
-            taxes: "",
-            discount: 0.00,
-            taxExcluded: 85.00,
-        },
-    ]);
-
-    const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
 
-    const quotationData = {
-        id: "S00025",
-        customer: "Transcoma Shipping SA (Worldwide requests for DOB)",
-        address: "Ed. De Servicios, Area El Fresno Torre A",
-        city: "11370 Algeciras",
-        country: "Spain",
-        expiration: "09/03/2025",
-        quotationDate: "08/04/2025 13:00:13",
-        pricelist: "Default USD pricelist (USD)",
-        vessel: "",
-        paymentTerms: "",
-        invoiceAddress: "Transcoma Shipping SA (Worldwide requests for DOB)",
-        deliveryAddress: "Transcoma Shipping SA (Worldwide requests for DOB)",
-        quotationTemplate: "",
-    };
+    // Fetch quotations
+    const fetchQuotations = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const response = await quotationsAPI.getQuotations();
+            if (response.quotations && Array.isArray(response.quotations)) {
+                setQuotations(response.quotations);
+            } else {
+                setQuotations([]);
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: `Failed to fetch quotations: ${error.message}`,
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+            setQuotations([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [toast]);
 
-    const tabs = [
-        { id: "order-lines", name: "Order Lines" },
-        { id: "quotation-details", name: "Quotation Details" },
-        { id: "shipping-details", name: "Shipping Details" },
-        { id: "remarks", name: "Remarks" },
-        { id: "optional-products", name: "Optional Products" },
-        { id: "other-info", name: "Other Info" },
-        { id: "customer-signature", name: "Customer Signature" },
-    ];
+    // Fetch customers
+    const fetchCustomers = useCallback(async () => {
+        try {
+            const response = await getCustomersApi();
+            if (response.customers && Array.isArray(response.customers)) {
+                setCustomers(response.customers);
+            } else {
+                setCustomers([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch customers:", error);
+            setCustomers([]);
+        }
+    }, []);
+
+    // Fetch vessels
+    const fetchVessels = useCallback(async () => {
+        try {
+            const response = await vesselsAPI.getVessels();
+            if (response.vessels && Array.isArray(response.vessels)) {
+                setVessels(response.vessels);
+            } else {
+                setVessels([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch vessels:", error);
+            setVessels([]);
+        }
+    }, []);
+
+    // Fetch rate items (products)
+    const fetchRateItems = useCallback(async () => {
+        try {
+            const response = await api.get("/api/products");
+            const result = response.data;
+            if (result.status === "success" && result.products) {
+                setRateItems(result.products);
+            } else {
+                setRateItems([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch rate items:", error);
+            setRateItems([]);
+        }
+    }, []);
+
+    // Fetch vendors
+    const fetchVendors = useCallback(async () => {
+        try {
+            const response = await api.get("/api/vendor/list");
+            const result = response.data;
+            if (result.vendors && Array.isArray(result.vendors)) {
+                setVendors(result.vendors);
+            } else {
+                setVendors([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch vendors:", error);
+            setVendors([]);
+        }
+    }, []);
+
+    // Fetch master data
+    const fetchMasterData = useCallback(async () => {
+        try {
+            // Fetch UOM
+            const uomResponse = await uomAPI.getUOM();
+            if (uomResponse.uom && Array.isArray(uomResponse.uom)) {
+                setUomList(uomResponse.uom);
+            } else {
+                setUomList([]);
+            }
+
+            // Fetch Currencies
+            const currenciesResponse = await currenciesAPI.getCurrencies();
+            if (currenciesResponse.currencies && Array.isArray(currenciesResponse.currencies)) {
+                setCurrenciesList(currenciesResponse.currencies);
+            } else {
+                setCurrenciesList([]);
+            }
+
+        } catch (error) {
+            console.error("Failed to fetch master data:", error);
+            setUomList([]);
+            setCurrenciesList([]);
+        }
+    }, []);
+
+    // Fetch data on component mount
+    useEffect(() => {
+        fetchQuotations();
+        fetchCustomers();
+        fetchVessels();
+        fetchRateItems();
+        fetchVendors();
+        fetchMasterData();
+    }, [fetchQuotations, fetchCustomers, fetchVessels, fetchRateItems, fetchVendors, fetchMasterData]);
 
     // Handler functions
     const handleNewQuotation = () => {
+        setEditingQuotation(null);
+        resetForm();
         onNewQuotationOpen();
     };
 
-    const handleSaveQuotation = () => {
-        // Here you would typically save to backend
-        console.log("Saving new quotation:", newQuotation);
-
-        // Add new quotation data to the orderLines array
-        const newOrderLine = {
-            product: newQuotation.customer || "New Product",
-            description: newQuotation.address || "New Description",
-            route: "",
-            quantity: 1.00,
-            uom: "Units",
-            unitPrice: 85.00,
-            taxes: "",
-            discount: 0.00,
-            taxExcluded: 85.00,
-        };
-
-        setOrderLines([...orderLines, newOrderLine]);
-
-        onNewQuotationClose();
-        // Reset form
+    const handleEditQuotation = (quotation) => {
+        setEditingQuotation(quotation);
+        
+        // Debug: Log the quotation data to see what we're working with
+        console.log('Editing quotation:', quotation);
+        console.log('Quotation lines:', quotation.quotation_line_ids);
+        
+        // Process quotation lines to ensure all fields are properly mapped
+        // Note: API returns quotation_line_ids instead of quotation_lines
+        const quotationLines = quotation.quotation_line_ids || quotation.quotation_lines || [];
+        const processedQuotationLines = Array.isArray(quotationLines) 
+            ? quotationLines.map(line => ({
+                name: line.name || "",
+                vendor_id: line.vendor_id || "",
+                vendor_rate: line.vendor_rate || "",
+                item_name: line.item_name || "",
+                rate: line.rate || "",
+                rate_remark: line.rate_remark || "",
+                free_text: line.free_text || "",
+                remark: line.remark || "",
+                pre_text: line.pre_text || "",
+                currency_override: line.currency_override || "",
+                quantity: line.quantity || 1,
+                buy_rate_calculation: line.buy_rate_calculation || "",
+                uom: line.uom || "",
+                cost_actual: line.cost_actual || "",
+                fixed: line.fixed || false,
+                sale_currency: line.sale_currency || "",
+                cost_sum: line.cost_sum || "",
+                roe: line.roe || "",
+                cost_usd: line.cost_usd || "",
+                mu_percent: line.mu_percent || "",
+                mu_amount: line.mu_amount || "",
+                qt_rate: line.qt_rate || "",
+                amended_rate: line.amended_rate || "",
+                rate_to_client: line.rate_to_client || "",
+                group_free_text: line.group_free_text || "",
+                status: line.status || "current"
+            }))
+            : [];
+        
+        console.log('Processed quotation lines:', processedQuotationLines);
+        
         setNewQuotation({
-            customer: "",
-            address: "",
-            city: "",
-            country: "",
-            expiration: "",
-            vessel: "",
-            paymentTerms: "",
-            invoiceAddress: "",
-            deliveryAddress: "",
-            quotationTemplate: "",
-            pricelist: "Default USD pricelist (USD)",
+            partner_id: quotation.partner_id || "",
+            vessel_id: quotation.vessel_id || "",
+            est_to_usd: quotation.est_to_usd || "",
+            est_profit_usd: quotation.est_profit_usd || "",
+            eta: quotation.eta || "",
+            eta_date: quotation.eta_date || "",
+            deadline_date: quotation.deadline_date || "",
+            deadline_info: quotation.deadline_info || "",
+            estimated_to: quotation.estimated_to || "",
+            estimated_profit: quotation.estimated_profit || "",
+            oc_number: quotation.oc_number || "",
+            client_remark: quotation.client_remark || "",
+            internal_remark: quotation.internal_remark || "",
+            delivery_note: quotation.delivery_note || "",
+            done: quotation.done || "active",
+            destination: quotation.destination || "",
+            usd_roe: quotation.usd_roe || "",
+            general_mu: quotation.general_mu || "",
+            caf: quotation.caf || "",
+            quotation_lines: processedQuotationLines
+        });
+        onNewQuotationOpen();
+    };
+
+    const resetForm = () => {
+        setNewQuotation({
+            partner_id: "",
+            vessel_id: "",
+            est_to_usd: "",
+            est_profit_usd: "",
+            eta: "",
+            eta_date: "",
+            deadline_date: "",
+            deadline_info: "",
+            estimated_to: "",
+            estimated_profit: "",
+            oc_number: "",
+            client_remark: "",
+            internal_remark: "",
+            delivery_note: "",
+            done: "active",
+            destination: "",
+            usd_roe: "",
+            general_mu: "",
+            caf: "",
+            quotation_lines: []
         });
     };
 
-    const handleDeleteItem = (index) => {
-        setDeleteItemIndex(index);
+    const handleSaveQuotation = async () => {
+        try {
+            setIsLoading(true);
+
+            const quotationData = {
+                ...newQuotation,
+                quotation_lines: newQuotation.quotation_lines || []
+            };
+
+            let response;
+            if (editingQuotation) {
+                // Update existing quotation
+                response = await quotationsAPI.updateQuotation({
+                    ...quotationData,
+                    quotation_id: editingQuotation.id
+                });
+            } else {
+                // Create new quotation
+                response = await quotationsAPI.createQuotation(quotationData);
+            }
+
+            // Extract message from API response
+            let message = editingQuotation ? "Quotation updated successfully" : "Quotation created successfully";
+            let status = "success";
+
+            if (response && response.result) {
+                if (response.result && response.result.message) {
+                    message = response.result.message;
+                    status = response.result.status;
+                } else if (response.result.message) {
+                    message = response.result.message;
+                    status = response.result.status;
+                }
+            }
+
+            // Check if the response indicates an error
+            if (status === "error") {
+                // Show error message but keep modal open and don't reset form
+                toast({
+                    title: "Error",
+                    description: message,
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                // Don't close modal or reset form on error
+                return;
+            }
+
+            // Success case - close modal and reset form
+            toast({
+                title: "Success",
+                description: message,
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
+
+            onNewQuotationClose();
+            resetForm();
+            fetchQuotations();
+        } catch (error) {
+            // Extract error message from API response
+            let errorMessage = `Failed to ${editingQuotation ? 'update' : 'create'} quotation`;
+
+            if (error.response && error.response.data) {
+                if (error.response.data.result && error.response.data.result.message) {
+                    errorMessage = error.response.data.result.message;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            // Show error message but keep modal open and don't reset form
+            toast({
+                title: "Error",
+                description: errorMessage,
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+            // Don't close modal or reset form on error
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteQuotation = (quotation) => {
+        setDeleteQuotationId(quotation.id);
         onDeleteOpen();
     };
 
-    const confirmDelete = () => {
-        if (deleteItemIndex !== null) {
-            const newOrderLines = orderLines.filter((_, index) => index !== deleteItemIndex);
-            setOrderLines(newOrderLines);
-            setDeleteItemIndex(null);
+    const confirmDelete = async () => {
+        try {
+            setIsLoading(true);
+            const response = await quotationsAPI.deleteQuotation({
+                quotation_id: deleteQuotationId
+            });
+
+            // Extract success message from API response
+            let successMessage = "Quotation deleted successfully";
+            let status = "success";
+
+            if (response && response.result) {
+                if (response.result && response.result.message) {
+                    successMessage = response.result.message;
+                    status = response.result.status;
+                } else if (response.result.message) {
+                    successMessage = response.result.message;
+                    status = response.result.status;
+                }
+            }
+
+            toast({
+                title: status,
+                description: successMessage,
+                status: status,
+                duration: 3000,
+                isClosable: true,
+            });
+
+            onDeleteClose();
+            setDeleteQuotationId(null);
+            fetchQuotations();
+        } catch (error) {
+            // Extract error message from API response
+            let errorMessage = "Failed to delete quotation";
+            let status = "error";
+
+            if (error.response && error.response.data) {
+                if (error.response.data.result && error.response.data.result.message) {
+                    errorMessage = error.response.data.result.message;
+                    status = error.response.data.result.status;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                    status = error.response.data.result.status;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+                status = "error";
+            }
+
+            toast({
+                title: status,
+                description: errorMessage,
+                status: status,
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoading(false);
         }
-        onDeleteClose();
     };
 
     const handleInputChange = (field, value) => {
@@ -191,823 +594,365 @@ export default function Quotations() {
         }));
     };
 
-    return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden">
+    // Add new quotation line
+    const addQuotationLine = () => {
+        const newLine = {
+            name: "",
+            vendor_id: "",
+            vendor_rate: "",
+            item_name: "",
+            rate: "",
+            rate_remark: "",
+            free_text: "",
+            remark: "",
+            pre_text: "",
+            currency_override: "",
+            quantity: 1,
+            buy_rate_calculation: "",
+            uom: "",
+            cost_actual: "",
+            fixed: false,
+            sale_currency: "",
+            cost_sum: "",
+            roe: "",
+            cost_usd: "",
+            mu_percent: "",
+            mu_amount: "",
+            qt_rate: "",
+            amended_rate: "",
+            rate_to_client: "",
+            group_free_text: "",
+            status: "current"
+        };
 
-            {/* Sub Header Bar */}
-            <Flex
-                bg="gray.100"
-                borderBottom="1px"
-                borderColor={borderColor}
-                px={{ base: "4", md: "6" }}
-                py="3"
-                justify="space-between"
-                align="center"
-                flexDir={{ base: "column", lg: "row" }}
-                gap={{ base: "2", lg: "0" }}
-            >
-                <HStack spacing="4">
+        setNewQuotation(prev => ({
+            ...prev,
+            quotation_lines: [...prev.quotation_lines, newLine]
+        }));
+    };
+
+    // Remove quotation line
+    const removeQuotationLine = (index) => {
+        setNewQuotation(prev => ({
+            ...prev,
+            quotation_lines: prev.quotation_lines.filter((_, i) => i !== index)
+        }));
+    };
+
+    // Update quotation line
+    const updateQuotationLine = (index, field, value) => {
+        setNewQuotation(prev => ({
+            ...prev,
+            quotation_lines: prev.quotation_lines.map((line, i) =>
+                i === index ? { ...line, [field]: value } : line
+            )
+        }));
+    };
+
+    // Handle rate item selection and auto-fill
+    const handleRateItemSelect = (index, rateItem) => {
+        if (rateItem) {
+            updateQuotationLine(index, 'name', rateItem.name || '');
+            updateQuotationLine(index, 'rate', rateItem.rate || '');
+            updateQuotationLine(index, 'item_name', rateItem.id || '');
+            updateQuotationLine(index, 'uom', rateItem.uom_id || '');
+            updateQuotationLine(index, 'currency_override', rateItem.currency_rate_id || '');
+            updateQuotationLine(index, 'rate_remark', rateItem.rate_text || '');
+            updateQuotationLine(index, 'remark', rateItem.remarks || '');
+
+            // Auto-fill vendor if available in rate item
+            if (rateItem.seller_ids && rateItem.seller_ids.length > 0) {
+                updateQuotationLine(index, 'vendor_id', rateItem.seller_ids[0]);
+            }
+
+        }
+    };
+
+    return (
+        <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            <VStack spacing={6} align="stretch">
+                {/* Header Section */}
+                <Flex justify="space-between" align="center" px="25px">
+                    <HStack spacing={4}>
+                        <Text fontSize="2xl" fontWeight="bold" color={textColor}>
+                            Quotations
+                        </Text>
+                    </HStack>
                     <Button
                         leftIcon={<Icon as={MdAdd} />}
                         bg="#1c4a95"
                         color="white"
-                        size="sm"
+                        size="md"
                         px="6"
                         py="3"
                         borderRadius="md"
                         _hover={{ bg: "#173f7c" }}
                         onClick={handleNewQuotation}
                     >
-                        New
+                        New Quotation
                     </Button>
-                    <HStack spacing="2">
-                        <Text fontSize={{ base: "sm", md: "md" }} fontWeight="bold" color={textColor}>
-                            Quotations {quotationData.id}
-                        </Text>
-                        <IconButton
-                            size="xs"
-                            icon={<Icon as={MdSettings} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Settings"
-                        />
-                    </HStack>
-                </HStack>
+                </Flex>
 
-                <HStack spacing="2">
-                    <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                        1/8
-                    </Text>
-                    <IconButton
-                        size="sm"
-                        icon={<Icon as={MdArrowBack} color={textColor} />}
-                        variant="ghost"
-                        aria-label="Previous"
-                    />
-                    <IconButton
-                        size="sm"
-                        icon={<Icon as={MdArrowForward} color={textColor} />}
-                        variant="ghost"
-                        aria-label="Next"
-                    />
-                </HStack>
-            </Flex>
-
-            {/* Main Content Area */}
-            <Box bg="white" p={{ base: "4", md: "6" }}>
-                {/* Quotation ID Header */}
-                <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color={textColor} mb="6">
-                    {quotationData.id}
-                </Text>
-
-                {/* Quotation Details Section */}
-                <Box mb="6">
-                    <Grid templateColumns={{ base: "1fr", lg: "repeat(2, 1fr)" }} gap="6">
-                        {/* Left Column */}
-                        <VStack spacing="4" align="stretch">
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Customer <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.customer}
-                                </Text>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
-                                    {quotationData.address}
-                                </Text>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color="gray.500">
-                                    {quotationData.city}, {quotationData.country}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Vessel <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Invoice Address <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.invoiceAddress}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Delivery Address <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.deliveryAddress}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Quotation Template <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
-                            </FormControl>
-                        </VStack>
-
-                        {/* Right Column */}
-                        <VStack spacing="4" align="stretch">
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Expiration <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.expiration}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Quotation Date <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.quotationDate}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Pricelist <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                                    {quotationData.pricelist}
-                                </Text>
-                            </FormControl>
-
-                            <FormControl>
-                                <FormLabel fontSize={{ base: "xs", md: "sm" }} color={textColor} display="flex" alignItems="center">
-                                    Payment Terms <Icon as={MdHelpOutline} ml="1" />
-                                </FormLabel>
-                                <Input size={{ base: "xs", md: "sm" }} style={{ padding: "6px 10px" }} placeholder="" />
-                            </FormControl>
-                        </VStack>
-                    </Grid>
-                </Box>
-
-                {/* Tabs */}
-                <Tabs value={activeTab} onChange={setActiveTab} variant="enclosed" mb="6">
-                    <TabList bg="gray.100" borderRadius="md">
-                        {tabs.map((tab) => (
-                            <Tab
-                                key={tab.id}
-                                value={tab.id}
-                                _selected={{ bg: "white", color: "blue.500", borderBottom: "2px solid", borderColor: "blue.500" }}
-                                _hover={{ bg: "white", color: "blue.500" }}
-                                fontSize={{ base: "xs", md: "sm" }}
-                                fontWeight="medium"
-                                whiteSpace="nowrap"
-                            >
-                                {tab.name}
-                            </Tab>
-                        ))}
-                    </TabList>
-
-                    <TabPanels>
-                        {/* Order Lines Tab */}
-                        <TabPanel value="order-lines" p="0">
-                            <Box
-                                overflowX="auto"
-                                maxW="100%"
-                                maxH="400px"
-                                border="1px"
-                                borderColor={borderColor}
-                                borderRadius="lg"
-                                bg="white"
-                                shadow="md"
-                                overflowY="auto"
-                                sx={{
-                                    '&::-webkit-scrollbar': {
-                                        height: '12px',
-                                    },
-                                    '&::-webkit-scrollbar-track': {
-                                        background: '#f1f1f1',
-                                        borderRadius: '6px',
-                                    },
-                                    '&::-webkit-scrollbar-thumb': {
-                                        background: '#c1c1c1',
-                                        borderRadius: '6px',
-                                        '&:hover': {
-                                            background: '#a8a8a8',
-                                        },
-                                    },
-                                    '&::-webkit-scrollbar-button': {
-                                        background: '#e0e0e0',
-                                        border: '1px solid #ccc',
-                                        borderRadius: '3px',
-                                        '&:hover': {
-                                            background: '#d0d0d0',
-                                        },
-                                        '&:active': {
-                                            background: '#b0b0b0',
-                                        },
-                                    },
-                                    '&::-webkit-scrollbar-button:single-button': {
-                                        height: '12px',
-                                        width: '12px',
-                                    },
-                                    '&::-webkit-scrollbar-button:single-button:vertical:decrement': {
-                                        backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M3 6l3-3 3 3\' fill=\'%23666\'/></svg>")',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center',
-                                    },
-                                    '&::-webkit-scrollbar-button:single-button:vertical:increment': {
-                                        backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M3 3l3 3 3-3\' fill=\'%23666\'/></svg>")',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center',
-                                    },
-                                    '&::-webkit-scrollbar-button:single-button:Classictal:decrement': {
-                                        backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M6 3l-3 3 3 3\' fill=\'%23666\'/></svg>")',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center',
-                                    },
-                                    '&::-webkit-scrollbar-button:single-button:Classictal:increment': {
-                                        backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'><path d=\'M3 3l3 3 3-3\' fill=\'%23666\'/></svg>")',
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'center',
-                                    },
-                                }}
-                            >
-                                <Table variant="simple" size={{ base: "xs", md: "sm" }} minW={{ base: "1000px", lg: "auto" }}>
-                                    <Thead>
-                                        <Tr bg="gray.100" borderBottom="2px" borderColor={borderColor}>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Product
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Description
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Route
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Quantity
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                UoM
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Unit Price
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Taxes
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Disc.%
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                            >
-                                                Tax excl.
-                                            </Th>
-                                            <Th
-                                                fontSize={{ base: "xs", md: "sm" }}
-                                                color="gray.700"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                                fontWeight="bold"
-                                                py="4"
-                                                px="6"
-                                                textTransform="none"
-                                                letterSpacing="wide"
-                                                textAlign="center"
-                                            >
-                                                Actions
-                                            </Th>
-                                        </Tr>
-                                    </Thead>
-                                    <Tbody>
-                                        {orderLines.map((line, index) => (
+                {/* Quotations List */}
+                <Box bg="white" borderRadius="lg" boxShadow="sm" mx="25px" mb="6">
+                    <Box p="6">
+                        <Box overflowX="auto" borderRadius="lg" border="1px" borderColor="gray.200">
+                            <Table variant="simple" size="sm" minW="1400px" w="100%">
+                                <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+                                    <Tr>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="60px" w="60px">
+                                            ID
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
+                                            Customer
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                            Vessel
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
+                                            ETA
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                            ETA Date
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="110px" w="110px">
+                                            Deadline Date
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
+                                            Deadline Info
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                            OC Number
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="110px" w="110px">
+                                            Est TO (USD)
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
+                                            Est Profit (USD)
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
+                                            Est TO
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
+                                            Est Profit
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
+                                            Destination
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
+                                            USD ROE
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
+                                            General MU
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="60px" w="60px">
+                                            CAF
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                            Status
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
+                                            Quotation Lines
+                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                            Actions
+                                        </Th>
+                                    </Tr>
+                                </Thead>
+                                <Tbody>
+                                    {quotations.length > 0 ? (
+                                        quotations.map((quotation, index) => (
                                             <Tr
-                                                key={index}
-                                                _hover={{ bg: "blue.50" }}
-                                                bg={index % 2 === 0 ? "white" : "gray.25"}
+                                                key={quotation.id}
+                                                bg={index % 2 === 0 ? "white" : "gray.50"}
+                                                _hover={{
+                                                    bg: "linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)",
+                                                    transform: "translateY(-1px)",
+                                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                                    transition: "all 0.2s ease"
+                                                }}
                                                 borderBottom="1px"
-                                                borderColor={borderColor}
-                                                transition="all 0.2s"
+                                                borderColor="gray.200"
+                                                transition="all 0.2s ease"
                                             >
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    fontWeight="semibold"
-                                                    wordBreak="keep-all"
-                                                    whiteSpace="nowrap"
-                                                    maxW="300px"
-                                                    minH="80px"
-                                                    overflow="hidden"
-                                                >
-                                                    <HStack spacing="3">
-                                                        <Icon as={MdDragIndicator} color="gray.400" cursor="grab" _hover={{ color: "gray.600" }} />
-                                                        <VStack align="flex-start" spacing="0">
-                                                            <Text fontWeight="semibold" color="blue.600" noOfLines={1} title={line.product}>{line.product}</Text>
-                                                            <Text fontSize="xs" color="gray.500">Product ID</Text>
-                                                        </VStack>
+                                                <Td py="14px" px="12px" minW="60px" w="60px">
+                                                    <Text color={textColor} fontSize="sm" fontWeight="600" textAlign="center">
+                                                        {quotation.id}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="120px" w="120px">
+                                                    <Text color={textColor} fontSize="sm" fontWeight="500" noOfLines={1}>
+                                                        {customers.find(c => c.id === quotation.partner_id)?.name || 'N/A'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="100px" w="100px">
+                                                    <Text color={textColor} fontSize="sm" fontWeight="500" noOfLines={1}>
+                                                        {vessels.find(v => v.id === quotation.vessel_id)?.name || 'N/A'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="80px" w="80px">
+                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
+                                                        {quotation.eta || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="100px" w="100px">
+                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
+                                                        {quotation.eta_date || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="110px" w="110px">
+                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
+                                                        {quotation.deadline_date || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="120px" w="120px">
+                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
+                                                        {quotation.deadline_info || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="100px" w="100px">
+                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
+                                                        {quotation.oc_number || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="110px" w="110px">
+                                                    <Text color={textColor} fontSize="sm" fontWeight="500" textAlign="right">
+                                                        {quotation.est_to_usd ? `$${Number(quotation.est_to_usd).toLocaleString()}` : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="120px" w="120px">
+                                                    <Text color={textColor} fontSize="sm" fontWeight="500" textAlign="right">
+                                                        {quotation.est_profit_usd ? `$${Number(quotation.est_profit_usd).toLocaleString()}` : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="80px" w="80px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="right">
+                                                        {quotation.estimated_to ? Number(quotation.estimated_to).toLocaleString() : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="90px" w="90px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="right">
+                                                        {quotation.estimated_profit ? Number(quotation.estimated_profit).toLocaleString() : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="90px" w="90px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="center">
+                                                        {quotation.destination || '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="80px" w="80px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="right">
+                                                        {quotation.usd_roe ? Number(quotation.usd_roe).toFixed(2) : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="90px" w="90px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="right">
+                                                        {quotation.general_mu ? Number(quotation.general_mu).toFixed(2) : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="60px" w="60px">
+                                                    <Text color={textColor} fontSize="sm" textAlign="right">
+                                                        {quotation.caf ? Number(quotation.caf).toFixed(2) : '-'}
+                                                    </Text>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="100px" w="100px">
+                                                    <Badge
+                                                        colorScheme={quotation.done === 'active' ? 'green' : 'gray'}
+                                                        variant="subtle"
+                                                        fontSize="xs"
+                                                        px="8px"
+                                                        py="2px"
+                                                        borderRadius="full"
+                                                    >
+                                                        {quotation.done === 'active' ? 'Active' : quotation.done === 'inactive' ? 'Inactive' : quotation.done || 'active'}
+                                                    </Badge>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="120px" w="120px">
+                                                    <VStack spacing={1} align="center">
+                                                        <Badge
+                                                            colorScheme="blue"
+                                                            variant="subtle"
+                                                            fontSize="xs"
+                                                            px="8px"
+                                                            py="2px"
+                                                            borderRadius="full"
+                                                        >
+                                                            {(quotation.quotation_line_ids || quotation.quotation_lines) && Array.isArray(quotation.quotation_line_ids || quotation.quotation_lines) 
+                                                                ? `${(quotation.quotation_line_ids || quotation.quotation_lines).length} line${(quotation.quotation_line_ids || quotation.quotation_lines).length !== 1 ? 's' : ''}`
+                                                                : '0 lines'
+                                                            }
+                                                        </Badge>
+                                                        {(quotation.quotation_line_ids || quotation.quotation_lines) && (quotation.quotation_line_ids || quotation.quotation_lines).length > 0 && (
+                                                            <Text fontSize="xs" color="gray.500" noOfLines={1}>
+                                                                {(quotation.quotation_line_ids || quotation.quotation_lines)[0].name || 'N/A'}
+                                                                {(quotation.quotation_line_ids || quotation.quotation_lines).length > 1 && ` +${(quotation.quotation_line_ids || quotation.quotation_lines).length - 1} more`}
+                                                            </Text>
+                                                        )}
+                                                    </VStack>
+                                                </Td>
+                                                <Td py="14px" px="12px" minW="100px" w="100px">
+                                                    <HStack spacing={1} justify="center">
+                                                        <IconButton
+                                                            icon={<Icon as={MdEdit} />}
+                                                            size="sm"
+                                                            colorScheme="blue"
+                                                            variant="ghost"
+                                                            aria-label="Edit quotation"
+                                                            onClick={() => handleEditQuotation(quotation)}
+                                                            _hover={{ bg: "blue.100", transform: "scale(1.1)" }}
+                                                            transition="all 0.2s ease"
+                                                        />
+                                                        <IconButton
+                                                            icon={<Icon as={MdDelete} />}
+                                                            size="sm"
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            aria-label="Delete quotation"
+                                                            onClick={() => handleDeleteQuotation(quotation)}
+                                                            _hover={{ bg: "red.100", transform: "scale(1.1)" }}
+                                                            transition="all 0.2s ease"
+                                                        />
                                                     </HStack>
                                                 </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    wordBreak="break-word"
-                                                    whiteSpace="normal"
-                                                    maxW="200px"
-                                                >
-                                                    <Text noOfLines={2} title={line.description}>{line.description}</Text>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    wordBreak="break-word"
-                                                    whiteSpace="normal"
-                                                    maxW="150px"
-                                                >
-                                                    <Input
-                                                        size={{ base: "xs", md: "sm" }}
-                                                        style={{ padding: "6px 10px" }}
-                                                        placeholder="Enter route..."
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "blue.500",
-                                                            boxShadow: "0 0 0 1px blue.500",
-                                                            bg: "blue.50"
-                                                        }}
-                                                        _hover={{ borderColor: "gray.400" }}
-                                                    />
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                >
-                                                    <NumberInput
-                                                        size={{ base: "xs", md: "sm" }}
-                                                        style={{ padding: "6px 10px" }}
-                                                        value={line.quantity}
-                                                        onChange={(value) => {
-                                                            const newOrderLines = [...orderLines];
-                                                            newOrderLines[index].quantity = parseFloat(value);
-                                                            setOrderLines(newOrderLines);
-                                                        }}
-                                                        min={0}
-                                                        step={0.01}
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "blue.500",
-                                                            boxShadow: "0 0 0 1px blue.500",
-                                                            bg: "blue.50"
-                                                        }}
-                                                    >
-                                                        <NumberInputField
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            style={{ padding: "6px 10px" }}
-                                                            _hover={{ borderColor: "gray.400" }}
-                                                        />
-                                                        <NumberInputStepper>
-                                                            <NumberIncrementStepper
-                                                                h="16px"
-                                                                fontSize="10px"
-                                                                border="none"
-                                                                bg="transparent"
-                                                                _hover={{ bg: "gray.100" }}
-                                                            />
-                                                            <NumberDecrementStepper
-                                                                h="16px"
-                                                                fontSize="10px"
-                                                                border="none"
-                                                                bg="transparent"
-                                                                _hover={{ bg: "gray.100" }}
-                                                            />
-                                                        </NumberInputStepper>
-                                                    </NumberInput>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                >
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={Button}
-                                                            size={{ base: "xs", md: "sm" }}
-                                                            style={{ padding: "6px 10px" }}
-                                                            variant="outline"
-                                                            borderRadius="md"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            bg="white"
-                                                            color={textColor}
-                                                            fontWeight="medium"
-                                                            _hover={{
-                                                                borderColor: "#1c4a95",
-                                                                bg: "#f8f9ff"
-                                                            }}
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                            _active={{
-                                                                bg: "#e8f0ff"
-                                                            }}
-                                                            rightIcon={<Icon as={MdKeyboardArrowDown} />}
-                                                            w="100%"
-                                                            justifyContent="space-between"
-                                                        >
-                                                            {line.uom}
-                                                        </MenuButton>
-                                                        <MenuList
-                                                            bg="white"
-                                                            border="1px"
-                                                            borderColor="gray.200"
-                                                            borderRadius="md"
-                                                            boxShadow="lg"
-                                                            py="2"
-                                                            minW="120px"
-                                                        >
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Units
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Pieces
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Kg
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Liters
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Meters
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Hours
-                                                            </MenuItem>
-                                                            <MenuItem
-                                                                bg="white"
-                                                                color="#1c4a95"
-                                                                py="3"
-                                                                px="4"
-                                                                fontSize="14px"
-                                                                fontWeight="medium"
-                                                                _hover={{
-                                                                    bg: "#f8f9ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "semibold"
-                                                                }}
-                                                                _focus={{
-                                                                    bg: "#e8f0ff",
-                                                                    color: "#1c4a95",
-                                                                    fontWeight: "bold"
-                                                                }}
-                                                            >
-                                                                Days
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    fontWeight="bold"
-                                                    textAlign="right"
-                                                    wordBreak="keep-all"
-                                                    whiteSpace="nowrap"
-                                                    maxW="120px"
-                                                    overflow="hidden"
-                                                >
-                                                    <Text color="green.600">${line.unitPrice.toFixed(2)}</Text>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    wordBreak="keep-all"
-                                                    whiteSpace="nowrap"
-                                                    maxW="100px"
-                                                    overflow="hidden"
-                                                >
-                                                    <Input
-                                                        size={{ base: "xs", md: "sm" }}
-                                                        style={{ padding: "6px 10px" }}
-                                                        placeholder="0.00"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "blue.500",
-                                                            boxShadow: "0 0 0 1px blue.500",
-                                                            bg: "blue.50"
-                                                        }}
-                                                        _hover={{ borderColor: "gray.400" }}
-                                                    />
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    fontWeight="semibold"
-                                                    textAlign="center"
-                                                    wordBreak="keep-all"
-                                                    whiteSpace="nowrap"
-                                                    maxW="80px"
-                                                    overflow="hidden"
-                                                >
-                                                    <Text color={line.discount > 0 ? "orange.600" : "gray.500"}>
-                                                        {line.discount.toFixed(2)}%
-                                                    </Text>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    wordBreak="keep-all"
-                                                    whiteSpace="nowrap"
-                                                    maxW="150px"
-                                                    overflow="hidden"
-                                                >
-                                                    <Text fontWeight="bold" color="green.600" fontSize="md" noOfLines={1} title={`$ ${line.taxExcluded.toFixed(2)}`}>
-                                                        $ {line.taxExcluded.toFixed(2)}
-                                                    </Text>
-                                                </Td>
-                                                <Td
-                                                    fontSize={{ base: "xs", md: "sm" }}
-                                                    color={textColor}
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                    py="4"
-                                                    px="6"
-                                                    textAlign="center"
-                                                    maxW="100px"
-                                                >
-                                                    <IconButton
-                                                        size="sm"
-                                                        icon={<Icon as={MdDelete} />}
-                                                        variant="ghost"
-                                                        color="red.500"
-                                                        aria-label="Delete"
-                                                        _hover={{ bg: "red.50", color: "red.600" }}
-                                                        _active={{ bg: "red.100" }}
-                                                        borderRadius="md"
-                                                        onClick={() => handleDeleteItem(index)}
-                                                    />
-                                                </Td>
                                             </Tr>
-                                        ))}
-                                    </Tbody>
-                                </Table>
-                            </Box>
-                        </TabPanel>
-
-                        {/* Other Tab Panels */}
-                        {tabs.slice(1).map((tab) => (
-                            <TabPanel key={tab.id} value={tab.id} p="0">
-                                <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold" color={textColor}>
-                                    {tab.name} Content
-                                </Text>
-                                <Text color="gray.500" mt="2">
-                                    This is the {tab.name.toLowerCase()} section content.
-                                </Text>
-                            </TabPanel>
-                        ))}
-                    </TabPanels>
-                </Tabs>
-            </Box>
+                                        ))
+                                    ) : (
+                                        <Tr>
+                                            <Td colSpan={18} py="60px" textAlign="center">
+                                                <VStack spacing={4}>
+                                                    <Box
+                                                        p="6"
+                                                        borderRadius="full"
+                                                        bg="linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)"
+                                                        boxShadow="0 4px 12px rgba(0,0,0,0.1)"
+                                                    >
+                                                        <Icon as={MdSettings} color="blue.400" boxSize={16} />
+                                                    </Box>
+                                                    <VStack spacing={2}>
+                                                        <Text color="gray.600" fontSize="lg" fontWeight="600">
+                                                            No quotations available
+                                                        </Text>
+                                                        <Text color="gray.500" fontSize="sm" textAlign="center" maxW="300px">
+                                                            Get started by creating your first quotation. Click the "New Quotation" button above.
+                                                        </Text>
+                                                    </VStack>
+                                                </VStack>
+                                            </Td>
+                                        </Tr>
+                                    )}
+                                </Tbody>
+                            </Table>
+                        </Box>
+                    </Box>
+                </Box>
+            </VStack>
 
             {/* New Quotation Modal */}
-            <Modal isOpen={isNewQuotationOpen} onClose={onNewQuotationClose} size="xl">
+            <Modal isOpen={isNewQuotationOpen} onClose={onNewQuotationClose} size="6xl" maxW="90vw">
                 <ModalOverlay />
                 <ModalContent>
                     <ModalHeader bg="#1c4a95" color="white">
-                        Create New Quotation
+                        {editingQuotation ? "Edit Quotation" : "Create New Quotation"}
                     </ModalHeader>
                     <ModalCloseButton color="white" />
                     <ModalBody py="6">
@@ -1016,85 +961,37 @@ export default function Quotations() {
                             <VStack spacing="4" align="stretch">
                                 <FormControl isRequired>
                                     <FormLabel fontSize="sm" color={textColor}>Customer</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newQuotation.customer}
-                                        onChange={(e) => handleInputChange('customer', e.target.value)}
-                                        placeholder="Enter customer name"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
+                                    <SearchableSelect
+                                        value={newQuotation.partner_id}
+                                        onChange={(value) => handleInputChange('partner_id', value)}
+                                        options={customers}
+                                        placeholder="Select customer"
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(option) => option.name}
                                     />
                                 </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Address</FormLabel>
-                                    <Textarea
-                                        size="sm"
-                                        value={newQuotation.address}
-                                        onChange={(e) => handleInputChange('address', e.target.value)}
-                                        placeholder="Enter address"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                        rows={3}
-                                    />
-                                </FormControl>
-
-                                <HStack spacing="4">
-                                    <FormControl>
-                                        <FormLabel fontSize="sm" color={textColor}>City</FormLabel>
-                                        <Input
-                                            size="sm"
-                                            value={newQuotation.city}
-                                            onChange={(e) => handleInputChange('city', e.target.value)}
-                                            placeholder="Enter city"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm" color={textColor}>Country</FormLabel>
-                                        <Input
-                                            size="sm"
-                                            value={newQuotation.country}
-                                            onChange={(e) => handleInputChange('country', e.target.value)}
-                                            placeholder="Enter country"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                    </FormControl>
-                                </HStack>
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" color={textColor}>Vessel</FormLabel>
+                                    <SearchableSelect
+                                        value={newQuotation.vessel_id}
+                                        onChange={(value) => handleInputChange('vessel_id', value)}
+                                        options={vessels}
+                                        placeholder="Select vessel"
+                                        displayKey="name"
+                                        valueKey="id"
+                                        formatOption={(option) => option.name}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>ETA</FormLabel>
                                     <Input
                                         size="sm"
-                                        value={newQuotation.vessel}
-                                        onChange={(e) => handleInputChange('vessel', e.target.value)}
-                                        placeholder="Enter vessel name"
+                                        value={newQuotation.eta}
+                                        onChange={(e) => handleInputChange('eta', e.target.value)}
+                                        placeholder="Enter ETA"
                                         border="1px"
                                         borderColor="gray.300"
                                         borderRadius="md"
@@ -1107,12 +1004,131 @@ export default function Quotations() {
                                 </FormControl>
 
                                 <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Invoice Address</FormLabel>
+                                    <FormLabel fontSize="sm" color={textColor}>ETA Date</FormLabel>
+                                    <Input
+                                        size="sm"
+                                        type="date"
+                                        value={newQuotation.eta_date}
+                                        onChange={(e) => handleInputChange('eta_date', e.target.value)}
+                                        border="1px"
+                                        borderColor="gray.300"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Deadline Date</FormLabel>
+                                    <Input
+                                        size="sm"
+                                        type="date"
+                                        value={newQuotation.deadline_date}
+                                        onChange={(e) => handleInputChange('deadline_date', e.target.value)}
+                                        border="1px"
+                                        borderColor="gray.300"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Deadline Info</FormLabel>
+                                    <Input
+                                        size="sm"
+                                        value={newQuotation.deadline_info}
+                                        onChange={(e) => handleInputChange('deadline_info', e.target.value)}
+                                        placeholder="Enter deadline info"
+                                        border="1px"
+                                        borderColor="gray.300"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>OC Number</FormLabel>
+                                    <Input
+                                        size="sm"
+                                        value={newQuotation.oc_number}
+                                        onChange={(e) => handleInputChange('oc_number', e.target.value)}
+                                        placeholder="Enter OC number"
+                                        border="1px"
+                                        borderColor="gray.300"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
+                                    />
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>CAF</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.caf}
+                                        onChange={(value) => handleInputChange('caf', value)}
+                                        step={0.1}
+                                        precision={2}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter CAF"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Status</FormLabel>
+                                    <Select
+                                        size="sm"
+                                        value={newQuotation.done}
+                                        onChange={(e) => handleInputChange('done', e.target.value)}
+                                        border="1px"
+                                        borderColor="gray.300"
+                                        borderRadius="md"
+                                        _focus={{
+                                            borderColor: "#1c4a95",
+                                            boxShadow: "0 0 0 1px #1c4a95",
+                                            bg: "#f0f4ff"
+                                        }}
+                                    >
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </Select>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Client Remark</FormLabel>
                                     <Textarea
                                         size="sm"
-                                        value={newQuotation.invoiceAddress}
-                                        onChange={(e) => handleInputChange('invoiceAddress', e.target.value)}
-                                        placeholder="Enter invoice address"
+                                        value={newQuotation.client_remark}
+                                        onChange={(e) => handleInputChange('client_remark', e.target.value)}
+                                        placeholder="Enter client remark"
                                         border="1px"
                                         borderColor="gray.300"
                                         borderRadius="md"
@@ -1125,35 +1141,196 @@ export default function Quotations() {
                                     />
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Delivery Address</FormLabel>
-                                    <Textarea
-                                        size="sm"
-                                        value={newQuotation.deliveryAddress}
-                                        onChange={(e) => handleInputChange('deliveryAddress', e.target.value)}
-                                        placeholder="Enter delivery address"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                        rows={3}
-                                    />
-                                </FormControl>
                             </VStack>
 
                             {/* Right Column */}
                             <VStack spacing="4" align="stretch">
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Expiration Date</FormLabel>
-                                    <Input
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Estimated TO (USD)</FormLabel>
+                                    <NumberInput
                                         size="sm"
-                                        type="date"
-                                        value={newQuotation.expiration}
-                                        onChange={(e) => handleInputChange('expiration', e.target.value)}
+                                        value={newQuotation.est_to_usd}
+                                        onChange={(value) => handleInputChange('est_to_usd', value)}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter estimated TO"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Estimated Profit (USD)</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.est_profit_usd}
+                                        onChange={(value) => handleInputChange('est_profit_usd', value)}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter estimated profit"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Estimated TO</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.estimated_to}
+                                        onChange={(value) => handleInputChange('estimated_to', value)}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter estimated TO"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Estimated Profit</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.estimated_profit}
+                                        onChange={(value) => handleInputChange('estimated_profit', value)}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter estimated profit"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Destination</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.destination}
+                                        onChange={(value) => handleInputChange('destination', value)}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter destination"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>USD ROE</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.usd_roe}
+                                        onChange={(value) => handleInputChange('usd_roe', value)}
+                                        step={0.1}
+                                        precision={2}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter USD ROE"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>General MU</FormLabel>
+                                    <NumberInput
+                                        size="sm"
+                                        value={newQuotation.general_mu}
+                                        onChange={(value) => handleInputChange('general_mu', value)}
+                                        step={0.1}
+                                        precision={2}
+                                    >
+                                        <NumberInputField
+                                            placeholder="Enter general MU"
+                                            border="1px"
+                                            borderColor="gray.300"
+                                            borderRadius="md"
+                                            _focus={{
+                                                borderColor: "#1c4a95",
+                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                bg: "#f0f4ff"
+                                            }}
+                                        />
+                                        <NumberInputStepper>
+                                            <NumberIncrementStepper />
+                                            <NumberDecrementStepper />
+                                        </NumberInputStepper>
+                                    </NumberInput>
+                                </FormControl>
+
+                                <FormControl>
+                                    <FormLabel fontSize="sm" color={textColor}>Internal Remark</FormLabel>
+                                    <Textarea
+                                        size="sm"
+                                        value={newQuotation.internal_remark}
+                                        onChange={(e) => handleInputChange('internal_remark', e.target.value)}
+                                        placeholder="Enter internal remark"
                                         border="1px"
                                         borderColor="gray.300"
                                         borderRadius="md"
@@ -1162,15 +1339,17 @@ export default function Quotations() {
                                             boxShadow: "0 0 0 1px #1c4a95",
                                             bg: "#f0f4ff"
                                         }}
+                                        rows={3}
                                     />
                                 </FormControl>
 
                                 <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Pricelist</FormLabel>
-                                    <Select
+                                    <FormLabel fontSize="sm" color={textColor}>Delivery Note</FormLabel>
+                                    <Textarea
                                         size="sm"
-                                        value={newQuotation.pricelist}
-                                        onChange={(e) => handleInputChange('pricelist', e.target.value)}
+                                        value={newQuotation.delivery_note}
+                                        onChange={(e) => handleInputChange('delivery_note', e.target.value)}
+                                        placeholder="Enter delivery note"
                                         border="1px"
                                         borderColor="gray.300"
                                         borderRadius="md"
@@ -1179,71 +1358,612 @@ export default function Quotations() {
                                             boxShadow: "0 0 0 1px #1c4a95",
                                             bg: "#f0f4ff"
                                         }}
-                                    >
-                                        <option value="Default USD pricelist (USD)">Default USD pricelist (USD)</option>
-                                        <option value="EUR Pricelist">EUR Pricelist</option>
-                                        <option value="GBP Pricelist">GBP Pricelist</option>
-                                    </Select>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Payment Terms</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newQuotation.paymentTerms}
-                                        onChange={(e) => handleInputChange('paymentTerms', e.target.value)}
-                                        placeholder="Enter payment terms"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
+                                        rows={3}
                                     />
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Quotation Template</FormLabel>
-                                    <Select
-                                        size="sm"
-                                        value={newQuotation.quotationTemplate}
-                                        onChange={(e) => handleInputChange('quotationTemplate', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    >
-                                        <option value="">Select template</option>
-                                        <option value="Standard Template">Standard Template</option>
-                                        <option value="Premium Template">Premium Template</option>
-                                        <option value="Custom Template">Custom Template</option>
-                                    </Select>
-                                </FormControl>
-
-                                <Box>
-                                    <Text fontSize="sm" fontWeight="medium" color={textColor} mb="2">
-                                        Additional Options
-                                    </Text>
-                                    <VStack spacing="2" align="flex-start">
-                                        <Checkbox size="sm" colorScheme="blue">
-                                            Include shipping details
-                                        </Checkbox>
-                                        <Checkbox size="sm" colorScheme="blue">
-                                            Include optional products
-                                        </Checkbox>
-                                        <Checkbox size="sm" colorScheme="blue">
-                                            Require customer signature
-                                        </Checkbox>
-                                    </VStack>
-                                </Box>
                             </VStack>
                         </Grid>
+
+                        {/* Quotation Lines Section */}
+                        <Box mt="6" borderTop="1px" borderColor="gray.200" pt="6">
+                            <Flex justify="space-between" align="center" mb="4">
+                                <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                                    Quotation Lines
+                                </Text>
+                                <Button
+                                    leftIcon={<Icon as={MdAdd} />}
+                                    size="sm"
+                                    bg="#1c4a95"
+                                    color="white"
+                                    _hover={{ bg: "#173f7c" }}
+                                    onClick={addQuotationLine}
+                                >
+                                    Add Line
+                                </Button>
+                            </Flex>
+
+                            {newQuotation.quotation_lines.length > 0 ? (
+                                <VStack spacing="4" align="stretch">
+                                    {newQuotation.quotation_lines.map((line, index) => (
+                                        <Box
+                                            key={index}
+                                            p="4"
+                                            border="1px"
+                                            borderColor="gray.200"
+                                            borderRadius="md"
+                                            bg="gray.50"
+                                        >
+                                            <Flex justify="space-between" align="center" mb="3">
+                                                <Text fontSize="md" fontWeight="semibold" color={textColor}>
+                                                    Line {index + 1}
+                                                </Text>
+                                                <IconButton
+                                                    icon={<Icon as={MdDelete} />}
+                                                    size="sm"
+                                                    colorScheme="red"
+                                                    variant="ghost"
+                                                    onClick={() => removeQuotationLine(index)}
+                                                />
+                                            </Flex>
+
+                                            <Grid templateColumns="repeat(3, 1fr)" gap="4">
+                                                {/* Rate Item Selection */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Rate Item</FormLabel>
+                                                    <SearchableSelect
+                                                        value={line.item_name}
+                                                        onChange={(value) => {
+                                                            const selectedItem = rateItems.find(item => item.id === value);
+                                                            handleRateItemSelect(index, selectedItem);
+                                                        }}
+                                                        options={rateItems}
+                                                        placeholder="Select rate item"
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        formatOption={(option) => `${option.name} - $${option.rate || 0}`}
+                                                    />
+                                                </FormControl>
+
+                                                {/* Name */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Name</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.name}
+                                                        onChange={(e) => updateQuotationLine(index, 'name', e.target.value)}
+                                                        placeholder="Enter name"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
+
+                                                {/* Vendor */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Vendor</FormLabel>
+                                                    <SearchableSelect
+                                                        value={line.vendor_id}
+                                                        onChange={(value) => updateQuotationLine(index, 'vendor_id', value)}
+                                                        options={vendors}
+                                                        placeholder="Select vendor"
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        formatOption={(option) => option.name}
+                                                    />
+                                                </FormControl>
+
+                                                {/* Vendor Rate */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Vendor Rate</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.vendor_rate}
+                                                        onChange={(value) => updateQuotationLine(index, 'vendor_rate', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter vendor rate"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Rate */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Rate</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.rate}
+                                                        onChange={(value) => updateQuotationLine(index, 'rate', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter rate"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Quantity */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Quantity</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.quantity}
+                                                        onChange={(value) => updateQuotationLine(index, 'quantity', value)}
+                                                        min={1}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter quantity"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* UOM */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>UOM</FormLabel>
+                                                    <SearchableSelect
+                                                        value={line.uom}
+                                                        onChange={(value) => updateQuotationLine(index, 'uom', value)}
+                                                        options={uomList}
+                                                        placeholder="Select UOM"
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        formatOption={(option) => option.name}
+                                                    />
+                                                </FormControl>
+
+                                                {/* Currency Override */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Currency</FormLabel>
+                                                    <SearchableSelect
+                                                        value={line.currency_override}
+                                                        onChange={(value) => updateQuotationLine(index, 'currency_override', value)}
+                                                        options={currenciesList}
+                                                        placeholder="Select currency"
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        formatOption={(option) => option.name}
+                                                    />
+                                                </FormControl>
+
+                                                {/* Sale Currency */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Sale Currency</FormLabel>
+                                                    <SearchableSelect
+                                                        value={line.sale_currency}
+                                                        onChange={(value) => updateQuotationLine(index, 'sale_currency', value)}
+                                                        options={currenciesList}
+                                                        placeholder="Select sale currency"
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        formatOption={(option) => option.name}
+                                                    />
+                                                </FormControl>
+
+
+                                                {/* Fixed */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Fixed</FormLabel>
+                                                    <Select
+                                                        size="sm"
+                                                        value={line.fixed}
+                                                        onChange={(e) => updateQuotationLine(index, 'fixed', e.target.value === 'true')}
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    >
+                                                        <option value={false}>No</option>
+                                                        <option value={true}>Yes</option>
+                                                    </Select>
+                                                </FormControl>
+
+                                                {/* Status */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Status</FormLabel>
+                                                    <Select
+                                                        size="sm"
+                                                        value={line.status}
+                                                        onChange={(e) => updateQuotationLine(index, 'status', e.target.value)}
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    >
+                                                        <option value="current">Current</option>
+                                                        <option value="draft">Draft</option>
+                                                        <option value="cancelled">Cancelled</option>
+                                                    </Select>
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Additional Fields Row */}
+                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
+                                                {/* Buy Rate Calculation */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Buy Rate Calculation</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.buy_rate_calculation}
+                                                        onChange={(value) => updateQuotationLine(index, 'buy_rate_calculation', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter buy rate calculation"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Cost Actual */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Cost Actual</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.cost_actual}
+                                                        onChange={(value) => updateQuotationLine(index, 'cost_actual', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter cost actual"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Cost Sum */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Cost Sum</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.cost_sum}
+                                                        onChange={(value) => updateQuotationLine(index, 'cost_sum', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter cost sum"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* ROE */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>ROE</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.roe}
+                                                        onChange={(value) => updateQuotationLine(index, 'roe', value)}
+                                                        step={0.01}
+                                                        precision={2}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter ROE"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Additional Fields Row 2 */}
+                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
+                                                {/* Cost USD */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Cost USD</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.cost_usd}
+                                                        onChange={(value) => updateQuotationLine(index, 'cost_usd', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter cost USD"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* MU Percent */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>MU Percent</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.mu_percent}
+                                                        onChange={(value) => updateQuotationLine(index, 'mu_percent', value)}
+                                                        step={0.01}
+                                                        precision={2}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter MU percent"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* MU Amount */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>MU Amount</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.mu_amount}
+                                                        onChange={(value) => updateQuotationLine(index, 'mu_amount', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter MU amount"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* QT Rate */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>QT Rate</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.qt_rate}
+                                                        onChange={(value) => updateQuotationLine(index, 'qt_rate', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter QT rate"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Additional Fields Row 3 */}
+                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
+                                                {/* Amended Rate */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Amended Rate</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.amended_rate}
+                                                        onChange={(value) => updateQuotationLine(index, 'amended_rate', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter amended rate"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Rate to Client */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Rate to Client</FormLabel>
+                                                    <NumberInput
+                                                        size="sm"
+                                                        value={line.rate_to_client}
+                                                        onChange={(value) => updateQuotationLine(index, 'rate_to_client', value)}
+                                                    >
+                                                        <NumberInputField
+                                                            placeholder="Enter rate to client"
+                                                            border="1px"
+                                                            borderColor="gray.300"
+                                                            borderRadius="md"
+                                                            _focus={{
+                                                                borderColor: "#1c4a95",
+                                                                boxShadow: "0 0 0 1px #1c4a95",
+                                                                bg: "#f0f4ff"
+                                                            }}
+                                                        />
+                                                    </NumberInput>
+                                                </FormControl>
+
+                                                {/* Group Free Text */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Group Free Text</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.group_free_text}
+                                                        onChange={(e) => updateQuotationLine(index, 'group_free_text', e.target.value)}
+                                                        placeholder="Enter group free text"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Text Fields Row */}
+                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Rate Remark</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.rate_remark}
+                                                        onChange={(e) => updateQuotationLine(index, 'rate_remark', e.target.value)}
+                                                        placeholder="Enter rate remark"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
+
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Free Text</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.free_text}
+                                                        onChange={(e) => updateQuotationLine(index, 'free_text', e.target.value)}
+                                                        placeholder="Enter free text"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Textarea Fields */}
+                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Remark</FormLabel>
+                                                    <Textarea
+                                                        size="sm"
+                                                        value={line.remark}
+                                                        onChange={(e) => updateQuotationLine(index, 'remark', e.target.value)}
+                                                        placeholder="Enter remark"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                        rows={2}
+                                                    />
+                                                </FormControl>
+
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Pre Text</FormLabel>
+                                                    <Textarea
+                                                        size="sm"
+                                                        value={line.pre_text}
+                                                        onChange={(e) => updateQuotationLine(index, 'pre_text', e.target.value)}
+                                                        placeholder="Enter pre text"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                        rows={2}
+                                                    />
+                                                </FormControl>
+                                            </Grid>
+                                        </Box>
+                                    ))}
+                                </VStack>
+                            ) : (
+                                <Box
+                                    p="8"
+                                    textAlign="center"
+                                    border="2px dashed"
+                                    borderColor="gray.300"
+                                    borderRadius="md"
+                                    bg="gray.50"
+                                >
+                                    <VStack spacing={2}>
+                                        <Icon as={MdAdd} boxSize={8} color="gray.400" />
+                                        <Text color="gray.500" fontSize="sm">
+                                            No quotation lines added yet. Click "Add Line" to get started.
+                                        </Text>
+                                    </VStack>
+                                </Box>
+                            )}
+                        </Box>
                     </ModalBody>
                     <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
                         <Button variant="ghost" mr={3} onClick={onNewQuotationClose}>
@@ -1254,8 +1974,9 @@ export default function Quotations() {
                             color="white"
                             _hover={{ bg: "#173f7c" }}
                             onClick={handleSaveQuotation}
+                            isLoading={isLoading}
                         >
-                            Create Quotation
+                            {editingQuotation ? "Update Quotation" : "Create Quotation"}
                         </Button>
                     </ModalFooter>
                 </ModalContent>
@@ -1266,16 +1987,21 @@ export default function Quotations() {
                 <AlertDialogOverlay />
                 <AlertDialogContent>
                     <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                        Delete Item
+                        Delete Quotation
                     </AlertDialogHeader>
                     <AlertDialogBody>
-                        Are you sure you want to delete this item? This action cannot be undone.
+                        Are you sure you want to delete this quotation? This action cannot be undone.
                     </AlertDialogBody>
                     <AlertDialogFooter>
                         <Button onClick={onDeleteClose}>
                             Cancel
                         </Button>
-                        <Button colorScheme="red" onClick={confirmDelete} ml={3}>
+                        <Button
+                            colorScheme="red"
+                            onClick={confirmDelete}
+                            ml={3}
+                            isLoading={isLoading}
+                        >
                             Delete
                         </Button>
                     </AlertDialogFooter>

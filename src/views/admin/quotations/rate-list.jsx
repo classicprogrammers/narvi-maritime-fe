@@ -188,12 +188,12 @@ export default function RateList() {
     const [filters, setFilters] = useState({
         name: "",
         type: "",
-        list_price: "",
-        standard_price: "",
+        rate: "",
+        fixed_rate: "",
         default_code: "",
         client_specific: "",
         uom_id: "",
-        currency_id: "",
+        currency_rate_id: "",
     });
     const [showFilterFields, setShowFilterFields] = useState(false);
 
@@ -211,8 +211,8 @@ export default function RateList() {
     // Form states for new rate item
     const [newRateItem, setNewRateItem] = useState({
         name: "",
-        list_price: "",
-        standard_price: "",
+        rate: "",
+        fixed_rate: "",
         type: "",
         default_code: "",
         client_specific: false,
@@ -224,7 +224,7 @@ export default function RateList() {
         remarks: "",
         uom_id: "",
         property_stock_inventory: "",
-        currency_id: "",
+        currency_rate_id: "",
         seller_ids: []
     });
 
@@ -364,8 +364,8 @@ export default function RateList() {
                 onNewRateClose();
                 setNewRateItem({
                     name: "",
-                    list_price: "",
-                    standard_price: "",
+                    rate: "",
+                    fixed_rate: "",
                     type: "",
                     default_code: "",
                     client_specific: false,
@@ -377,7 +377,7 @@ export default function RateList() {
                     remarks: "",
                     uom_id: "",
                     property_stock_inventory: "",
-                    currency_id: "",
+                    currency_rate_id: "",
                     seller_ids: []
                 });
                 fetchProducts();
@@ -534,8 +534,8 @@ export default function RateList() {
         setEditingItem(null);
         setNewRateItem({
             name: "",
-            list_price: "",
-            standard_price: "",
+            rate: "",
+            fixed_rate: "",
             type: "",
             default_code: "",
             client_specific: false,
@@ -547,7 +547,7 @@ export default function RateList() {
             remarks: "",
             uom_id: "",
             property_stock_inventory: "",
-            currency_id: "",
+            currency_rate_id: "",
             seller_ids: []
         });
         onNewRateOpen();
@@ -574,8 +574,8 @@ export default function RateList() {
 
             // Check if all required fields are filled
             if (!currentItem.name || !currentItem.rate_text || !currentItem.group_id ||
-                !currentItem.sort_order || !currentItem.uom_id || !currentItem.currency_id ||
-                !currentItem.list_price || !currentItem.standard_price || !currentItem.type ||
+                !currentItem.sort_order || !currentItem.uom_id || !currentItem.currency_rate_id ||
+                !currentItem.rate || !currentItem.fixed_rate || !currentItem.type ||
                 !currentItem.property_stock_inventory || !currentItem.default_code) {
                 toast({
                     title: "Validation Error",
@@ -637,12 +637,12 @@ export default function RateList() {
         setFilters({
             name: "",
             type: "",
-            list_price: "",
-            standard_price: "",
+            rate: "",
+            fixed_rate: "",
             default_code: "",
             client_specific: "",
             uom_id: "",
-            currency_id: "",
+            currency_rate_id: "",
         });
     };
 
@@ -714,17 +714,17 @@ export default function RateList() {
             );
         }
 
-        if (filters.list_price) {
+        if (filters.rate) {
             filtered = filtered.filter(
                 (item) =>
-                    item.list_price && item.list_price.toString().includes(filters.list_price)
+                    item.rate && item.rate.toString().includes(filters.rate)
             );
         }
 
-        if (filters.standard_price) {
+        if (filters.fixed_rate) {
             filtered = filtered.filter(
                 (item) =>
-                    item.standard_price && item.standard_price.toString().includes(filters.standard_price)
+                    item.fixed_rate && item.fixed_rate.toString().includes(filters.fixed_rate)
             );
         }
 
@@ -748,10 +748,10 @@ export default function RateList() {
             );
         }
 
-        if (filters.currency_id) {
+        if (filters.currency_rate_id) {
             filtered = filtered.filter(
                 (item) =>
-                    item.currency_id && item.currency_id.toString().includes(filters.currency_id)
+                    item.currency_rate_id && item.currency_rate_id.toString().includes(filters.currency_rate_id)
             );
         }
 
@@ -872,16 +872,16 @@ export default function RateList() {
                                     />
                                 </Box>
 
-                                {/* Currency ID Filter */}
+                                {/* Currency Rate ID Filter */}
                                 <Box minW="200px" flex="1">
                                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Currency ID
+                                        Currency Rate ID
                                     </Text>
                                     <Input
                                         size="sm"
                                         placeholder="Filter by currency ID"
-                                        value={filters.currency_id}
-                                        onChange={(e) => handleFilterChange("currency_id", e.target.value)}
+                                        value={filters.currency_rate_id}
+                                        onChange={(e) => handleFilterChange("currency_rate_id", e.target.value)}
                                         borderRadius="md"
                                     />
                                 </Box>
@@ -959,14 +959,14 @@ export default function RateList() {
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Inc In Tariff</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Group ID</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Sort Order</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">List Price</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Standard Price</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Fixed Rate</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Remarks</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Type</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">UOM ID</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Default Code</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Stock Inventory</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency Rate ID</Th>
 
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
@@ -1058,12 +1058,12 @@ export default function RateList() {
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                {item.list_price ? `$${item.list_price}` : '-'}
+                                                {item.rate ? `$${item.rate}` : '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                {item.standard_price ? `$${item.standard_price}` : '-'}
+                                                {item.fixed_rate ? `$${item.fixed_rate}` : '-'}
                                             </Text>
                                         </Td>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
@@ -1103,8 +1103,8 @@ export default function RateList() {
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
                                                 {(() => {
-                                                    const currency = currenciesList.find(c => c.id == item.currency_id);
-                                                    return currency ? `${currency.name} (${currency.symbol})` : (item.currency_id || '-');
+                                                    const currency = currenciesList.find(c => c.id == item.currency_rate_id);
+                                                    return currency ? `${currency.name} (${currency.symbol})` : (item.currency_rate_id || '-');
                                                 })()}
                                             </Text>
                                         </Td>
@@ -1309,15 +1309,15 @@ export default function RateList() {
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">List Price</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Rate</FormLabel>
                                     <NumberInput
                                         size="sm"
-                                        value={isEditing ? editingItem?.list_price || "" : newRateItem.list_price}
+                                        value={isEditing ? editingItem?.rate || "" : newRateItem.rate}
                                         onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, list_price: value }));
+                                                setEditingItem(prev => ({ ...prev, rate: value }));
                                             } else {
-                                                handleInputChange('list_price', value);
+                                                handleInputChange('rate', value);
                                             }
                                         }}
                                         min={0}
@@ -1354,15 +1354,15 @@ export default function RateList() {
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Standard Price</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Fixed Rate</FormLabel>
                                     <NumberInput
                                         size="sm"
-                                        value={isEditing ? editingItem?.standard_price || "" : newRateItem.standard_price}
+                                        value={isEditing ? editingItem?.fixed_rate || "" : newRateItem.fixed_rate}
                                         onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, standard_price: value }));
+                                                setEditingItem(prev => ({ ...prev, fixed_rate: value }));
                                             } else {
-                                                handleInputChange('standard_price', value);
+                                                handleInputChange('fixed_rate', value);
                                             }
                                         }}
                                         min={0}
@@ -1611,14 +1611,14 @@ export default function RateList() {
                                 </FormControl>
 
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency ID</FormLabel>
+                                    <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">Currency Rate ID</FormLabel>
                                     <SearchableSelect
-                                        value={isEditing ? editingItem?.currency_id || "" : newRateItem.currency_id}
+                                        value={isEditing ? editingItem?.currency_rate_id || "" : newRateItem.currency_rate_id}
                                         onChange={(value) => {
                                             if (isEditing) {
-                                                setEditingItem(prev => ({ ...prev, currency_id: value }));
+                                                setEditingItem(prev => ({ ...prev, currency_rate_id: value }));
                                             } else {
-                                                handleInputChange('currency_id', value);
+                                                handleInputChange('currency_rate_id', value);
                                             }
                                         }}
                                         options={currenciesList}
@@ -1798,9 +1798,9 @@ export default function RateList() {
                                             _hover={{ borderColor: "green.300", boxShadow: "sm" }}
                                             transition="all 0.2s"
                                         >
-                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">List Price</Text>
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Rate</Text>
                                             <Text fontSize="xl" color="green.600" fontWeight="700">
-                                                ${detailItem.list_price || '-'}
+                                                ${detailItem.rate || '-'}
                                             </Text>
                                         </Box>
                                         <Box
@@ -1812,17 +1812,17 @@ export default function RateList() {
                                             _hover={{ borderColor: "blue.300", boxShadow: "sm" }}
                                             transition="all 0.2s"
                                         >
-                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Standard Price</Text>
+                                            <Text fontSize="sm" fontWeight="600" color="gray.600" mb="2">Fixed Rate</Text>
                                             <Text fontSize="xl" color="blue.600" fontWeight="700">
-                                                ${detailItem.standard_price || '-'}
+                                                ${detailItem.fixed_rate || '-'}
                                             </Text>
                                         </Box>
                                         <Box>
                                             <Text fontSize="sm" fontWeight="500" color="gray.600">Currency</Text>
                                             <Text fontSize="md" color="gray.800">
                                                 {(() => {
-                                                    const currency = currenciesList.find(c => c.id == detailItem.currency_id);
-                                                    return currency ? `${currency.name} (${currency.symbol})` : (detailItem.currency_id || '-');
+                                                    const currency = currenciesList.find(c => c.id == detailItem.currency_rate_id);
+                                                    return currency ? `${currency.name} (${currency.symbol})` : (detailItem.currency_rate_id || '-');
                                                 })()}
                                             </Text>
                                         </Box>
