@@ -43,7 +43,10 @@ export function SidebarLinks(props) {
 
   // this function creates the links from the secondary accordions (for example auth -> sign-in -> default)
   const createLinks = (routes) => {
+    // Filter out hidden routes to find the last visible menu
+    const visibleRoutes = routes.filter(route => !route.hidden);
     return routes.map((route, index) => {
+      const isLastMenu = route.name === "Configurations";
       // Skip hidden routes
       if (route.hidden) {
         return null;
@@ -136,7 +139,7 @@ export function SidebarLinks(props) {
                           key={subIndex}
                           to={route.layout + subItem.path}
                         >
-                          <Box>
+                          <Box pb={isLastMenu && subIndex === route.submenu.length - 1 ? "60px" : "0px"}>
                             <HStack
                               spacing={
                                 activeRoute(subItem.path.toLowerCase())

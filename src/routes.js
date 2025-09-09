@@ -24,6 +24,7 @@ import {
   MdAttachMoney,
   MdStraighten,
   MdPublic,
+  MdPlace,
 } from "react-icons/md";
 
 // Admin Imports
@@ -62,6 +63,7 @@ import Currencies from "views/admin/configurations/currencies";
 import Countries from "views/admin/configurations/countries";
 import Vessels from "views/admin/configurations/vessels";
 import UOM from "views/admin/configurations/uom";
+import Destinations from "views/admin/configurations/destinations";
 
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
@@ -248,6 +250,12 @@ const routes = [
         path: "/configurations/vessels",
         icon: <Icon as={MdDirectionsBoat} width="20px" height="20px" color="inherit" />,
         component: Vessels,
+      },
+      {
+        name: "Destinations",
+        path: "/configurations/destinations",
+        icon: <Icon as={MdPlace} width="20px" height="20px" color="inherit" />,
+        component: Destinations,
       },
     ],
   },

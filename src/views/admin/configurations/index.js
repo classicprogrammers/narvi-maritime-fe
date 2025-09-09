@@ -17,6 +17,7 @@ import {
   MdStraighten,
   MdPublic,
   MdDirectionsBoat,
+  MdPlace,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 
@@ -113,6 +114,13 @@ export default function Configurations() {
       icon: MdDirectionsBoat,
       path: "/admin/configurations/vessels",
       color: "blue",
+    },
+    {
+      title: "Destinations",
+      description: "Manage shipping destinations",
+      icon: MdPlace,
+      path: "/admin/configurations/destinations",
+      color: "orange",
     },
   ];
 

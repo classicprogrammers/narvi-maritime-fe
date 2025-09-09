@@ -17,7 +17,11 @@ export function SidebarBrand(props) {
       {/* <ClassicLogo h='26px' w='175px' my='32px' color={logoColor} />
       <HSeparator mb='20px' /> */}
       {collapsed ?
-      'N-M' :
+      <Image
+      src={require("assets/img/ship-logo.png")}
+      alt='Logo'
+      transition="all 0.2s"
+    /> :
       <Image
         src={require("assets/img/Logo.png")}
         alt='Logo'

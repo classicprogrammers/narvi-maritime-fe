@@ -62,6 +62,7 @@ import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import uomAPI from "../../../api/uom";
 import currenciesAPI from "../../../api/currencies";
+import destinationsAPI from "../../../api/destinations";
 
 const SearchableSelect = ({
     value,
@@ -175,6 +176,7 @@ export default function Quotations() {
     const [vendors, setVendors] = useState([]);
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
+    const [destinationsList, setDestinationsList] = useState([]);
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
@@ -314,10 +316,19 @@ export default function Quotations() {
                 setCurrenciesList([]);
             }
 
+            // Fetch Destinations
+            const destinationsResponse = await destinationsAPI.getDestinations();
+            if (destinationsResponse.destinations && Array.isArray(destinationsResponse.destinations)) {
+                setDestinationsList(destinationsResponse.destinations);
+            } else {
+                setDestinationsList([]);
+            }
+
         } catch (error) {
             console.error("Failed to fetch master data:", error);
             setUomList([]);
             setCurrenciesList([]);
+            setDestinationsList([]);
         }
     }, []);
 
@@ -1247,27 +1258,14 @@ export default function Quotations() {
 
                                 <FormControl>
                                     <FormLabel fontSize="sm" color={textColor}>Destination</FormLabel>
-                                    <NumberInput
-                                        size="sm"
+                                    <SearchableSelect
                                         value={newQuotation.destination}
                                         onChange={(value) => handleInputChange('destination', value)}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter destination"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
+                                        options={destinationsList}
+                                        valueKey="id"
+                                        labelKey="name"
+                                        placeholder="Select destination"
+                                    />
                                 </FormControl>
 
                                 <FormControl>
