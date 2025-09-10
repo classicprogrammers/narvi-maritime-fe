@@ -5,6 +5,12 @@ const destinationsAPI = {
   getDestinations: async () => {
     try {
       const response = await api.get("/api/destinations");
+      
+      // Check if response has error status (JSON-RPC format)
+      if (response.data.result && response.data.result.status === 'error') {
+        throw new Error(response.data.result.message || 'Failed to fetch destinations');
+      }
+      
       return response.data;
     } catch (error) {
       console.error("Failed to fetch destinations:", error);

@@ -95,6 +95,12 @@ export const registerCustomerApi = async (customerData) => {
 export const getCustomersApi = async () => {
   try {
     const response = await api.get(getApiEndpoint("CUSTOMERS"));
+    
+    // Check if response has error status (JSON-RPC format)
+    if (response.data.result && response.data.result.status === 'error') {
+      throw new Error(response.data.result.message || 'Failed to fetch customers');
+    }
+    
     return response.data;
   } catch (error) {
     console.error("Get customers error:", error);

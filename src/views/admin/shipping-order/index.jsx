@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Box,
     Flex,
     Text,
     Button,
-    Input,
     Table,
     Thead,
     Tbody,
@@ -16,131 +15,199 @@ import {
     HStack,
     IconButton,
     useColorModeValue,
-    Checkbox,
+    Spinner,
+    Alert,
+    AlertIcon,
+    AlertTitle,
+    AlertDescription,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
+    VStack,
     Grid,
-    Tabs,
-    TabList,
-    TabPanels,
-    Tab,
-    TabPanel,
-    FormControl,
-    FormLabel,
-    NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
-    Link,
+    Divider,
+    useToast,
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogContent,
+    AlertDialogOverlay,
 } from "@chakra-ui/react";
 import {
     MdAdd,
-    MdSettings,
-    MdSearch,
-    MdDelete,
+    MdRefresh,
+    MdVisibility,
     MdEdit,
-    MdHelp,
-    MdChevronLeft,
-    MdChevronRight,
-    MdAttachFile,
-    MdSend,
-    MdNote,
-    MdHistory,
+    MdDelete,
 } from "react-icons/md";
+import { useShippingOrders } from "../../../redux/hooks/useShippingOrders";
+import { useLookups } from "../../../hooks/useLookups";
+import ShippingOrderForm from "../../../components/forms/ShippingOrderForm";
 
 export default function ShippingOrder() {
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [activeTab, setActiveTab] = useState("orderLines");
+    const [selectedOrder, setSelectedOrder] = useState(null);
+    const [editingOrder, setEditingOrder] = useState(null);
+    const [deletingOrder, setDeletingOrder] = useState(null);
 
-    // Quotation data state
-    const [quotationData, setQuotationData] = useState({
-        quotationId: "S00025",
-        invoiceAddress: "Transcoma Shipping SA (Worldwide requests for DOB)",
-        deliveryAddress: "Transcoma Shipping SA (Worldwide requests for DOB)",
-        quotationTemplate: "",
-    });
+    const { isOpen, onOpen, onClose } = useDisclosure();
+    const {
+        isOpen: isFormOpen,
+        onOpen: onFormOpen,
+        onClose: onFormClose
+    } = useDisclosure();
+    const {
+        isOpen: isDeleteOpen,
+        onOpen: onDeleteOpen,
+        onClose: onDeleteClose
+    } = useDisclosure();
 
-    // Order lines state
-    const [orderLines, setOrderLines] = useState([
-        {
-            id: 1,
-            isSelected: true,
-            rate: "0.00",
-            quantity: "0.00",
-            buyRate: "0.00",
-            costActual: "0.00",
-            fixedCost: false,
-            costSum: "0.00",
-            roe: "0.00",
-            costUSD: "0.00",
-            muPercent: "0.00",
-            muAmount: "0.00",
-            qtRate: "0.00",
-            amendment: "0.00",
-            rateTo: "0.00",
-        }
-    ]);
+    const toast = useToast();
+
+    // Redux state and actions
+    const {
+        orders,
+        count,
+        isLoading,
+        isDeleting,
+        error,
+        deleteError,
+        fetchOrders,
+        deleteOrder,
+        clearError,
+    } = useShippingOrders();
+
+    // Lookup service for getting entity names
+    const {
+        getCachedName,
+        getEntityNameById,
+    } = useLookups();
 
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const textColor = useColorModeValue("gray.700", "white");
 
+    // Fetch orders on component mount (only if not already loaded)
+    useEffect(() => {
+        if (orders.length === 0 && !isLoading) {
+            fetchOrders();
+        }
+    }, [fetchOrders, orders.length, isLoading]);
 
-    const handleSelectAll = (isChecked) => {
-        if (isChecked) {
-            setSelectedItems(orderLines.map(item => item.id));
-        } else {
-            setSelectedItems([]);
+    // Trigger name lookups when orders are loaded
+    useEffect(() => {
+        if (orders.length > 0) {
+            // Get unique IDs for each entity type
+            const userIds = [...new Set(orders.map(order => order.user_id).filter(Boolean))];
+            const partnerIds = [...new Set(orders.map(order => order.partner_id).filter(Boolean))];
+            const vesselIds = [...new Set(orders.map(order => order.vessel_id).filter(Boolean))];
+            const destinationIds = [...new Set(orders.map(order => order.destination_id).filter(Boolean))];
+
+            // Trigger lookups for each entity type
+            userIds.forEach(id => getEntityNameById('users', id));
+            partnerIds.forEach(id => getEntityNameById('customers', id));
+            vesselIds.forEach(id => getEntityNameById('vessels', id));
+            destinationIds.forEach(id => getEntityNameById('destinations', id));
+        }
+    }, [orders, getEntityNameById]);
+
+    const handleRefresh = useCallback(() => {
+        fetchOrders();
+        clearError();
+    }, [fetchOrders, clearError]);
+
+    const handleViewDetails = (order) => {
+        setSelectedOrder(order);
+        onOpen();
+    };
+
+    const handleCreateOrder = () => {
+        setEditingOrder(null);
+        onFormOpen();
+    };
+
+    const handleEditOrder = (order) => {
+        setEditingOrder(order);
+        onFormOpen();
+    };
+
+    const handleDeleteOrder = (order) => {
+        setDeletingOrder(order);
+        onDeleteOpen();
+    };
+
+    const confirmDelete = async () => {
+        if (!deletingOrder) return;
+
+        try {
+            await deleteOrder(deletingOrder.id);
+            toast({
+                title: 'Success',
+                description: 'Shipping order deleted successfully',
+                status: 'success',
+                duration: 3000,
+                isClosable: true,
+            });
+            onDeleteClose();
+            setDeletingOrder(null);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to delete shipping order',
+                status: 'error',
+                duration: 5000,
+                isClosable: true,
+            });
         }
     };
 
-    const handleSelectItem = (itemId, isChecked) => {
-        if (isChecked) {
-            setSelectedItems([...selectedItems, itemId]);
-        } else {
-            setSelectedItems(selectedItems.filter(id => id !== itemId));
-        }
+    const handleFormClose = () => {
+        setEditingOrder(null);
+        onFormClose();
     };
 
-    const handleInputChange = (field, value) => {
-        setQuotationData(prev => ({
-            ...prev,
-            [field]: value
-        }));
+    // Format date for display
+    const formatDate = (dateString) => {
+        if (!dateString) return "N/A";
+        return new Date(dateString).toLocaleDateString();
     };
 
-    const handleOrderLineChange = (id, field, value) => {
-        setOrderLines(prev => prev.map(line =>
-            line.id === id ? { ...line, [field]: value } : line
-        ));
-    };
+    // Show loading state
+    if (isLoading && orders.length === 0) {
+        return (
+            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
+                <VStack spacing="4">
+                    <Spinner size="xl" color="#1c4a95" />
+                    <Text>Loading shipping orders...</Text>
+                </VStack>
+            </Box>
+        );
+    }
 
-    const addOrderLine = () => {
-        const newLine = {
-            id: orderLines.length + 1,
-            isSelected: false,
-            rate: "0.00",
-            quantity: "0.00",
-            buyRate: "0.00",
-            costActual: "0.00",
-            fixedCost: false,
-            costSum: "0.00",
-            roe: "0.00",
-            costUSD: "0.00",
-            muPercent: "0.00",
-            muAmount: "0.00",
-            qtRate: "0.00",
-            amendment: "0.00",
-            rateTo: "0.00",
-        };
-        setOrderLines([...orderLines, newLine]);
-    };
-
-    const deleteOrderLine = (id) => {
-        setOrderLines(prev => prev.filter(line => line.id !== id));
-    };
+    // Show error state
+    if (error && orders.length === 0) {
+        return (
+            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
+                <Alert status="error">
+                    <AlertIcon />
+                    <Box>
+                        <AlertTitle>Error loading shipping orders!</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Box>
+                </Alert>
+                <Button mt="4" onClick={handleRefresh} leftIcon={<Icon as={MdRefresh} />}>
+                    Retry
+                </Button>
+            </Box>
+        );
+    }
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="12222">
-            {/* Sub Header Bar */}
+            {/* Header */}
             <Flex
                 bg="gray.100"
                 borderBottom="1px"
@@ -149,8 +216,6 @@ export default function ShippingOrder() {
                 py="3"
                 justify="space-between"
                 align="center"
-                flexDir={{ base: "column", lg: "row" }}
-                gap={{ base: "2", lg: "0" }}
             >
                 <HStack spacing="4">
                     <Button
@@ -161,451 +226,446 @@ export default function ShippingOrder() {
                         px="6"
                         py="3"
                         borderRadius="md"
+                        onClick={handleCreateOrder}
                         _hover={{ bg: "#173f7c" }}
                     >
-                        New
+                        New Order
                     </Button>
-                    <HStack spacing="2">
                         <Text fontSize={{ base: "sm", md: "md" }} fontWeight="bold" color={textColor}>
-                            Shipping Orders {quotationData.quotationId}
+                        Shipping Orders ({count} orders)
                         </Text>
-                        <IconButton
-                            size="xs"
-                            icon={<Icon as={MdSettings} color={textColor} />}
-                            variant="ghost"
-                            aria-label="Settings"
-                        />
-                    </HStack>
                 </HStack>
 
                 <HStack spacing="2">
-                    <Text fontSize={{ base: "xs", md: "sm" }} color={textColor}>
-                        1/8
-                    </Text>
                     <IconButton
                         size="sm"
-                        icon={<Icon as={MdChevronLeft} color={textColor} />}
+                        icon={<Icon as={MdRefresh} color={textColor} />}
                         variant="ghost"
-                        aria-label="Previous"
-                    />
-                    <IconButton
-                        size="sm"
-                        icon={<Icon as={MdChevronRight} color={textColor} />}
-                        variant="ghost"
-                        aria-label="Next"
+                        aria-label="Refresh"
+                        onClick={handleRefresh}
+                        isLoading={isLoading}
                     />
                 </HStack>
             </Flex>
 
-            {/* Main Content Area */}
-            <Flex>
-
-                {/* Main Content */}
-                <Box flex="1" bg="white" p={{ base: "4", md: "6" }}>
-                    {/* Shipping Order ID Header */}
-                    <Text fontSize={{ base: "2xl", md: "3xl" }} fontWeight="bold" color={textColor} mb="6">
-                        {quotationData.quotationId}
-                    </Text>
-
-                    {/* Quotation Details Form */}
-                    <Grid templateColumns="repeat(3, 1fr)" gap="6" mb="6">
-                        <FormControl>
-                            <FormLabel fontSize="sm" color={textColor} display="flex" alignItems="center" gap="2">
-                                Invoice Address
-                                <Icon as={MdHelp} w="4" h="4" color="gray.400" />
-                            </FormLabel>
-                            <Input
-                                size="sm"
-                                value={quotationData.invoiceAddress}
-                                onChange={(e) => handleInputChange('invoiceAddress', e.target.value)}
-                                border="1px"
-                                borderColor="gray.300"
-                                borderRadius="md"
-                            />
-                        </FormControl>
-
-                        <FormControl>
-                            <FormLabel fontSize="sm" color={textColor} display="flex" alignItems="center" gap="2">
-                                Delivery Address
-                                <Icon as={MdHelp} w="4" h="4" color="gray.400" />
-                            </FormLabel>
-                            <Input
-                                size="sm"
-                                value={quotationData.deliveryAddress}
-                                onChange={(e) => handleInputChange('deliveryAddress', e.target.value)}
-                                border="1px"
-                                borderColor="gray.300"
-                                borderRadius="md"
-                            />
-                        </FormControl>
-
-                        <FormControl>
-                            <FormLabel fontSize="sm" color={textColor} display="flex" alignItems="center" gap="2">
-                                Quotation Template
-                                <Icon as={MdHelp} w="4" h="4" color="gray.400" />
-                            </FormLabel>
-                            <Input
-                                size="sm"
-                                value={quotationData.quotationTemplate}
-                                onChange={(e) => handleInputChange('quotationTemplate', e.target.value)}
-                                border="1px"
-                                borderColor="gray.300"
-                                borderRadius="md"
-                                placeholder="Select template"
-                            />
-                        </FormControl>
-                    </Grid>
-
-                    {/* Tabs */}
-                    <Tabs value={activeTab} onChange={setActiveTab} variant="enclosed" mb="6">
-                        <TabList>
-                            <Tab fontSize="sm" color={textColor}>Order Lines</Tab>
-                            <Tab fontSize="sm" color={textColor}>Quotation Details</Tab>
-                            <Tab fontSize="sm" color={textColor}>Shipping Details</Tab>
-                            <Tab fontSize="sm" color={textColor}>Remarks</Tab>
-                            <Tab fontSize="sm" color={textColor}>Optional Products</Tab>
-                            <Tab fontSize="sm" color={textColor}>Other Info</Tab>
-                            <Tab fontSize="sm" color={textColor}>Customer Signature</Tab>
-                        </TabList>
-
-                        <TabPanels>
-                            <TabPanel>
-                                {/* Order Lines Table */}
-                                <Box overflowX="auto" maxW="100%">
-                                    <Table variant="simple" size="sm" border="1px" borderColor={borderColor} minW="1400px">
+            {/* Main Table */}
+            <Box bg="white" p="6">
+                {orders.length === 0 ? (
+                    <Box textAlign="center" py="8">
+                        <Text color="gray.500" fontSize="lg">No shipping orders available.</Text>
+                    </Box>
+                ) : (
+                    <Box overflowX="auto">
+                        <Table variant="simple" size="sm">
                                         <Thead>
                                             <Tr>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} textAlign="center" bg="gray.50" py="2">Is ...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Rate</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Quantity</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Buy Rate</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Cost act...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} textAlign="center" bg="gray.50" py="2">Fixe...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Cost sum</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">ROE</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Cost USD</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">MU %</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">MU Amo...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">QT Rate</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Amende...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} bg="gray.50" py="2">Rate to ...</Th>
-                                                <Th fontSize="xs" color="gray.500" border="1px" borderColor={borderColor} textAlign="center" bg="gray.50" py="2">Actions</Th>
+                                    <Th>Order Name</Th>
+                                    <Th>ID</Th>
+                                    <Th>Status</Th>
+                                    <Th>User</Th>
+                                    <Th>Partner/Customer</Th>
+                                    <Th>Vessel</Th>
+                                    <Th>Destination</Th>
+                                    <Th>Create Date</Th>
+                                    <Th>Quotation ID</Th>
+                                    <Th>Actions</Th>
                                             </Tr>
                                         </Thead>
                                         <Tbody>
-                                            {orderLines.map((line) => (
-                                                <Tr key={line.id} _hover={{ bg: "gray.50" }}>
-                                                    <Td textAlign="center" border="1px" borderColor={borderColor} py="2">
-                                                        <Checkbox
-                                                            isChecked={line.isSelected}
-                                                            onChange={(e) => handleOrderLineChange(line.id, 'isSelected', e.target.checked)}
-                                                            colorScheme="green"
-                                                            size="sm"
-                                                        />
+                                {orders.map((order) => (
+                                    <Tr key={order.id} _hover={{ bg: "gray.50" }}>
+                                        <Td fontWeight="medium">{order.name}</Td>
+                                        <Td>{order.id}</Td>
+                                        <Td>
+                                            <Badge colorScheme={order.done ? "green" : "orange"}>
+                                                {order.done ? "Done" : "Pending"}
+                                            </Badge>
                                                     </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.rate}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'rate', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                            bg="orange.50"
-                                                            border="1px"
-                                                            borderColor="orange.200"
-                                                            borderRadius="sm"
-                                                        >
-                                                            <NumberInputField
-                                                                fontSize="xs"
-                                                                py="1"
-                                                                px="2"
-                                                                border="none"
-                                                                bg="transparent"
-                                                                textAlign="center"
-                                                            />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
+                                        <Td>
+                                            <Text fontSize="sm" color={getCachedName('users', order.user_id) === 'Loading...' ? 'gray.400' : 'inherit'}>
+                                                {getCachedName('users', order.user_id)}
+                                            </Text>
                                                     </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.quantity}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'quantity', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
+                                        <Td>
+                                            <Text fontSize="sm" color={getCachedName('customers', order.partner_id) === 'Loading...' ? 'gray.400' : 'inherit'}>
+                                                {getCachedName('customers', order.partner_id)}
+                                            </Text>
                                                     </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.buyRate}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'buyRate', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
+                                        <Td>
+                                            <Text fontSize="sm" color={getCachedName('vessels', order.vessel_id) === 'Loading...' ? 'gray.400' : 'inherit'}>
+                                                {getCachedName('vessels', order.vessel_id)}
+                                            </Text>
                                                     </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.costActual}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'costActual', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
+                                        <Td>
+                                            <Text fontSize="sm" color={getCachedName('destinations', order.destination_id) === 'Loading...' ? 'gray.400' : 'inherit'}>
+                                                {getCachedName('destinations', order.destination_id)}
+                                            </Text>
                                                     </Td>
-                                                    <Td textAlign="center" border="1px" borderColor={borderColor} py="2">
-                                                        <Checkbox
-                                                            isChecked={line.fixedCost}
-                                                            onChange={(e) => handleOrderLineChange(line.id, 'fixedCost', e.target.checked)}
-                                                            size="sm"
-                                                        />
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.costSum}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'costSum', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.roe}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'roe', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.costUSD}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'costUSD', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.muPercent}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'muPercent', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.muAmount}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'muAmount', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.qtRate}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'qtRate', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.amendment}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'amendment', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td border="1px" borderColor={borderColor} py="1">
-                                                        <NumberInput
-                                                            size="xs"
-                                                            value={line.rateTo}
-                                                            onChange={(value) => handleOrderLineChange(line.id, 'rateTo', value)}
-                                                            min={0}
-                                                            step={0.01}
-                                                        >
-                                                            <NumberInputField fontSize="xs" py="1" px="2" border="1px" borderColor="gray.300" textAlign="center" />
-                                                            <NumberInputStepper>
-                                                                <NumberIncrementStepper h="12px" fontSize="8px" />
-                                                                <NumberDecrementStepper h="12px" fontSize="8px" />
-                                                            </NumberInputStepper>
-                                                        </NumberInput>
-                                                    </Td>
-                                                    <Td textAlign="center" border="1px" borderColor={borderColor} py="2">
-                                                        <IconButton
-                                                            size="xs"
-                                                            icon={<Icon as={MdDelete} />}
-                                                            variant="ghost"
-                                                            color="gray.500"
-                                                            aria-label="Delete"
-                                                            onClick={() => deleteOrderLine(line.id)}
-                                                        />
+                                        <Td>{formatDate(order.create_date)}</Td>
+                                        <Td>{order.quotation_id}</Td>
+                                        <Td>
+                                            <HStack spacing="2">
+                                                <span
+                                                    onClick={() => handleViewDetails(order)}
+                                                >
+                                                    <Icon as={MdVisibility} style={{ fontSize: 'large', cursor: 'pointer' }} />
+                                                </span>
+                                                <span
+                                                    onClick={() => handleEditOrder(order)}
+                                                >
+                                                    <Icon as={MdEdit} style={{ fontSize: 'large', cursor: 'pointer' }} />
+                                                </span>
+                                                <span
+                                                    onClick={() => handleDeleteOrder(order)}
+                                                >
+                                                    <Icon as={MdDelete} style={{ fontSize: 'large', cursor: 'pointer' }} />
+                                                </span>
+                                            </HStack>
                                                     </Td>
                                                 </Tr>
                                             ))}
                                         </Tbody>
                                     </Table>
                                 </Box>
-                                <HStack spacing="2" mt="2">
-                                    <Link color="blue.500" fontSize="sm" display="inline-block" onClick={addOrderLine}>
-                                        Add a line
-                                    </Link>
-                                    <Icon as={MdEdit} w="4" h="4" color="blue.500" />
-                                </HStack>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Quotation Details content</Text>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Shipping Details content</Text>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Remarks content</Text>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Optional Products content</Text>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Other Info content</Text>
-                            </TabPanel>
-                            <TabPanel>
-                                <Text color="gray.500">Customer Signature content</Text>
-                            </TabPanel>
-                        </TabPanels>
-                    </Tabs>
+                )}
+            </Box>
 
-                    {/* Bottom Communication Section */}
-                    <Box
-                        borderTop="1px"
-                        borderColor={borderColor}
-                        pt="4"
-                        mt="6"
+            {/* Details Modal */}
+            <Modal isOpen={isOpen} onClose={onClose} size="4xl">
+                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
+                <ModalContent maxW="900px" borderRadius="xl" boxShadow="2xl">
+                    <ModalHeader
+                        bg="linear-gradient(135deg, #1c4a95 0%, #2c5aa0 100%)"
+                        color="white"
+                        borderRadius="xl 0 0 0"
+                        py="6"
                     >
-                        <Flex justify="space-between" align="center" mb="4">
-                            <HStack spacing="4">
-                                <Button
-                                    leftIcon={<Icon as={MdSend} />}
-                                    bg="#1c4a95"
-                                    color="white"
-                                    size="sm"
-                                    _hover={{ bg: "#173f7c" }}
+                        <VStack align="start" spacing="2">
+                            <Text fontSize="xl" fontWeight="bold">
+                                Order Details
+                            </Text>
+                            <Text fontSize="lg" opacity="0.9">
+                                {selectedOrder?.name}
+                            </Text>
+                        </VStack>
+                    </ModalHeader>
+                    <ModalCloseButton color="white" size="lg" />
+                    <ModalBody p="0">
+                        {selectedOrder && (
+                            <Box>
+                                {/* Status Banner */}
+                                <Box
+                                    bg={selectedOrder.done ? "green.50" : "orange.50"}
+                                    borderLeft="4px solid"
+                                    borderLeftColor={selectedOrder.done ? "green.400" : "orange.400"}
+                                    p="4"
+                                    mx="6"
+                        mt="6"
+                                    borderRadius="md"
                                 >
-                                    Send message
-                                </Button>
-                                <Button
-                                    leftIcon={<Icon as={MdNote} />}
-                                    variant="ghost"
-                                    size="sm"
-                                    color="gray.500"
-                                >
-                                    Log note
-                                </Button>
-                                <Button
-                                    leftIcon={<Icon as={MdHistory} />}
-                                    variant="ghost"
-                                    size="sm"
-                                    color="gray.500"
-                                >
-                                    Activities
-                                </Button>
+                                    <HStack spacing="3">
+                                        <Badge
+                                            colorScheme={selectedOrder.done ? "green" : "orange"}
+                                            size="lg"
+                                            px="3"
+                                            py="1"
+                                            borderRadius="full"
+                                        >
+                                            {selectedOrder.done ? "✓ Completed" : "⏳ Pending"}
+                                        </Badge>
+                                        <Text fontSize="sm" color="gray.600">
+                                            Order Status
+                                        </Text>
+                                    </HStack>
+                                </Box>
+
+                                {/* Main Content */}
+                                <Box p="6">
+                                    <Grid templateColumns="repeat(2, 1fr)" gap="8">
+                                        {/* Order Information Card */}
+                                        <Box
+                                            bg="gray.50"
+                                            p="6"
+                                            borderRadius="lg"
+                                            border="1px solid"
+                                            borderColor="gray.200"
+                                        >
+                                            <VStack align="start" spacing="4">
+                                                <HStack spacing="2">
+                                                    <Box w="3" h="3" bg="blue.500" borderRadius="full" />
+                                                    <Text fontSize="md" fontWeight="semibold" color="gray.700">
+                                                        Order Information
+                                                    </Text>
+                                                </HStack>
+
+                                                <VStack align="start" spacing="3" w="full">
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Order ID
+                                                        </Text>
+                                                        <Text fontSize="lg" fontWeight="medium" color="gray.800">
+                                                            #{selectedOrder.id}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Order Name
+                                                        </Text>
+                                                        <Text fontSize="lg" fontWeight="medium" color="gray.800">
+                                                            {selectedOrder.name}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Create Date
+                                                        </Text>
+                                                        <Text fontSize="md" color="gray.700">
+                                                            {formatDate(selectedOrder.create_date)}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Order Date
+                                                        </Text>
+                                                        <Text fontSize="md" color="gray.700">
+                                                            {formatDate(selectedOrder.date_order)}
+                                                        </Text>
+                                                    </Box>
+                                                </VStack>
+                                            </VStack>
+                                        </Box>
+
+                                        {/* Entity Information Card */}
+                                        <Box
+                                            bg="blue.50"
+                                            p="6"
+                                            borderRadius="lg"
+                                            border="1px solid"
+                                            borderColor="blue.200"
+                                        >
+                                            <VStack align="start" spacing="4">
+                                                <HStack spacing="2">
+                                                    <Box w="3" h="3" bg="blue.500" borderRadius="full" />
+                                                    <Text fontSize="md" fontWeight="semibold" color="gray.700">
+                                                        Entity Information
+                                                    </Text>
                             </HStack>
 
-                            <HStack spacing="4">
-                                <IconButton
-                                    size="sm"
-                                    icon={<Icon as={MdSearch} />}
-                                    variant="ghost"
-                                    aria-label="Search"
-                                />
-                                <HStack spacing="1">
-                                    <Icon as={MdAttachFile} w="4" h="4" color="gray.500" />
-                                    <Badge colorScheme="blue" size="sm">1</Badge>
+                                                <VStack align="start" spacing="3" w="full">
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            User
+                                                        </Text>
+                                                        <Text
+                                                            fontSize="md"
+                                                            color={getCachedName('users', selectedOrder.user_id) === 'Loading...' ? 'gray.400' : 'gray.700'}
+                                                            fontWeight="medium"
+                                                        >
+                                                            {getCachedName('users', selectedOrder.user_id)}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Partner/Customer
+                                                        </Text>
+                                                        <Text
+                                                            fontSize="md"
+                                                            color={getCachedName('customers', selectedOrder.partner_id) === 'Loading...' ? 'gray.400' : 'gray.700'}
+                                                            fontWeight="medium"
+                                                        >
+                                                            {getCachedName('customers', selectedOrder.partner_id)}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Vessel
+                                                        </Text>
+                                                        <Text
+                                                            fontSize="md"
+                                                            color={getCachedName('vessels', selectedOrder.vessel_id) === 'Loading...' ? 'gray.400' : 'gray.700'}
+                                                            fontWeight="medium"
+                                                        >
+                                                            {getCachedName('vessels', selectedOrder.vessel_id)}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Destination
+                                                        </Text>
+                                                        <Text
+                                                            fontSize="md"
+                                                            color={getCachedName('destinations', selectedOrder.destination_id) === 'Loading...' ? 'gray.400' : 'gray.700'}
+                                                            fontWeight="medium"
+                                                        >
+                                                            {getCachedName('destinations', selectedOrder.destination_id)}
+                                                        </Text>
+                                                    </Box>
+
+                                                    <Box w="full">
+                                                        <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                            Quotation ID
+                                                        </Text>
+                                                        <Text fontSize="md" color="gray.700" fontWeight="medium">
+                                                            #{selectedOrder.quotation_id}
+                                                        </Text>
+                                                    </Box>
+                                                </VStack>
+                                            </VStack>
+                                        </Box>
+                                    </Grid>
+
+                                    {/* Additional Information Card */}
+                                    <Box
+                                        bg="purple.50"
+                                        p="6"
+                                        borderRadius="lg"
+                                        border="1px solid"
+                                        borderColor="purple.200"
+                                        mt="6"
+                                    >
+                                        <VStack align="start" spacing="4">
+                                            <HStack spacing="2">
+                                                <Box w="3" h="3" bg="purple.500" borderRadius="full" />
+                                                <Text fontSize="md" fontWeight="semibold" color="gray.700">
+                                                    Additional Information
+                                                </Text>
                                 </HStack>
-                                <Text fontSize="sm" color="gray.500">Following</Text>
-                            </HStack>
-                        </Flex>
 
+                                            <Grid templateColumns="repeat(3, 1fr)" gap="6" w="full">
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        ETA Date
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700">
+                                                        {formatDate(selectedOrder.eta_date)}
+                                                    </Text>
+                                                </Box>
+
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        Est. to USD
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700" fontWeight="medium">
+                                                        {selectedOrder.est_to_usd || 'N/A'}
+                                                    </Text>
+                                                </Box>
+
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        Est. Profit USD
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700" fontWeight="medium">
+                                                        {selectedOrder.est_profit_usd || 'N/A'}
+                                                    </Text>
+                                                </Box>
+
+                                                <Box>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        Deadline Info
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700">
+                                                        {selectedOrder.deadline_info || 'N/A'}
+                                                    </Text>
+                                                </Box>
+
+                                                <Box colSpan={2}>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        Internal Remark
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700" fontStyle={selectedOrder.internal_remark ? "normal" : "italic"}>
+                                                        {selectedOrder.internal_remark || 'No internal remarks'}
+                                                    </Text>
+                                                </Box>
+
+                                                <Box colSpan={3}>
+                                                    <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                                                        Client Remark
+                                                    </Text>
+                                                    <Text fontSize="md" color="gray.700" fontStyle={selectedOrder.client_remark ? "normal" : "italic"}>
+                                                        {selectedOrder.client_remark || 'No client remarks'}
+                                                    </Text>
+                                                </Box>
+                                            </Grid>
+                                        </VStack>
+                                    </Box>
+                                </Box>
+
+                                {/* Footer Actions */}
+                                <Box
+                                    bg="gray.50"
+                                    p="6"
+                                    borderTop="1px solid"
+                                    borderColor="gray.200"
+                                    borderRadius="0 0 xl xl"
+                                >
                         <Flex justify="space-between" align="center">
                             <Text fontSize="sm" color="gray.500">
-                                You're viewing older messages
+                                            Last updated: {formatDate(selectedOrder.create_date)}
                             </Text>
-                            <Link color="blue.500" fontSize="sm">
-                                Jump to Present
-                            </Link>
+                                        <HStack spacing="3">
+                                            <Button size="sm" variant="outline" colorScheme="blue">
+                                                Edit Order
+                                            </Button>
+                                            <Button size="sm" colorScheme="blue">
+                                                Export Details
+                                            </Button>
+                                        </HStack>
                         </Flex>
                     </Box>
                 </Box>
-            </Flex>
+                        )}
+                    </ModalBody>
+                </ModalContent>
+            </Modal>
+
+            {/* Shipping Order Form Modal */}
+            <ShippingOrderForm
+                isOpen={isFormOpen}
+                onClose={handleFormClose}
+                order={editingOrder}
+                mode={editingOrder ? 'edit' : 'create'}
+            />
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                isOpen={isDeleteOpen}
+                onClose={onDeleteClose}
+                leastDestructiveRef={undefined}
+            >
+                <AlertDialogOverlay>
+                    <AlertDialogContent>
+                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                            Delete Shipping Order
+                        </AlertDialogHeader>
+
+                        <AlertDialogBody>
+                            Are you sure you want to delete the shipping order "{deletingOrder?.name}"?
+                            This action cannot be undone.
+                        </AlertDialogBody>
+
+                        <AlertDialogFooter>
+                            <Button onClick={onDeleteClose}>
+                                Cancel
+                            </Button>
+                            <Button
+                                colorScheme="red"
+                                onClick={confirmDelete}
+                                ml={3}
+                                isLoading={isDeleting}
+                                loadingText="Deleting..."
+                            >
+                                Delete
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialogOverlay>
+            </AlertDialog>
         </Box>
     );
 } 

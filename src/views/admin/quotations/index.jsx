@@ -170,6 +170,7 @@ export default function Quotations() {
     const [vessels, setVessels] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [editingQuotation, setEditingQuotation] = useState(null);
+    const [originalQuotationData, setOriginalQuotationData] = useState(null);
 
     // Master data for quotation lines
     const [rateItems, setRateItems] = useState([]);
@@ -184,6 +185,32 @@ export default function Quotations() {
     const [deleteQuotationId, setDeleteQuotationId] = useState(null);
 
     const toast = useToast();
+
+    // Function to get only changed fields between two objects
+    const getChangedFields = (original, current) => {
+        const changed = {};
+        
+        // Compare main quotation fields
+        const mainFields = [
+            'partner_id', 'vessel_id', 'est_to_usd', 'est_profit_usd', 'eta', 'eta_date',
+            'deadline_date', 'deadline_info', 'estimated_to', 'estimated_profit', 'oc_number',
+            'client_remark', 'internal_remark', 'delivery_note', 'done', 'destination_id',
+            'usd_roe', 'general_mu', 'caf'
+        ];
+        
+        mainFields.forEach(field => {
+            if (original[field] !== current[field]) {
+                changed[field] = current[field];
+            }
+        });
+        
+        // Compare quotation lines
+        if (JSON.stringify(original.quotation_lines) !== JSON.stringify(current.quotation_lines)) {
+            changed.quotation_lines = current.quotation_lines;
+        }
+        
+        return changed;
+    };
 
     // Form states for new quotation - matching API payload
     const [newQuotation, setNewQuotation] = useState({
@@ -202,7 +229,7 @@ export default function Quotations() {
         internal_remark: "",
         delivery_note: "",
         done: "active",
-        destination: "",
+        destination_id: "",
         usd_roe: "",
         general_mu: "",
         caf: "",
@@ -316,7 +343,7 @@ export default function Quotations() {
                 setCurrenciesList([]);
             }
 
-            // Fetch Destinations
+            // Fetch destination_ids
             const destinationsResponse = await destinationsAPI.getDestinations();
             if (destinationsResponse.destinations && Array.isArray(destinationsResponse.destinations)) {
                 setDestinationsList(destinationsResponse.destinations);
@@ -392,7 +419,7 @@ export default function Quotations() {
 
         console.log('Processed quotation lines:', processedQuotationLines);
 
-        setNewQuotation({
+        const quotationFormData = {
             partner_id: quotation.partner_id || "",
             vessel_id: quotation.vessel_id || "",
             est_to_usd: quotation.est_to_usd || "",
@@ -408,12 +435,15 @@ export default function Quotations() {
             internal_remark: quotation.internal_remark || "",
             delivery_note: quotation.delivery_note || "",
             done: quotation.done || "active",
-            destination: quotation.destination || "",
+            destination_id: quotation.destination_id || "",
             usd_roe: quotation.usd_roe || "",
             general_mu: quotation.general_mu || "",
             caf: quotation.caf || "",
             quotation_lines: processedQuotationLines
-        });
+        };
+
+        setNewQuotation(quotationFormData);
+        setOriginalQuotationData(quotationFormData); // Store original data for comparison
         onNewQuotationOpen();
     };
 
@@ -434,32 +464,57 @@ export default function Quotations() {
             internal_remark: "",
             delivery_note: "",
             done: "active",
-            destination: "",
+            destination_id: "",
             usd_roe: "",
             general_mu: "",
             caf: "",
             quotation_lines: []
         });
+        setOriginalQuotationData(null); // Clear original data
     };
 
     const handleSaveQuotation = async () => {
         try {
             setIsLoading(true);
 
-            const quotationData = {
-                ...newQuotation,
-                quotation_lines: newQuotation.quotation_lines || []
-            };
-
             let response;
             if (editingQuotation) {
-                // Update existing quotation
-                response = await quotationsAPI.updateQuotation({
-                    ...quotationData,
-                    quotation_id: editingQuotation.id
-                });
+                // Update existing quotation - only send changed fields
+                const changedFields = getChangedFields(originalQuotationData, newQuotation);
+                
+                // Ensure quotation_lines only contains vendor_id (not vendor_name)
+                if (changedFields.quotation_lines) {
+                    changedFields.quotation_lines = changedFields.quotation_lines.map(line => ({
+                        ...line,
+                        // Ensure only vendor_id is sent, remove any vendor_name if it exists
+                        vendor_id: line.vendor_id || null,
+                        // Remove vendor_name if it exists
+                        vendor_name: undefined
+                    }));
+                }
+                
+                // Only send changed fields + quotation_id
+                const updateData = {
+                    quotation_id: editingQuotation.id,
+                    ...changedFields
+                };
+                
+                console.log('Sending only changed fields for update:', updateData);
+                response = await quotationsAPI.updateQuotation(updateData);
             } else {
-                // Create new quotation
+                // Create new quotation - send all data but ensure only vendor_id
+                const quotationData = {
+                    ...newQuotation,
+                    quotation_lines: (newQuotation.quotation_lines || []).map(line => ({
+                        ...line,
+                        // Ensure only vendor_id is sent, remove any vendor_name if it exists
+                        vendor_id: line.vendor_id || null,
+                        // Remove vendor_name if it exists
+                        vendor_name: undefined
+                    }))
+                };
+                
+                console.log('Sending all data for create:', quotationData);
                 response = await quotationsAPI.createQuotation(quotationData);
             }
 
