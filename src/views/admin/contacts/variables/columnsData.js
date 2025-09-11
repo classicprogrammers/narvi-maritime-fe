@@ -43,32 +43,20 @@ export const columnsDataVendors = [
     accessor: "name",
   },
   {
-    Header: "REG NO",
-    accessor: "reg_no",
-  },
-  {
     Header: "EMAIL",
     accessor: "email",
-  },
-  {
-    Header: "EMAIL 2",
-    accessor: "email2",
   },
   {
     Header: "PHONE",
     accessor: "phone",
   },
   {
-    Header: "PHONE 2",
-    accessor: "phone2",
+    Header: "MOBILE",
+    accessor: "mobile",
   },
   {
     Header: "STREET",
     accessor: "street",
-  },
-  {
-    Header: "STREET 2",
-    accessor: "street2",
   },
   {
     Header: "CITY",
@@ -79,32 +67,8 @@ export const columnsDataVendors = [
     accessor: "zip",
   },
   {
-    Header: "COUNTRY ID",
-    accessor: "country_id",
-  },
-  {
-    Header: "WEBSITE",
-    accessor: "website",
-  },
-  {
-    Header: "PIC",
-    accessor: "pic",
-  },
-  {
-    Header: "AGENCY TYPE",
-    accessor: "agency_type",
-  },
-  {
-    Header: "ADDRESS TYPE",
-    accessor: "address_type",
-  },
-  {
-    Header: "REMARKS",
-    accessor: "remarks",
-  },
-  {
-    Header: "WARNING NOTES",
-    accessor: "warning_notes",
+    Header: "COUNTRY",
+    accessor: "country_name",
   },
   {
     Header: "ACTIONS",

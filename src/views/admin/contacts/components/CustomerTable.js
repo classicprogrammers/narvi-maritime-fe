@@ -35,7 +35,6 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   Select,
-  Badge,
 } from "@chakra-ui/react";
 import React, { useMemo, useState, useRef } from "react";
 import { useHistory } from "react-router-dom";
@@ -56,12 +55,10 @@ import {
   MdAdd,
   MdEdit,
   MdDelete,
-  MdVisibility,
   MdKeyboardArrowDown,
   MdKeyboardArrowUp,
   MdUnfoldMore,
   MdFilterList,
-  MdSort,
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
@@ -69,12 +66,13 @@ export default function CustomerTable(props) {
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
-    companyType: "",
+    company: "",
     city: "",
     status: "",
     email: "",
     phone: "",
   });
+  const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
   const {
     updateCustomer,
@@ -86,8 +84,6 @@ export default function CustomerTable(props) {
     getCustomers,
   } = useCustomer();
 
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
@@ -101,7 +97,6 @@ export default function CustomerTable(props) {
   });
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [customerToDelete, setCustomerToDelete] = useState(null);
-  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -119,6 +114,18 @@ export default function CustomerTable(props) {
   const cancelRef = useRef();
 
   const columns = useMemo(() => columnsData, [columnsData]);
+
+  // Apply custom sorting
+  const applyCustomSorting = (data) => {
+    if (sortOrder === "newest") {
+      return [...data].sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
+    } else if (sortOrder === "oldest") {
+      return [...data].sort((a, b) => new Date(a.created_at || a.id) - new Date(b.created_at || b.id));
+    } else if (sortOrder === "alphabetical") {
+      return [...data].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }
+    return data;
+  };
 
   // Filter data based on search and filters
   const filteredData = useMemo(() => {
@@ -141,10 +148,10 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply company type filter
-    if (filters.companyType) {
+    // Apply company filter
+    if (filters.company) {
       filtered = filtered.filter(
-        (item) => item.company_type === filters.companyType
+        (item) => item.company && item.company.toLowerCase().includes(filters.company.toLowerCase())
       );
     }
 
@@ -183,7 +190,10 @@ export default function CustomerTable(props) {
     return filtered;
   }, [tableData, searchValue, filters]);
 
-  const data = useMemo(() => filteredData, [filteredData]);
+  const data = useMemo(() => {
+    const sortedData = applyCustomSorting(filteredData);
+    return sortedData;
+  }, [filteredData, sortOrder]);
 
   const tableInstance = useTable(
     {
@@ -253,8 +263,7 @@ export default function CustomerTable(props) {
 
   const clearAllFilters = () => {
     setFilters({
-      country: "",
-      companyType: "",
+      company: "",
       city: "",
       status: "",
       email: "",
@@ -270,6 +279,18 @@ export default function CustomerTable(props) {
     clearAllFilters();
     clearAllSorting();
     setSearchValue("");
+    setSortOrder("newest");
+  };
+
+  // Get unique values for dropdowns
+  const getUniqueCompanies = () => {
+    const companies = tableData.map(item => item.company).filter(Boolean);
+    return [...new Set(companies)].sort();
+  };
+
+  const getUniqueStatuses = () => {
+    const statuses = tableData.map(item => item.status).filter(Boolean);
+    return [...new Set(statuses)].sort();
   };
 
   const handleEditInputChange = (field, value) => {
@@ -423,54 +444,6 @@ export default function CustomerTable(props) {
     setEditingCustomer(null);
   };
 
-  const handleSelectAll = (isChecked) => {
-    if (isChecked) {
-      setSelectedItems(page.map((row) => row.original));
-    } else {
-      setSelectedItems([]);
-    }
-  };
-
-  const handleSelectItem = (item, isChecked) => {
-    if (isChecked) {
-      setSelectedItems((prev) => [...prev, item]);
-    } else {
-      setSelectedItems((prev) => prev.filter((selected) => selected !== item));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedItems.length === 0) {
-      return;
-    }
-
-    try {
-      // For bulk delete, we'll delete them one by one
-      // In a real application, you might want a bulk delete endpoint
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const customer of selectedItems) {
-        try {
-          const result = await deleteCustomer(customer.id);
-          if (result.success) {
-            successCount++;
-          } else {
-            errorCount++;
-          }
-        } catch (error) {
-          errorCount++;
-        }
-      }
-
-      setSelectedItems([]);
-      // Refresh the customers list to show updated data
-      getCustomers();
-      // Success/error handling is done by the API modal system
-    } catch (error) {
-      // Error handling is done by the API modal system
-    }
-  };
 
   return (
     <>
@@ -490,23 +463,6 @@ export default function CustomerTable(props) {
             Customer Management
           </Text>
           <HStack spacing={3}>
-            {selectedItems.length > 0 && (
-              <Button
-                leftIcon={<Icon as={MdDelete} />}
-                colorScheme="red"
-                size="sm"
-                onClick={() => {
-                  if (selectedItems.length === 0) {
-                    return;
-                  }
-                  setIsBulkDeleteOpen(true);
-                }}
-                isLoading={deleteLoading}
-                isDisabled={deleteLoading}
-              >
-                Delete Selected ({selectedItems.length})
-              </Button>
-            )}
             <Button
               leftIcon={<Icon as={MdAdd} />}
               colorScheme="blue"
@@ -577,12 +533,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.companyType || filters.city || filters.status
+                  filters.company || filters.city || filters.status
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.companyType || filters.city || filters.status
+                  filters.company || filters.city || filters.status
                     ? "blue"
                     : "gray"
                 }
@@ -595,68 +551,56 @@ export default function CustomerTable(props) {
               </Button>
             </Box>
 
-            {/* Sort Button */}
+            {/* Sort Dropdown */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Sort Options
               </Text>
-              <Button
+              <Select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
                 size="md"
-                variant={
-                  tableInstance.state.sortBy?.length > 0 ? "solid" : "outline"
-                }
-                colorScheme={
-                  tableInstance.state.sortBy?.length > 0 ? "purple" : "gray"
-                }
-                leftIcon={<Icon as={MdSort} />}
-                onClick={() => {
-                  // Toggle between different sort states
-                  const currentSort = tableInstance.state.sortBy?.[0];
-                  if (!currentSort) {
-                    tableInstance.setSortBy([{ id: "name", desc: false }]);
-                  } else if (currentSort.id === "name") {
-                    tableInstance.setSortBy([{ id: "email", desc: false }]);
-                  } else if (currentSort.id === "email") {
-                    tableInstance.setSortBy([{ id: "city", desc: false }]);
-                  } else {
-                    tableInstance.setSortBy([]);
-                  }
-                }}
-                borderRadius="10px"
+                bg={inputBg}
+                color={inputText}
+                borderRadius="8px"
                 border="2px"
+                borderColor={borderColor}
+                _focus={{
+                  borderColor: "blue.400",
+                  boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                }}
+                _hover={{
+                  borderColor: "blue.300",
+                }}
               >
-                {tableInstance.state.sortBy?.[0]?.id === "name"
-                  ? "Sort: Name"
-                  : tableInstance.state.sortBy?.[0]?.id === "email"
-                  ? "Sort: Email"
-                  : tableInstance.state.sortBy?.[0]?.id === "city"
-                  ? "Sort: City"
-                  : "Sort"}
-              </Button>
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="alphabetical">A-Z Alphabetical</option>
+              </Select>
             </Box>
 
             {/* Clear All */}
-            {(filters.companyType ||
+            {(filters.company ||
               filters.city ||
               filters.status ||
-              tableInstance.state.sortBy?.length > 0) && (
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  &nbsp;
-                </Text>
-                <Button
-                  size="md"
-                  variant="outline"
-                  onClick={clearAllFiltersAndSorting}
-                  colorScheme="red"
-                  _hover={{ bg: "red.50" }}
-                  borderRadius="10px"
-                  border="2px"
-                >
-                  Clear All
-                </Button>
-              </Box>
-            )}
+              sortOrder !== "newest") && (
+                <Box>
+                  <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                    &nbsp;
+                  </Text>
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={clearAllFiltersAndSorting}
+                    colorScheme="red"
+                    _hover={{ bg: "red.50" }}
+                    borderRadius="10px"
+                    border="2px"
+                  >
+                    Clear All
+                  </Button>
+                </Box>
+              )}
           </HStack>
 
           {/* Expandable Filter Fields */}
@@ -676,63 +620,6 @@ export default function CustomerTable(props) {
 
               {/* First Row - Basic Info */}
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                {/* Company Type Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Company Type
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="🏢 e.g., Corporation, LLC, Partnership..."
-                    value={filters.companyType}
-                    onChange={(e) =>
-                      handleFilterChange("companyType", e.target.value)
-                    }
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Status Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Status
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="📊 e.g., Active, Inactive, Pending..."
-                    value={filters.status}
-                    onChange={(e) =>
-                      handleFilterChange("status", e.target.value)
-                    }
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
 
                 {/* City Filter */}
                 <Box minW="200px" flex="1">
@@ -745,7 +632,7 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="🏙️ e.g., New York, London, Tokyo..."
+                    placeholder="e.g., New York, London, Tokyo..."
                     value={filters.city}
                     onChange={(e) => handleFilterChange("city", e.target.value)}
                     border="2px"
@@ -775,7 +662,7 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="📧 e.g., john@company.com..."
+                    placeholder="e.g., john@company.com..."
                     value={filters.email || ""}
                     onChange={(e) =>
                       handleFilterChange("email", e.target.value)
@@ -804,7 +691,7 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="📱 e.g., +1-555-123-4567..."
+                    placeholder="e.g., +1-555-123-4567..."
                     value={filters.phone || ""}
                     onChange={(e) =>
                       handleFilterChange("phone", e.target.value)
@@ -857,20 +744,6 @@ export default function CustomerTable(props) {
             <Thead bg={tableHeaderBg}>
               {headerGroups.map((headerGroup, index) => (
                 <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-                  <Th
-                    borderRight="1px"
-                    borderColor={tableBorderColor}
-                    py="12px"
-                    px="16px"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedItems.length === page.length && page.length > 0
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                    />
-                  </Th>
                   {headerGroup.headers.map((column, index) => (
                     <Th
                       {...column.getHeaderProps(column.getSortByToggleProps())}
@@ -957,20 +830,6 @@ export default function CustomerTable(props) {
                       borderBottom="1px"
                       borderColor={tableBorderColor}
                     >
-                      <Td
-                        borderRight="1px"
-                        borderColor={tableBorderColor}
-                        py="12px"
-                        px="16px"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(row.original)}
-                          onChange={(e) =>
-                            handleSelectItem(row.original, e.target.checked)
-                          }
-                        />
-                      </Td>
                       {row.cells.map((cell, index) => {
                         let data = "";
                         if (cell.column.Header === "CUSTOMER NAME") {
@@ -979,15 +838,6 @@ export default function CustomerTable(props) {
                               color={textColor}
                               fontSize="sm"
                               fontWeight="600"
-                              cursor="pointer"
-                              _hover={{ textDecoration: "underline" }}
-                              onClick={() => {
-                                if (row.original && row.original.id) {
-                                  history.push(
-                                    `/admin/contacts/customer/${row.original.id}`
-                                  );
-                                }
-                              }}
                             >
                               {cell.value || "-"}
                             </Text>
@@ -1037,22 +887,6 @@ export default function CustomerTable(props) {
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
                             <HStack spacing={2}>
-                              <Tooltip label="View Customer">
-                                <IconButton
-                                  icon={<Icon as={MdVisibility} />}
-                                  size="sm"
-                                  colorScheme="blue"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    if (row.original && row.original.id) {
-                                      history.push(
-                                        `/admin/contacts/customer/${row.original.id}`
-                                      );
-                                    }
-                                  }}
-                                  aria-label="View customer"
-                                />
-                              </Tooltip>
                               <Tooltip label="Edit Customer">
                                 <IconButton
                                   icon={<Icon as={MdEdit} />}
@@ -1148,7 +982,7 @@ export default function CustomerTable(props) {
               <FormControl isRequired>
                 <FormLabel>Customer Name</FormLabel>
                 <Input
-                  placeholder="👤 e.g., John Smith, ABC Corporation..."
+                  placeholder="e.g., John Smith, ABC Corporation..."
                   value={editingCustomer?.name || ""}
                   onChange={(e) =>
                     handleEditInputChange("name", e.target.value)
@@ -1172,7 +1006,7 @@ export default function CustomerTable(props) {
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
-                  placeholder="📧 e.g., john.smith@company.com..."
+                  placeholder="e.g., john.smith@company.com..."
                   value={editingCustomer?.email || ""}
                   onChange={(e) =>
                     handleEditInputChange("email", e.target.value)
@@ -1195,7 +1029,7 @@ export default function CustomerTable(props) {
               <FormControl>
                 <FormLabel>Phone</FormLabel>
                 <Input
-                  placeholder="📞 e.g., +1-555-123-4567..."
+                  placeholder="e.g., +1-555-123-4567..."
                   value={editingCustomer?.phone || ""}
                   onChange={(e) =>
                     handleEditInputChange("phone", e.target.value)
@@ -1218,7 +1052,7 @@ export default function CustomerTable(props) {
               <FormControl>
                 <FormLabel>Mobile</FormLabel>
                 <Input
-                  placeholder="📱 e.g., +1-555-987-6543..."
+                  placeholder="e.g., +1-555-987-6543..."
                   value={editingCustomer?.mobile || ""}
                   onChange={(e) =>
                     handleEditInputChange("mobile", e.target.value)
@@ -1241,7 +1075,7 @@ export default function CustomerTable(props) {
               <FormControl>
                 <FormLabel>Street</FormLabel>
                 <Input
-                  placeholder="🏠 e.g., 123 Main Street, Suite 100..."
+                  placeholder="e.g., 123 Main Street, Suite 100..."
                   value={editingCustomer?.street || ""}
                   onChange={(e) =>
                     handleEditInputChange("street", e.target.value)
@@ -1287,7 +1121,7 @@ export default function CustomerTable(props) {
               <FormControl>
                 <FormLabel>ZIP Code</FormLabel>
                 <Input
-                  placeholder="📮 e.g., 10001, SW1A 1AA, 100-0001..."
+                  placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
                   value={editingCustomer?.zip || ""}
                   onChange={(e) => handleEditInputChange("zip", e.target.value)}
                   bg={inputBg}
@@ -1368,70 +1202,6 @@ export default function CustomerTable(props) {
         </AlertDialogOverlay>
       </AlertDialog>
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <AlertDialog
-        isOpen={isBulkDeleteOpen && selectedItems.length > 0}
-        leastDestructiveRef={cancelRef}
-        onClose={() => {
-          setIsBulkDeleteOpen(false);
-          setSelectedItems([]);
-        }}
-      >
-        <AlertDialogOverlay bg="rgba(0, 0, 0, 0.6)">
-          <AlertDialogContent
-            bg={modalBg}
-            border="1px"
-            borderColor={modalBorder}
-          >
-            <AlertDialogHeader
-              fontSize="lg"
-              fontWeight="bold"
-              bg={modalHeaderBg}
-              borderBottom="1px"
-              borderColor={modalBorder}
-            >
-              {selectedItems.length > 0
-                ? `Bulk Delete ${selectedItems.length} Customers`
-                : "Bulk Delete Customers"}
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              {selectedItems.length > 0
-                ? `Are you sure you want to delete ${selectedItems.length} selected customers? This action cannot be undone.`
-                : "No customers selected for deletion."}
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button
-                ref={cancelRef}
-                onClick={() => {
-                  setIsBulkDeleteOpen(false);
-                  setSelectedItems([]);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                colorScheme="red"
-                onClick={() => {
-                  if (selectedItems.length === 0) {
-                    return;
-                  }
-                  setIsBulkDeleteOpen(false);
-                  handleBulkDelete();
-                }}
-                ml={3}
-                isLoading={deleteLoading}
-                isDisabled={deleteLoading || selectedItems.length === 0}
-              >
-                {selectedItems.length > 0
-                  ? `Delete ${selectedItems.length} Customers`
-                  : "Delete Customers"}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
     </>
   );
 }

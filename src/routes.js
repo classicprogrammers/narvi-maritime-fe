@@ -52,8 +52,6 @@ import DeliveryInstructionDetail from "views/admin/forms/delivery-instructions/D
 import DeliveryConfirmation from "views/admin/forms/delivery-confirmation";
 import ShippingConfirmation from "views/admin/forms/shipping-confirmation";
 
-// Customer Detail Import
-import CustomerDetail from "views/admin/contacts/CustomerDetail";
 
 // Configurations Imports
 import Configurations from "views/admin/configurations";
@@ -298,12 +296,6 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/forms/delivery-instruction/:id",
     component: DeliveryInstructionDetail,
-  },
-  {
-    name: "Customer Detail",
-    layout: "/admin",
-    path: "/contacts/customer/:id",
-    component: CustomerDetail,
   },
   {
     name: "Customer Registration",

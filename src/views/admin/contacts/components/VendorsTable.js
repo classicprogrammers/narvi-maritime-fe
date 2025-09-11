@@ -12,7 +12,6 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Select,
   HStack,
   Box,
   Button,
@@ -29,11 +28,16 @@ import {
   VStack,
   IconButton,
   Tooltip,
-  Textarea,
-  Grid,
-  Checkbox,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  Select,
 } from "@chakra-ui/react";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
+import { useHistory } from "react-router-dom";
 import {
   useGlobalFilter,
   usePagination,
@@ -43,8 +47,7 @@ import {
 
 // Custom components
 import Card from "components/card/Card";
-import SuccessModal from "components/modals/SuccessModal";
-import FailureModal from "components/modals/FailureModal";
+import { useVendor } from "redux/hooks/useVendor";
 
 // Assets
 import {
@@ -52,60 +55,49 @@ import {
   MdAdd,
   MdEdit,
   MdDelete,
-  MdFilterList,
   MdKeyboardArrowDown,
   MdKeyboardArrowUp,
   MdUnfoldMore,
+  MdFilterList,
 } from "react-icons/md";
 
-// API
-import { buildApiUrl, getApiEndpoint } from "../../../../config/api";
-import api from "../../../../api/axios";
-
 export default function VendorsTable(props) {
-  const { columnsData } = props;
+  const { columnsData, tableData, isLoading = false } = props;
+  const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
-  const [vendors, setVendors] = useState([]);
-  const [isLoading, setIsLoading] = useState(false); // kept for future loading states
-  const [countries, setCountries] = useState([]);
   const [filters, setFilters] = useState({
+    company: "",
+    city: "",
+    status: "",
     email: "",
     phone: "",
-    street: "",
-    zip: "",
   });
+  const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
+  const {
+    updateVendor,
+    deleteVendor,
+    registerVendor,
+    addVendorToRedux,
+    updateLoading,
+    deleteLoading,
+    getVendors,
+  } = useVendor();
+
+  const [itemsPerPage] = useState(10);
   const [newVendor, setNewVendor] = useState({
     name: "",
-    reg_no: "",
     email: "",
-    email2: "",
     phone: "",
-    phone2: "",
+    mobile: "",
     street: "",
-    street2: "",
     city: "",
     zip: "",
-    country_id: "",
-    website: "",
-    pic: "",
-    agency_type: false,
-    address_type: false,
-    remarks: "",
-    warning_notes: "",
+    country_id: null,
   });
   const [editingVendor, setEditingVendor] = useState(null);
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [successModal, setSuccessModal] = useState({
-    isOpen: false,
-    title: "",
-    message: ""
-  });
-  const [errorModal, setErrorModal] = useState({
-    isOpen: false,
-    title: "",
-    message: ""
-  });
+  const [vendorToDelete, setVendorToDelete] = useState(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
@@ -113,60 +105,31 @@ export default function VendorsTable(props) {
     onOpen: onEditOpen,
     onClose: onEditClose,
   } = useDisclosure();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose,
+  } = useDisclosure();
+
+  const cancelRef = useRef();
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
-  // Fetch vendors from API
-  const fetchVendors = async () => {
-    try {
-      setIsLoading(true);
-      console.log("Fetching vendors from API...");
-
-      const response = await api.get("/api/vendor/list");
-      const result = response.data;
-      console.log("Vendors API Response:", result);
-
-      if (result.vendors && Array.isArray(result.vendors)) {
-        setVendors(result.vendors);
-      } else {
-        setVendors([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch vendors:", error);
-      setVendors([]);
-    } finally {
-      setIsLoading(false);
+  // Apply custom sorting
+  const applyCustomSorting = (data) => {
+    if (sortOrder === "newest") {
+      return [...data].sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
+    } else if (sortOrder === "oldest") {
+      return [...data].sort((a, b) => new Date(a.created_at || a.id) - new Date(b.created_at || b.id));
+    } else if (sortOrder === "alphabetical") {
+      return [...data].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     }
+    return data;
   };
 
-  // Fetch countries from API
-  const fetchCountries = async () => {
-    try {
-      console.log("Fetching countries from API...");
-      const response = await api.get("/api/countries");
-      const result = response.data;
-      console.log("Countries API Response:", result);
-
-      if (result.countries && Array.isArray(result.countries)) {
-        setCountries(result.countries);
-      } else {
-        setCountries([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch countries:", error);
-      setCountries([]);
-    }
-  };
-
-  // Load vendors and countries on component mount
-  React.useEffect(() => {
-    fetchVendors();
-    fetchCountries();
-  }, []);
-
-  // Filter data based on search
+  // Filter data based on search and filters
   const filteredData = useMemo(() => {
-    let filtered = vendors;
+    let filtered = tableData;
 
     // Apply search filter
     if (searchValue) {
@@ -177,10 +140,33 @@ export default function VendorsTable(props) {
           (item.email &&
             item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.phone && item.phone.toString().includes(searchValue)) ||
+          (item.mobile && item.mobile.toString().includes(searchValue)) ||
           (item.street &&
             item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.zip && item.zip.toString().includes(searchValue))
+          (item.city &&
+            item.city.toLowerCase().includes(searchValue.toLowerCase()))
       );
+    }
+
+    // Apply company filter
+    if (filters.company) {
+      filtered = filtered.filter(
+        (item) => item.company && item.company.toLowerCase().includes(filters.company.toLowerCase())
+      );
+    }
+
+    // Apply city filter
+    if (filters.city) {
+      filtered = filtered.filter(
+        (item) =>
+          item.city &&
+          item.city.toLowerCase().includes(filters.city.toLowerCase())
+      );
+    }
+
+    // Apply status filter (if status field exists)
+    if (filters.status) {
+      filtered = filtered.filter((item) => item.status === filters.status);
     }
 
     // Apply email filter
@@ -196,37 +182,24 @@ export default function VendorsTable(props) {
     if (filters.phone) {
       filtered = filtered.filter(
         (item) =>
-          (item.phone && item.phone.toString().includes(filters.phone))
-      );
-    }
-
-
-    // Apply street filter
-    if (filters.street) {
-      filtered = filtered.filter(
-        (item) =>
-          item.street &&
-          item.street.toLowerCase().includes(filters.street.toLowerCase())
-      );
-    }
-
-    // Apply zip filter
-    if (filters.zip) {
-      filtered = filtered.filter(
-        (item) => item.zip && item.zip.toString().includes(filters.zip)
+          (item.phone && item.phone.toString().includes(filters.phone)) ||
+          (item.mobile && item.mobile.toString().includes(filters.phone))
       );
     }
 
     return filtered;
-  }, [vendors, searchValue, filters]);
+  }, [tableData, searchValue, filters]);
 
-  const data = useMemo(() => filteredData, [filteredData]);
+  const data = useMemo(() => {
+    const sortedData = applyCustomSorting(filteredData);
+    return sortedData;
+  }, [filteredData, sortOrder]);
 
   const tableInstance = useTable(
     {
       columns,
       data,
-      initialState: { pageIndex: 0, pageSize: 10 },
+      initialState: { pageIndex: 0, pageSize: itemsPerPage },
     },
     useGlobalFilter,
     useSortBy,
@@ -239,13 +212,15 @@ export default function VendorsTable(props) {
     headerGroups,
     page,
     prepareRow,
-    previousPage,
+    pageCount,
+    gotoPage,
     nextPage,
-    canPreviousPage,
+    previousPage,
     canNextPage,
-    pageIndex,
-    pageOptions,
-  } = tableInstance || {};
+    canPreviousPage,
+    setPageSize,
+    state: { pageIndex },
+  } = tableInstance;
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -279,7 +254,6 @@ export default function VendorsTable(props) {
     }));
   };
 
-  // Filter handling functions
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
       ...prev,
@@ -289,235 +263,34 @@ export default function VendorsTable(props) {
 
   const clearAllFilters = () => {
     setFilters({
+      company: "",
+      city: "",
+      status: "",
       email: "",
       phone: "",
-      street: "",
-      zip: "",
     });
   };
 
-  const clearAllFiltersAndSearch = () => {
+  const clearAllSorting = () => {
+    tableInstance.setSortBy([]);
+  };
+
+  const clearAllFiltersAndSorting = () => {
     clearAllFilters();
+    clearAllSorting();
     setSearchValue("");
+    setSortOrder("newest");
   };
 
-  // Checkbox selection functions
-  const handleSelectAll = (checked) => {
-    if (checked) {
-      setSelectedItems([...page]);
-    } else {
-      setSelectedItems([]);
-    }
+  // Get unique values for dropdowns
+  const getUniqueCompanies = () => {
+    const companies = tableData.map(item => item.company).filter(Boolean);
+    return [...new Set(companies)].sort();
   };
 
-  const handleSelectItem = (item, checked) => {
-    if (checked) {
-      setSelectedItems([...selectedItems, item]);
-    } else {
-      setSelectedItems(selectedItems.filter((selected) => selected.id !== item.id));
-    }
-  };
-
-  // Helper function to show success modal
-  const showSuccessModal = (title, message) => {
-    setSuccessModal({
-      isOpen: true,
-      title,
-      message
-    });
-  };
-
-  // Helper function to close success modal
-  const closeSuccessModal = () => {
-    setSuccessModal({
-      isOpen: false,
-      title: "",
-      message: ""
-    });
-  };
-
-  // Helper function to show error modal
-  const showErrorModal = (title, message) => {
-    setErrorModal({
-      isOpen: true,
-      title,
-      message
-    });
-  };
-
-  // Helper function to close error modal
-  const closeErrorModal = () => {
-    setErrorModal({
-      isOpen: false,
-      title: "",
-      message: ""
-    });
-  };
-
-  // SearchableSelect Component for Country Selection
-  const SearchableSelect = ({ value, onChange, options, placeholder, displayKey = "name", valueKey = "id" }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState("");
-
-    const filteredOptions = options.filter(option =>
-      option[displayKey]?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const selectedOption = options.find(option => option[valueKey] === value);
-
-    return (
-      <Box position="relative">
-        <Input
-          value={selectedOption ? selectedOption[displayKey] : ""}
-          placeholder={placeholder}
-          readOnly
-          onClick={() => setIsOpen(!isOpen)}
-          cursor="pointer"
-          _focus={{ borderColor: "blue.400" }}
-        />
-        {isOpen && (
-          <Box
-            position="absolute"
-            top="100%"
-            left="0"
-            right="0"
-            bg="white"
-            border="1px solid"
-            borderColor="gray.200"
-            borderRadius="md"
-            boxShadow="lg"
-            zIndex="1000"
-            maxH="200px"
-            overflowY="auto"
-          >
-            <Input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              border="none"
-              borderRadius="0"
-              _focus={{ boxShadow: "none" }}
-            />
-            {filteredOptions.map((option) => (
-              <Box
-                key={option[valueKey]}
-                px="3"
-                py="2"
-                cursor="pointer"
-                _hover={{ bg: "gray.100" }}
-                onClick={() => {
-                  onChange(option[valueKey]);
-                  setIsOpen(false);
-                  setSearchTerm("");
-                }}
-              >
-                {option[displayKey]}
-              </Box>
-            ))}
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
-  // Vendor Registration API
-  const handleVendorRegistrationApi = async (vendorData) => {
-    try {
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let userId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          userId = user.id;
-        } catch (parseError) {
-          console.warn(
-            "Failed to parse user data from localStorage:",
-            parseError
-          );
-        }
-      }
-
-      // Add user_id to vendor data and coerce numeric fields expected by backend
-      const payload = {
-        ...vendorData,
-        user_id: userId,
-      };
-      if (
-        payload &&
-        payload.country_id !== undefined &&
-        payload.country_id !== null &&
-        payload.country_id !== ""
-      ) {
-        const parsedCountryId = parseInt(payload.country_id, 10);
-        if (!Number.isNaN(parsedCountryId)) {
-          payload.country_id = parsedCountryId;
-        }
-      }
-
-      console.log("Vendor Registration API Payload:", payload);
-      console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_REGISTER")));
-
-      // Try different endpoint and method combinations
-      let response;
-      let lastError;
-
-      // Try multiple combinations until one works
-      const attempts = [
-        { method: "post", endpoint: "/api/vendor/register" },
-        { method: "put", endpoint: "/api/vendor/register" },
-        { method: "patch", endpoint: "/api/vendor/register" },
-        { method: "post", endpoint: "/api/vendor/create" },
-        { method: "post", endpoint: "/api/vendors" },
-        { method: "put", endpoint: "/api/vendors" },
-        { method: "post", endpoint: "/api/vendor" },
-      ];
-
-      for (const attempt of attempts) {
-        try {
-          console.log(
-            `Trying ${attempt.method.toUpperCase()} ${attempt.endpoint}`
-          );
-          response = await api[attempt.method](attempt.endpoint, payload);
-          console.log(
-            `Success with ${attempt.method.toUpperCase()} ${attempt.endpoint}`
-          );
-          break;
-        } catch (error) {
-          lastError = error;
-          console.log(
-            `Failed ${attempt.method.toUpperCase()} ${attempt.endpoint}:`,
-            error.response?.status
-          );
-          continue;
-        }
-      }
-
-      if (!response) {
-        throw lastError;
-      }
-      const result = response.data;
-      console.log("Vendor Registration API Response:", result);
-
-      // Simple success check - handle both response formats safely
-      if (
-        (result && result.status === "success") ||
-        (result && result.success) ||
-        (result && result.result && result.result.status === "success")
-      ) {
-        return result;
-      } else {
-        const errorMessage =
-          result?.result?.message ||
-          result?.message ||
-          "Vendor registration failed";
-        throw new Error(errorMessage);
-      }
-    } catch (error) {
-      console.error("Vendor Registration API failed:", error);
-      throw error;
-    }
+  const getUniqueStatuses = () => {
+    const statuses = tableData.map(item => item.status).filter(Boolean);
+    return [...new Set(statuses)].sort();
   };
 
   const handleEditInputChange = (field, value) => {
@@ -528,286 +301,126 @@ export default function VendorsTable(props) {
   };
 
   const handleSaveVendor = async () => {
-    try {
-      console.log("Saving new vendor:", newVendor);
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let userId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          userId = user.id;
-        } catch (parseError) {
-          console.warn(
-            "Failed to parse user data from localStorage:",
-            parseError
-          );
-        }
-      }
-
-      // Prepare minimal payload with only required fields
-      const payload = {
-        user_id: userId,
-        name: newVendor.name,
-        email: newVendor.email,
-        phone: newVendor.phone,
-        street: newVendor.street,
-        zip: newVendor.zip,
-      };
-
-      // Add optional fields only if they have values
-      if (newVendor.city) payload.city = newVendor.city;
-      if (newVendor.country_id)
-        payload.country_id = parseInt(newVendor.country_id);
-      if (newVendor.reg_no) payload.reg_no = newVendor.reg_no;
-      if (newVendor.email2) payload.email2 = newVendor.email2;
-      if (newVendor.phone2) payload.phone2 = newVendor.phone2;
-      if (newVendor.street2) payload.street2 = newVendor.street2;
-      if (newVendor.website) payload.website = newVendor.website;
-      if (newVendor.pic) payload.pic = newVendor.pic;
-      if (newVendor.remarks) payload.remarks = newVendor.remarks;
-      if (newVendor.warning_notes)
-        payload.warning_notes = newVendor.warning_notes;
-
-      // Use the correct vendor registration endpoint
-      console.log("Calling API with payload:", payload);
-      const response = await api.post("/api/vendor/register", payload);
-      const result = response.data;
-      fetchVendors();
-      console.log("API Response:", result);
-
-      // Check for error in response
-      if (result && result.result && result.result.status === "error") {
-        console.error("API Error:", result.result);
-        alert(
-          `Error: ${result.result.message}\nDetails: ${result.result.details}`
-        );
+    // Validate required fields
+    if (!newVendor.name || newVendor.name.trim() === "") {
         return;
       }
 
-      // Handle response - check for success
-      if (
-        result &&
-        (result.status === "success" ||
-          result.result?.status === "success" ||
-          result.success)
-      ) {
-        console.log("Vendor registered successfully:", result);
-        showSuccessModal("Success!", "Vendor registered successfully!");
+    try {
+      setIsRegistering(true);
+      // Call the API to register the vendor
+      const result = await registerVendor(newVendor);
 
-        // Add the new vendor to the local state with API response ID if available
-        const newVendorWithId = {
-          ...payload,
-          id: result.id || result.result?.id || Date.now(),
-        };
-        setVendors((prevVendors) => [...prevVendors, newVendorWithId]);
-
-        // Close modal and reset form
+      if (result.success) {
         onClose();
+
+        // Reset form
         setNewVendor({
           name: "",
-          reg_no: "",
           email: "",
-          email2: "",
           phone: "",
-          phone2: "",
+          mobile: "",
           street: "",
-          street2: "",
           city: "",
           zip: "",
-          country_id: "",
-          website: "",
-          pic: "",
-          agency_type: false,
-          address_type: false,
-          remarks: "",
-          warning_notes: "",
-        });
-      } else if (result && (result.status === "success" || result.success)) {
-        // Handle direct response format
-        console.log("Vendor registered successfully:", result);
-        showSuccessModal("Success!", "Vendor registered successfully!");
-
-        // Close modal and reset form
-        onClose();
-        setNewVendor({
-          name: "",
-          reg_no: "",
-          email: "",
-          email2: "",
-          phone: "",
-          phone2: "",
-          street: "",
-          street2: "",
-          city: "",
-          zip: "",
-          country_id: "",
-          website: "",
-          pic: "",
-          agency_type: false,
-          address_type: false,
-          remarks: "",
-          warning_notes: "",
-        });
-
-        // Refresh vendors list to show the new vendor
-        fetchVendors();
-      } else {
-        // Close modal and reset form without local optimistic add
-        onClose();
-        setNewVendor({
-          name: "",
-          reg_no: "",
-          email: "",
-          email2: "",
-          phone: "",
-          phone2: "",
-          street: "",
-          street2: "",
-          city: "",
-          zip: "",
-          country_id: "",
-          website: "",
-          pic: "",
-          agency_type: false,
-          address_type: false,
-          remarks: "",
-          warning_notes: "",
+          country_id: null,
         });
       }
     } catch (error) {
-      console.error("Failed to register vendor:", error);
-      onClose();
-      setNewVendor({
-        name: "",
-        reg_no: "",
-        email: "",
-        email2: "",
-        phone: "",
-        phone2: "",
-        street: "",
-        street2: "",
-        city: "",
-        zip: "",
-        country_id: "",
-        website: "",
-        pic: "",
-        agency_type: "",
-        address_type: "",
-        remarks: "",
-        warning_notes: "",
-      });
+      // Error handling is done by the API modal system
+    } finally {
+      setIsRegistering(false);
     }
   };
 
   const handleSaveEdit = async () => {
     try {
-      console.log("Updating vendor:", editingVendor);
-
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let userId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          userId = user.id;
-        } catch (parseError) {
-          console.warn(
-            "Failed to parse user data from localStorage:",
-            parseError
-          );
-        }
-      }
-
-      // Add user_id to vendor update data with proper data types and validation
-      const payload = {
-        ...editingVendor,
-        user_id: userId,
-        vendor_id: editingVendor.id,
-        country_id: editingVendor.country_id
-          ? parseInt(editingVendor.country_id)
-          : null,
-      };
-
-      console.log("Vendor Update API Payload:", payload);
-      console.log("API URL:", buildApiUrl(getApiEndpoint("VENDOR_UPDATE")));
-
-      const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), payload);
-      const result = response.data;
-      // Refresh vendors list to show the updated vendor
-      fetchVendors();
-
-      // Check if the response indicates success
-      if (
-        (result && result.status === "success") ||
-        (result && result.success) ||
-        (result && result.result && result.result.status === "success")
-      ) {
-        console.log("Vendor updated successfully:", result);
-        showSuccessModal("Success!", "Vendor updated successfully!");
-
-        // Close edit modal
+      // Check if vendor exists
+      if (!editingVendor || !editingVendor.id) {
         onEditClose();
         setEditingVendor(null);
-      } else {
-        const errorMessage =
-          result?.result?.message || result?.message || "Vendor update failed";
-        throw new Error(errorMessage);
+        return;
       }
+
+      // Find the original vendor to compare changes
+      const originalVendor = tableData.find(
+        (v) => v.id === editingVendor.id
+      );
+
+      if (!originalVendor) {
+        onEditClose();
+        setEditingVendor(null);
+        return;
+      }
+
+      // Validate required fields
+      if (!editingVendor.name || editingVendor.name.trim() === "") {
+        return;
+      }
+
+      // Check if there are any changes
+      const hasChanges = Object.keys(editingVendor).some(
+        (key) => editingVendor[key] !== originalVendor[key]
+      );
+
+      if (!hasChanges) {
+        onEditClose();
+        setEditingVendor(null);
+        return;
+      }
+
+      // Call the API to update the vendor
+      const result = await updateVendor(editingVendor.id, editingVendor);
+
+      if (result.success) {
+        onEditClose();
+        setEditingVendor(null);
+        // Refresh the vendors list to show updated data
+        getVendors();
+      }
+      // Error handling is done by the API modal system
     } catch (error) {
-      console.error("Failed to update vendor:", error);
-      showErrorModal("Error", `Failed to update vendor: ${error.message}`);
+      // Error handling is done by the API modal system
     }
   };
 
   const handleEdit = (vendor) => {
+    if (!vendor || !vendor.id) {
+      return;
+    }
     setEditingVendor({ ...vendor });
     onEditOpen();
   };
 
-  const handleDeleteVendor = async (vendor) => {
+  const handleDelete = (vendor) => {
+    if (!vendor || !vendor.id) {
+      return;
+    }
+    setVendorToDelete(vendor);
+    onDeleteOpen();
+  };
+
+  const confirmDelete = async () => {
     try {
-      console.log("Deleting vendor:", vendor);
-
-      const response = await api.post(getApiEndpoint("VENDOR_DELETE"), {
-        vendor_id: vendor.id,
-      });
-      const result = response.data;
-      console.log("Vendor Delete API Response:", result);
-
-      // Refresh vendors list to remove the deleted vendor
-      fetchVendors();
-      // Simple success check - handle both response formats safely
-      if (
-        result &&
-        result.result &&
-        (result.result.status === "success" || result.result.success)
-      ) {
-        console.log("Vendor deleted successfully:", result);
-        showSuccessModal("Success!", "Vendor deleted successfully!");
-
-        // Refresh vendors list to remove the deleted vendor
-        fetchVendors();
-      } else if (result && (result.status === "success" || result.success)) {
-        // Handle direct response format
-        console.log("Vendor deleted successfully:", result);
-        showSuccessModal("Success!", "Vendor deleted successfully!");
-      } else {
-        const errorMessage =
-          result?.result?.message ||
-          result?.message ||
-          "Vendor deletion failed";
-        throw new Error(errorMessage);
+      // Check if vendor still exists
+      if (!vendorToDelete || !vendorToDelete.id) {
+        onDeleteClose();
+        setVendorToDelete(null);
+        return;
       }
+
+      // Call the API to delete the vendor
+      const result = await deleteVendor(vendorToDelete.id);
+
+      if (result.success) {
+        onDeleteClose();
+        setVendorToDelete(null);
+        // Refresh the vendors list to show updated data
+        getVendors();
+      }
+      // Error handling is done by the API modal system
     } catch (error) {
-      console.error("Failed to delete vendor:", error);
-      const errorMessage =
-        error?.result?.message ||
-        error?.message ||
-        "Unknown error occurred during deletion";
-      alert(`Error: ${errorMessage}`);
+      // Error handling is done by the API modal system
     }
   };
 
@@ -816,22 +429,13 @@ export default function VendorsTable(props) {
     // Reset form
     setNewVendor({
       name: "",
-      reg_no: "",
       email: "",
-      email2: "",
       phone: "",
-      phone2: "",
+      mobile: "",
       street: "",
-      street2: "",
       city: "",
       zip: "",
-      country_id: "",
-      website: "",
-      pic: "",
-      agency_type: "",
-      address_type: "",
-      remarks: "",
-      warning_notes: "",
+      country_id: null,
     });
   };
 
@@ -840,43 +444,62 @@ export default function VendorsTable(props) {
     setEditingVendor(null);
   };
 
+
   return (
     <>
-      <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-        <VStack spacing={6} align="stretch">
-          {/* Header Section */}
-          <Flex justify="space-between" align="center" px="25px">
-            <HStack spacing={4}>
-              <Text fontSize="2xl" fontWeight="bold" color={textColor}>
-                Vendors
+      <Card
+        direction="column"
+        w="100%"
+        px="0px"
+        overflowX={{ sm: "scroll", lg: "hidden" }}
+      >
+        <Flex px="25px" justify="space-between" mb="20px" align="center">
+          <Text
+            color={textColor}
+            fontSize="22px"
+            fontWeight="700"
+            lineHeight="100%"
+          >
+            Vendor Management
               </Text>
-            </HStack>
+          <HStack spacing={3}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
-              bg="#1c4a95"
-              color="white"
-              size="md"
-              px="6"
-              py="3"
-              borderRadius="md"
-              _hover={{ bg: "#173f7c" }}
-              onClick={onOpen}
+              colorScheme="blue"
+              size="sm"
+              onClick={() => history.push("/admin/customer-registration")}
             >
-              New Vendor
+              Add Vendor
             </Button>
+          </HStack>
           </Flex>
 
-          {/* Filter Section */}
-          <Box px="25px" mb="20px">
-            <HStack spacing={4} flexWrap="wrap">
-              <InputGroup w={{ base: "100%", md: "300px" }}>
+        {/* Enhanced Filter & Sort Section */}
+        <Box
+          px="25px"
+          mb="20px"
+          bg={inputBg}
+          borderRadius="16px"
+          p="24px"
+          border="1px"
+          borderColor={borderColor}
+        >
+          {/* Main Controls Row */}
+          <HStack
+            spacing={6}
+            justify="space-between"
+            align="center"
+            flexWrap="wrap"
+            mb={4}
+          >
+            {/* Search */}
+            <Box flex="1" minW="280px">
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                Search Vendors
+              </Text>
+              <InputGroup>
                 <InputLeftElement>
-                  <Icon
-                    as={MdSearch}
-                    color={searchIconColor}
-                    w="15px"
-                    h="15px"
-                  />
+                  <Icon as={MdSearch} color="blue.500" w="16px" h="16px" />
                 </InputLeftElement>
                 <Input
                   variant="outline"
@@ -884,32 +507,100 @@ export default function VendorsTable(props) {
                   bg={inputBg}
                   color={inputText}
                   fontWeight="500"
-                  _placeholder={{ color: "gray.400", fontSize: "14px" }}
-                  borderRadius="8px"
-                  placeholder="Search vendors..."
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  borderRadius="10px"
+                  placeholder="Search vendors by name, email, phone, city..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
+                  border="2px"
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                  }}
                 />
               </InputGroup>
+            </Box>
 
+            {/* Filter Button */}
+            <Box>
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                Advanced Filters
+              </Text>
               <Button
+                size="md"
+                variant={
+                  filters.company || filters.city || filters.status
+                    ? "solid"
+                    : "outline"
+                }
+                colorScheme={
+                  filters.company || filters.city || filters.status
+                    ? "blue"
+                    : "gray"
+                }
                 leftIcon={<Icon as={MdFilterList} />}
-                variant="outline"
-                size="sm"
-                borderRadius="8px"
                 onClick={() => setShowFilterFields(!showFilterFields)}
+                borderRadius="10px"
+                border="2px"
               >
                 {showFilterFields ? "Hide Filters" : "Show Filters"}
               </Button>
+            </Box>
 
-              <Button
-                variant="outline"
-                size="sm"
+            {/* Sort Dropdown */}
+            <Box>
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                Sort Options
+              </Text>
+              <Select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                size="md"
+                bg={inputBg}
+                color={inputText}
                 borderRadius="8px"
-                onClick={clearAllFiltersAndSearch}
+                border="2px"
+                borderColor={borderColor}
+                _focus={{
+                  borderColor: "blue.400",
+                  boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                }}
+                _hover={{
+                  borderColor: "blue.300",
+                }}
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="alphabetical">A-Z Alphabetical</option>
+              </Select>
+            </Box>
+
+            {/* Clear All */}
+            {(filters.company ||
+              filters.city ||
+              filters.status ||
+              sortOrder !== "newest") && (
+                <Box>
+                  <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                    &nbsp;
+                  </Text>
+              <Button
+                    size="md"
+                variant="outline"
+                    onClick={clearAllFiltersAndSorting}
+                    colorScheme="red"
+                    _hover={{ bg: "red.50" }}
+                    borderRadius="10px"
+                    border="2px"
               >
                 Clear All
               </Button>
+                </Box>
+              )}
             </HStack>
 
             {/* Expandable Filter Fields */}
@@ -919,7 +610,7 @@ export default function VendorsTable(props) {
                 pt={4}
                 borderTop="2px"
                 borderColor={borderColor}
-                bg={inputBg}
+              bg={expandableFilterBg}
                 borderRadius="12px"
                 p="20px"
               >
@@ -927,17 +618,13 @@ export default function VendorsTable(props) {
                   Filter by Specific Fields
                 </Text>
 
-                {/* First Row - Contact Info */}
+              {/* First Row - Basic Info */}
                 <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                  {/* Email Filter */}
+
+                {/* City Filter */}
                   <Box minW="200px" flex="1">
-                    <Text
-                      fontSize="sm"
-                      fontWeight="500"
-                      color={textColor}
-                      mb={2}
-                    >
-                      Email
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    City
                     </Text>
                     <Input
                       variant="outline"
@@ -945,11 +632,9 @@ export default function VendorsTable(props) {
                       bg={inputBg}
                       color={inputText}
                       borderRadius="8px"
-                      placeholder="📧 e.g., vendor@example.com"
-                      value={filters.email}
-                      onChange={(e) =>
-                        handleFilterChange("email", e.target.value)
-                      }
+                    placeholder="e.g., New York, London, Tokyo..."
+                    value={filters.city}
+                    onChange={(e) => handleFilterChange("city", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
                       _focus={{
@@ -959,55 +644,17 @@ export default function VendorsTable(props) {
                       _hover={{
                         borderColor: "blue.300",
                       }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                     />
                   </Box>
-
-                  {/* Phone Filter */}
-                  <Box minW="200px" flex="1">
-                    <Text
-                      fontSize="sm"
-                      fontWeight="500"
-                      color={textColor}
-                      mb={2}
-                    >
-                      Phone
-                    </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
-                      placeholder="📞 e.g., +1-234-567-8900"
-                      value={filters.phone}
-                      onChange={(e) =>
-                        handleFilterChange("phone", e.target.value)
-                      }
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
-                    />
-                  </Box>
-
                 </HStack>
 
-                {/* Second Row - Address Info */}
+              {/* Second Row - Contact Info */}
                 <HStack spacing={6} flexWrap="wrap" align="flex-start">
-                  {/* Street Filter */}
+                {/* Email Filter */}
                   <Box minW="250px" flex="1">
-                    <Text
-                      fontSize="sm"
-                      fontWeight="500"
-                      color={textColor}
-                      mb={2}
-                    >
-                      Street
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Email
                     </Text>
                     <Input
                       variant="outline"
@@ -1015,10 +662,10 @@ export default function VendorsTable(props) {
                       bg={inputBg}
                       color={inputText}
                       borderRadius="8px"
-                      placeholder="🏠 e.g., 123 Main Street"
-                      value={filters.street}
+                    placeholder="e.g., john@company.com..."
+                    value={filters.email || ""}
                       onChange={(e) =>
-                        handleFilterChange("street", e.target.value)
+                      handleFilterChange("email", e.target.value)
                       }
                       border="2px"
                       borderColor={borderColor}
@@ -1029,18 +676,14 @@ export default function VendorsTable(props) {
                       _hover={{
                         borderColor: "blue.300",
                       }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                     />
                   </Box>
 
-                  {/* Zip Filter */}
-                  <Box minW="150px" flex="1">
-                    <Text
-                      fontSize="sm"
-                      fontWeight="500"
-                      color={textColor}
-                      mb={2}
-                    >
-                      ZIP Code
+                {/* Phone Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Phone
                     </Text>
                     <Input
                       variant="outline"
@@ -1048,10 +691,10 @@ export default function VendorsTable(props) {
                       bg={inputBg}
                       color={inputText}
                       borderRadius="8px"
-                      placeholder="📮 e.g., 12345"
-                      value={filters.zip}
+                    placeholder="e.g., +1-555-123-4567..."
+                    value={filters.phone || ""}
                       onChange={(e) =>
-                        handleFilterChange("zip", e.target.value)
+                      handleFilterChange("phone", e.target.value)
                       }
                       border="2px"
                       borderColor={borderColor}
@@ -1062,6 +705,7 @@ export default function VendorsTable(props) {
                       _hover={{
                         borderColor: "blue.300",
                       }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                     />
                   </Box>
                 </HStack>
@@ -1078,15 +722,15 @@ export default function VendorsTable(props) {
                 height: "8px",
               },
               "&::-webkit-scrollbar-track": {
-                background: scrollbarTrackBg,
+              background: useColorModeValue("#f1f1f1", "#2d3748"),
                 borderRadius: "4px",
               },
               "&::-webkit-scrollbar-thumb": {
-                background: scrollbarThumbBg,
+              background: useColorModeValue("#c1c1c1", "#4a5568"),
                 borderRadius: "4px",
               },
               "&::-webkit-scrollbar-thumb:hover": {
-                background: scrollbarThumbHoverBg,
+              background: useColorModeValue("#a8a8a8", "#718096"),
               },
             }}
           >
@@ -1094,26 +738,12 @@ export default function VendorsTable(props) {
               {...getTableProps()}
               variant="unstyled"
               size="sm"
-              minW="1000px"
+            minW="800px"
               ml="25px"
             >
               <Thead bg={tableHeaderBg}>
                 {headerGroups.map((headerGroup, index) => (
                   <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-                    <Th
-                      borderRight="1px"
-                      borderColor={tableBorderColor}
-                      py="12px"
-                      px="16px"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          selectedItems.length === page.length && page.length > 0
-                        }
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                      />
-                    </Th>
                     {headerGroup.headers.map((column, index) => (
                       <Th
                         {...column.getHeaderProps(column.getSortByToggleProps())}
@@ -1162,7 +792,34 @@ export default function VendorsTable(props) {
                 ))}
               </Thead>
               <Tbody>
-                {page.map((row, index) => {
+              {isLoading ? (
+                <Tr>
+                  <Td
+                    colSpan={headerGroups[0]?.headers.length + 1}
+                    textAlign="center"
+                    py="40px"
+                  >
+                    <Text color={tableTextColorSecondary} fontSize="sm">
+                      Loading vendors...
+                    </Text>
+                  </Td>
+                </Tr>
+              ) : page.length === 0 ? (
+                <Tr>
+                  <Td
+                    colSpan={headerGroups[0]?.headers.length + 1}
+                    textAlign="center"
+                    py="40px"
+                  >
+                    <Text color={tableTextColorSecondary} fontSize="sm">
+                      {tableData.length === 0
+                        ? "No vendors available. Please check your backend connection."
+                        : "No vendors match your search criteria."}
+                    </Text>
+                  </Td>
+                </Tr>
+              ) : (
+                page.map((row, index) => {
                   prepareRow(row);
                   return (
                     <Tr
@@ -1173,20 +830,6 @@ export default function VendorsTable(props) {
                       borderBottom="1px"
                       borderColor={tableBorderColor}
                     >
-                      <Td
-                        borderRight="1px"
-                        borderColor={tableBorderColor}
-                        py="12px"
-                        px="16px"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(row.original)}
-                          onChange={(e) =>
-                            handleSelectItem(row.original, e.target.checked)
-                          }
-                        />
-                      </Td>
                       {row.cells.map((cell, index) => {
                         let data = "";
                         if (cell.column.Header === "VENDOR NAME") {
@@ -1194,59 +837,51 @@ export default function VendorsTable(props) {
                             <Text
                               color={textColor}
                               fontSize="sm"
-                              fontWeight="700"
+                              fontWeight="600"
                             >
-                              {cell.value}
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "EMAIL") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "PHONE") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "MOBILE") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "STREET") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "CITY") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "ZIP") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "COUNTRY") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
@@ -1268,9 +903,7 @@ export default function VendorsTable(props) {
                                   size="sm"
                                   colorScheme="red"
                                   variant="ghost"
-                                  onClick={() =>
-                                    handleDeleteVendor(row.original)
-                                  }
+                                  onClick={() => handleDelete(row.original)}
                                   aria-label="Delete vendor"
                                 />
                               </Tooltip>
@@ -1278,12 +911,8 @@ export default function VendorsTable(props) {
                           );
                         } else {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="700"
-                            >
-                              {cell.value}
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
                             </Text>
                           );
                         }
@@ -1302,7 +931,8 @@ export default function VendorsTable(props) {
                       })}
                     </Tr>
                   );
-                })}
+                })
+              )}
               </Tbody>
             </Table>
           </Box>
@@ -1310,566 +940,205 @@ export default function VendorsTable(props) {
           {/* Pagination */}
           <Flex px="25px" justify="space-between" align="center" py="20px">
             <Text fontSize="sm" color={tableTextColorSecondary}>
-              Showing {page?.length || 0} of {vendors.length} results
+            Showing {pageIndex * itemsPerPage + 1} to{" "}
+            {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of{" "}
+            {data.length} results
             </Text>
             <HStack spacing={2}>
               <Button
                 size="sm"
-                onClick={previousPage}
+              onClick={() => previousPage()}
                 isDisabled={!canPreviousPage}
                 variant="outline"
-                colorScheme="blue"
-                _hover={{ bg: "blue.50" }}
               >
                 Previous
               </Button>
               <Button
                 size="sm"
-                onClick={nextPage}
-                variant="outline"
-                colorScheme="blue"
-                _hover={{ bg: "blue.50" }}
+              onClick={() => nextPage()}
                 isDisabled={!canNextPage}
+              variant="outline"
               >
                 Next
               </Button>
             </HStack>
           </Flex>
-        </VStack>
-      </Box>
+      </Card>
 
-      {/* Add Vendor Modal */}
-      <Modal isOpen={isOpen} onClose={handleCancel} size="6xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader bg="blue.600" color="white" borderRadius="md">
-            <HStack spacing={3}>
-              <Icon as={MdAdd} />
-              <Text>Create New Vendor</Text>
-            </HStack>
-          </ModalHeader>
-          <ModalCloseButton color="white" />
-          <ModalBody py="6">
-            <Grid templateColumns="repeat(2, 1fr)" gap="8">
-              {/* Left Column */}
-              <VStack spacing="4" align="stretch">
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Vendor Name
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter vendor name"
-                    value={newVendor.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Registration No
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter registration no / type"
-                    value={newVendor.reg_no}
-                    onChange={(e) =>
-                      handleInputChange("reg_no", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Email
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    type="email"
-                    placeholder="Enter email address"
-                    value={newVendor.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Alternate Email
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    type="email"
-                    placeholder="Enter secondary email"
-                    value={newVendor.email2}
-                    onChange={(e) =>
-                      handleInputChange("email2", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Remarks
-                  </FormLabel>
-                  <Textarea
-                    placeholder="Enter remarks"
-                    value={newVendor.remarks}
-                    onChange={(e) =>
-                      handleInputChange("remarks", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Warning Notes
-                  </FormLabel>
-                  <Textarea
-                    placeholder="Enter warning notes"
-                    value={newVendor.warning_notes}
-                    onChange={(e) =>
-                      handleInputChange("warning_notes", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-              </VStack>
-
-              {/* Right Column */}
-              <VStack spacing="4" align="stretch">
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Phone
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter phone number"
-                    value={newVendor.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Alternate Phone
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter alternate phone"
-                    value={newVendor.phone2}
-                    onChange={(e) =>
-                      handleInputChange("phone2", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Street
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter street address"
-                    value={newVendor.street}
-                    onChange={(e) =>
-                      handleInputChange("street", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Street 2
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter street address line 2"
-                    value={newVendor.street2}
-                    onChange={(e) =>
-                      handleInputChange("street2", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    City
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter city"
-                    value={newVendor.city}
-                    onChange={(e) => handleInputChange("city", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl isRequired>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Zip
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter zip code"
-                    value={newVendor.zip}
-                    onChange={(e) => handleInputChange("zip", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Country
-                  </FormLabel>
-                  <SearchableSelect
-                    value={newVendor.country_id}
-                    onChange={(value) => handleInputChange("country_id", value)}
-                    options={countries}
-                    placeholder="Select country"
-                    displayKey="name"
-                    valueKey="id"
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Website
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Enter website"
-                    value={newVendor.website}
-                    onChange={(e) =>
-                      handleInputChange("website", e.target.value)
-                    }
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    PIC
-                  </FormLabel>
-                  <Input
-                    size="md"
-                    placeholder="Person in Charge"
-                    value={newVendor.pic}
-                    onChange={(e) => handleInputChange("pic", e.target.value)}
-                    borderRadius="md"
-                    _focus={{
-                      borderColor: "blue.500",
-                      boxShadow: "0 0 0 1px blue.500",
-                    }}
-                  />
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Agency Type
-                  </FormLabel>
-                  <Checkbox
-                    isChecked={newVendor.agency_type}
-                    onChange={(e) => handleInputChange("agency_type", e.target.checked)}
-                    colorScheme="blue"
-                  >
-                    Enable Agency Type
-                  </Checkbox>
-                </FormControl>
-
-                <FormControl>
-                  <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                    Address Type
-                  </FormLabel>
-                  <Checkbox
-                    isChecked={newVendor.address_type}
-                    onChange={(e) => handleInputChange("address_type", e.target.checked)}
-                    colorScheme="blue"
-                  >
-                    Enable Address Type
-                  </Checkbox>
-                </FormControl>
-              </VStack>
-            </Grid>
-          </ModalBody>
-
-          <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
-            <Button variant="outline" mr={3} onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="blue"
-              onClick={handleSaveVendor}
-              isDisabled={
-                !newVendor.name ||
-                !newVendor.email ||
-                !newVendor.phone ||
-                !newVendor.street ||
-                !newVendor.zip
-              }
-            >
-              Create Vendor
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* Edit Vendor Modal */}
+      {/* Edit Customer Modal */}
       <Modal isOpen={isEditOpen} onClose={handleCancelEdit}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Edit Vendor</ModalHeader>
+        <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
+        <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>
+          <ModalHeader
+            bg={modalHeaderBg}
+            borderBottom="1px"
+            borderColor={modalBorder}
+          >
+            Edit Vendor
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
-              <FormControl isRequired>
+                <FormControl isRequired>
                 <FormLabel>Vendor Name</FormLabel>
-                <Input
-                  placeholder="Enter vendor name"
+                  <Input
+                  placeholder="e.g., John Smith, ABC Corporation..."
                   value={editingVendor?.name || ""}
-                  onChange={(e) =>
+                    onChange={(e) =>
                     handleEditInputChange("name", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-              <FormControl>
-                <FormLabel>Registration No</FormLabel>
-                <Input
-                  placeholder="Enter registration no / type"
-                  value={editingVendor?.reg_no || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("reg_no", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl isRequired>
+                <FormControl>
                 <FormLabel>Email</FormLabel>
-                <Input
-                  type="email"
-                  placeholder="Enter email address"
+                  <Input
+                    type="email"
+                  placeholder="e.g., john.smith@company.com..."
                   value={editingVendor?.email || ""}
-                  onChange={(e) =>
+                    onChange={(e) =>
                     handleEditInputChange("email", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-              <FormControl>
-                <FormLabel>Alternate Email</FormLabel>
-                <Input
-                  type="email"
-                  placeholder="Enter secondary email"
-                  value={editingVendor?.email2 || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("email2", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl isRequired>
+                <FormControl>
                 <FormLabel>Phone</FormLabel>
                 <Input
-                  placeholder="Enter phone number"
+                  placeholder="e.g., +1-555-123-4567..."
                   value={editingVendor?.phone || ""}
-                  onChange={(e) =>
+                    onChange={(e) =>
                     handleEditInputChange("phone", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-              <FormControl>
-                <FormLabel>Alternate Phone</FormLabel>
-                <Input
-                  placeholder="Enter alternate phone"
-                  value={editingVendor?.phone2 || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("phone2", e.target.value)
+                <FormControl>
+                <FormLabel>Mobile</FormLabel>
+                  <Input
+                  placeholder="e.g., +1-555-987-6543..."
+                  value={editingVendor?.mobile || ""}
+                    onChange={(e) =>
+                    handleEditInputChange("mobile", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-
-              <FormControl isRequired>
+                <FormControl>
                 <FormLabel>Street</FormLabel>
-                <Input
-                  placeholder="Enter street address"
+                  <Input
+                  placeholder="e.g., 123 Main Street, Suite 100..."
                   value={editingVendor?.street || ""}
-                  onChange={(e) =>
+                    onChange={(e) =>
                     handleEditInputChange("street", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-              <FormControl>
-                <FormLabel>Street 2</FormLabel>
-                <Input
-                  placeholder="Enter street address line 2"
-                  value={editingVendor?.street2 || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("street2", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl>
+                <FormControl>
                 <FormLabel>City</FormLabel>
-                <Input
-                  placeholder="Enter city"
+                  <Input
+                  placeholder="🏙️ e.g., New York, London, Tokyo..."
                   value={editingVendor?.city || ""}
-                  onChange={(e) =>
+                    onChange={(e) =>
                     handleEditInputChange("city", e.target.value)
                   }
-                />
-              </FormControl>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>Zip</FormLabel>
-                <Input
-                  placeholder="Enter zip code"
+                <FormControl>
+                <FormLabel>ZIP Code</FormLabel>
+                  <Input
+                  placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
                   value={editingVendor?.zip || ""}
                   onChange={(e) => handleEditInputChange("zip", e.target.value)}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Country</FormLabel>
-                <SearchableSelect
-                  value={editingVendor?.country_id || ""}
-                  onChange={(value) => handleEditInputChange("country_id", value)}
-                  options={countries}
-                  placeholder="Select country"
-                  displayKey="name"
-                  valueKey="id"
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Website</FormLabel>
-                <Input
-                  placeholder="Enter website"
-                  value={editingVendor?.website || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("website", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>PIC</FormLabel>
-                <Input
-                  placeholder="Person in Charge"
-                  value={editingVendor?.pic || ""}
-                  onChange={(e) => handleEditInputChange("pic", e.target.value)}
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Agency Type</FormLabel>
-                <Checkbox
-                  isChecked={editingVendor?.agency_type || false}
-                  onChange={(e) => handleEditInputChange("agency_type", e.target.checked)}
-                  colorScheme="blue"
-                >
-                  Enable Agency Type
-                </Checkbox>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Address Type</FormLabel>
-                <Checkbox
-                  isChecked={editingVendor?.address_type || false}
-                  onChange={(e) => handleEditInputChange("address_type", e.target.checked)}
-                  colorScheme="blue"
-                >
-                  Enable Address Type
-                </Checkbox>
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Remarks</FormLabel>
-                <Textarea
-                  placeholder="Enter remarks"
-                  value={editingVendor?.remarks || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("remarks", e.target.value)
-                  }
-                />
-              </FormControl>
-
-              <FormControl>
-                <FormLabel>Warning Notes</FormLabel>
-                <Textarea
-                  placeholder="Enter warning notes"
-                  value={editingVendor?.warning_notes || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("warning_notes", e.target.value)
-                  }
-                />
-              </FormControl>
-            </VStack>
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                    }}
+                  />
+                </FormControl>
+              </VStack>
           </ModalBody>
 
           <ModalFooter>
@@ -1879,13 +1148,8 @@ export default function VendorsTable(props) {
             <Button
               colorScheme="blue"
               onClick={handleSaveEdit}
-              isDisabled={
-                !editingVendor?.name ||
-                !editingVendor?.email ||
-                !editingVendor?.phone ||
-                !editingVendor?.street ||
-                !editingVendor?.zip
-              }
+              isDisabled={!editingVendor?.name || updateLoading}
+              isLoading={updateLoading}
             >
               Update Vendor
             </Button>
@@ -1893,21 +1157,51 @@ export default function VendorsTable(props) {
         </ModalContent>
       </Modal>
 
-      {/* Success Modal */}
-      <SuccessModal
-        isOpen={successModal.isOpen}
-        onClose={closeSuccessModal}
-        title={successModal.title}
-        message={successModal.message}
-      />
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onDeleteClose}
+      >
+        <AlertDialogOverlay bg="rgba(0, 0, 0, 0.6)">
+          <AlertDialogContent
+            bg={modalBg}
+            border="1px"
+            borderColor={modalBorder}
+          >
+            <AlertDialogHeader
+              fontSize="lg"
+              fontWeight="bold"
+              bg={modalHeaderBg}
+              borderBottom="1px"
+              borderColor={modalBorder}
+            >
+              Delete Vendor
+            </AlertDialogHeader>
 
-      {/* Error Modal */}
-      <FailureModal
-        isOpen={errorModal.isOpen}
-        onClose={closeErrorModal}
-        title={errorModal.title}
-        message={errorModal.message}
-      />
+            <AlertDialogBody>
+              Are you sure you want to delete "{vendorToDelete?.name}"? This
+              action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={onDeleteClose}>
+              Cancel
+            </Button>
+            <Button
+                colorScheme="red"
+                onClick={confirmDelete}
+                ml={3}
+                isLoading={deleteLoading}
+                isDisabled={deleteLoading}
+              >
+                Delete
+            </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
+
     </>
   );
 }
