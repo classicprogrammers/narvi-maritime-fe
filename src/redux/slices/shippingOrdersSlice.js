@@ -53,12 +53,12 @@ export const createNewShippingOrder = createAsyncThunk(
   async (orderData, { rejectWithValue }) => {
     try {
       const response = await createShippingOrder(orderData);
-      
+
       // Double-check: if response contains JSON-RPC error, throw error
       if (response.result && response.result.status === 'error') {
         throw new Error(response.result.message || 'Failed to create shipping order');
       }
-      
+
       return response;
     } catch (error) {
       // Handle different error response structures
@@ -79,15 +79,15 @@ export const createNewShippingOrder = createAsyncThunk(
 
 export const updateExistingShippingOrder = createAsyncThunk(
   'shippingOrders/updateShippingOrder',
-  async ({ id, orderData }, { rejectWithValue }) => {
+  async ({ id, orderData, originalData = {} }, { rejectWithValue }) => {
     try {
-      const response = await updateShippingOrder(id, orderData);
-      
+      const response = await updateShippingOrder(id, orderData, originalData);
+
       // Double-check: if response contains JSON-RPC error, throw error
       if (response.result && response.result.status === 'error') {
         throw new Error(response.result.message || 'Failed to update shipping order');
       }
-      
+
       return response;
     } catch (error) {
       // Handle different error response structures
@@ -111,12 +111,12 @@ export const deleteExistingShippingOrder = createAsyncThunk(
   async (id, { rejectWithValue }) => {
     try {
       const response = await deleteShippingOrder(id);
-      
+
       // Double-check: if response contains JSON-RPC error, throw error
       if (response.result && response.result.status === 'error') {
         throw new Error(response.result.message || 'Failed to delete shipping order');
       }
-      
+
       return response;
     } catch (error) {
       // Handle different error response structures
@@ -225,14 +225,18 @@ const shippingOrdersSlice = createSlice({
       })
       .addCase(updateExistingShippingOrder.fulfilled, (state, action) => {
         state.isUpdating = false;
-        const index = state.orders.findIndex(order => order.id === action.payload.id);
+        const updatedOrder = action.payload;
+        const index = state.orders.findIndex(order => order.id === updatedOrder.id);
         if (index !== -1) {
-          state.orders[index] = action.payload;
+          state.orders[index] = updatedOrder;
         }
-        if (state.currentOrder && state.currentOrder.id === action.payload.id) {
-          state.currentOrder = action.payload;
+        if (state.currentOrder && state.currentOrder.id === updatedOrder.id) {
+          state.currentOrder = updatedOrder;
         }
         state.updateError = null;
+
+        // Note: Auto-refresh is handled in the action if needed
+        // The updated order is already in the state, so no need for additional refresh
       })
       .addCase(updateExistingShippingOrder.rejected, (state, action) => {
         state.isUpdating = false;

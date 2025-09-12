@@ -300,7 +300,8 @@ const ShippingOrderForm = ({
             }
             setIsSubmitting(false);
         } else {
-            const result = await updateOrder(order.id, orderData);
+            // Pass original order data for comparison
+            const result = await updateOrder(order.id, orderData, order);
             // Check if the action was rejected
             if (updateExistingShippingOrder.rejected.match(result)) {
                 // Error will be handled by Redux useEffect

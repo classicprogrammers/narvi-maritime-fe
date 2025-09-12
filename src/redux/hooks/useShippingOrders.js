@@ -19,7 +19,7 @@ export const useShippingOrders = () => {
   const fetchOrders = useCallback(() => dispatch(fetchShippingOrders()), [dispatch]);
   const fetchOrderById = useCallback((id) => dispatch(fetchShippingOrderById(id)), [dispatch]);
   const createOrder = useCallback((orderData) => dispatch(createNewShippingOrder(orderData)), [dispatch]);
-  const updateOrder = useCallback((id, orderData) => dispatch(updateExistingShippingOrder({ id, orderData })), [dispatch]);
+  const updateOrder = useCallback((id, orderData, originalData = {}) => dispatch(updateExistingShippingOrder({ id, orderData, originalData })), [dispatch]);
   const deleteOrder = useCallback((id) => dispatch(deleteExistingShippingOrder(id)), [dispatch]);
   const clearErrorAction = useCallback(() => dispatch(clearError()), [dispatch]);
   const clearCurrentOrderAction = useCallback(() => dispatch(clearCurrentOrder()), [dispatch]);

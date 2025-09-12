@@ -134,20 +134,8 @@ const routes = [
     name: "Stock List",
     layout: "/admin",
     icon: <Icon as={MdInventory} width="20px" height="20px" color="inherit" />,
-    submenu: [
-      {
-        name: "Stock List",
-        path: "/stock-list",
-        icon: <Icon as={MdList} width="20px" height="20px" color="inherit" />,
-        component: StockList,
-      },
-      {
-        name: "New Stock Item",
-        path: "/new-stock-item",
-        icon: <Icon as={MdAdd} width="20px" height="20px" color="inherit" />,
-        component: NewStockItem,
-      },
-    ],
+    path: "/stock-list",
+    component: StockList,
   },
   {
     name: "Forms",

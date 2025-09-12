@@ -3,6 +3,7 @@ import userReducer from '../slices/userSlice';
 import customerReducer from '../slices/customerSlice';
 import vendorReducer from '../slices/vendorSlice';
 import shippingOrdersReducer from '../slices/shippingOrdersSlice';
+import stockReducer from '../slices/stockSlice';
 
 const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ const store = configureStore({
     customer: customerReducer,
     vendor: vendorReducer,
     shippingOrders: shippingOrdersReducer,
+    stock: stockReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

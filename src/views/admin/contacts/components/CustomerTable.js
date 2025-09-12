@@ -546,6 +546,7 @@ export default function CustomerTable(props) {
                 onClick={() => setShowFilterFields(!showFilterFields)}
                 borderRadius="10px"
                 border="2px"
+                borderColor={borderColor}
               >
                 {showFilterFields ? "Hide Filters" : "Show Filters"}
               </Button>

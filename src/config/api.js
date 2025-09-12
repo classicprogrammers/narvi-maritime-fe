@@ -20,6 +20,9 @@ export const API_CONFIG = {
     VENDOR_UPDATE: "/api/vendor/update",
     VENDOR_DELETE: "/api/vendor/delete",
     VENDORS: "/api/vendor/list",
+    // Stock list endpoints
+    STOCK_LIST: "/api/stock/list",
+    STOCK_UPDATE: "/api/stock/list/update",
     // Product endpoints
     PRODUCTS: "/api/products",
     PRODUCT_CREATE: "/api/product/create",

@@ -1,1363 +1,1098 @@
-import React, { useState, useEffect } from "react";
-import { useHistory } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
 import {
     Box,
     Flex,
     Text,
     Button,
-    Input,
     Table,
     Thead,
     Tbody,
     Tr,
     Th,
     Td,
+    Badge,
     Icon,
     HStack,
-    VStack,
     IconButton,
     useColorModeValue,
-    Checkbox,
+    Spinner,
+    Alert,
+    AlertIcon,
+    AlertTitle,
+    AlertDescription,
+    Card,
+    Input,
     InputGroup,
     InputLeftElement,
     Select,
     Tooltip,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
+    VStack,
     useToast,
-    AlertDialog,
-    AlertDialogBody,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogContent,
-    AlertDialogOverlay,
+    FormControl,
+    FormLabel,
+    NumberInput,
+    NumberInputField,
+    NumberInputStepper,
+    NumberIncrementStepper,
+    NumberDecrementStepper,
+    Textarea,
 } from "@chakra-ui/react";
-import {
-    MdAdd,
-    MdSearch,
-    MdChevronLeft,
-    MdChevronRight,
-    MdFilterList,
-    MdDownload,
-    MdPrint,
-    MdEdit,
-    MdDelete,
-    MdVisibility,
-    MdRefresh,
-} from "react-icons/md";
+import { MdRefresh, MdEdit, MdSearch, MdFilterList, MdSave, MdClose } from "react-icons/md";
+import { useStock } from "../../../redux/hooks/useStock";
 
 export default function StockList() {
-    const history = useHistory();
+    const [searchValue, setSearchValue] = useState("");
+    const [filters, setFilters] = useState({
+        status: "",
+    });
+    const [sortOrder, setSortOrder] = useState("newest");
+    const [showFilterFields, setShowFilterFields] = useState(false);
+    const [editingStock, setEditingStock] = useState(null);
+
+    const { isOpen, onOpen, onClose } = useDisclosure();
     const toast = useToast();
-    const [selectedItems, setSelectedItems] = useState([]);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(10);
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [deleteItemId, setDeleteItemId] = useState(null);
-    const [sortField, setSortField] = useState("stockItemId");
-    const [sortDirection, setSortDirection] = useState("asc");
+
+    const {
+        stockList,
+        isLoading,
+        error,
+        updateLoading,
+        getStockList,
+        updateStockItem,
+    } = useStock();
+
+    // Track if we're refreshing after an update
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
-    const hoverBg = useColorModeValue("blue.50", "blue.900");
-    const searchIconColor = useColorModeValue("gray.400", "gray.500");
-    const inputBg = useColorModeValue("white", "gray.700");
-    const inputText = useColorModeValue("gray.700", "white");
+    const inputBg = useColorModeValue("white", "navy.900");
+    const inputText = useColorModeValue("gray.700", "gray.100");
+    const borderColor = useColorModeValue("gray.200", "gray.700");
+    const hoverBg = useColorModeValue("blue.50", "gray.700");
+    const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
+    const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
+    const tableRowBg = useColorModeValue("white", "gray.800");
+    const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+    const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+    const tableTextColor = useColorModeValue("gray.600", "gray.300");
+    const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+    const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
-    // Load stock data from localStorage and combine with sample data
-    const loadStockData = () => {
-        const savedStockItems = JSON.parse(localStorage.getItem('stockItems') || '[]');
-        const sampleData = [
-            {
-                id: 1,
-                stockItemId: "STK001",
-                soNumber: "S00024",
-                poNumber: "P00011",
-                supplier: "Marine Supplies Co.",
-                vesselName: "Ocean Voyager",
-                originCountry: "USA",
-                destinationCountry: "Singapore",
-                stockStatus: "In Stock",
-                itemDescription: "Marine Engine Parts",
-                itemValue: "2500.00",
-                numberOfPcs: "5",
-                submittedToCustoms: true,
-            },
-            {
-                id: 2,
-                stockItemId: "STK002",
-                soNumber: "S00025",
-                poNumber: "P00012",
-                supplier: "Global Maritime",
-                vesselName: "Sea Explorer",
-                originCountry: "Germany",
-                destinationCountry: "Japan",
-                stockStatus: "Out of Stock",
-                itemDescription: "Navigation Equipment",
-                itemValue: "1800.00",
-                numberOfPcs: "0",
-                submittedToCustoms: false,
-            },
-            {
-                id: 3,
-                stockItemId: "STK003",
-                soNumber: "S00026",
-                poNumber: "P00013",
-                supplier: "Ocean Tech",
-                vesselName: "Pacific Star",
-                originCountry: "UK",
-                destinationCountry: "Australia",
-                stockStatus: "Pending",
-                itemDescription: "Safety Equipment",
-                itemValue: "3200.00",
-                numberOfPcs: "8",
-                submittedToCustoms: true,
-            },
-        ];
+    // Fetch stock list on component mount
+    useEffect(() => {
+        if (stockList.length === 0 && !isLoading) {
+            getStockList();
+        }
+    }, [getStockList, stockList.length, isLoading]);
 
-        return [...sampleData, ...savedStockItems];
+    // Track refresh state after updates
+    useEffect(() => {
+        if (isLoading && stockList.length > 0) {
+            setIsRefreshing(true);
+        } else {
+            setIsRefreshing(false);
+        }
+    }, [isLoading, stockList.length]);
+
+    // Apply custom sorting
+    const applyCustomSorting = (data) => {
+        if (sortOrder === "newest") {
+            return [...data].sort((a, b) => new Date(b.sl_create_datetime || b.id) - new Date(a.sl_create_datetime || a.id));
+        } else if (sortOrder === "oldest") {
+            return [...data].sort((a, b) => new Date(a.sl_create_datetime || a.id) - new Date(b.sl_create_datetime || b.id));
+        } else if (sortOrder === "alphabetical") {
+            return [...data].sort((a, b) => (a.stock_item_id || "").localeCompare(b.stock_item_id || ""));
+        }
+        return data;
     };
 
-    const [stockData, setStockData] = useState([]);
-    const [filteredData, setFilteredData] = useState([]);
-
-    // Load stock data on component mount
-    useEffect(() => {
-        const data = loadStockData();
-        setStockData(data);
-        setFilteredData(data);
-    }, []);
-
-    // Filter and search data
-    useEffect(() => {
-        let filtered = stockData;
-
-        // Apply status filter
-        if (statusFilter !== "all") {
-            filtered = filtered.filter(item => {
-                if (statusFilter === "in-stock") return item.stockStatus === "In Stock";
-                if (statusFilter === "out-of-stock") return item.stockStatus === "Out of Stock";
-                if (statusFilter === "pending") return item.stockStatus === "Pending";
-                return true;
-            });
-        }
+    // Filter and sort data
+    const filteredAndSortedStock = useMemo(() => {
+        let filtered = stockList;
 
         // Apply search filter
-        if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(item =>
-                item.stockItemId.toLowerCase().includes(query) ||
-                item.soNumber.toLowerCase().includes(query) ||
-                item.poNumber.toLowerCase().includes(query) ||
-                item.supplier.toLowerCase().includes(query) ||
-                item.vesselName.toLowerCase().includes(query) ||
-                item.itemDescription.toLowerCase().includes(query)
+        if (searchValue) {
+            filtered = filtered.filter(
+                (item) =>
+                    (item.stock_item_id && item.stock_item_id.toLowerCase().includes(searchValue.toLowerCase())) ||
+                    (item.id && item.id.toString().includes(searchValue)) ||
+                    (item.client_id && item.client_id.toString().includes(searchValue)) ||
+                    (item.vessel_id && item.vessel_id.toString().includes(searchValue))
             );
         }
 
-        // Apply sorting
-        filtered.sort((a, b) => {
-            let aValue = a[sortField] || "";
-            let bValue = b[sortField] || "";
-
-            if (typeof aValue === "string") aValue = aValue.toLowerCase();
-            if (typeof bValue === "string") bValue = bValue.toLowerCase();
-
-            if (sortDirection === "asc") {
-                return aValue > bValue ? 1 : -1;
-            } else {
-                return aValue < bValue ? 1 : -1;
-            }
-        });
-
-        setFilteredData(filtered);
-        setCurrentPage(1); // Reset to first page when filtering
-    }, [stockData, searchQuery, statusFilter, sortField, sortDirection]);
-
-    // Calculate pagination
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentData = filteredData.slice(startIndex, endIndex);
-
-    const handleSelectAll = (isChecked) => {
-        if (isChecked) {
-            setSelectedItems(currentData.map(item => item.id));
-        } else {
-            setSelectedItems([]);
+        // Apply status filter
+        if (filters.status) {
+            filtered = filtered.filter((item) => item.stock_status === filters.status);
         }
+
+        return applyCustomSorting(filtered);
+    }, [stockList, searchValue, filters, sortOrder]);
+
+    const handleFilterChange = (field, value) => {
+        setFilters((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
     };
 
-    const handleSelectItem = (itemId, isChecked) => {
-        if (isChecked) {
-            setSelectedItems([...selectedItems, itemId]);
-        } else {
-            setSelectedItems(selectedItems.filter(id => id !== itemId));
-        }
-    };
-
-    // Button handlers
-    const handleNewButton = () => {
-        history.push("/admin/new-stock-item");
-    };
-
-    const handleSearch = (value) => {
-        setSearchQuery(value);
-    };
-
-    const handlePreviousPage = () => {
-        if (currentPage > 1) {
-            setCurrentPage(currentPage - 1);
-        }
-    };
-
-    const handleNextPage = () => {
-        if (currentPage < totalPages) {
-            setCurrentPage(currentPage + 1);
-        }
-    };
-
-    const handleIssuesClick = () => {
-        toast({
-            title: "Issues Panel",
-            description: "System issues and bugs panel opened",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
+    const clearAllFilters = () => {
+        setFilters({
+            status: "",
         });
     };
 
-    const handleMessagesClick = () => {
-        toast({
-            title: "Messages Panel",
-            description: "You have 5 unread messages",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-        });
+    const clearAllFiltersAndSorting = () => {
+        clearAllFilters();
+        setSearchValue("");
+        setSortOrder("newest");
     };
 
-    const handleRemindersClick = () => {
-        toast({
-            title: "Reminders Panel",
-            description: "You have 5 pending reminders",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-        });
+    const handleEditStock = (stock) => {
+        setEditingStock({ ...stock });
+        onOpen();
     };
 
-    const handleSettingsClick = () => {
-        toast({
-            title: "Settings Panel",
-            description: "Configure your stock list preferences",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
+    const handleSaveStock = async () => {
+        if (!editingStock) return;
 
-    const handleFilterClick = () => {
-        toast({
-            title: "Filter Panel",
-            description: "Advanced filtering options opened",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleDeleteSelected = () => {
-        if (selectedItems.length > 0) {
-            const confirmed = window.confirm(`Are you sure you want to delete ${selectedItems.length} selected item(s)?`);
-            if (confirmed) {
-                const newStockData = stockData.filter(item => !selectedItems.includes(item.id));
-                setStockData(newStockData);
-                localStorage.setItem('stockItems', JSON.stringify(newStockData.filter(item => item.id > 3))); // Keep only custom items
-                setSelectedItems([]);
+        try {
+            // Find the original stock item for comparison
+            const originalStock = stockList.find(item => item.id === editingStock.id);
+            
+            const result = await updateStockItem(editingStock.id, editingStock, originalStock);
+            if (result.success) {
                 toast({
-                    title: "Success",
-                    description: `${selectedItems.length} item(s) deleted successfully!`,
-                    status: "success",
+                    title: 'Success',
+                    description: 'Stock item updated successfully',
+                    status: 'success',
                     duration: 3000,
                     isClosable: true,
                 });
+                onClose();
+                setEditingStock(null);
+                // Note: Auto-refresh is handled in the Redux action
+            } else {
+                throw new Error(result.error);
             }
-        } else {
+        } catch (error) {
             toast({
-                title: "Warning",
-                description: "Please select items to delete",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-            });
-        }
-    };
-
-    const handleDeleteItem = (itemId) => {
-        setDeleteItemId(itemId);
-        setIsDeleteDialogOpen(true);
-    };
-
-    const confirmDeleteItem = () => {
-        if (deleteItemId) {
-            const newStockData = stockData.filter(item => item.id !== deleteItemId);
-            setStockData(newStockData);
-            localStorage.setItem('stockItems', JSON.stringify(newStockData.filter(item => item.id > 3)));
-            toast({
-                title: "Success",
-                description: "Item deleted successfully!",
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-            });
-        }
-        setIsDeleteDialogOpen(false);
-        setDeleteItemId(null);
-    };
-
-    const handleEditItem = (itemId) => {
-        history.push(`/admin/edit-stock-item/${itemId}`);
-    };
-
-    const handleViewItem = (itemId) => {
-        history.push(`/admin/view-stock-item/${itemId}`);
-    };
-
-    const handleExportData = () => {
-        const csvContent = [
-            ['Stock Item ID', 'SO Number', 'PO Number', 'Supplier', 'Vessel Name', 'Origin Country', 'Destination Country', 'Stock Status', 'Item Description', 'Item Value', 'Number of Pcs', 'Submitted to Customs'],
-            ...filteredData.map(item => [
-                item.stockItemId,
-                item.soNumber,
-                item.poNumber,
-                item.supplier,
-                item.vesselName,
-                item.originCountry,
-                item.destinationCountry,
-                item.stockStatus,
-                item.itemDescription,
-                item.itemValue,
-                item.numberOfPcs,
-                item.submittedToCustoms ? 'Yes' : 'No'
-            ])
-        ].map(row => row.join(',')).join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'stock-list.csv';
-        a.click();
-        window.URL.revokeObjectURL(url);
-
-        toast({
-            title: "Export Successful",
-            description: "Stock data exported to CSV",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handlePrintData = () => {
-        window.print();
-        toast({
-            title: "Print",
-            description: "Printing stock list...",
-            status: "info",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleRefreshData = () => {
-        const data = loadStockData();
-        setStockData(data);
-        setFilteredData(data);
-        toast({
-            title: "Data Refreshed",
-            description: "Stock data has been refreshed!",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleStatusChange = (itemId, newStatus) => {
-        const updatedData = stockData.map(item =>
-            item.id === itemId ? { ...item, stockStatus: newStatus } : item
-        );
-        setStockData(updatedData);
-        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
-        toast({
-            title: "Status Updated",
-            description: `Stock status changed to ${newStatus}`,
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleCustomsToggle = (itemId) => {
-        const updatedData = stockData.map(item =>
-            item.id === itemId ? { ...item, submittedToCustoms: !item.submittedToCustoms } : item
-        );
-        setStockData(updatedData);
-        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
-        toast({
-            title: "Customs Status Updated",
-            description: "Customs submission status changed",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleBulkStatusChange = (newStatus) => {
-        if (selectedItems.length === 0) {
-            toast({
-                title: "Warning",
-                description: "Please select items to update",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        const updatedData = stockData.map(item =>
-            selectedItems.includes(item.id) ? { ...item, stockStatus: newStatus } : item
-        );
-        setStockData(updatedData);
-        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
-        setSelectedItems([]);
-        toast({
-            title: "Bulk Update Successful",
-            description: `${selectedItems.length} items updated to ${newStatus}`,
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleBulkCustomsToggle = () => {
-        if (selectedItems.length === 0) {
-            toast({
-                title: "Warning",
-                description: "Please select items to update",
-                status: "warning",
-                duration: 3000,
-                isClosable: true,
-            });
-            return;
-        }
-
-        const updatedData = stockData.map(item =>
-            selectedItems.includes(item.id) ? { ...item, submittedToCustoms: !item.submittedToCustoms } : item
-        );
-        setStockData(updatedData);
-        localStorage.setItem('stockItems', JSON.stringify(updatedData.filter(item => item.id > 3)));
-        setSelectedItems([]);
-        toast({
-            title: "Bulk Update Successful",
-            description: `${selectedItems.length} items customs status updated`,
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-        });
-    };
-
-    const handleSort = (field) => {
-        if (sortField === field) {
-            setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-        } else {
-            setSortField(field);
-            setSortDirection("asc");
-        }
-    };
-
-    const getSortIcon = (field) => {
-        if (sortField !== field) return null;
-        return sortDirection === "asc" ? "↑" : "↓";
-    };
-
-    const getStockStatistics = () => {
-        const total = stockData.length;
-        const inStock = stockData.filter(item => item.stockStatus === "In Stock").length;
-        const outOfStock = stockData.filter(item => item.stockStatus === "Out of Stock").length;
-        const pending = stockData.filter(item => item.stockStatus === "Pending").length;
-        const submittedToCustoms = stockData.filter(item => item.submittedToCustoms).length;
-        const totalValue = stockData.reduce((sum, item) => sum + parseFloat(item.itemValue || 0), 0);
-
-        return {
-            total,
-            inStock,
-            outOfStock,
-            pending,
-            submittedToCustoms,
-            totalValue: totalValue.toFixed(2)
-        };
-    };
-
-    const validateStockData = (data) => {
-        const errors = [];
-        data.forEach((item, index) => {
-            if (!item.stockItemId) {
-                errors.push(`Row ${index + 1}: Stock Item ID is required`);
-            }
-            if (!item.itemDescription) {
-                errors.push(`Row ${index + 1}: Item Description is required`);
-            }
-            if (isNaN(parseFloat(item.itemValue))) {
-                errors.push(`Row ${index + 1}: Item Value must be a valid number`);
-            }
-            if (isNaN(parseInt(item.numberOfPcs))) {
-                errors.push(`Row ${index + 1}: Number of Pcs must be a valid integer`);
-            }
-        });
-        return errors;
-    };
-
-    const handleDataValidation = () => {
-        const errors = validateStockData(stockData);
-        if (errors.length > 0) {
-            toast({
-                title: "Validation Errors",
-                description: errors.join(", "),
-                status: "error",
+                title: 'Error',
+                description: 'Failed to update stock item',
+                status: 'error',
                 duration: 5000,
                 isClosable: true,
             });
-        } else {
-            toast({
-                title: "Validation Successful",
-                description: "All stock data is valid",
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-            });
         }
     };
 
-    const handleDuplicateCheck = () => {
-        const duplicates = stockData.filter((item, index, self) =>
-            self.findIndex(t => t.stockItemId === item.stockItemId) !== index
-        );
-
-        if (duplicates.length > 0) {
-            toast({
-                title: "Duplicate Items Found",
-                description: `${duplicates.length} duplicate stock item IDs found`,
-                status: "warning",
-                duration: 5000,
-                isClosable: true,
-            });
-        } else {
-            toast({
-                title: "No Duplicates",
-                description: "All stock items have unique IDs",
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-            });
-        }
+    const handleCancelEdit = () => {
+        onClose();
+        setEditingStock(null);
     };
 
-    // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyPress = (event) => {
-            if (event.ctrlKey || event.metaKey) {
-                switch (event.key) {
-                    case 'n':
-                        event.preventDefault();
-                        handleNewButton();
-                        break;
-                    case 'f':
-                        event.preventDefault();
-                        document.querySelector('input[placeholder="Search stock items..."]')?.focus();
-                        break;
-                    case 'r':
-                        event.preventDefault();
-                        handleRefreshData();
-                        break;
-                    case 'e':
-                        event.preventDefault();
-                        handleExportData();
-                        break;
-                    case 'p':
-                        event.preventDefault();
-                        handlePrintData();
-                        break;
-                    case 'Delete':
-                        event.preventDefault();
-                        if (selectedItems.length > 0) {
-                            handleDeleteSelected();
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-        };
+    const handleInputChange = (field, value) => {
+        setEditingStock((prev) => ({
+            ...prev,
+            [field]: value,
+        }));
+    };
 
-        document.addEventListener('keydown', handleKeyPress);
-        return () => document.removeEventListener('keydown', handleKeyPress);
-        //eslint-disable-next-line
-    }, [selectedItems]);
+    // Format date for display
+    const formatDate = (dateString) => {
+        if (!dateString) return "N/A";
+        return new Date(dateString).toLocaleDateString();
+    };
 
-    const handleQuickActions = (action) => {
-        switch (action) {
-            case 'selectAll':
-                handleSelectAll(true);
-                break;
-            case 'clearSelection':
-                setSelectedItems([]);
-                break;
-            case 'exportSelected':
-                if (selectedItems.length > 0) {
-                    const selectedData = stockData.filter(item => selectedItems.includes(item.id));
-                    // Export only selected items
-                    const csvContent = [
-                        ['Stock Item ID', 'SO Number', 'PO Number', 'Supplier', 'Vessel Name', 'Origin Country', 'Destination Country', 'Stock Status', 'Item Description', 'Item Value', 'Number of Pcs', 'Submitted to Customs'],
-                        ...selectedData.map(item => [
-                            item.stockItemId,
-                            item.soNumber,
-                            item.poNumber,
-                            item.supplier,
-                            item.vesselName,
-                            item.originCountry,
-                            item.destinationCountry,
-                            item.stockStatus,
-                            item.itemDescription,
-                            item.itemValue,
-                            item.numberOfPcs,
-                            item.submittedToCustoms ? 'Yes' : 'No'
-                        ])
-                    ].map(row => row.join(',')).join('\n');
-
-                    const blob = new Blob([csvContent], { type: 'text/csv' });
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'selected-stock-items.csv';
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-
-                    toast({
-                        title: "Export Successful",
-                        description: `${selectedItems.length} selected items exported`,
-                        status: "success",
-                        duration: 3000,
-                        isClosable: true,
-                    });
-                } else {
-                    toast({
-                        title: "Warning",
-                        description: "Please select items to export",
-                        status: "warning",
-                        duration: 3000,
-                        isClosable: true,
-                    });
-                }
-                break;
+    // Get status color
+    const getStatusColor = (status) => {
+        switch (status) {
+            case "delivered":
+                return "green";
+            case "in_transit":
+                return "blue";
+            case "pending":
+                return "orange";
+            case "cancelled":
+                return "red";
             default:
-                break;
+                return "gray";
         }
     };
+
+    // Show loading state
+    if (isLoading && stockList.length === 0) {
+        return (
+            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
+                <Flex justify="center" align="center" h="200px">
+                    <HStack spacing="4">
+                        <Spinner size="xl" color="#1c4a95" />
+                        <Text>Loading stock list...</Text>
+                    </HStack>
+                </Flex>
+            </Box>
+        );
+    }
+
+    // Show error state
+    if (error && stockList.length === 0) {
+        return (
+            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
+                <Alert status="error">
+                    <AlertIcon />
+                    <Box>
+                        <AlertTitle>Error loading stock list!</AlertTitle>
+                        <AlertDescription>{error}</AlertDescription>
+                    </Box>
+                </Alert>
+                <Button mt="4" onClick={() => getStockList()} leftIcon={<Icon as={MdRefresh} />}>
+                    Retry
+                </Button>
+            </Box>
+        );
+    }
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-            <VStack spacing={6} align="stretch">
-                {/* Header Section */}
-                <Flex justify="space-between" align="center" px="25px">
-                    <HStack spacing={4}>
-                        <Button
-                            leftIcon={<Icon as={MdAdd} />}
-                            colorScheme="blue"
-                            size="sm"
-                            onClick={handleNewButton}
+            <Card
+                direction="column"
+                w="100%"
+                px="0px"
+                overflowX={{ sm: "scroll", lg: "hidden" }}
+            >
+                {/* Header */}
+                <Flex px="25px" justify="space-between" mt="20px" mb="20px" align="center">
+                    <HStack spacing="3">
+                        <Text
+                            color={textColor}
+                            fontSize="22px"
+                            fontWeight="700"
+                            lineHeight="100%"
                         >
-                            New Stock Item
-                        </Button>
-                        <VStack align="start" spacing={1}>
-                            <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                                Stock List
-                            </Text>
-                            <Text fontSize="sm" color="gray.500">
-                                Manage inventory and stock items
-                            </Text>
-                        </VStack>
-                    </HStack>
-
-                    <HStack spacing={4}>
-                        <HStack spacing={2}>
-                            <Text fontSize="sm" color="gray.600">
-                                {filteredData.length} items
-                            </Text>
-                            <IconButton
-                                icon={<Icon as={MdChevronLeft} />}
-                                size="sm"
-                                variant="ghost"
-                                aria-label="Previous"
-                                onClick={handlePreviousPage}
-                                isDisabled={currentPage === 1}
-                            />
-                            <IconButton
-                                icon={<Icon as={MdChevronRight} />}
-                                size="sm"
-                                variant="ghost"
-                                aria-label="Next"
-                                onClick={handleNextPage}
-                                isDisabled={currentPage === totalPages}
-                            />
-                        </HStack>
-                        <HStack spacing={2}>
-                            <Tooltip label="Issues">
-                                <IconButton
-                                    icon={<Icon as={MdVisibility} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Issues"
-                                    onClick={handleIssuesClick}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Messages">
-                                <IconButton
-                                    icon={<Icon as={MdVisibility} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Messages"
-                                    onClick={handleMessagesClick}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Reminders">
-                                <IconButton
-                                    icon={<Icon as={MdVisibility} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Reminders"
-                                    onClick={handleRemindersClick}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Settings">
-                                <IconButton
-                                    icon={<Icon as={MdVisibility} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Settings"
-                                    onClick={handleSettingsClick}
-                                />
-                            </Tooltip>
-                        </HStack>
-                        <HStack spacing={2}>
-                            <Tooltip label="Export">
-                                <IconButton
-                                    icon={<Icon as={MdDownload} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Export"
-                                    onClick={handleExportData}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Print">
-                                <IconButton
-                                    icon={<Icon as={MdPrint} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Print"
-                                    onClick={handlePrintData}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Refresh">
-                                <IconButton
-                                    icon={<Icon as={MdRefresh} />}
-                                    size="sm"
-                                    variant="ghost"
-                                    aria-label="Refresh"
-                                    onClick={handleRefreshData}
-                                />
-                            </Tooltip>
-                            <Tooltip label="Keyboard Shortcuts: Ctrl+N (New), Ctrl+F (Search), Ctrl+R (Refresh), Ctrl+E (Export), Ctrl+P (Print), Delete (Delete Selected)">
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    fontSize="xs"
-                                    px={2}
-                                >
-                                    ⌨️
-                                </Button>
-                            </Tooltip>
-                        </HStack>
-                    </HStack>
-                </Flex>
-
-                {/* Statistics Section */}
-                <Box px="25px" mb="20px">
-                    <HStack spacing={4} flexWrap="wrap">
-                        {(() => {
-                            const stats = getStockStatistics();
-                            return (
-                                <>
-                                    <Box bg="blue.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="blue.600" fontWeight="600">Total Items</Text>
-                                        <Text fontSize="lg" color="blue.700" fontWeight="bold">{stats.total}</Text>
-                                    </Box>
-                                    <Box bg="green.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="green.600" fontWeight="600">In Stock</Text>
-                                        <Text fontSize="lg" color="green.700" fontWeight="bold">{stats.inStock}</Text>
-                                    </Box>
-                                    <Box bg="red.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="red.600" fontWeight="600">Out of Stock</Text>
-                                        <Text fontSize="lg" color="red.700" fontWeight="bold">{stats.outOfStock}</Text>
-                                    </Box>
-                                    <Box bg="yellow.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="yellow.600" fontWeight="600">Pending</Text>
-                                        <Text fontSize="lg" color="yellow.700" fontWeight="bold">{stats.pending}</Text>
-                                    </Box>
-                                    <Box bg="purple.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="purple.600" fontWeight="600">Customs Submitted</Text>
-                                        <Text fontSize="lg" color="purple.700" fontWeight="bold">{stats.submittedToCustoms}</Text>
-                                    </Box>
-                                    <Box bg="teal.50" p={3} borderRadius="8px" minW="120px">
-                                        <Text fontSize="xs" color="teal.600" fontWeight="600">Total Value</Text>
-                                        <Text fontSize="lg" color="teal.700" fontWeight="bold">${stats.totalValue}</Text>
-                                    </Box>
-                                </>
-                            );
-                        })()}
-                    </HStack>
-                </Box>
-
-                {/* Filter Section */}
-                <Box px='25px' mb='20px'>
-                    <HStack spacing={4} flexWrap="wrap">
-                        <InputGroup w={{ base: "100%", md: "300px" }}>
-                            <InputLeftElement>
-                                <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
-                            </InputLeftElement>
-                            <Input
-                                variant='outline'
-                                fontSize='sm'
-                                bg={inputBg}
-                                color={inputText}
-                                fontWeight='500'
-                                _placeholder={{ color: "gray.400", fontSize: "14px" }}
-                                borderRadius="8px"
-                                placeholder="Search stock items..."
-                                value={searchQuery}
-                                onChange={(e) => handleSearch(e.target.value)}
-                            />
-                        </InputGroup>
-
-                        <Select
-                            w={{ base: "100%", md: "200px" }}
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            bg={inputBg}
-                            color={inputText}
-                            borderRadius="8px"
-                            fontSize="sm"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="in-stock">In Stock</option>
-                            <option value="out-of-stock">Out of Stock</option>
-                            <option value="pending">Pending</option>
-                        </Select>
-
-                        <Button
-                            leftIcon={<Icon as={MdFilterList} />}
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={handleFilterClick}
-                        >
-                            Filters
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={handleDataValidation}
-                        >
-                            Validate Data
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={handleDuplicateCheck}
-                        >
-                            Check Duplicates
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={() => handleQuickActions('selectAll')}
-                        >
-                            Select All
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={() => handleQuickActions('clearSelection')}
-                            isDisabled={selectedItems.length === 0}
-                        >
-                            Clear Selection
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            borderRadius="8px"
-                            onClick={() => handleQuickActions('exportSelected')}
-                            isDisabled={selectedItems.length === 0}
-                        >
-                            Export Selected
-                        </Button>
-
-                        {selectedItems.length > 0 && (
-                            <HStack spacing={2}>
-                                <Select
-                                    size="sm"
-                                    placeholder="Bulk Status"
-                                    onChange={(e) => handleBulkStatusChange(e.target.value)}
-                                    bg={inputBg}
-                                    color={inputText}
-                                    borderRadius="4px"
-                                    w="120px"
-                                >
-                                    <option value="In Stock">In Stock</option>
-                                    <option value="Out of Stock">Out of Stock</option>
-                                    <option value="Pending">Pending</option>
-                                </Select>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={handleBulkCustomsToggle}
-                                >
-                                    Toggle Customs
-                                </Button>
-                                <Button
-                                    colorScheme="red"
-                                    size="sm"
-                                    onClick={handleDeleteSelected}
-                                >
-                                    Delete Selected ({selectedItems.length})
-                        </Button>
+                            Stock List Management
+                        </Text>
+                        {isRefreshing && (
+                            <HStack spacing="2">
+                                <Spinner size="sm" color="blue.500" />
+                                <Text fontSize="sm" color="blue.500">
+                                    Refreshing...
+                                </Text>
                             </HStack>
                         )}
                     </HStack>
+                    <HStack spacing="3">
+                            <IconButton
+                                size="sm"
+                                    icon={<Icon as={MdRefresh} />}
+                                    variant="ghost"
+                                    aria-label="Refresh"
+                            onClick={() => getStockList()}
+                            isLoading={isLoading}
+                        />
+                    </HStack>
+                </Flex>
+
+                {/* Enhanced Filter & Sort Section */}
+                <Box px="25px" mb="20px">
+                    <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                        {/* Search */}
+                        <Box minW="300px" flex="1">
+                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                                Search Stock Items
+                            </Text>
+                            <InputGroup>
+                            <InputLeftElement>
+                                    <Icon as={MdSearch} color={textColor} />
+                            </InputLeftElement>
+                            <Input
+                                    variant="outline"
+                                    fontSize="sm"
+                                bg={inputBg}
+                                color={inputText}
+                                borderRadius="8px"
+                                    placeholder="Search stock items, IDs, clients, vessels..."
+                                    value={searchValue}
+                                    onChange={(e) => setSearchValue(e.target.value)}
+                                    border="2px"
+                                    borderColor={borderColor}
+                                    _focus={{
+                                        borderColor: "blue.400",
+                                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                    }}
+                                    _hover={{
+                                        borderColor: "blue.300",
+                                    }}
+                            />
+                        </InputGroup>
+                        </Box>
+
+                        {/* Filter Button */}
+                        <Box>
+                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                                Advanced Filters
+                            </Text>
+                        <Button
+                                size="md"
+                                variant={filters.status ? "solid" : "outline"}
+                                colorScheme={filters.status ? "blue" : "gray"}
+                            leftIcon={<Icon as={MdFilterList} />}
+                                onClick={() => setShowFilterFields(!showFilterFields)}
+                                borderRadius="10px"
+                                border="2px"
+                                borderColor={borderColor}
+                            >
+                                {showFilterFields ? "Hide Filters" : "Show Filters"}
+                        </Button>
+                        </Box>
+
+                        {/* Sort Dropdown */}
+                        <Box>
+                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                                Sort Options
+                            </Text>
+                            <Select
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value)}
+                                size="md"
+                                bg={inputBg}
+                                color={inputText}
+                            borderRadius="8px"
+                                border="2px"
+                                borderColor={borderColor}
+                                _focus={{
+                                    borderColor: "blue.400",
+                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                }}
+                                _hover={{
+                                    borderColor: "blue.300",
+                                }}
+                            >
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="alphabetical">A-Z Alphabetical</option>
+                            </Select>
+                        </Box>
+
+                        {/* Clear All */}
+                        {(filters.status || searchValue || sortOrder !== "newest") && (
+                            <Box>
+                                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                                    &nbsp;
+                                </Text>
+                        <Button
+                                    size="md"
+                            variant="outline"
+                                    onClick={clearAllFiltersAndSorting}
+                                    colorScheme="red"
+                                    _hover={{ bg: "red.50" }}
+                                    borderRadius="10px"
+                                    border="2px"
+                                >
+                                    Clear All
+                        </Button>
+                            </Box>
+                        )}
+                    </HStack>
+
+                    {/* Expandable Filter Fields */}
+                    {showFilterFields && (
+                        <Box
+                            mt={4}
+                            pt={4}
+                            borderTop="2px"
+                            borderColor={borderColor}
+                            bg={expandableFilterBg}
+                            borderRadius="12px"
+                            p="20px"
+                        >
+                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
+                                Filter by Specific Fields
+                            </Text>
+
+                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                                {/* Status Filter */}
+                                <Box minW="200px" flex="1">
+                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                                        Status
+                                    </Text>
+                                <Select
+                                        value={filters.status}
+                                        onChange={(e) => handleFilterChange("status", e.target.value)}
+                                    size="sm"
+                                    bg={inputBg}
+                                    color={inputText}
+                                        borderRadius="8px"
+                                        border="2px"
+                                        borderColor={borderColor}
+                                        _focus={{
+                                            borderColor: "blue.400",
+                                            boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                        }}
+                                        _hover={{
+                                            borderColor: "blue.300",
+                                        }}
+                                    >
+                                        <option value="">All Statuses</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="in_transit">In Transit</option>
+                                        <option value="delivered">Delivered</option>
+                                        <option value="cancelled">Cancelled</option>
+                                </Select>
+                                </Box>
+                            </HStack>
+                        </Box>
+                        )}
                 </Box>
 
-                {/* Stock List Table */}
-                <Box px="25px">
-                    <Box
-                        maxH="400px"
-                        overflowY="auto"
-                        border="1px"
-                        borderColor="gray.200"
-                        borderRadius="8px"
-                        sx={{
-                            '&::-webkit-scrollbar': {
-                                width: '8px',
-                            },
-                            '&::-webkit-scrollbar-track': {
-                                background: 'gray.100',
-                                borderRadius: '4px',
-                            },
-                            '&::-webkit-scrollbar-thumb': {
-                                background: 'gray.300',
-                                borderRadius: '4px',
-                                '&:hover': {
-                                    background: 'gray.400',
-                                },
-                            },
-                        }}
+                {/* Table Container */}
+                <Box pr="25px" overflowX="auto">
+                    <Table
+                        variant="unstyled"
+                        size="sm"
+                        minW="1200px"
+                        ml="25px"
                     >
-                        <Table variant="unstyled" size="sm" minW="100%">
-                            <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
+                        <Thead bg={tableHeaderBg}>
+                            <Tr>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Stock Item ID
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Status
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Client ID
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Vessel ID
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    SO Number
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Weight (kg)
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Value
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Create Date
+                                    </Th>
+                                    <Th
+                                        borderRight="1px"
+                                    borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        fontSize="12px"
+                                        fontWeight="600"
+                                    color={tableTextColor}
+                                        textTransform="uppercase"
+                                    >
+                                    Actions
+                                    </Th>
+                            </Tr>
+                        </Thead>
+                        <Tbody>
+                            {isLoading ? (
                                 <Tr>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                        <Checkbox
-                                            isChecked={currentData.length > 0 && selectedItems.length === currentData.length}
-                                            isIndeterminate={selectedItems.length > 0 && selectedItems.length < currentData.length}
-                                            onChange={(e) => handleSelectAll(e.target.checked)}
-                                        />
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("stockItemId")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Stock Item ID {getSortIcon("stockItemId")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("soNumber")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        SO Number {getSortIcon("soNumber")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("poNumber")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        PO Number {getSortIcon("poNumber")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("supplier")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Supplier {getSortIcon("supplier")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("vesselName")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Vessel Name {getSortIcon("vesselName")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("originCountry")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Origin Country {getSortIcon("originCountry")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("destinationCountry")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Destination Country {getSortIcon("destinationCountry")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("stockStatus")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Stock Status {getSortIcon("stockStatus")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("itemDescription")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Item Description {getSortIcon("itemDescription")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("itemValue")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Item Value {getSortIcon("itemValue")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("numberOfPcs")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Number of Pcs {getSortIcon("numberOfPcs")}
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor="gray.200"
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        color="gray.600"
-                                        textTransform="uppercase"
-                                        cursor="pointer"
-                                        onClick={() => handleSort("submittedToCustoms")}
-                                        _hover={{ bg: "gray.200" }}
-                                    >
-                                        Submitted to Customs {getSortIcon("submittedToCustoms")}
-                                    </Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
+                                    <Td colSpan={9} textAlign="center" py="8">
+                                        <Spinner size="lg" color="blue.500" />
+                                    </Td>
                                 </Tr>
-                            </Thead>
-                            <Tbody>
-                                {currentData.map((item, index) => (
+                            ) : filteredAndSortedStock.length === 0 ? (
+                                <Tr>
+                                    <Td colSpan={9} textAlign="center" py="8">
+                                        <Text color={tableTextColor} fontSize="lg">
+                                            {searchValue || Object.values(filters).some(f => f) 
+                                                ? "No stock items match your search criteria." 
+                                                : "No stock items available."}
+                                        </Text>
+                                    </Td>
+                                </Tr>
+                            ) : (
+                                filteredAndSortedStock.map((item, index) => (
                                     <Tr
                                         key={item.id}
-                                        bg={index % 2 === 0 ? "white" : "gray.50"}
-                                        _hover={{ bg: hoverBg }}
+                                        bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                                         borderBottom="1px"
-                                        borderColor="gray.200">
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Checkbox
-                                                isChecked={selectedItems.includes(item.id)}
-                                                onChange={(e) => handleSelectItem(item.id, e.target.checked)}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                {item.stockItemId}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.soNumber || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.poNumber || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.supplier || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.vesselName || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.originCountry || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.destinationCountry || "-"}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Select
-                                                size="sm"
-                                                value={item.stockStatus || ""}
-                                                onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderRadius="4px"
-                                                fontSize="xs"
-                                                minW="100px"
+                                        borderColor={tableBorderColor}
+                                    >
+                                        <Td
+                                        borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        >
+                                            <Text
+                                                color={textColor}
+                                                fontSize="sm"
+                                        fontWeight="600"
                                             >
-                                                <option value="">Select Status</option>
-                                                <option value="In Stock">In Stock</option>
-                                                <option value="Out of Stock">Out of Stock</option>
-                                                <option value="Pending">Pending</option>
-                                            </Select>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.itemDescription || "-"}
+                                                {item.stock_item_id || "-"}
                                             </Text>
                                         </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm' fontWeight='600'>
-                                                ${item.itemValue}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Text color={textColor} fontSize='sm'>
-                                                {item.numberOfPcs}
-                                            </Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <Checkbox
-                                                isChecked={item.submittedToCustoms}
+                                        <Td
+                                        borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        >
+                                            <Badge
+                                                colorScheme={getStatusColor(item.stock_status)}
                                                 size="sm"
-                                                onChange={() => handleCustomsToggle(item.id)}
-                                            />
+                                                borderRadius="full"
+                                                px="3"
+                                                py="1"
+                                            >
+                                                {item.stock_status || "-"}
+                                            </Badge>
                                         </Td>
-                                        <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                                            <HStack spacing={2}>
-                                                <Tooltip label="View Stock Item">
-                                                    <IconButton
-                                                        icon={<Icon as={MdVisibility} />}
-                                                        size="sm"
-                                                        colorScheme="blue"
-                                                        variant="ghost"
-                                                        aria-label="View stock item"
-                                                        onClick={() => handleViewItem(item.id)}
-                                                    />
-                                                </Tooltip>
+                                        <Td
+                                        borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                        py="12px"
+                                        px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {item.client_id || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {item.vessel_id || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {item.so_number_id || "-"}
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {item.weight_kg || "0.0"} kg
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {item.value || "0.0"}
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <Text color={tableTextColor} fontSize="sm">
+                                                {formatDate(item.sl_create_datetime)}
+                                            </Text>
+                                        </Td>
+                                        <Td
+                                            borderRight="1px"
+                                            borderColor={tableBorderColor}
+                                            py="12px"
+                                            px="16px"
+                                        >
+                                            <HStack spacing="2">
                                                 <Tooltip label="Edit Stock Item">
                                                     <IconButton
                                                         icon={<Icon as={MdEdit} />}
                                                         size="sm"
                                                         colorScheme="blue"
                                                         variant="ghost"
+                                                        onClick={() => handleEditStock(item)}
                                                         aria-label="Edit stock item"
-                                                        onClick={() => handleEditItem(item.id)}
-                                                    />
-                                                </Tooltip>
-                                                <Tooltip label="Delete Stock Item">
-                                                    <IconButton
-                                                        icon={<Icon as={MdDelete} />}
-                                                        size="sm"
-                                                        colorScheme="red"
-                                                        variant="ghost"
-                                                        aria-label="Delete stock item"
-                                                        onClick={() => handleDeleteItem(item.id)}
                                                     />
                                                 </Tooltip>
                                             </HStack>
                                         </Td>
                                     </Tr>
-                                ))}
+                                ))
+                            )}
                             </Tbody>
                         </Table>
-                    </Box>
                 </Box>
 
-                {/* Pagination */}
-                <Flex px='25px' justify='space-between' align='center' py='20px'>
-                    <Text fontSize='sm' color='gray.500'>
-                        Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
+                {/* Results Summary */}
+                <Flex px="25px" justify="space-between" align="center" py="20px">
+                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                        Showing {filteredAndSortedStock.length} of {stockList.length} stock items
                     </Text>
-                    <HStack spacing={2}>
-                        <Button
-                            size="sm"
-                            onClick={handlePreviousPage}
-                            isDisabled={currentPage === 1}
-                            variant="outline"
-                        >
-                            Previous
-                        </Button>
-                        <Text fontSize="sm" color="gray.600">
-                            Page {currentPage} of {totalPages}
-                        </Text>
-                        <Button
-                            size="sm"
-                            onClick={handleNextPage}
-                            isDisabled={currentPage === totalPages}
-                            variant="outline"
-                        >
-                            Next
-                        </Button>
-                    </HStack>
                 </Flex>
-            </VStack>
+            </Card>
 
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog
-                isOpen={isDeleteDialogOpen}
-                onClose={() => setIsDeleteDialogOpen(false)}
-                leastDestructiveRef={undefined}
-            >
-                <AlertDialogOverlay>
-                    <AlertDialogContent>
-                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                            Delete Stock Item
-                        </AlertDialogHeader>
+            {/* Edit Stock Item Modal */}
+            <Modal isOpen={isOpen} onClose={onClose} size="4xl">
+                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
+                <ModalContent maxW="900px" borderRadius="xl" boxShadow="2xl">
+                    <ModalHeader
+                        bg="linear-gradient(135deg, #1c4a95 0%, #2c5aa0 100%)"
+                        color="white"
+                        borderRadius="xl 0 0 0"
+                        py="6"
+                    >
+                        <VStack align="start" spacing="2">
+                            <Text fontSize="xl" fontWeight="bold">
+                                Edit Stock Item
+                            </Text>
+                            <Text fontSize="lg" opacity="0.9">
+                                {editingStock?.stock_item_id}
+                            </Text>
+                        </VStack>
+                    </ModalHeader>
+                    <ModalCloseButton color="white" size="lg" />
+                    <ModalBody p="6">
+                        {editingStock && (
+                            <VStack spacing={6}>
+                                {/* Basic Information */}
+                                <Box w="100%">
+                                    <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
+                                        Basic Information
+                                    </Text>
+                                    <VStack spacing={4}>
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Stock Item ID</FormLabel>
+                                                <Input
+                                                    value={editingStock.stock_item_id || ""}
+                                                    isReadOnly
+                                                    bg="gray.100"
+                                                />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Status</FormLabel>
+                                                <Select
+                                                    value={editingStock.stock_status || ""}
+                                                    onChange={(e) => handleInputChange("stock_status", e.target.value)}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                >
+                                                    <option value="pending">Pending</option>
+                                                    <option value="in_transit">In Transit</option>
+                                                    <option value="delivered">Delivered</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                </Select>
+                                            </FormControl>
+                                        </HStack>
 
-                        <AlertDialogBody>
-                            Are you sure you want to delete this stock item? This action cannot be undone.
-                        </AlertDialogBody>
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Weight (kg)</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.weight_kg || 0}
+                                                    onChange={(value) => handleInputChange("weight_kg", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Value</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.value || 0}
+                                                    onChange={(value) => handleInputChange("value", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>PCS Count</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.pcs_count || 0}
+                                                    onChange={(value) => handleInputChange("pcs_count", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                        </HStack>
 
-                        <AlertDialogFooter>
-                            <Button onClick={() => setIsDeleteDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button colorScheme="red" onClick={confirmDeleteItem} ml={3}>
-                                Delete
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialogOverlay>
-            </AlertDialog>
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Length (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.length_cm || 0}
+                                                    onChange={(value) => handleInputChange("length_cm", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Width (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.width_cm || 0}
+                                                    onChange={(value) => handleInputChange("width_cm", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Height (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.height_cm || 0}
+                                                    onChange={(value) => handleInputChange("height_cm", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                        </HStack>
+
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Volume (CBM)</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.volume_cbm || 0}
+                                                    onChange={(value) => handleInputChange("volume_cbm", parseFloat(value) || 0)}
+                                                    min={0}
+                                                    precision={2}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Client ID</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.client_id || 0}
+                                                    onChange={(value) => handleInputChange("client_id", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Vessel ID</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.vessel_id || 0}
+                                                    onChange={(value) => handleInputChange("vessel_id", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                        </HStack>
+
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Supplier ID</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.supplier_id || 0}
+                                                    onChange={(value) => handleInputChange("supplier_id", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Origin</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.origin || 0}
+                                                    onChange={(value) => handleInputChange("origin", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Destination</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.destination || 0}
+                                                    onChange={(value) => handleInputChange("destination", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                        </HStack>
+
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Warehouse ID</FormLabel>
+                                                <NumberInput
+                                                    value={editingStock.warehouse_id || 0}
+                                                    onChange={(value) => handleInputChange("warehouse_id", parseInt(value) || 0)}
+                                                    min={0}
+                                                >
+                                                    <NumberInputField />
+                                                    <NumberInputStepper>
+                                                        <NumberIncrementStepper />
+                                                        <NumberDecrementStepper />
+                                                    </NumberInputStepper>
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Extra</FormLabel>
+                                                <Input
+                                                    value={editingStock.extra || ""}
+                                                    onChange={(e) => handleInputChange("extra", e.target.value)}
+                                                    placeholder="Enter extra information..."
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Item Description</FormLabel>
+                                                <Input
+                                                    value={editingStock.item_desc || ""}
+                                                    onChange={(e) => handleInputChange("item_desc", e.target.value)}
+                                                    placeholder="Enter item description..."
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                        </HStack>
+
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Date on Stock</FormLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={editingStock.date_on_stock || ""}
+                                                    onChange={(e) => handleInputChange("date_on_stock", e.target.value)}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Expected Ready in Stock</FormLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={editingStock.exp_ready_in_stock || ""}
+                                                    onChange={(e) => handleInputChange("exp_ready_in_stock", e.target.value)}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Shipped Date</FormLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={editingStock.shipped_date || ""}
+                                                    onChange={(e) => handleInputChange("shipped_date", e.target.value)}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                        </HStack>
+
+                                        <HStack spacing={4} w="100%">
+                                            <FormControl>
+                                                <FormLabel>Delivered Date</FormLabel>
+                                                <Input
+                                                    type="date"
+                                                    value={editingStock.delivered_date || ""}
+                                                    onChange={(e) => handleInputChange("delivered_date", e.target.value)}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel>Submit to Stock DB</FormLabel>
+                                                <Select
+                                                    value={editingStock.submit_to_stockdb ? "true" : "false"}
+                                                    onChange={(e) => handleInputChange("submit_to_stockdb", e.target.value === "true")}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                >
+                                                    <option value="false">No</option>
+                                                    <option value="true">Yes</option>
+                                                </Select>
+                                            </FormControl>
+                                        </HStack>
+
+                                        <FormControl>
+                                            <FormLabel>Remarks</FormLabel>
+                                            <Textarea
+                                                value={editingStock.remarks || ""}
+                                                onChange={(e) => handleInputChange("remarks", e.target.value)}
+                                                placeholder="Enter remarks..."
+                                                bg={inputBg}
+                                                color={inputText}
+                                                rows={3}
+                                            />
+                                        </FormControl>
+                                    </VStack>
+                                </Box>
+
+                                {/* Action Buttons */}
+                                <HStack spacing={4} w="100%" justify="flex-end">
+                                    <Button
+                                        leftIcon={<Icon as={MdClose} />}
+                                        onClick={handleCancelEdit}
+                                        variant="outline"
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        leftIcon={<Icon as={MdSave} />}
+                                        onClick={handleSaveStock}
+                                        colorScheme="blue"
+                                        isLoading={updateLoading}
+                                        loadingText="Saving..."
+                                    >
+                                        Save Changes
+                                    </Button>
+                                </HStack>
+                            </VStack>
+                        )}
+                    </ModalBody>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 } 
