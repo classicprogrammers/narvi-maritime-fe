@@ -70,12 +70,7 @@ export default function ShippingConfirmation() {
     // Handle print functionality
     console.log("Printing shipping confirmation...");
   };
-
-  const handleSave = () => {
-    // Handle save functionality
-    console.log("Saving shipping confirmation...");
-  };
-
+  
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">

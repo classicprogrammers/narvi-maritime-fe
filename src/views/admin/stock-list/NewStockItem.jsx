@@ -70,8 +70,6 @@ export default function NewStockItem() {
     };
 
     const handleSaveStockItem = () => {
-        // Here you would typically save to backend/database
-        console.log("Saving stock item:", formData);
 
         // For now, we'll store in localStorage to demonstrate
         const existingStock = JSON.parse(localStorage.getItem('stockItems') || '[]');

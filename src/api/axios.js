@@ -11,10 +11,16 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    // Commented out Bearer token injection - making simple API calls without auth
     const token = localStorage.getItem("token");
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      // Validate token format before sending
+      if (token && token.trim() !== '') {
+        config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.warn("Empty or invalid token found, not adding to request:", config.url);
+      }
+    } else {
+      console.warn("No token found in localStorage for request:", config.url);
     }
     return config;
   },
@@ -35,9 +41,29 @@ api.interceptors.response.use(
 
       // Check for authentication errors
       const responseData = error.response.data;
+      const status = error.response.status;
 
-      // Check for JSON-RPC format
-      if (responseData.result && responseData.result.message === "Invalid token") {
+      // Only logout for specific authentication errors, not all 401/403 errors
+      const shouldLogout = 
+        // Check for JSON-RPC format with specific auth error messages
+        (responseData.result && responseData.result.message === "Invalid token") ||
+        (responseData.result && responseData.result.message === "Token expired") ||
+        (responseData.result && responseData.result.message === "Unauthorized") ||
+        (responseData.result && responseData.result.message === "Authentication failed") ||
+        // Check for direct format with specific auth error messages
+        (responseData.message === "Invalid token") ||
+        (responseData.message === "Token expired") ||
+        (responseData.message === "Unauthorized") ||
+        (responseData.message === "Authentication failed") ||
+        // Check for 401 status with specific error messages
+        (status === 401 && responseData.message && responseData.message.includes("token")) ||
+        (status === 401 && responseData.message && responseData.message.includes("auth")) ||
+        // Check for 403 status with specific error messages
+        (status === 403 && responseData.message && responseData.message.includes("token")) ||
+        (status === 403 && responseData.message && responseData.message.includes("auth"));
+
+      if (shouldLogout) {
+        console.log("Authentication error detected, logging out user");
         // Clear authentication state
         localStorage.removeItem("token");
         localStorage.removeItem("user");
@@ -45,17 +71,26 @@ api.interceptors.response.use(
         // Redirect to login page
         window.location.href = '/auth/sign-in';
         return Promise.reject(error);
-      }
-
-      // Check for direct format
-      if (responseData.message === "Invalid token") {
-        // Clear authentication state
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-
-        // Redirect to login page
-        window.location.href = '/auth/sign-in';
-        return Promise.reject(error);
+      } else {
+        // Log the error but don't logout for other types of errors
+        console.log("API error occurred but not logging out:", {
+          status,
+          message: responseData.message || responseData.result?.message,
+          data: responseData,
+          url: error.config?.url,
+          method: error.config?.method
+        });
+        
+        // Special handling for quotation and rate list APIs
+        if (error.config?.url?.includes('/api/quotations') || 
+            error.config?.url?.includes('/api/products') || 
+            error.config?.url?.includes('/api/vendor/list')) {
+          console.log("Quotation/Rate List API error - this should not cause logout:", {
+            url: error.config.url,
+            status,
+            message: responseData.message || responseData.result?.message
+          });
+        }
       }
     } else if (error.request) {
       // Request was made but no response received

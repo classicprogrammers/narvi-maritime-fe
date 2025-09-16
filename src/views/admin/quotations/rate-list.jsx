@@ -320,13 +320,15 @@ export default function RateList() {
                 setRateItems([]);
             }
         } catch (error) {
+            console.error("Failed to fetch products:", error);
             toast({
                 title: "Error",
-                description: `Failed to fetch products: ${error.message}`,
+                description: "Failed to load products. Please try again.",
                 status: "error",
                 duration: 3000,
                 isClosable: true,
             });
+            setRateItems([]);
         } finally {
             setIsLoading(false);
         }

@@ -71,11 +71,6 @@ export default function DeliveryConfirmation() {
     console.log("Printing delivery confirmation...");
   };
 
-  const handleSave = () => {
-    // Handle save functionality
-    console.log("Saving delivery confirmation...");
-  };
-
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">

@@ -467,7 +467,7 @@ export default function VendorsTable(props) {
               leftIcon={<Icon as={MdAdd} />}
               colorScheme="blue"
               size="sm"
-              onClick={() => history.push("/admin/customer-registration")}
+              onClick={() => history.push("/admin/vendor-registration")}
             >
               Add Vendor
             </Button>
@@ -894,7 +894,14 @@ export default function VendorsTable(props) {
                                   size="sm"
                                   colorScheme="blue"
                                   variant="ghost"
-                                  onClick={() => handleEdit(row.original)}
+                                  onClick={() => {
+                                    // Store vendor data in localStorage as backup
+                                    localStorage.setItem(`vendor_${row.original.id}`, JSON.stringify(row.original));
+                                    history.push({
+                                      pathname: `/admin/vendor-registration/${row.original.id}`,
+                                      state: { vendorData: row.original }
+                                    });
+                                  }}
                                   aria-label="Edit vendor"
                                 />
                               </Tooltip>
@@ -966,7 +973,7 @@ export default function VendorsTable(props) {
           </Flex>
       </Card>
 
-      {/* Edit Customer Modal */}
+      {/* Edit Vendor Modal */}
       <Modal isOpen={isEditOpen} onClose={handleCancelEdit}>
         <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
         <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>
@@ -1153,6 +1160,170 @@ export default function VendorsTable(props) {
               isLoading={updateLoading}
             >
               Update Vendor
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Add Vendor Modal */}
+      <Modal isOpen={isOpen} onClose={handleCancel}>
+        <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
+        <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>
+          <ModalHeader
+            bg={modalHeaderBg}
+            borderBottom="1px"
+            borderColor={modalBorder}
+          >
+            Add New Vendor
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl isRequired>
+                <FormLabel>Vendor Name</FormLabel>
+                <Input
+                  value={newVendor.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  placeholder="Enter vendor name"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Email</FormLabel>
+                <Input
+                  type="email"
+                  value={newVendor.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="Enter email address"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Phone</FormLabel>
+                <Input
+                  value={newVendor.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  placeholder="Enter phone number"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Mobile</FormLabel>
+                <Input
+                  value={newVendor.mobile}
+                  onChange={(e) => handleInputChange("mobile", e.target.value)}
+                  placeholder="Enter mobile number"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Street</FormLabel>
+                <Input
+                  value={newVendor.street}
+                  onChange={(e) => handleInputChange("street", e.target.value)}
+                  placeholder="Enter street address"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>City</FormLabel>
+                <Input
+                  value={newVendor.city}
+                  onChange={(e) => handleInputChange("city", e.target.value)}
+                  placeholder="Enter city"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>ZIP Code</FormLabel>
+                <Input
+                  value={newVendor.zip}
+                  onChange={(e) => handleInputChange("zip", e.target.value)}
+                  placeholder="Enter ZIP code"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Country</FormLabel>
+                <Select
+                  value={newVendor.country_id || ""}
+                  onChange={(e) => handleInputChange("country_id", e.target.value)}
+                  placeholder="Select country"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                >
+                  <option value="">Select Country</option>
+                  {/* Add country options here if needed */}
+                </Select>
+              </FormControl>
+            </VStack>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button
+              colorScheme="blue"
+              onClick={handleSaveVendor}
+              isLoading={isRegistering}
+              loadingText="Adding..."
+            >
+              Add Vendor
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -23,7 +23,7 @@ import { FaArrowLeft } from "react-icons/fa";
 // Redux
 import { useUser } from "redux/hooks/useUser";
 // API
-import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
 
 function ForgotPassword() {
@@ -71,22 +71,8 @@ function ForgotPassword() {
     }
   };
 
-  // Test API connection
-  const handleTestConnection = async () => {
-    try {
-      const response = await api.get("/");
-      
-      setModalMessage("API connection successful! Server is reachable.");
-      setIsSuccessModalOpen(true);
-    } catch (error) {
-      setModalMessage("Cannot connect to backend server. Please check if the server is running and CORS is properly configured.");
-      setIsFailureModalOpen(true);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Forgot password form submitted'); // Debug log
 
     if (!email) {
       setModalMessage("Please enter your email address");
@@ -103,7 +89,6 @@ function ForgotPassword() {
     }
 
     try {
-      console.log('Sending password reset email...'); // Debug log
 
       // Call the forgot password API directly
       const apiResult = await handleForgotPasswordApi(email);
@@ -251,19 +236,6 @@ function ForgotPassword() {
             </FormControl>
           </form>
 
-          {/* Test Connection Button - Remove this in production */}
-          <Button
-            fontSize='sm'
-            variant='outline'
-            fontWeight='500'
-            w='100%'
-            h='40px'
-            mb='16px'
-            onClick={handleTestConnection}
-            colorScheme="blue">
-            Test API Connection
-          </Button>
-
           <Flex
             flexDirection='column'
             justifyContent='center'
@@ -284,20 +256,6 @@ function ForgotPassword() {
             </Text>
           </Flex>
 
-          <Flex
-            justifyContent='center'
-            alignItems='center'
-            mt='20px'>
-            <Button
-              variant='ghost'
-              color={textColorBrand}
-              fontSize='sm'
-              fontWeight='500'
-              onClick={() => history.goBack()}
-              leftIcon={<FaArrowLeft />}>
-              Back to Previous Page
-            </Button>
-          </Flex>
         </Flex>
       </Flex>
 

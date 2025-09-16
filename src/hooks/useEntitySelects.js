@@ -34,18 +34,15 @@ export const useEntitySelects = () => {
   const [hasLoadedQuotations, setHasLoadedQuotations] = useState(false);
 
   const searchUsers = useCallback(async (searchTerm = '') => {
-    console.log('🔍 [USERS] API call triggered with term:', searchTerm, '| Has loaded:', hasLoadedUsers, '| Users count:', users.length);
     
     // If we already have data and it's an empty search, just filter locally
     if (hasLoadedUsers && users.length > 0 && searchTerm.trim() === '') {
-      console.log('🚫 [USERS] Skipping API call - data already loaded');
       return;
     }
     
     setIsLoadingUsers(true);
     try {
       const data = await getUsersForSelect(searchTerm);
-      console.log('✅ [USERS] API call successful, received:', data.length, 'users');
       setUsers(data);
       setHasLoadedUsers(true);
     } catch (error) {
@@ -58,18 +55,15 @@ export const useEntitySelects = () => {
   }, [hasLoadedUsers, users.length]);
 
   const searchCustomers = useCallback(async (searchTerm = '') => {
-    console.log('🔍 [CUSTOMERS] API call triggered with term:', searchTerm, '| Has loaded:', hasLoadedCustomers, '| Customers count:', customers.length);
     
     // If we already have data and it's an empty search, just filter locally
     if (hasLoadedCustomers && customers.length > 0 && searchTerm.trim() === '') {
-      console.log('🚫 [CUSTOMERS] Skipping API call - data already loaded');
       return;
     }
     
     setIsLoadingCustomers(true);
     try {
       const data = await getCustomersForSelect(searchTerm);
-      console.log('✅ [CUSTOMERS] API call successful, received:', data.length, 'customers');
       setCustomers(data);
       setHasLoadedCustomers(true);
     } catch (error) {
@@ -82,18 +76,15 @@ export const useEntitySelects = () => {
   }, [hasLoadedCustomers, customers.length]);
 
   const searchVessels = useCallback(async (searchTerm = '') => {
-    console.log('🔍 [VESSELS] API call triggered with term:', searchTerm, '| Has loaded:', hasLoadedVessels, '| Vessels count:', vessels.length);
     
     // If we already have data and it's an empty search, just filter locally
     if (hasLoadedVessels && vessels.length > 0 && searchTerm.trim() === '') {
-      console.log('🚫 [VESSELS] Skipping API call - data already loaded');
       return;
     }
     
     setIsLoadingVessels(true);
     try {
       const data = await getVesselsForSelect(searchTerm);
-      console.log('✅ [VESSELS] API call successful, received:', data.length, 'vessels');
       setVessels(data);
       setHasLoadedVessels(true);
     } catch (error) {
@@ -106,7 +97,6 @@ export const useEntitySelects = () => {
   }, [hasLoadedVessels, vessels.length]);
 
   const searchDestinations = useCallback(async (searchTerm = '') => {
-    console.log('🔍 Searching destinations with term:', searchTerm);
     
     // If we already have data and it's an empty search, just filter locally
     if (hasLoadedDestinations && destinations.length > 0 && searchTerm.trim() === '') {
@@ -128,7 +118,6 @@ export const useEntitySelects = () => {
   }, [hasLoadedDestinations, destinations.length]);
 
   const searchQuotations = useCallback(async (searchTerm = '') => {
-    console.log('🔍 Searching quotations with term:', searchTerm);
     
     // If we already have data and it's an empty search, just filter locally
     if (hasLoadedQuotations && quotations.length > 0 && searchTerm.trim() === '') {

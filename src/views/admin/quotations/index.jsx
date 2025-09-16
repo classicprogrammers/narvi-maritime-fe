@@ -249,6 +249,7 @@ export default function Quotations() {
                 setQuotations([]);
             }
         } catch (error) {
+            console.error("Failed to fetch quotations:", error);
             toast({
                 title: "Error",
                 description: `Failed to fetch quotations: ${error.message}`,
@@ -274,6 +275,7 @@ export default function Quotations() {
         } catch (error) {
             console.error("Failed to fetch customers:", error);
             setCustomers([]);
+            // Don't show toast for customers as it's not critical
         }
     }, []);
 
@@ -379,10 +381,6 @@ export default function Quotations() {
     const handleEditQuotation = (quotation) => {
         setEditingQuotation(quotation);
 
-        // Debug: Log the quotation data to see what we're working with
-        console.log('Editing quotation:', quotation);
-        console.log('Quotation lines:', quotation.quotation_line_ids);
-
         // Process quotation lines to ensure all fields are properly mapped
         // Note: API returns quotation_line_ids instead of quotation_lines
         const quotationLines = quotation.quotation_line_ids || quotation.quotation_lines || [];
@@ -417,7 +415,6 @@ export default function Quotations() {
             }))
             : [];
 
-        console.log('Processed quotation lines:', processedQuotationLines);
 
         const quotationFormData = {
             partner_id: quotation.partner_id || "",
@@ -499,7 +496,6 @@ export default function Quotations() {
                     ...changedFields
                 };
                 
-                console.log('Sending only changed fields for update:', updateData);
                 response = await quotationsAPI.updateQuotation(updateData);
             } else {
                 // Create new quotation - send all data but ensure only vendor_id
@@ -514,7 +510,6 @@ export default function Quotations() {
                     }))
                 };
                 
-                console.log('Sending all data for create:', quotationData);
                 response = await quotationsAPI.createQuotation(quotationData);
             }
 

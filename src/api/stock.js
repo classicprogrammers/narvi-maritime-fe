@@ -17,10 +17,26 @@ const handleApiError = (error, operation) => {
       "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
   }
 
-  // HTTP errors (4xx, 5xx)
-  if (error.status) {
-    errorMessage = `Backend error (${error.status}): ${error.message || "Unknown error occurred"
-      }`;
+  // HTTP errors (4xx, 5xx) - Extract detailed error message from response
+  if (error.response) {
+    const responseData = error.response.data;
+    
+    // Check for JSON-RPC error format
+    if (responseData && responseData.result && responseData.result.status === 'error') {
+      errorMessage = responseData.result.message || errorMessage;
+    }
+    // Check for direct error message in response
+    else if (responseData && responseData.message) {
+      errorMessage = responseData.message;
+    }
+    // Check for error in response data
+    else if (responseData && responseData.error) {
+      errorMessage = responseData.error;
+    }
+    // Fallback to status-based message
+    else {
+      errorMessage = `Backend error (${error.response.status}): ${errorMessage}`;
+    }
   }
 
   // Show error modal
@@ -99,9 +115,6 @@ export const updateStockItemApi = async (stockId, stockData, originalData = {}) 
       console.log("No changes detected, skipping update");
       return { result: { status: 'success', message: 'No changes detected' } };
     }
-
-    console.log("Stock Update API Payload (changed fields only):", payload);
-    console.log("API URL:", getApiEndpoint("STOCK_UPDATE"));
 
     const response = await api.post(
       getApiEndpoint("STOCK_UPDATE"),

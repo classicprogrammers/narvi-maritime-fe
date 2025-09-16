@@ -34,6 +34,7 @@ import MainDashboard from "views/admin/default";
 import Customer from "views/admin/contacts/Customer";
 import Vendors from "views/admin/contacts/Vendors";
 import CustomerRegistration from "views/admin/customer-registration";
+import VendorRegistration from "views/admin/vendor-registration";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
@@ -290,6 +291,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/customer-registration",
     component: CustomerRegistration,
+  },
+  {
+    name: "Vendor Registration",
+    layout: "/admin",
+    path: "/vendor-registration/:id?",
+    component: VendorRegistration,
   },
 ];
 

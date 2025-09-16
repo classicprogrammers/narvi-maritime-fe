@@ -17,10 +17,26 @@ const handleApiError = (error, operation) => {
       "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
   }
 
-  // HTTP errors (4xx, 5xx)
-  if (error.status) {
-    errorMessage = `Backend error (${error.status}): ${error.message || "Unknown error occurred"
-      }`;
+  // HTTP errors (4xx, 5xx) - Extract detailed error message from response
+  if (error.response) {
+    const responseData = error.response.data;
+    
+    // Check for JSON-RPC error format
+    if (responseData && responseData.result && responseData.result.status === 'error') {
+      errorMessage = responseData.result.message || errorMessage;
+    }
+    // Check for direct error message in response
+    else if (responseData && responseData.message) {
+      errorMessage = responseData.message;
+    }
+    // Check for error in response data
+    else if (responseData && responseData.error) {
+      errorMessage = responseData.error;
+    }
+    // Fallback to status-based message
+    else {
+      errorMessage = `Backend error (${error.response.status}): ${errorMessage}`;
+    }
   }
 
   // Show error modal
@@ -64,9 +80,6 @@ export const registerCustomerApi = async (customerData) => {
       ...customerData,
       user_id: userId,
     };
-
-    console.log("Customer Registration API Payload:", payload);
-    console.log("API URL:", buildApiUrl(getApiEndpoint("CUSTOMER_REGISTER")));
 
     const response = await api.post(
       getApiEndpoint("CUSTOMER_REGISTER"),

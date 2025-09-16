@@ -77,21 +77,12 @@ function SignIn() {
         password: password,
       };
 
-      console.log("🔐 Login API Payload:", payload);
-      console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("LOGIN")));
-
       const response = await api.post(getApiEndpoint("LOGIN"), payload);
-
-      console.log("🔐 Response status:", response.status);
-      console.log("🔐 Response headers:", response.headers);
 
       const result = response.data;
 
-      console.log("🔐 Login API Response:", result);
-
       // Check if authentication was successful based on backend response format
       if (result.result && result.result.status === "success") {
-        console.log("🔐 Login successful, user data:", result.result);
         return {
           success: true,
           user: {
@@ -106,10 +97,8 @@ function SignIn() {
           token: result.result.session_id || result.result.token || "session_token",
         };
       } else if (result.result && result.result.status === "error") {
-        console.log("🔐 Login failed:", result.result);
         throw new Error(result.result.message || "Login failed");
       } else {
-        console.log("🔐 Invalid response structure:", result);
         throw new Error("Invalid response from server");
       }
     } catch (error) {
@@ -126,7 +115,6 @@ function SignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('🔐 Login attempt with:', { email: formData.email, password: formData.password });
 
     if (!formData.email || !formData.password) {
       setModalMessage("Please fill in all required fields");
@@ -135,15 +123,12 @@ function SignIn() {
     }
 
     try {
-      console.log('🔐 Calling login API...');
 
       // Call the login API directly
       const apiResult = await handleLoginApi(formData.email, formData.password);
 
-      console.log('🔐 API result:', apiResult);
 
       if (apiResult.success) {
-        console.log('🔐 Login successful, updating state...');
 
         // Store user data in localStorage
         localStorage.setItem("user", JSON.stringify(apiResult.user));
@@ -163,7 +148,6 @@ function SignIn() {
           history.push('/admin/default');
         }, 1000);
       } else {
-        console.log('🔐 Login failed:', apiResult);
         setModalMessage("Login failed. Please check your credentials.");
         setIsFailureModalOpen(true);
       }

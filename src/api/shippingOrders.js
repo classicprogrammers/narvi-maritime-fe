@@ -100,8 +100,6 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       return { result: { status: 'success', message: 'No changes detected' } };
     }
 
-    console.log("Shipping Order Update API Payload (changed fields only):", payload);
-
     const response = await api.post('/api/shipping/order/update', payload);
     
     // Check if response has error status (JSON-RPC format)

@@ -87,13 +87,9 @@ function SignUp() {
         password: userData.password,
       };
 
-      console.log("🔐 Signup API Payload:", payload);
-      console.log("🔐 API URL:", buildApiUrl(getApiEndpoint("SIGNUP")));
-
       const response = await api.post(getApiEndpoint("SIGNUP"), payload);
 
       const result = response.data;
-      console.log("🔐 Signup API Response:", result);
       return result;
     } catch (error) {
       console.error("🔐 Signup API failed:", error);
@@ -103,7 +99,6 @@ function SignUp() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Sign up form submitted"); // Debug log
 
     // Validation
     if (
@@ -157,7 +152,6 @@ function SignUp() {
     }
 
     try {
-      console.log("Creating account..."); // Debug log
 
       // Call the signup API directly
       const apiResult = await handleSignupApi({
@@ -166,8 +160,6 @@ function SignUp() {
         email: formData.email,
         password: formData.password,
       });
-
-      console.log("Signup API Response:", apiResult);
 
       if (apiResult) {
         // Update Redux state
