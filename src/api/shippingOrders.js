@@ -129,6 +129,7 @@ export const deleteShippingOrder = async (id) => {
   }
 };
 
+//eslint-disable-next-line
 export default {
   getShippingOrders,
   getShippingOrderById,

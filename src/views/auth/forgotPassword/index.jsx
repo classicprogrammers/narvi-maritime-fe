@@ -19,7 +19,6 @@ import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import illustration from "assets/img/auth/auth.png";
 import { MdEmail } from "react-icons/md";
-import { FaArrowLeft } from "react-icons/fa";
 // Redux
 import { useUser } from "redux/hooks/useUser";
 // API

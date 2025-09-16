@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
     Box,
     Flex,
@@ -58,12 +58,9 @@ import {
 import {
     MdAdd,
     MdSearch,
-    MdArrowBack,
-    MdArrowForward,
     MdDelete,
     MdEdit,
     MdFilterList,
-    MdDownload,
     MdPrint,
     MdKeyboardArrowDown,
     MdInfo,
@@ -102,7 +99,7 @@ const SearchableSelect = ({
         }
     }, [searchValue, options, formatOption]);
 
-    const selectedOption = options.find(option => option[valueKey] == value);
+    const selectedOption = options.find(option => option[valueKey] === value);
 
     const handleSelect = (option) => {
         onChange(option[valueKey]);
@@ -308,7 +305,7 @@ export default function RateList() {
     };
 
     // Fetch products
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             setIsLoading(true);
             const response = await api.get("/api/products");
@@ -332,7 +329,7 @@ export default function RateList() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [toast]);
 
     // Create new product
     const handleCreateProduct = async () => {
@@ -512,7 +509,7 @@ export default function RateList() {
         fetchProducts();
         fetchVendors();
         fetchMasterData();
-    }, []);
+    }, [fetchProducts]);
 
     const handleSelectAll = (isChecked) => {
         if (isChecked) {
@@ -686,7 +683,7 @@ export default function RateList() {
                     if (Array.isArray(item.seller_ids) && item.seller_ids.length > 0) {
                         sellerMatch = item.seller_ids.some(seller => {
                             const sellerId = seller.id || seller;
-                            const vendor = vendors.find(v => v.id == sellerId);
+                            const vendor = vendors.find(v => v.id === sellerId);
                             return vendor && vendor.name && vendor.name.toLowerCase().includes(searchLower);
                         });
                     }
@@ -1009,7 +1006,7 @@ export default function RateList() {
                                                 {Array.isArray(item.seller_ids) && item.seller_ids.length > 0
                                                     ? item.seller_ids.map(seller => {
                                                         const sellerId = seller.id || seller;
-                                                        const vendor = vendors.find(v => v.id == sellerId);
+                                                        const vendor = vendors.find(v => v.id === sellerId);
                                                         return vendor ? vendor.name : sellerId;
                                                     }).join(', ')
                                                     : '-'
@@ -1048,7 +1045,7 @@ export default function RateList() {
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
                                                 {(() => {
-                                                    const group = groupsList.find(g => g.id == item.group_id);
+                                                    const group = groupsList.find(g => g.id === item.group_id);
                                                     return group ? group.name : (item.group_id || '-');
                                                 })()}
                                             </Text>
@@ -1087,7 +1084,7 @@ export default function RateList() {
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
                                                 {(() => {
-                                                    const uom = uomList.find(u => u.id == item.uom_id);
+                                                    const uom = uomList.find(u => u.id === item.uom_id);
                                                     return uom ? uom.name : (item.uom_id || '-');
                                                 })()}
                                             </Text>
@@ -1105,7 +1102,7 @@ export default function RateList() {
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Text color={textColor} fontSize='sm'>
                                                 {(() => {
-                                                    const currency = currenciesList.find(c => c.id == item.currency_rate_id);
+                                                    const currency = currenciesList.find(c => c.id === item.currency_rate_id);
                                                     return currency ? `${currency.name} (${currency.symbol})` : (item.currency_rate_id || '-');
                                                 })()}
                                             </Text>
@@ -1823,7 +1820,7 @@ export default function RateList() {
                                             <Text fontSize="sm" fontWeight="500" color="gray.600">Currency</Text>
                                             <Text fontSize="md" color="gray.800">
                                                 {(() => {
-                                                    const currency = currenciesList.find(c => c.id == detailItem.currency_rate_id);
+                                                    const currency = currenciesList.find(c => c.id === detailItem.currency_rate_id);
                                                     return currency ? `${currency.name} (${currency.symbol})` : (detailItem.currency_rate_id || '-');
                                                 })()}
                                             </Text>
@@ -1861,7 +1858,7 @@ export default function RateList() {
                                             <Text fontSize="sm" fontWeight="500" color="gray.600">Group</Text>
                                             <Text fontSize="md" color="gray.800">
                                                 {(() => {
-                                                    const group = groupsList.find(g => g.id == detailItem.group_id);
+                                                    const group = groupsList.find(g => g.id === detailItem.group_id);
                                                     return group ? group.name : (detailItem.group_id || '-');
                                                 })()}
                                             </Text>
@@ -1870,7 +1867,7 @@ export default function RateList() {
                                             <Text fontSize="sm" fontWeight="500" color="gray.600">UOM</Text>
                                             <Text fontSize="md" color="gray.800">
                                                 {(() => {
-                                                    const uom = uomList.find(u => u.id == detailItem.uom_id);
+                                                    const uom = uomList.find(u => u.id === detailItem.uom_id);
                                                     return uom ? uom.name : (detailItem.uom_id || '-');
                                                 })()}
                                             </Text>
@@ -1887,7 +1884,7 @@ export default function RateList() {
                                             <Text fontSize="sm" fontWeight="500" color="gray.600">Category</Text>
                                             <Text fontSize="md" color="gray.800">
                                                 {(() => {
-                                                    const uom = uomList.find(u => u.id == detailItem.uom_id);
+                                                    const uom = uomList.find(u => u.id === detailItem.uom_id);
                                                     return uom ? uom.category_name : '-';
                                                 })()}
                                             </Text>
@@ -1952,7 +1949,7 @@ export default function RateList() {
                                     {detailItem.seller_ids && detailItem.seller_ids.length > 0 ? (
                                         <VStack spacing={3} align="stretch">
                                             {detailItem.seller_ids.map((seller, index) => {
-                                                const vendor = vendors.find(v => v.id == seller.id);
+                                                const vendor = vendors.find(v => v.id === seller.id);
                                                 return (
                                                     <Box
                                                         key={index}

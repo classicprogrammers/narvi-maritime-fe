@@ -33,6 +33,7 @@ import {
 export default function NewStockItem() {
     const history = useHistory();
     const [currentPage, setCurrentPage] = useState(1);
+    //eslint-disable-next-line
     const [totalPages, setTotalPages] = useState(2);
 
     // Form state for all fields
@@ -97,28 +98,8 @@ export default function NewStockItem() {
         }
     };
 
-    const handleIssuesClick = () => {
-        alert("Issues panel opened!");
-    };
-
-    const handleMessagesClick = () => {
-        alert("Messages panel opened! You have 5 unread messages.");
-    };
-
-    const handleRemindersClick = () => {
-        alert("Reminders panel opened! You have 5 pending reminders.");
-    };
-
     const handleSettingsClick = () => {
         alert("Settings panel opened!");
-    };
-
-    const handleRefreshClick = () => {
-        alert("Refreshing data...");
-    };
-
-    const handleCloudClick = () => {
-        alert("Cloud sync...");
     };
 
     const handleUploadFile = (type) => {

@@ -1,5 +1,5 @@
 // Stock API functions
-import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../config/api";
+import { getApiEndpoint } from "../config/api";
 import api from "./axios";
 
 // Import the global modal system

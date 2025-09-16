@@ -15,7 +15,6 @@ import {
   InputRightElement,
   Text,
   useColorModeValue,
-  useToast,
 } from "@chakra-ui/react";
 // Custom components
 import DefaultAuth from "layouts/auth/Default";
@@ -29,15 +28,14 @@ import { useUser } from "redux/hooks/useUser";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
-import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import {  getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
 
 function SignIn() {
   const history = useHistory();
-  const toast = useToast();
 
   // Redux user state and actions
-  const { login, isLoading, error, clearError } = useUser();
+  const { isLoading, error, clearError } = useUser();
   const dispatch = useDispatch();
 
   // Modal states

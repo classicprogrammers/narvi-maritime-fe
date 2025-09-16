@@ -28,7 +28,7 @@ import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
 import { useUser } from "redux/hooks/useUser";
 // API
-import { buildApiUrl, getApiEndpoint, API_CONFIG } from "../../../config/api";
+import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
 
 function SignUp() {

@@ -7,7 +7,7 @@ import {
 } from "@chakra-ui/react";
 
 // Custom components
-import MiniCalendar from "components/calendar/MiniCalendar";
+// import MiniCalendar from "components/calendar/MiniCalendar";
 import MiniStatistics from "components/card/MiniStatistics";
 import IconBox from "components/icons/IconBox";
 import React, { useMemo, useCallback } from "react";
@@ -22,10 +22,10 @@ import {
 
 // Import components directly to avoid lazy loading issues
 import CheckTable from "./components/CheckTable";
-import ComplexTable from "./components/ComplexTable";
+// import ComplexTable from "./components/ComplexTable";
 import DailyTraffic from "./components/DailyTraffic";
 import PieCard from "./components/PieCard";
-import Tasks from "./components/Tasks";
+// import Tasks from "./components/Tasks";
 import TotalSpent from "./components/TotalSpent";
 import WeeklyRevenue from "./components/WeeklyRevenue";
 
@@ -119,21 +119,22 @@ export default function UserReports() {
 
       {/* Tables and Charts Section */}
       <SimpleGrid columns={{ base: 1, md: 1, xl: 2 }} gap='20px' mb='20px'>
+        <PieCard />
+        <DailyTraffic />
+      </SimpleGrid>
+
+      <SimpleGrid mb='20px'>
         <CheckTable />
-        <SimpleGrid columns={{ base: 1, md: 2, xl: 2 }} gap='20px'>
-          <DailyTraffic />
-          <PieCard />
-        </SimpleGrid>
       </SimpleGrid>
 
       {/* Complex Table and Calendar Section */}
-      <SimpleGrid columns={{ base: 1, md: 1, xl: 2 }} gap='20px' mb='20px'>
+      {/* <SimpleGrid columns={{ base: 1, md: 1, xl: 2 }} gap='20px' mb='20px'>
         <ComplexTable />
         <SimpleGrid columns={{ base: 1, md: 2, xl: 2 }} gap='20px'>
           <Tasks />
           <MiniCalendar h='100%' minW='100%' selectRange={false} />
         </SimpleGrid>
-      </SimpleGrid>
+      </SimpleGrid> */}
     </Box>
   );
 }

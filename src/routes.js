@@ -17,7 +17,6 @@ import {
   MdDirectionsBoat,
   MdConfirmationNumber,
   MdDeliveryDining,
-  MdAdd,
   MdSettings,
   MdGroups,
   MdLocationOn,
@@ -43,7 +42,6 @@ import ShippingOrder from "views/admin/shipping-order";
 
 // Stock List Import
 import StockList from "views/admin/stock-list";
-import NewStockItem from "views/admin/stock-list/NewStockItem";
 
 // Forms Imports
 import ShippingInstructions from "views/admin/forms/shipping-instructions";
@@ -55,7 +53,6 @@ import ShippingConfirmation from "views/admin/forms/shipping-confirmation";
 
 
 // Configurations Imports
-import Configurations from "views/admin/configurations";
 import Groups from "views/admin/configurations/groups";
 import Locations from "views/admin/configurations/locations";
 import Currencies from "views/admin/configurations/currencies";

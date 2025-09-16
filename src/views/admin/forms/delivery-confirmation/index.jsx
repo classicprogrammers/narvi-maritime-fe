@@ -7,7 +7,6 @@ import {
   VStack,
   HStack,
   Grid,
-  GridItem,
   Input,
   FormControl,
   FormLabel,
@@ -20,15 +19,11 @@ import {
   TabPanel,
   Icon,
   IconButton,
-  useColorModeValue,
   Table,
   Thead,
   Tbody,
   Tr,
   Th,
-  Td,
-  Badge,
-  useToast,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -41,7 +36,9 @@ import {
 } from "react-icons/md";
 
 export default function DeliveryConfirmation() {
+  //eslint-disable-next-line
   const [currentRecord, setCurrentRecord] = useState(1);
+  //eslint-disable-next-line
   const [totalRecords, setTotalRecords] = useState(1);
   const [status, setStatus] = useState("Draft");
   const [formData, setFormData] = useState({
