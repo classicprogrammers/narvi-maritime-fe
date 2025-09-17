@@ -66,11 +66,15 @@ export default function CustomerTable(props) {
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
-    company: "",
+    client_id: "",
+    name: "",
+    category: "",
     city: "",
-    status: "",
+    country: "",
     email: "",
     phone: "",
+    reg_no: "",
+    website: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -84,16 +88,23 @@ export default function CustomerTable(props) {
     getCustomers,
   } = useCustomer();
 
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
+    client_code: "",
+    client_category: "",
     email: "",
+    email2: "",
     phone: "",
-    mobile: "",
+    phone2: "",
     street: "",
+    street2: "",
     city: "",
     zip: "",
     country_id: null,
+    reg_no: "",
+    website: "",
+    remarks: "",
   });
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [customerToDelete, setCustomerToDelete] = useState(null);
@@ -137,21 +148,59 @@ export default function CustomerTable(props) {
         (item) =>
           (item.name &&
             item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.email &&
-            item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.phone && item.phone.toString().includes(searchValue)) ||
-          (item.mobile && item.mobile.toString().includes(searchValue)) ||
+          (item.client_code &&
+            item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.client_category &&
+            item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.street &&
             item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.street2 &&
+            item.street2.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.zip &&
+            item.zip.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.city &&
-            item.city.toLowerCase().includes(searchValue.toLowerCase()))
+            item.city.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.country_name &&
+            item.country_name.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.reg_no &&
+            item.reg_no.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.email &&
+            item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.email2 &&
+            item.email2.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.phone && item.phone.toString().includes(searchValue)) ||
+          (item.phone2 && item.phone2.toString().includes(searchValue)) ||
+          (item.website &&
+            item.website.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.remarks &&
+            item.remarks.toLowerCase().includes(searchValue.toLowerCase()))
       );
     }
 
-    // Apply company filter
-    if (filters.company) {
+    // Apply client ID filter
+    if (filters.client_id) {
       filtered = filtered.filter(
-        (item) => item.company && item.company.toLowerCase().includes(filters.company.toLowerCase())
+        (item) =>
+          item.client_code &&
+          item.client_code.toLowerCase().includes(filters.client_id.toLowerCase())
+      );
+    }
+
+    // Apply name filter
+    if (filters.name) {
+      filtered = filtered.filter(
+        (item) =>
+          item.name &&
+          item.name.toLowerCase().includes(filters.name.toLowerCase())
+      );
+    }
+
+    // Apply category filter
+    if (filters.category) {
+      filtered = filtered.filter(
+        (item) =>
+          item.client_category &&
+          item.client_category.toLowerCase().includes(filters.category.toLowerCase())
       );
     }
 
@@ -164,17 +213,21 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply status filter (if status field exists)
-    if (filters.status) {
-      filtered = filtered.filter((item) => item.status === filters.status);
+    // Apply country filter
+    if (filters.country) {
+      filtered = filtered.filter(
+        (item) =>
+          item.country_name &&
+          item.country_name.toLowerCase().includes(filters.country.toLowerCase())
+      );
     }
 
     // Apply email filter
     if (filters.email) {
       filtered = filtered.filter(
         (item) =>
-          item.email &&
-          item.email.toLowerCase().includes(filters.email.toLowerCase())
+          (item.email && item.email.toLowerCase().includes(filters.email.toLowerCase())) ||
+          (item.email2 && item.email2.toLowerCase().includes(filters.email.toLowerCase()))
       );
     }
 
@@ -183,7 +236,25 @@ export default function CustomerTable(props) {
       filtered = filtered.filter(
         (item) =>
           (item.phone && item.phone.toString().includes(filters.phone)) ||
-          (item.mobile && item.mobile.toString().includes(filters.phone))
+          (item.phone2 && item.phone2.toString().includes(filters.phone))
+      );
+    }
+
+    // Apply registration number filter
+    if (filters.reg_no) {
+      filtered = filtered.filter(
+        (item) =>
+          item.reg_no &&
+          item.reg_no.toLowerCase().includes(filters.reg_no.toLowerCase())
+      );
+    }
+
+    // Apply website filter
+    if (filters.website) {
+      filtered = filtered.filter(
+        (item) =>
+          item.website &&
+          item.website.toLowerCase().includes(filters.website.toLowerCase())
       );
     }
 
@@ -263,11 +334,15 @@ export default function CustomerTable(props) {
 
   const clearAllFilters = () => {
     setFilters({
-      company: "",
+      client_id: "",
+      name: "",
+      category: "",
       city: "",
-      status: "",
+      country: "",
       email: "",
       phone: "",
+      reg_no: "",
+      website: "",
     });
   };
 
@@ -317,13 +392,20 @@ export default function CustomerTable(props) {
         // Reset form
         setNewCustomer({
           name: "",
+          client_code: "",
+          client_category: "",
           email: "",
+          email2: "",
           phone: "",
-          mobile: "",
+          phone2: "",
           street: "",
+          street2: "",
           city: "",
           zip: "",
           country_id: null,
+          reg_no: "",
+          website: "",
+          remarks: "",
         });
       }
     } catch (error) {
@@ -429,13 +511,20 @@ export default function CustomerTable(props) {
     // Reset form
     setNewCustomer({
       name: "",
+      client_code: "",
+      client_category: "",
       email: "",
+      email2: "",
       phone: "",
-      mobile: "",
+      phone2: "",
       street: "",
+      street2: "",
       city: "",
       zip: "",
       country_id: null,
+      reg_no: "",
+      website: "",
+      remarks: "",
     });
   };
 
@@ -460,7 +549,7 @@ export default function CustomerTable(props) {
             fontWeight="700"
             lineHeight="100%"
           >
-            Customer Management
+            Client Management
           </Text>
           <HStack spacing={3}>
             <Button
@@ -469,7 +558,7 @@ export default function CustomerTable(props) {
               size="sm"
               onClick={() => history.push("/admin/customer-registration")}
             >
-              Add Customer
+              Add Client
             </Button>
           </HStack>
         </Flex>
@@ -495,7 +584,7 @@ export default function CustomerTable(props) {
             {/* Search */}
             <Box flex="1" minW="280px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                Search Customers
+                Search Clients
               </Text>
               <InputGroup>
                 <InputLeftElement>
@@ -509,7 +598,7 @@ export default function CustomerTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search customers by name, email, phone, city..."
+                  placeholder="Search clients by name, ID, category, address, email, phone, website, remarks..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -581,9 +670,15 @@ export default function CustomerTable(props) {
             </Box>
 
             {/* Clear All */}
-            {(filters.company ||
+            {(filters.client_id ||
+              filters.name ||
+              filters.category ||
               filters.city ||
-              filters.status ||
+              filters.country ||
+              filters.email ||
+              filters.phone ||
+              filters.reg_no ||
+              filters.website ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -621,7 +716,94 @@ export default function CustomerTable(props) {
 
               {/* First Row - Basic Info */}
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                {/* Client ID Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Client ID
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., ACME123..."
+                    value={filters.client_id}
+                    onChange={(e) => handleFilterChange("client_id", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
 
+                {/* Name Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Client Name
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., ACME Shipping Co..."
+                    value={filters.name}
+                    onChange={(e) => handleFilterChange("name", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
+
+                {/* Category Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Category
+                  </Text>
+                  <Select
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="Select category..."
+                    value={filters.category}
+                    onChange={(e) => handleFilterChange("category", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                  >
+                    <option value="">All Categories</option>
+                    <option value="shipspares">Ship Spares</option>
+                    <option value="bunker">Bunker</option>
+                    <option value="other">Other</option>
+                  </Select>
+                </Box>
+              </HStack>
+
+              {/* Second Row - Location Info */}
+              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
                 {/* City Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
@@ -648,10 +830,64 @@ export default function CustomerTable(props) {
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   />
                 </Box>
+
+                {/* Country Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Country
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., Singapore, USA, UK..."
+                    value={filters.country}
+                    onChange={(e) => handleFilterChange("country", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
+
+                {/* Registration Number Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Registration Number
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., SG12345678..."
+                    value={filters.reg_no}
+                    onChange={(e) => handleFilterChange("reg_no", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
               </HStack>
 
-              {/* Second Row - Contact Info */}
-              <HStack spacing={6} flexWrap="wrap" align="flex-start">
+              {/* Third Row - Contact Info */}
+              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
                 {/* Email Filter */}
                 <Box minW="250px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
@@ -697,6 +933,33 @@ export default function CustomerTable(props) {
                     onChange={(e) =>
                       handleFilterChange("phone", e.target.value)
                     }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
+
+                {/* Website Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Website
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., http://acme.com..."
+                    value={filters.website}
+                    onChange={(e) => handleFilterChange("website", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
                     _focus={{
@@ -760,6 +1023,8 @@ export default function CustomerTable(props) {
                       cursor="pointer"
                       _hover={{ bg: tableHeaderBg }}
                       transition="all 0.2s"
+                      minW={column.minWidth || "150px"}
+                      w={column.minWidth || "150px"}
                     >
                       <Flex justify="space-between" align="center">
                         {column.render("Header")}
@@ -801,7 +1066,7 @@ export default function CustomerTable(props) {
                     py="40px"
                   >
                     <Text color={tableTextColorSecondary} fontSize="sm">
-                      Loading customers...
+                      Loading clients...
                     </Text>
                   </Td>
                 </Tr>
@@ -814,8 +1079,8 @@ export default function CustomerTable(props) {
                   >
                     <Text color={tableTextColorSecondary} fontSize="sm">
                       {tableData.length === 0
-                        ? "No customers available. Please check your backend connection."
-                        : "No customers match your search criteria."}
+                        ? "No clients available. Please check your backend connection."
+                        : "No clients match your search criteria."}
                     </Text>
                   </Td>
                 </Tr>
@@ -833,7 +1098,7 @@ export default function CustomerTable(props) {
                     >
                       {row.cells.map((cell, index) => {
                         let data = "";
-                        if (cell.column.Header === "CUSTOMER NAME") {
+                        if (cell.column.Header === "CLIENT ID") {
                           data = (
                             <Text
                               color={textColor}
@@ -843,25 +1108,31 @@ export default function CustomerTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "EMAIL") {
+                        } else if (cell.column.Header === "FULL NAME") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "PHONE") {
+                        } else if (cell.column.Header === "CATEGORY") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "MOBILE") {
+                        } else if (cell.column.Header === "ADDRESS1") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "STREET") {
+                        } else if (cell.column.Header === "ADDRESS2") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "POSTCODE") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
@@ -873,13 +1144,49 @@ export default function CustomerTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "ZIP") {
+                        } else if (cell.column.Header === "COUNTRY") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "COUNTRY") {
+                        } else if (cell.column.Header === "REG NO") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "EMAIL1") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "EMAIL2") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "PHONE1") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "PHONE2") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "WEBSITE") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "REMARKS") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
@@ -888,24 +1195,24 @@ export default function CustomerTable(props) {
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
                             <HStack spacing={2}>
-                              <Tooltip label="Edit Customer">
+                              <Tooltip label="Edit Client">
                                 <IconButton
                                   icon={<Icon as={MdEdit} />}
                                   size="sm"
                                   colorScheme="blue"
                                   variant="ghost"
                                   onClick={() => handleEdit(row.original)}
-                                  aria-label="Edit customer"
+                                  aria-label="Edit client"
                                 />
                               </Tooltip>
-                              <Tooltip label="Delete Customer">
+                              <Tooltip label="Delete Client">
                                 <IconButton
                                   icon={<Icon as={MdDelete} />}
                                   size="sm"
                                   colorScheme="red"
                                   variant="ghost"
                                   onClick={() => handleDelete(row.original)}
-                                  aria-label="Delete customer"
+                                  aria-label="Delete client"
                                 />
                               </Tooltip>
                             </HStack>
@@ -925,6 +1232,8 @@ export default function CustomerTable(props) {
                             borderColor={tableBorderColor}
                             py="12px"
                             px="16px"
+                            minW={cell.column.minWidth || "150px"}
+                            w={cell.column.minWidth || "150px"}
                           >
                             {data}
                           </Td>
@@ -938,30 +1247,136 @@ export default function CustomerTable(props) {
           </Table>
         </Box>
 
-        {/* Pagination */}
-        <Flex px="25px" justify="space-between" align="center" py="20px">
+        {/* Enhanced Pagination */}
+        <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
+          {/* Results Info */}
           <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {pageIndex * itemsPerPage + 1} to{" "}
             {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of{" "}
             {data.length} results
           </Text>
-          <HStack spacing={2}>
-            <Button
-              size="sm"
-              onClick={() => previousPage()}
-              isDisabled={!canPreviousPage}
-              variant="outline"
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => nextPage()}
-              isDisabled={!canNextPage}
-              variant="outline"
-            >
-              Next
-            </Button>
+
+          {/* Pagination Controls */}
+          <HStack spacing={2} align="center">
+            {/* Page Size Selector */}
+            <HStack spacing={2} align="center">
+              <Text fontSize="sm" color={tableTextColorSecondary}>
+                Show:
+              </Text>
+              <Select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const newPageSize = Number(e.target.value);
+                  setItemsPerPage(newPageSize);
+                  setPageSize(newPageSize);
+                }}
+                size="sm"
+                w="80px"
+                bg={inputBg}
+                color={inputText}
+                border="1px"
+                borderColor={borderColor}
+                _focus={{
+                  borderColor: "blue.400",
+                  boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </Select>
+              <Text fontSize="sm" color={tableTextColorSecondary}>
+                per page
+              </Text>
+            </HStack>
+
+            {/* Page Navigation */}
+            <HStack spacing={1}>
+              {/* First Page */}
+              <Button
+                size="sm"
+                onClick={() => gotoPage(0)}
+                isDisabled={!canPreviousPage}
+                variant="outline"
+                aria-label="First page"
+              >
+                ««
+              </Button>
+
+              {/* Previous Page */}
+              <Button
+                size="sm"
+                onClick={() => previousPage()}
+                isDisabled={!canPreviousPage}
+                variant="outline"
+                aria-label="Previous page"
+              >
+                «
+              </Button>
+
+              {/* Page Numbers */}
+              {(() => {
+                const pageNumbers = [];
+                const totalPages = pageCount;
+                const currentPage = pageIndex;
+                const maxVisiblePages = 5;
+
+                let startPage = Math.max(0, currentPage - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages - 1, startPage + maxVisiblePages - 1);
+
+                // Adjust start page if we're near the end
+                if (endPage - startPage < maxVisiblePages - 1) {
+                  startPage = Math.max(0, endPage - maxVisiblePages + 1);
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                  pageNumbers.push(
+                    <Button
+                      key={i}
+                      size="sm"
+                      onClick={() => gotoPage(i)}
+                      variant={i === currentPage ? "solid" : "outline"}
+                      colorScheme={i === currentPage ? "blue" : "gray"}
+                      minW="40px"
+                      aria-label={`Page ${i + 1}`}
+                    >
+                      {i + 1}
+                    </Button>
+                  );
+                }
+
+                return pageNumbers;
+              })()}
+
+              {/* Next Page */}
+              <Button
+                size="sm"
+                onClick={() => nextPage()}
+                isDisabled={!canNextPage}
+                variant="outline"
+                aria-label="Next page"
+              >
+                »
+              </Button>
+
+              {/* Last Page */}
+              <Button
+                size="sm"
+                onClick={() => gotoPage(pageCount - 1)}
+                isDisabled={!canNextPage}
+                variant="outline"
+                aria-label="Last page"
+              >
+                »»
+              </Button>
+            </HStack>
+
+            {/* Page Info */}
+            <Text fontSize="sm" color={tableTextColorSecondary}>
+              Page {pageIndex + 1} of {pageCount}
+            </Text>
           </HStack>
         </Flex>
       </Card>
@@ -975,13 +1390,13 @@ export default function CustomerTable(props) {
             borderBottom="1px"
             borderColor={modalBorder}
           >
-            Edit Customer
+            Edit Client
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Customer Name</FormLabel>
+                <FormLabel>Client Name</FormLabel>
                 <Input
                   placeholder="e.g., John Smith, ABC Corporation..."
                   value={editingCustomer?.name || ""}
@@ -1152,7 +1567,7 @@ export default function CustomerTable(props) {
               isDisabled={!editingCustomer?.name || updateLoading}
               isLoading={updateLoading}
             >
-              Update Customer
+              Update Client
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -1177,7 +1592,7 @@ export default function CustomerTable(props) {
               borderBottom="1px"
               borderColor={modalBorder}
             >
-              Delete Customer
+              Delete Client
             </AlertDialogHeader>
 
             <AlertDialogBody>

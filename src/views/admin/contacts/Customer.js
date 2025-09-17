@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Box, VStack } from "@chakra-ui/react";
 import CustomerTable from "views/admin/contacts/components/CustomerTable";
-import { columnsDataCustomer } from "views/admin/contacts/variables/columnsData";
+import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
 
 export default function Customer() {
@@ -16,7 +16,7 @@ export default function Customer() {
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">
         <CustomerTable
-          columnsData={columnsDataCustomer}
+          columnsData={columnsDataClient}
           tableData={customers || []}
           isLoading={isLoading}
         />

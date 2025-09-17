@@ -157,7 +157,7 @@ const ShippingOrderForm = ({
     useEffect(() => {
         if (errorCustomers) {
             toast({
-                title: 'Error Loading Customers',
+                title: 'Error Loading Clients',
                 description: errorCustomers,
                 status: 'error',
                 duration: 5000,
@@ -243,7 +243,7 @@ const ShippingOrderForm = ({
         // user_id is automatically set from current user, no validation needed
 
         if (!formData.partner_id) {
-            newErrors.partner_id = 'Partner/Customer is required';
+            newErrors.partner_id = 'Partner/Client is required';
         }
 
         if (!formData.vessel_id) {
@@ -399,17 +399,17 @@ const ShippingOrderForm = ({
                             <Grid templateColumns="repeat(2, 1fr)" gap="4">
                                 <GridItem>
                                     <FormControl isRequired isInvalid={errors.partner_id}>
-                                        <FormLabel fontSize="sm" color="gray.600">Partner/Customer</FormLabel>
+                                        <FormLabel fontSize="sm" color="gray.600">Partner/Client</FormLabel>
                                         <SearchableSelect
                                             value={formData.partner_id}
                                             onChange={(value) => handleInputChange('partner_id', value)}
-                                            placeholder="Select customer..."
+                                            placeholder="Select client..."
                                             options={customers}
                                             isLoading={isLoadingCustomers}
                                             onSearch={searchCustomers}
                                             displayKey="name"
                                             valueKey="id"
-                                            formatOption={(option) => `${option.name || option.email || `Customer ${option.id}`}`}
+                                            formatOption={(option) => `${option.name || option.email || `Client ${option.id}`}`}
                                             error={errors.partner_id}
                                             isRequired
                                         />

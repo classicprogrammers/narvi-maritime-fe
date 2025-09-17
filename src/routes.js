@@ -80,7 +80,7 @@ const routes = [
     icon: <Icon as={MdContacts} width="20px" height="20px" color="inherit" />,
     submenu: [
       {
-        name: "Customer",
+        name: "Client",
         path: "/contacts/customer",
         icon: <Icon as={MdPeople} width="20px" height="20px" color="inherit" />,
         component: Customer,
@@ -284,7 +284,7 @@ const hiddenRoutes = [
     component: DeliveryInstructionDetail,
   },
   {
-    name: "Customer Registration",
+    name: "Client Registration",
     layout: "/admin",
     path: "/customer-registration",
     component: CustomerRegistration,

@@ -539,7 +539,7 @@ export default function ShippingOrder() {
                                 {/* Partner Filter */}
                                 <Box minW="200px" flex="1">
                                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Partner/Customer
+                                        Partner/Client
                                     </Text>
                                     <Input
                                         variant="outline"
@@ -681,7 +681,7 @@ export default function ShippingOrder() {
                                     color={tableTextColor}
                                     textTransform="uppercase"
                                 >
-                                    Partner/Customer
+                                    Partner/Client
                                 </Th>
                                 <Th
                                     borderRight="1px"
@@ -1080,7 +1080,7 @@ export default function ShippingOrder() {
 
                                                     <Box w="full">
                                                         <Text fontSize="xs" color="gray.500" textTransform="uppercase" letterSpacing="wide">
-                                                            Partner/Customer
+                                                            Partner/Client
                                                         </Text>
                                                         <Text
                                                             fontSize="md"
