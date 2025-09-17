@@ -35,6 +35,8 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   Select,
+  Grid,
+  Textarea,
 } from "@chakra-ui/react";
 import React, { useMemo, useState, useRef } from "react";
 import { useHistory } from "react-router-dom";
@@ -48,6 +50,8 @@ import {
 // Custom components
 import Card from "components/card/Card";
 import { useCustomer } from "redux/hooks/useCustomer";
+import { SuccessModal } from "components/modals";
+import countriesAPI from "../../../../api/countries";
 
 // Assets
 import {
@@ -89,6 +93,10 @@ export default function CustomerTable(props) {
   } = useCustomer();
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [countries, setCountries] = useState([]);
+  const [loadingCountries, setLoadingCountries] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     client_code: "",
@@ -439,6 +447,12 @@ export default function CustomerTable(props) {
       if (!editingCustomer.name || editingCustomer.name.trim() === "") {
         return;
       }
+      if (!editingCustomer.client_code || editingCustomer.client_code.trim() === "") {
+        return;
+      }
+      if (!editingCustomer.client_category || editingCustomer.client_category.trim() === "") {
+        return;
+      }
 
       // Check if there are any changes
       const hasChanges = Object.keys(editingCustomer).some(
@@ -457,6 +471,9 @@ export default function CustomerTable(props) {
       if (result.success) {
         onEditClose();
         setEditingCustomer(null);
+        // Set success message and show modal
+        setSuccessMessage("Client updated successfully!");
+        setIsSuccessOpen(true);
         // Refresh the customers list to show updated data
         getCustomers();
       }
@@ -532,6 +549,30 @@ export default function CustomerTable(props) {
     onEditClose();
     setEditingCustomer(null);
   };
+
+  // Fetch countries from API
+  const fetchCountries = async () => {
+    try {
+      setLoadingCountries(true);
+      const response = await countriesAPI.getCountries();
+      if (response && response.result && Array.isArray(response.result)) {
+        setCountries(response.result);
+      } else if (Array.isArray(response)) {
+        setCountries(response);
+      }
+    } catch (error) {
+      console.error("Failed to fetch countries:", error);
+      // Set empty array on error to prevent crashes
+      setCountries([]);
+    } finally {
+      setLoadingCountries(false);
+    }
+  };
+
+  // Fetch countries when component mounts
+  React.useEffect(() => {
+    fetchCountries();
+  }, []);
 
 
   return (
@@ -1306,15 +1347,15 @@ export default function CustomerTable(props) {
               </Button>
 
               {/* Previous Page */}
-              <Button
-                size="sm"
-                onClick={() => previousPage()}
-                isDisabled={!canPreviousPage}
-                variant="outline"
+            <Button
+              size="sm"
+              onClick={() => previousPage()}
+              isDisabled={!canPreviousPage}
+              variant="outline"
                 aria-label="Previous page"
-              >
+            >
                 «
-              </Button>
+            </Button>
 
               {/* Page Numbers */}
               {(() => {
@@ -1351,11 +1392,11 @@ export default function CustomerTable(props) {
               })()}
 
               {/* Next Page */}
-              <Button
-                size="sm"
-                onClick={() => nextPage()}
-                isDisabled={!canNextPage}
-                variant="outline"
+            <Button
+              size="sm"
+              onClick={() => nextPage()}
+              isDisabled={!canNextPage}
+              variant="outline"
                 aria-label="Next page"
               >
                 »
@@ -1370,7 +1411,7 @@ export default function CustomerTable(props) {
                 aria-label="Last page"
               >
                 »»
-              </Button>
+            </Button>
             </HStack>
 
             {/* Page Info */}
@@ -1381,10 +1422,10 @@ export default function CustomerTable(props) {
         </Flex>
       </Card>
 
-      {/* Edit Customer Modal */}
-      <Modal isOpen={isEditOpen} onClose={handleCancelEdit}>
+      {/* Edit Client Modal */}
+      <Modal isOpen={isEditOpen} onClose={handleCancelEdit} size="6xl">
         <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
-        <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>
+        <ModalContent bg={modalBg} border="1px" borderColor={modalBorder} maxH="90vh" overflowY="auto">
           <ModalHeader
             bg={modalHeaderBg}
             borderBottom="1px"
@@ -1393,16 +1434,20 @@ export default function CustomerTable(props) {
             Edit Client
           </ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
+          <ModalBody py={6}>
+            <VStack spacing={6}>
+              {/* Basic Information Section */}
+              <Box w="100%">
+                <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
+                  Basic Information
+                </Text>
+                <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
               <FormControl isRequired>
-                <FormLabel>Client Name</FormLabel>
+                    <FormLabel>Client Name</FormLabel>
                 <Input
-                  placeholder="e.g., John Smith, ABC Corporation..."
+                      placeholder="e.g., ACME Shipping Co."
                   value={editingCustomer?.name || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("name", e.target.value)
-                  }
+                      onChange={(e) => handleEditInputChange("name", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1412,21 +1457,103 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>Client ID</FormLabel>
+                    <Input
+                      placeholder="e.g., ACME123"
+                      value={editingCustomer?.client_code || ""}
+                      onChange={(e) => handleEditInputChange("client_code", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                />
+              </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>Client Category</FormLabel>
+                    <Select
+                      placeholder="Select category..."
+                      value={editingCustomer?.client_category || ""}
+                      onChange={(e) => handleEditInputChange("client_category", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                    >
+                      <option value="shipspares">Ship Spares</option>
+                      <option value="bunker">Bunker</option>
+                      <option value="other">Other</option>
+                    </Select>
+                  </FormControl>
+
+              <FormControl>
+                    <FormLabel>Registration Number</FormLabel>
+                <Input
+                      placeholder="e.g., SG12345678"
+                      value={editingCustomer?.reg_no || ""}
+                      onChange={(e) => handleEditInputChange("reg_no", e.target.value)}
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+                </Grid>
+              </Box>
+
+              {/* Address Information Section */}
+              <Box w="100%">
+                <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
+                  Address Information
+                </Text>
+                <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
+                  <FormControl>
+                    <FormLabel>Street Address 1</FormLabel>
+                    <Input
+                      placeholder="e.g., 119 Airport Cargo Road"
+                      value={editingCustomer?.street || ""}
+                      onChange={(e) => handleEditInputChange("street", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Email</FormLabel>
+                    <FormLabel>Street Address 2</FormLabel>
                 <Input
-                  type="email"
-                  placeholder="e.g., john.smith@company.com..."
-                  value={editingCustomer?.email || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("email", e.target.value)
-                  }
+                      placeholder="e.g., #01-03/04 Changi Cargo Megaplex"
+                      value={editingCustomer?.street2 || ""}
+                      onChange={(e) => handleEditInputChange("street2", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1436,20 +1563,35 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel>City</FormLabel>
+                    <Input
+                      placeholder="e.g., Singapore"
+                      value={editingCustomer?.city || ""}
+                      onChange={(e) => handleEditInputChange("city", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Phone</FormLabel>
+                    <FormLabel>Postal Code</FormLabel>
                 <Input
-                  placeholder="e.g., +1-555-123-4567..."
-                  value={editingCustomer?.phone || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("phone", e.target.value)
-                  }
+                      placeholder="e.g., 819454"
+                      value={editingCustomer?.zip || ""}
+                      onChange={(e) => handleEditInputChange("zip", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1459,20 +1601,70 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel>Country</FormLabel>
+                    <Select
+                      placeholder={loadingCountries ? "Loading countries..." : "Select country..."}
+                      value={editingCustomer?.country_id || ""}
+                      onChange={(e) => handleEditInputChange("country_id", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      isDisabled={loadingCountries}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                    >
+                      {countries.map((country) => (
+                        <option key={country.id} value={country.id}>
+                          {country.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Box>
+
+              {/* Contact Information Section */}
+              <Box w="100%">
+                <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
+                  Contact Information
+                </Text>
+                <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
+                  <FormControl>
+                    <FormLabel>Primary Email</FormLabel>
+                    <Input
+                      type="email"
+                      placeholder="e.g., contact@acme.com"
+                      value={editingCustomer?.email || ""}
+                      onChange={(e) => handleEditInputChange("email", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Mobile</FormLabel>
+                    <FormLabel>Secondary Email</FormLabel>
                 <Input
-                  placeholder="e.g., +1-555-987-6543..."
-                  value={editingCustomer?.mobile || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("mobile", e.target.value)
-                  }
+                      type="email"
+                      placeholder="e.g., backup@acme.com"
+                      value={editingCustomer?.email2 || ""}
+                      onChange={(e) => handleEditInputChange("email2", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1482,20 +1674,35 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel>Primary Phone</FormLabel>
+                    <Input
+                      placeholder="e.g., +65 1234 5678"
+                      value={editingCustomer?.phone || ""}
+                      onChange={(e) => handleEditInputChange("phone", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>Street</FormLabel>
+                    <FormLabel>Secondary Phone</FormLabel>
                 <Input
-                  placeholder="e.g., 123 Main Street, Suite 100..."
-                  value={editingCustomer?.street || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("street", e.target.value)
-                  }
+                      placeholder="e.g., +65 9876 5432"
+                      value={editingCustomer?.phone2 || ""}
+                      onChange={(e) => handleEditInputChange("phone2", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1505,20 +1712,16 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
+                      _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
 
               <FormControl>
-                <FormLabel>City</FormLabel>
+                    <FormLabel>Website</FormLabel>
                 <Input
-                  placeholder="🏙️ e.g., New York, London, Tokyo..."
-                  value={editingCustomer?.city || ""}
-                  onChange={(e) =>
-                    handleEditInputChange("city", e.target.value)
-                  }
+                      placeholder="e.g., http://acme.com"
+                      value={editingCustomer?.website || ""}
+                      onChange={(e) => handleEditInputChange("website", e.target.value)}
                   bg={inputBg}
                   color={inputText}
                   border="2px"
@@ -1528,32 +1731,37 @@ export default function CustomerTable(props) {
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
-                />
-              </FormControl>
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+                </Grid>
+              </Box>
 
-              <FormControl>
-                <FormLabel>ZIP Code</FormLabel>
-                <Input
-                  placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
-                  value={editingCustomer?.zip || ""}
-                  onChange={(e) => handleEditInputChange("zip", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
-                  _hover={{
-                    borderColor: "blue.300",
-                  }}
+              {/* Additional Information Section */}
+              <Box w="100%">
+                <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
+                  Additional Information
+                </Text>
+                <FormControl>
+                  <FormLabel>Remarks</FormLabel>
+                  <Textarea
+                    placeholder="e.g., Preferred supplier for spare parts..."
+                    value={editingCustomer?.remarks || ""}
+                    onChange={(e) => handleEditInputChange("remarks", e.target.value)}
+                    bg={inputBg}
+                    color={inputText}
+                    border="2px"
+                    borderColor={borderColor}
+                    rows={3}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{ borderColor: "blue.300" }}
                 />
               </FormControl>
+              </Box>
             </VStack>
           </ModalBody>
 
@@ -1564,7 +1772,7 @@ export default function CustomerTable(props) {
             <Button
               colorScheme="blue"
               onClick={handleSaveEdit}
-              isDisabled={!editingCustomer?.name || updateLoading}
+              isDisabled={!editingCustomer?.name || !editingCustomer?.client_code || !editingCustomer?.client_category || updateLoading}
               isLoading={updateLoading}
             >
               Update Client
@@ -1572,6 +1780,14 @@ export default function CustomerTable(props) {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={isSuccessOpen}
+        onClose={() => setIsSuccessOpen(false)}
+        title="Client Updated Successfully!"
+        message={successMessage}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog
