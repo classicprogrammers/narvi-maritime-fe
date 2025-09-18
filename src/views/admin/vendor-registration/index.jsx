@@ -19,7 +19,7 @@ import {
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
-import { MdPersonAdd, MdBusiness, MdPerson, MdEdit } from "react-icons/md";
+import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdRemove } from "react-icons/md";
 // API
 import { registerVendorApi, updateVendorApi } from "api/vendor";
 // Redux
@@ -70,13 +70,58 @@ function VendorRegistration() {
     // Form state
     const [formData, setFormData] = React.useState({
         name: "",
-        email: "",
-        phone: "",
+        address_type: "",
         street: "",
-        city: "",
+        street2: "",
         zip: "",
+        city: "",
         country_id: "",
+        reg_no: "",
+        email: "",
+        email2: "",
+        phone: "",
+        phone2: "",
+        website: "",
+        pic: "",
+        cnee1: "",
+        cnee2: "",
+        cnee3: "",
+        cnee4: "",
+        cnee5: "",
+        cnee6: "",
+        cnee7: "",
+        cnee8: "",
+        cnee9: "",
+        cnee10: "",
+        cnee11: "",
+        cnee12: "",
+        cnee_text: "",
+        warnings: "",
+        narvi_approved: "",
     });
+
+    // State to track how many CNEE fields are visible
+    const [visibleCneeFields, setVisibleCneeFields] = React.useState(1);
+
+    // Function to add more CNEE fields
+    const addCneeField = () => {
+        if (visibleCneeFields < 12) {
+            setVisibleCneeFields(prev => prev + 1);
+        }
+    };
+
+    // Function to remove CNEE field
+    const removeCneeField = (index) => {
+        if (visibleCneeFields > 1) {
+            // Clear the field being removed
+            const fieldName = `cnee${index}`;
+            setFormData(prev => ({
+                ...prev,
+                [fieldName]: ""
+            }));
+            setVisibleCneeFields(prev => prev - 1);
+        }
+    };
 
     // Load vendor data for editing
     const loadVendorData = React.useCallback(() => {
@@ -100,15 +145,46 @@ function VendorRegistration() {
                 
                 const formDataToSet = {
                     name: vendorData.name || "",
-                    email: vendorData.email || "",
-                    phone: vendorData.phone || "",
+                    address_type: vendorData.address_type || "",
                     street: vendorData.street || "",
-                    city: vendorData.city || "",
+                    street2: vendorData.street2 || "",
                     zip: vendorData.zip || "",
+                    city: vendorData.city || "",
                     country_id: vendorData.country_id || "",
+                    reg_no: vendorData.reg_no || "",
+                    email: vendorData.email || "",
+                    email2: vendorData.email2 || "",
+                    phone: vendorData.phone || "",
+                    phone2: vendorData.phone2 || "",
+                    website: vendorData.website || "",
+                    pic: vendorData.pic || "",
+                    cnee1: vendorData.cnee1 || "",
+                    cnee2: vendorData.cnee2 || "",
+                    cnee3: vendorData.cnee3 || "",
+                    cnee4: vendorData.cnee4 || "",
+                    cnee5: vendorData.cnee5 || "",
+                    cnee6: vendorData.cnee6 || "",
+                    cnee7: vendorData.cnee7 || "",
+                    cnee8: vendorData.cnee8 || "",
+                    cnee9: vendorData.cnee9 || "",
+                    cnee10: vendorData.cnee10 || "",
+                    cnee11: vendorData.cnee11 || "",
+                    cnee12: vendorData.cnee12 || "",
+                    cnee_text: vendorData.cnee_text || "",
+                    warnings: vendorData.warnings || "",
+                    narvi_approved: vendorData.narvi_approved || "",
                 };
                 
                 setFormData(formDataToSet);
+                
+                // Set visible CNEE fields based on data
+                let maxCneeIndex = 1;
+                for (let i = 1; i <= 12; i++) {
+                    if (formDataToSet[`cnee${i}`] && formDataToSet[`cnee${i}`].trim() !== "") {
+                        maxCneeIndex = i;
+                    }
+                }
+                setVisibleCneeFields(maxCneeIndex);
             } else {
                 console.error("No vendor data found in location state or localStorage");
                 setModalMessage("No vendor data available. Please go back to the vendor list and try editing again.");
@@ -175,7 +251,7 @@ function VendorRegistration() {
 
         // Validate required fields
         if (!formData.name || formData.name.trim() === "") {
-            setModalMessage("❌ Vendor name is required. Please enter a vendor name.");
+            setModalMessage("❌ Agent company name is required. Please enter an agent company name.");
             setIsFailureModalOpen(true);
             return;
         }
@@ -209,33 +285,56 @@ function VendorRegistration() {
             // Handle JSON-RPC response format
             if (result && result.result && result.result.status === "success") {
                 const action = isEditMode ? "updated" : "registered";
-                setModalMessage(`Vendor "${formData.name}" has been ${action} successfully!`);
+                setModalMessage(`Agent "${formData.name}" has been ${action} successfully!`);
                 setIsSuccessModalOpen(true);
 
                 // Reset form only for new registrations
                 if (!isEditMode) {
                     setFormData({
                         name: "",
-                        email: "",
-                        phone: "",
+                        address_type: "",
                         street: "",
-                        city: "",
+                        street2: "",
                         zip: "",
+                        city: "",
                         country_id: "",
+                        reg_no: "",
+                        email: "",
+                        email2: "",
+                        phone: "",
+                        phone2: "",
+                        website: "",
+                        pic: "",
+                        cnee1: "",
+                        cnee2: "",
+                        cnee3: "",
+                        cnee4: "",
+                        cnee5: "",
+                        cnee6: "",
+                        cnee7: "",
+                        cnee8: "",
+                        cnee9: "",
+                        cnee10: "",
+                        cnee11: "",
+                        cnee12: "",
+                        cnee_text: "",
+                        warnings: "",
+                        narvi_approved: "",
                     });
+                    setVisibleCneeFields(1);
                 }
             } else {
                 // Handle error response
                 const action = isEditMode ? "update" : "registration";
-                const errorMessage = result?.result?.message || result?.message || `Failed to ${action} vendor`;
+                const errorMessage = result?.result?.message || result?.message || `Failed to ${action} agent`;
                 throw new Error(errorMessage);
             }
         } catch (error) {
             const action = isEditMode ? "update" : "registration";
-            console.error(`Vendor ${action} error in component:`, error);
+            console.error(`Agent ${action} error in component:`, error);
             
             // Extract detailed error message
-            let errorMessage = `Failed to ${action} vendor. Please try again.`;
+            let errorMessage = `Failed to ${action} agent. Please try again.`;
             
             if (error.message) {
                 errorMessage = error.message;
@@ -261,7 +360,7 @@ function VendorRegistration() {
     // Handle success modal close
     const handleSuccessModalClose = () => {
         setIsSuccessModalOpen(false);
-        history.push("/admin/contacts/vendors");
+        history.push("/admin/contacts/agents");
     };
 
     // Handle failure modal close
@@ -271,7 +370,7 @@ function VendorRegistration() {
 
     // Handle back to vendors
     const handleBackToVendors = () => {
-        history.push("/admin/contacts/vendors");
+        history.push("/admin/contacts/agents");
     };
 
     return (
@@ -289,7 +388,7 @@ function VendorRegistration() {
                         fontSize="22px"
                         fontWeight="700"
                         lineHeight="100%">
-                        {isEditMode ? "Edit Vendor" : "Vendor Registration"}
+                        {isEditMode ? "Edit Agent" : "Agent Registration"}
                     </Text>
                     <Button
                         leftIcon={<Icon as={isEditMode ? MdEdit : MdPersonAdd} />}
@@ -297,7 +396,7 @@ function VendorRegistration() {
                         size="sm"
                         onClick={handleBackToVendors}
                     >
-                        Back to Vendors
+                        Back to Agents
                     </Button>
                 </Flex>
 
@@ -316,11 +415,11 @@ function VendorRegistration() {
                                     </HStack>
 
                                     <FormControl isRequired>
-                                        <FormLabel color={textColorSecondary}>Vendor Name</FormLabel>
+                                        <FormLabel color={textColorSecondary}>Agent Company Name</FormLabel>
                                         <Input
                                             value={formData.name}
                                             onChange={(e) => handleInputChange("name", e.target.value)}
-                                            placeholder="Enter vendor name"
+                                            placeholder="Enter agent company name"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -332,13 +431,52 @@ function VendorRegistration() {
                                         />
                                     </FormControl>
 
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Address Type</FormLabel>
+                                        <Select
+                                            value={formData.address_type}
+                                            onChange={(e) => handleInputChange("address_type", e.target.value)}
+                                            placeholder="Select address type"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                        >
+                                            <option value="business">Business</option>
+                                            <option value="residential">Residential</option>
+                                            <option value="warehouse">Warehouse</option>
+                                            <option value="office">Office</option>
+                                        </Select>
+                                    </FormControl>
+
                                     <FormControl isRequired>
-                                        <FormLabel color={textColorSecondary}>Email Address</FormLabel>
+                                        <FormLabel color={textColorSecondary}>Email Address 1</FormLabel>
                                         <Input
                                             type="email"
                                             value={formData.email}
                                             onChange={(e) => handleInputChange("email", e.target.value)}
-                                            placeholder="Enter email address"
+                                            placeholder="Enter primary email address"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Email Address 2</FormLabel>
+                                        <Input
+                                            type="email"
+                                            value={formData.email2}
+                                            onChange={(e) => handleInputChange("email2", e.target.value)}
+                                            placeholder="Enter secondary email address"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -364,11 +502,11 @@ function VendorRegistration() {
 
                                     <HStack spacing={4}>
                                         <FormControl>
-                                            <FormLabel color={textColorSecondary}>Phone</FormLabel>
+                                            <FormLabel color={textColorSecondary}>Phone 1</FormLabel>
                                             <Input
                                                 value={formData.phone}
                                                 onChange={(e) => handleInputChange("phone", e.target.value)}
-                                                placeholder="Enter phone number"
+                                                placeholder="Enter primary phone number"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -380,7 +518,57 @@ function VendorRegistration() {
                                             />
                                         </FormControl>
 
+                                        <FormControl>
+                                            <FormLabel color={textColorSecondary}>Phone 2</FormLabel>
+                                            <Input
+                                                value={formData.phone2}
+                                                onChange={(e) => handleInputChange("phone2", e.target.value)}
+                                                placeholder="Enter secondary phone number"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                _focus={{
+                                                    borderColor: "blue.400",
+                                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                                }}
+                                                _placeholder={{ color: placeholderColor }}
+                                            />
+                                        </FormControl>
                                     </HStack>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Website</FormLabel>
+                                        <Input
+                                            value={formData.website}
+                                            onChange={(e) => handleInputChange("website", e.target.value)}
+                                            placeholder="Enter website URL"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>PIC (Person in Charge)</FormLabel>
+                                        <Input
+                                            value={formData.pic}
+                                            onChange={(e) => handleInputChange("pic", e.target.value)}
+                                            placeholder="Enter person in charge name"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
                                 </VStack>
                             </Card>
 
@@ -395,11 +583,28 @@ function VendorRegistration() {
                                     </HStack>
 
                                     <FormControl>
-                                        <FormLabel color={textColorSecondary}>Street Address</FormLabel>
+                                        <FormLabel color={textColorSecondary}>Address 1</FormLabel>
                                         <Input
                                             value={formData.street}
                                             onChange={(e) => handleInputChange("street", e.target.value)}
-                                            placeholder="Enter street address"
+                                            placeholder="Enter primary address"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Address 2</FormLabel>
+                                        <Input
+                                            value={formData.street2}
+                                            onChange={(e) => handleInputChange("street2", e.target.value)}
+                                            placeholder="Enter secondary address"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -430,11 +635,11 @@ function VendorRegistration() {
                                         </FormControl>
 
                                         <FormControl>
-                                            <FormLabel color={textColorSecondary}>ZIP Code</FormLabel>
+                                            <FormLabel color={textColorSecondary}>Postcode</FormLabel>
                                             <Input
                                                 value={formData.zip}
                                                 onChange={(e) => handleInputChange("zip", e.target.value)}
-                                                placeholder="Enter ZIP code"
+                                                placeholder="Enter postcode"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -469,6 +674,136 @@ function VendorRegistration() {
                                             ))}
                                         </Select>
                                     </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Registration Number</FormLabel>
+                                        <Input
+                                            value={formData.reg_no}
+                                            onChange={(e) => handleInputChange("reg_no", e.target.value)}
+                                            placeholder="Enter registration number"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+                                </VStack>
+                            </Card>
+
+                            {/* CNEE Information Section */}
+                            <Card p="6" borderRadius="lg" border="1px" borderColor={borderColor}>
+                                <VStack spacing={4} align="stretch">
+                                    <HStack spacing={2} mb={4} justify="space-between">
+                                        <HStack spacing={2}>
+                                            <Icon as={MdPerson} color={textColorBrand} boxSize={6} />
+                                            <Text fontSize="lg" fontWeight="600" color={textColor}>
+                                                CNEE Information
+                                            </Text>
+                                        </HStack>
+                                        <Button
+                                            size="sm"
+                                            colorScheme="blue"
+                                            variant="outline"
+                                            leftIcon={<Icon as={MdAdd} />}
+                                            onClick={addCneeField}
+                                            isDisabled={visibleCneeFields >= 12}
+                                        >
+                                            Add More
+                                        </Button>
+                                    </HStack>
+
+                                    {/* Dynamic CNEE Fields */}
+                                    {Array.from({ length: visibleCneeFields }, (_, index) => {
+                                        const fieldNumber = index + 1;
+                                        const fieldName = `cnee${fieldNumber}`;
+                                        return (
+                                            <HStack key={fieldNumber} spacing={4} align="end">
+                                                <FormControl flex={1}>
+                                                    <FormLabel color={textColorSecondary}>
+                                                        CNEE {fieldNumber}
+                                                    </FormLabel>
+                                                    <Input
+                                                        value={formData[fieldName] || ""}
+                                                        onChange={(e) => handleInputChange(fieldName, e.target.value)}
+                                                        placeholder={`Enter CNEE ${fieldNumber}`}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                        _focus={{
+                                                            borderColor: "blue.400",
+                                                            boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                                        }}
+                                                        _placeholder={{ color: placeholderColor }}
+                                                    />
+                                                </FormControl>
+                                                {visibleCneeFields > 1 && (
+                                                    <Button
+                                                        size="sm"
+                                                        colorScheme="red"
+                                                        variant="outline"
+                                                        onClick={() => removeCneeField(fieldNumber)}
+                                                    >
+                                                        <Icon as={MdRemove} />
+                                                    </Button>
+                                                )}
+                                            </HStack>
+                                        );
+                                    })}
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>CNEE Text</FormLabel>
+                                        <Input
+                                            value={formData.cnee_text}
+                                            onChange={(e) => handleInputChange("cnee_text", e.target.value)}
+                                            placeholder="Enter additional CNEE text"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Warnings</FormLabel>
+                                        <Input
+                                            value={formData.warnings}
+                                            onChange={(e) => handleInputChange("warnings", e.target.value)}
+                                            placeholder="Enter any warnings or notes"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Narvi Maritime Approved Agent</FormLabel>
+                                        <Input
+                                            value={formData.narvi_approved}
+                                            onChange={(e) => handleInputChange("narvi_approved", e.target.value)}
+                                            placeholder="Enter approval status or notes"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
                                 </VStack>
                             </Card>
 
@@ -492,7 +827,7 @@ function VendorRegistration() {
                                     loadingText={isEditMode ? "Updating..." : "Registering..."}
                                     leftIcon={<Icon as={isEditMode ? MdEdit : MdPersonAdd} />}
                                 >
-                                    {isEditMode ? "Update Vendor" : "Register Vendor"}
+                                    {isEditMode ? "Update Agent" : "Register Agent"}
                                 </Button>
                             </HStack>
                         </VStack>
@@ -504,7 +839,7 @@ function VendorRegistration() {
             <SuccessModal
                 isOpen={isSuccessModalOpen}
                 onClose={handleSuccessModalClose}
-                title={isEditMode ? "Vendor Update Successful!" : "Vendor Registration Successful!"}
+                title={isEditMode ? "Agent Update Successful!" : "Agent Registration Successful!"}
                 message={modalMessage}
             />
 
@@ -512,7 +847,7 @@ function VendorRegistration() {
             <FailureModal
                 isOpen={isFailureModalOpen}
                 onClose={handleFailureModalClose}
-                title={isEditMode ? "Vendor Update Failed" : "Vendor Registration Failed"}
+                title={isEditMode ? "Agent Update Failed" : "Agent Registration Failed"}
                 message={modalMessage}
             />
         </Box>

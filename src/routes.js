@@ -87,8 +87,8 @@ const routes = [
       },
 
       {
-        name: "Vendors",
-        path: "/contacts/vendors",
+        name: "Agents",
+        path: "/contacts/agents",
         icon: (
           <Icon as={MdBusiness} width="20px" height="20px" color="inherit" />
         ),

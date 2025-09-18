@@ -174,7 +174,7 @@ export default function Quotations() {
 
     // Master data for quotation lines
     const [rateItems, setRateItems] = useState([]);
-    const [vendors, setVendors] = useState([]);
+    const [agents, setAgents] = useState([]);
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
     const [destinationsList, setDestinationsList] = useState([]);
@@ -310,19 +310,19 @@ export default function Quotations() {
         }
     }, []);
 
-    // Fetch vendors
-    const fetchVendors = useCallback(async () => {
+    // Fetch agents
+    const fetchAgents = useCallback(async () => {
         try {
             const response = await api.get("/api/vendor/list");
             const result = response.data;
             if (result.vendors && Array.isArray(result.vendors)) {
-                setVendors(result.vendors);
+                setAgents(result.vendors);
             } else {
-                setVendors([]);
+                setAgents([]);
             }
         } catch (error) {
-            console.error("Failed to fetch vendors:", error);
-            setVendors([]);
+            console.error("Failed to fetch agents:", error);
+            setAgents([]);
         }
     }, []);
 
@@ -367,9 +367,9 @@ export default function Quotations() {
         fetchCustomers();
         fetchVessels();
         fetchRateItems();
-        fetchVendors();
+        fetchAgents();
         fetchMasterData();
-    }, [fetchQuotations, fetchCustomers, fetchVessels, fetchRateItems, fetchVendors, fetchMasterData]);
+    }, [fetchQuotations, fetchCustomers, fetchVessels, fetchRateItems, fetchAgents, fetchMasterData]);
 
     // Handler functions
     const handleNewQuotation = () => {
@@ -387,8 +387,8 @@ export default function Quotations() {
         const processedQuotationLines = Array.isArray(quotationLines)
             ? quotationLines.map(line => ({
                 name: line.name || "",
-                vendor_id: line.vendor_id || "",
-                vendor_rate: line.vendor_rate || "",
+                agent_id: line.agent_id || "",
+                agent_rate: line.agent_rate || "",
                 item_name: line.item_name || "",
                 rate: line.rate || "",
                 rate_remark: line.rate_remark || "",
@@ -1498,7 +1498,7 @@ export default function Quotations() {
                                                     <SearchableSelect
                                                         value={line.vendor_id}
                                                         onChange={(value) => updateQuotationLine(index, 'vendor_id', value)}
-                                                        options={vendors}
+                                                        options={agents}
                                                         placeholder="Select vendor"
                                                         displayKey="name"
                                                         valueKey="id"

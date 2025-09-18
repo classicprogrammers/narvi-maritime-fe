@@ -1,4 +1,4 @@
-// Vendor API functions
+// Agent API functions (using vendor endpoints for backend compatibility)
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
 
@@ -56,8 +56,8 @@ export const getCountriesApi = async () => {
   }
 };
 
-// Register Vendor API
-export const registerVendorApi = async (vendorData) => {
+// Register Agent API
+export const registerVendorApi = async (agentData) => {
   try {
     // Get user ID from localStorage
     const userData = localStorage.getItem("user");
@@ -75,9 +75,9 @@ export const registerVendorApi = async (vendorData) => {
       }
     }
 
-    // Add user_id to vendor data
+    // Add user_id to agent data
     const payload = {
-      ...vendorData,
+      ...agentData,
       user_id: userId,
     };
 
@@ -107,7 +107,7 @@ export const registerVendorApi = async (vendorData) => {
   }
 };
 
-// Get Vendors API
+// Get Agents API
 export const getVendorsApi = async () => {
   try {
     // Get user ID from localStorage
@@ -133,19 +133,19 @@ export const getVendorsApi = async () => {
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch vendors');
+      throw new Error(response.data.result.message || 'Failed to fetch agents');
     }
     
     return response.data;
   } catch (error) {
-    console.error("Get vendors error:", error);
+    console.error("Get agents error:", error);
     // Don't show modal here, let the component handle it
     throw error;
   }
 };
 
-// Get Vendor by ID API
-export const getVendorByIdApi = async (vendorId) => {
+// Get Agent by ID API
+export const getVendorByIdApi = async (agentId) => {
   try {
     // Get user ID from localStorage
     const userData = localStorage.getItem("user");
@@ -165,10 +165,10 @@ export const getVendorByIdApi = async (vendorId) => {
     
     // Try different endpoint patterns with user_id
     const endpoints = [
-      `${getApiEndpoint("VENDORS")}/${vendorId}${userId ? `?user_id=${userId}` : ''}`,
-      `/api/vendor/get/${vendorId}${userId ? `?user_id=${userId}` : ''}`,
-      `/api/vendor/${vendorId}${userId ? `?user_id=${userId}` : ''}`,
-      `${getApiEndpoint("VENDORS")}?id=${vendorId}${userId ? `&user_id=${userId}` : ''}`
+      `${getApiEndpoint("VENDORS")}/${agentId}${userId ? `?user_id=${userId}` : ''}`,
+      `/api/vendor/get/${agentId}${userId ? `?user_id=${userId}` : ''}`,
+      `/api/vendor/${agentId}${userId ? `?user_id=${userId}` : ''}`,
+      `${getApiEndpoint("VENDORS")}?id=${agentId}${userId ? `&user_id=${userId}` : ''}`
     ];
     
     let response;
@@ -190,19 +190,19 @@ export const getVendorByIdApi = async (vendorId) => {
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch vendor');
+      throw new Error(response.data.result.message || 'Failed to fetch agent');
     }
     
     return response.data;
   } catch (error) {
-    console.error("Get vendor by ID error:", error);
+    console.error("Get agent by ID error:", error);
     // Don't show modal here, let the component handle it
     throw error;
   }
 };
 
-// Update Vendor API
-export const updateVendorApi = async (vendorId, data) => {
+// Update Agent API
+export const updateVendorApi = async (agentId, data) => {
   try {
     // Get user ID from localStorage
     const userData = localStorage.getItem("user");
@@ -220,10 +220,10 @@ export const updateVendorApi = async (vendorId, data) => {
       }
     }
 
-    // Add vendor_id and user_id to the request body
+    // Add agent_id and user_id to the request body
     const payload = {
       ...data,
-      vendor_id: vendorId,
+      vendor_id: agentId, // Backend still expects vendor_id
       user_id: userId
     };
 
@@ -245,17 +245,17 @@ export const updateVendorApi = async (vendorId, data) => {
       throw new Error("Invalid response from server");
     }
 
-    console.log("Vendor update successful:", result);
+    console.log("Agent update successful:", result);
     return result;
   } catch (error) {
-    console.error("Update vendor error:", error);
+    console.error("Update agent error:", error);
     // Don't show modal here, let the component handle it
     throw error;
   }
 };
 
-// Delete Vendor API
-export const deleteVendorApi = async (vendorId) => {
+// Delete Agent API
+export const deleteVendorApi = async (agentId) => {
   try {
     // Get user ID from localStorage
     const userData = localStorage.getItem("user");
@@ -273,9 +273,9 @@ export const deleteVendorApi = async (vendorId) => {
       }
     }
 
-    // Add vendor_id and user_id to the request body
+    // Add agent_id and user_id to the request body
     const payload = {
-      vendor_id: vendorId,
+      vendor_id: agentId, // Backend still expects vendor_id
       user_id: userId
     };
 
@@ -297,10 +297,10 @@ export const deleteVendorApi = async (vendorId) => {
       throw new Error("Invalid response from server");
     }
 
-    console.log("Vendor delete successful:", result);
+    console.log("Agent delete successful:", result);
     return result;
   } catch (error) {
-    console.error("Delete vendor error:", error);
+    console.error("Delete agent error:", error);
     // Don't show modal here, let the component handle it
     throw error;
   }

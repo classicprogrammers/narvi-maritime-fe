@@ -2,16 +2,16 @@ import {
   getCountriesStart,
   getCountriesSuccess,
   getCountriesFailure,
-  getVendorsStart,
-  getVendorsSuccess,
-  getVendorsFailure,
-  updateVendorStart,
-  updateVendorSuccess,
-  updateVendorFailure,
-  deleteVendorStart,
-  deleteVendorSuccess,
-  deleteVendorFailure,
-  addVendor,
+  getAgentsStart,
+  getAgentsSuccess,
+  getAgentsFailure,
+  updateAgentStart,
+  updateAgentSuccess,
+  updateAgentFailure,
+  deleteAgentStart,
+  deleteAgentSuccess,
+  deleteAgentFailure,
+  addAgent,
 } from "../slices/vendorSlice";
 import {
   getCountriesApi,
@@ -35,65 +35,65 @@ export const getCountries = () => async (dispatch) => {
   }
 };
 
-// Get Vendors Action
-export const getVendors = () => async (dispatch) => {
+// Get Agents Action
+export const getAgents = () => async (dispatch) => {
   try {
-    dispatch(getVendorsStart());
+    dispatch(getAgentsStart());
     const result = await getVendorsApi();
-    dispatch(getVendorsSuccess(result));
+    dispatch(getAgentsSuccess(result));
     return { success: true, data: result };
   } catch (error) {
-    const errorMessage = error.message || "Failed to fetch vendors";
-    dispatch(getVendorsFailure(errorMessage));
+    const errorMessage = error.message || "Failed to fetch agents";
+    dispatch(getAgentsFailure(errorMessage));
     return { success: false, error: errorMessage };
   }
 };
 
-// Update Vendor Action
-export const updateVendor = (vendorId, data) => async (dispatch) => {
+// Update Agent Action
+export const updateAgent = (agentId, data) => async (dispatch) => {
   try {
-    dispatch(updateVendorStart());
-    const result = await updateVendorApi(vendorId, data);
-    dispatch(updateVendorSuccess(result));
+    dispatch(updateAgentStart());
+    const result = await updateVendorApi(agentId, data);
+    dispatch(updateAgentSuccess(result));
     return { success: true, data: result };
   } catch (error) {
-    const errorMessage = error.message || "Failed to update vendor";
-    dispatch(updateVendorFailure(errorMessage));
+    const errorMessage = error.message || "Failed to update agent";
+    dispatch(updateAgentFailure(errorMessage));
     return { success: false, error: errorMessage };
   }
 };
 
-// Delete Vendor Action
-export const deleteVendor = (vendorId) => async (dispatch) => {
+// Delete Agent Action
+export const deleteAgent = (agentId) => async (dispatch) => {
   try {
-    dispatch(deleteVendorStart());
-    const result = await deleteVendorApi(vendorId);
-    dispatch(deleteVendorSuccess(result));
+    dispatch(deleteAgentStart());
+    const result = await deleteVendorApi(agentId);
+    dispatch(deleteAgentSuccess(result));
     return { success: true, data: result };
   } catch (error) {
-    const errorMessage = error.message || "Failed to delete vendor";
-    dispatch(deleteVendorFailure(errorMessage));
+    const errorMessage = error.message || "Failed to delete agent";
+    dispatch(deleteAgentFailure(errorMessage));
     return { success: false, error: errorMessage };
   }
 };
 
-// Register Vendor Action
-export const registerVendor = (vendorData) => async (dispatch) => {
+// Register Agent Action
+export const registerAgent = (agentData) => async (dispatch) => {
   try {
-    const result = await registerVendorApi(vendorData);
+    const result = await registerVendorApi(agentData);
     if (result.success) {
-      // Refresh the vendors list after successful registration
-      dispatch(getVendors());
+      // Refresh the agents list after successful registration
+      dispatch(getAgents());
     }
     return { success: true, data: result };
   } catch (error) {
-    const errorMessage = error.message || "Failed to register vendor";
+    const errorMessage = error.message || "Failed to register agent";
     return { success: false, error: errorMessage };
   }
 };
 
-// Add Vendor to Redux Action
-export const addVendorToRedux = (vendorData) => (dispatch) => {
-  dispatch(addVendor(vendorData));
+// Add Agent to Redux Action
+export const addAgentToRedux = (agentData) => (dispatch) => {
+  dispatch(addAgent(agentData));
   return { success: true };
 };

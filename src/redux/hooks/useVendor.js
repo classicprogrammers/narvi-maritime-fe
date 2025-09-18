@@ -2,11 +2,11 @@ import { useSelector, useDispatch } from "react-redux";
 import { useCallback } from "react";
 import {
   getCountries,
-  getVendors,
-  registerVendor,
-  updateVendor,
-  deleteVendor,
-  addVendorToRedux,
+  getAgents,
+  registerAgent,
+  updateAgent,
+  deleteAgent,
+  addAgentToRedux,
 } from "../actions/vendorActions";
 
 export const useVendor = () => {
@@ -18,31 +18,32 @@ export const useVendor = () => {
     () => dispatch(getCountries()),
     [dispatch]
   );
-  const getVendorsCallback = useCallback(
-    () => dispatch(getVendors()),
+  const getAgentsCallback = useCallback(
+    () => dispatch(getAgents()),
     [dispatch]
   );
-  const registerVendorCallback = useCallback(
-    (vendorData) => dispatch(registerVendor(vendorData)),
+  const registerAgentCallback = useCallback(
+    (agentData) => dispatch(registerAgent(agentData)),
     [dispatch]
   );
-  const updateVendorCallback = useCallback(
-    (vendorId, data) => dispatch(updateVendor(vendorId, data)),
+  const updateAgentCallback = useCallback(
+    (agentId, data) => dispatch(updateAgent(agentId, data)),
     [dispatch]
   );
-  const deleteVendorCallback = useCallback(
-    (vendorId) => dispatch(deleteVendor(vendorId)),
+  const deleteAgentCallback = useCallback(
+    (agentId) => dispatch(deleteAgent(agentId)),
     [dispatch]
   );
-  const addVendorToReduxCallback = useCallback(
-    (vendorData) => dispatch(addVendorToRedux(vendorData)),
+  const addAgentToReduxCallback = useCallback(
+    (agentData) => dispatch(addAgentToRedux(agentData)),
     [dispatch]
   );
 
   return {
     // State
     countries: vendorState.countries,
-    vendors: vendorState.vendors,
+    agents: vendorState.agents,
+    vendors: vendorState.agents, // Keep vendors for backward compatibility
     isLoading: vendorState.isLoading,
     error: vendorState.error,
     updateLoading: vendorState.updateLoading,
@@ -52,10 +53,15 @@ export const useVendor = () => {
 
     // Actions
     getCountries: getCountriesCallback,
-    getVendors: getVendorsCallback,
-    registerVendor: registerVendorCallback,
-    updateVendor: updateVendorCallback,
-    deleteVendor: deleteVendorCallback,
-    addVendorToRedux: addVendorToReduxCallback,
+    getAgents: getAgentsCallback,
+    getVendors: getAgentsCallback, // Keep getVendors for backward compatibility
+    registerAgent: registerAgentCallback,
+    registerVendor: registerAgentCallback, // Keep registerVendor for backward compatibility
+    updateAgent: updateAgentCallback,
+    updateVendor: updateAgentCallback, // Keep updateVendor for backward compatibility
+    deleteAgent: deleteAgentCallback,
+    deleteVendor: deleteAgentCallback, // Keep deleteVendor for backward compatibility
+    addAgentToRedux: addAgentToReduxCallback,
+    addVendorToRedux: addAgentToReduxCallback, // Keep addVendorToRedux for backward compatibility
   };
 };

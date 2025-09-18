@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Box, VStack } from "@chakra-ui/react";
 import VendorsTable from "views/admin/contacts/components/VendorsTable";
-import { columnsDataVendors } from "views/admin/contacts/variables/columnsData";
+import { columnsDataAgents } from "views/admin/contacts/variables/columnsData";
 import { useVendor } from "redux/hooks/useVendor";
 
 export default function Vendors() {
@@ -16,8 +16,8 @@ export default function Vendors() {
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">
         <VendorsTable
-          columnsData={columnsDataVendors}
-          tableData={vendors || []}
+          columnsData={columnsDataAgents}
+          tableData={Array.isArray(vendors) ? vendors : []}
           isLoading={isLoading}
         />
       </VStack>

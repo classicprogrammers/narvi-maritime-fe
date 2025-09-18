@@ -128,7 +128,7 @@ export default function VendorsTable(props) {
 
   // Filter data based on search and filters
   const filteredData = useMemo(() => {
-    let filtered = tableData;
+    let filtered = Array.isArray(tableData) ? tableData : [];
 
     // Apply search filter
     if (searchValue) {
@@ -190,7 +190,7 @@ export default function VendorsTable(props) {
   }, [tableData, searchValue, filters]);
 
   const data = useMemo(() => {
-    const sortedData = applyCustomSorting(filteredData);
+    const sortedData = applyCustomSorting(Array.isArray(filteredData) ? filteredData : []);
     return sortedData;
     //eslint-disable-next-line
   }, [filteredData, sortOrder]);
@@ -320,9 +320,9 @@ export default function VendorsTable(props) {
       }
 
       // Find the original vendor to compare changes
-      const originalVendor = tableData.find(
+      const originalVendor = Array.isArray(tableData) ? tableData.find(
         (v) => v.id === editingVendor.id
-      );
+      ) : null;
 
       if (!originalVendor) {
         onEditClose();
@@ -437,7 +437,7 @@ export default function VendorsTable(props) {
             fontWeight="700"
             lineHeight="100%"
           >
-            Vendor Management
+            Agent Management
               </Text>
           <HStack spacing={3}>
             <Button
@@ -446,7 +446,7 @@ export default function VendorsTable(props) {
               size="sm"
               onClick={() => history.push("/admin/vendor-registration")}
             >
-              Add Vendor
+              Add Agent
             </Button>
           </HStack>
           </Flex>
@@ -472,7 +472,7 @@ export default function VendorsTable(props) {
             {/* Search */}
             <Box flex="1" minW="280px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                Search Vendors
+                Search Agents
               </Text>
               <InputGroup>
                 <InputLeftElement>
@@ -486,7 +486,7 @@ export default function VendorsTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search vendors by name, email, phone, city..."
+                  placeholder="Search agents by name, email, phone, city..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -778,7 +778,7 @@ export default function VendorsTable(props) {
                     py="40px"
                   >
                     <Text color={tableTextColorSecondary} fontSize="sm">
-                      Loading vendors...
+                      Loading agents...
                     </Text>
                   </Td>
                 </Tr>
@@ -790,9 +790,9 @@ export default function VendorsTable(props) {
                     py="40px"
                   >
                     <Text color={tableTextColorSecondary} fontSize="sm">
-                      {tableData.length === 0
-                        ? "No vendors available. Please check your backend connection."
-                        : "No vendors match your search criteria."}
+                      {!Array.isArray(tableData) || tableData.length === 0
+                        ? "No agents available."
+                        : "No agents match your search criteria."}
                     </Text>
                   </Td>
                 </Tr>
@@ -810,7 +810,7 @@ export default function VendorsTable(props) {
                     >
                       {row.cells.map((cell, index) => {
                         let data = "";
-                        if (cell.column.Header === "VENDOR NAME") {
+                        if (cell.column.Header === "COMPANY_NAME") {
                           data = (
                             <Text
                               color={textColor}
@@ -820,25 +820,25 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "EMAIL") {
+                        } else if (cell.column.Header === "EMAIL1") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "PHONE") {
+                        } else if (cell.column.Header === "PHONE1") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "MOBILE") {
+                        } else if (cell.column.Header === "PHONE2") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "STREET") {
+                        } else if (cell.column.Header === "ADDRESS1") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
@@ -850,7 +850,7 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "ZIP") {
+                        } else if (cell.column.Header === "POSTCODE") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {cell.value || "-"}
@@ -862,10 +862,22 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
+                        } else if (cell.column.Header === "WARNINGS") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "NARVI_MARITIME_APPROVED_AGENT") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {cell.value || "-"}
+                            </Text>
+                          );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
                             <HStack spacing={2}>
-                              <Tooltip label="Edit Vendor">
+                              <Tooltip label="Edit Agent">
                                 <IconButton
                                   icon={<Icon as={MdEdit} />}
                                   size="sm"
@@ -879,17 +891,17 @@ export default function VendorsTable(props) {
                                       state: { vendorData: row.original }
                                     });
                                   }}
-                                  aria-label="Edit vendor"
+                                  aria-label="Edit agent"
                                 />
                               </Tooltip>
-                              <Tooltip label="Delete Vendor">
+                              <Tooltip label="Delete Agent">
                                 <IconButton
                                   icon={<Icon as={MdDelete} />}
                                   size="sm"
                                   colorScheme="red"
                                   variant="ghost"
                                   onClick={() => handleDelete(row.original)}
-                                  aria-label="Delete vendor"
+                                  aria-label="Delete agent"
                                 />
                               </Tooltip>
                             </HStack>
@@ -926,8 +938,8 @@ export default function VendorsTable(props) {
           <Flex px="25px" justify="space-between" align="center" py="20px">
             <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {pageIndex * itemsPerPage + 1} to{" "}
-            {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of{" "}
-            {data.length} results
+            {Math.min((pageIndex + 1) * itemsPerPage, Array.isArray(data) ? data.length : 0)} of{" "}
+            {Array.isArray(data) ? data.length : 0} results
             </Text>
             <HStack spacing={2}>
               <Button
@@ -959,15 +971,15 @@ export default function VendorsTable(props) {
             borderBottom="1px"
             borderColor={modalBorder}
           >
-            Edit Vendor
+            Edit Agent
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
                 <FormControl isRequired>
-                <FormLabel>Vendor Name</FormLabel>
+                <FormLabel>Agent Company Name</FormLabel>
                   <Input
-                  placeholder="e.g., John Smith, ABC Corporation..."
+                  placeholder="e.g., ABC Corporation, XYZ Ltd..."
                   value={editingVendor?.name || ""}
                     onChange={(e) =>
                     handleEditInputChange("name", e.target.value)
@@ -988,10 +1000,10 @@ export default function VendorsTable(props) {
                 </FormControl>
 
                 <FormControl>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Email 1</FormLabel>
                   <Input
                     type="email"
-                  placeholder="e.g., john.smith@company.com..."
+                  placeholder="e.g., contact@company.com..."
                   value={editingVendor?.email || ""}
                     onChange={(e) =>
                     handleEditInputChange("email", e.target.value)
@@ -1012,7 +1024,7 @@ export default function VendorsTable(props) {
                 </FormControl>
 
                 <FormControl>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Phone 1</FormLabel>
                 <Input
                   placeholder="e.g., +1-555-123-4567..."
                   value={editingVendor?.phone || ""}
@@ -1035,7 +1047,7 @@ export default function VendorsTable(props) {
                 </FormControl>
 
                 <FormControl>
-                <FormLabel>Mobile</FormLabel>
+                <FormLabel>Phone 2</FormLabel>
                   <Input
                   placeholder="e.g., +1-555-987-6543..."
                   value={editingVendor?.mobile || ""}
@@ -1058,7 +1070,7 @@ export default function VendorsTable(props) {
                 </FormControl>
 
                 <FormControl>
-                <FormLabel>Street</FormLabel>
+                <FormLabel>Address 1</FormLabel>
                   <Input
                   placeholder="e.g., 123 Main Street, Suite 100..."
                   value={editingVendor?.street || ""}
@@ -1104,7 +1116,7 @@ export default function VendorsTable(props) {
                 </FormControl>
 
                 <FormControl>
-                <FormLabel>ZIP Code</FormLabel>
+                <FormLabel>Postcode</FormLabel>
                   <Input
                   placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
                   value={editingVendor?.zip || ""}
@@ -1136,7 +1148,7 @@ export default function VendorsTable(props) {
               isDisabled={!editingVendor?.name || updateLoading}
               isLoading={updateLoading}
             >
-              Update Vendor
+              Update Agent
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -1151,17 +1163,17 @@ export default function VendorsTable(props) {
             borderBottom="1px"
             borderColor={modalBorder}
           >
-            Add New Vendor
+            Add New Agent
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Vendor Name</FormLabel>
+                <FormLabel>Agent Company Name</FormLabel>
                 <Input
                   value={newVendor.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter vendor name"
+                  placeholder="Enter agent company name"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
@@ -1173,12 +1185,12 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>Email 1</FormLabel>
                 <Input
                   type="email"
                   value={newVendor.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
-                  placeholder="Enter email address"
+                  placeholder="Enter primary email address"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
@@ -1190,11 +1202,11 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Phone 1</FormLabel>
                 <Input
                   value={newVendor.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
-                  placeholder="Enter phone number"
+                  placeholder="Enter primary phone number"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
@@ -1206,11 +1218,11 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Mobile</FormLabel>
+                <FormLabel>Phone 2</FormLabel>
                 <Input
                   value={newVendor.mobile}
                   onChange={(e) => handleInputChange("mobile", e.target.value)}
-                  placeholder="Enter mobile number"
+                  placeholder="Enter secondary phone number"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
@@ -1222,7 +1234,7 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
-                <FormLabel>Street</FormLabel>
+                <FormLabel>Address 1</FormLabel>
                 <Input
                   value={newVendor.street}
                   onChange={(e) => handleInputChange("street", e.target.value)}
@@ -1254,11 +1266,11 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
-                <FormLabel>ZIP Code</FormLabel>
+                <FormLabel>Postcode</FormLabel>
                 <Input
                   value={newVendor.zip}
                   onChange={(e) => handleInputChange("zip", e.target.value)}
-                  placeholder="Enter ZIP code"
+                  placeholder="Enter postcode"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
@@ -1300,7 +1312,7 @@ export default function VendorsTable(props) {
               isLoading={isRegistering}
               loadingText="Adding..."
             >
-              Add Vendor
+              Add Agent
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -1325,7 +1337,7 @@ export default function VendorsTable(props) {
               borderBottom="1px"
               borderColor={modalBorder}
             >
-              Delete Vendor
+              Delete Agent
             </AlertDialogHeader>
 
             <AlertDialogBody>

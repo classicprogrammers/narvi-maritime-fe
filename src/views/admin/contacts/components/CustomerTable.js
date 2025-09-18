@@ -569,7 +569,7 @@ export default function CustomerTable(props) {
     }
   };
 
-  // Fetch countries when component mounts
+  // Fetch countries when component mounts 
   React.useEffect(() => {
     fetchCountries();
   }, []);
@@ -1120,7 +1120,7 @@ export default function CustomerTable(props) {
                   >
                     <Text color={tableTextColorSecondary} fontSize="sm">
                       {tableData.length === 0
-                        ? "No clients available. Please check your backend connection."
+                        ? "No clients available."
                         : "No clients match your search criteria."}
                     </Text>
                   </Td>
