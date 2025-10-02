@@ -280,8 +280,8 @@ export default function VendorsTable(props) {
   const handleSaveVendor = async () => {
     // Validate required fields
     if (!newVendor.name || newVendor.name.trim() === "") {
-        return;
-      }
+      return;
+    }
 
     try {
       setIsRegistering(true);
@@ -438,7 +438,7 @@ export default function VendorsTable(props) {
             lineHeight="100%"
           >
             Agent Management
-              </Text>
+          </Text>
           <HStack spacing={3}>
             <Button
               leftIcon={<Icon as={MdAdd} />}
@@ -449,7 +449,7 @@ export default function VendorsTable(props) {
               Add Agent
             </Button>
           </HStack>
-          </Flex>
+        </Flex>
 
         {/* Enhanced Filter & Sort Section */}
         <Box
@@ -566,210 +566,210 @@ export default function VendorsTable(props) {
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                     &nbsp;
                   </Text>
-              <Button
+                  <Button
                     size="md"
-                variant="outline"
+                    variant="outline"
                     onClick={clearAllFiltersAndSorting}
                     colorScheme="red"
                     _hover={{ bg: "red.50" }}
                     borderRadius="10px"
                     border="2px"
-              >
-                Clear All
-              </Button>
+                  >
+                    Clear All
+                  </Button>
                 </Box>
               )}
-            </HStack>
+          </HStack>
 
-            {/* Expandable Filter Fields */}
-            {showFilterFields && (
-              <Box
-                mt={4}
-                pt={4}
-                borderTop="2px"
-                borderColor={borderColor}
+          {/* Expandable Filter Fields */}
+          {showFilterFields && (
+            <Box
+              mt={4}
+              pt={4}
+              borderTop="2px"
+              borderColor={borderColor}
               bg={expandableFilterBg}
-                borderRadius="12px"
-                p="20px"
-              >
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
-                  Filter by Specific Fields
-                </Text>
+              borderRadius="12px"
+              p="20px"
+            >
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
+                Filter by Specific Fields
+              </Text>
 
               {/* First Row - Basic Info */}
-                <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
 
                 {/* City Filter */}
-                  <Box minW="200px" flex="1">
+                <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     City
-                    </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
                     placeholder="e.g., New York, London, Tokyo..."
                     value={filters.city}
                     onChange={(e) => handleFilterChange("city", e.target.value)}
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    />
-                  </Box>
-                </HStack>
+                  />
+                </Box>
+              </HStack>
 
               {/* Second Row - Contact Info */}
-                <HStack spacing={6} flexWrap="wrap" align="flex-start">
+              <HStack spacing={6} flexWrap="wrap" align="flex-start">
                 {/* Email Filter */}
-                  <Box minW="250px" flex="1">
+                <Box minW="250px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Email
-                    </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
                     placeholder="e.g., john@company.com..."
                     value={filters.email || ""}
-                      onChange={(e) =>
+                    onChange={(e) =>
                       handleFilterChange("email", e.target.value)
-                      }
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    />
-                  </Box>
+                  />
+                </Box>
 
                 {/* Phone Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Phone
-                    </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
                     placeholder="e.g., +1-555-123-4567..."
                     value={filters.phone || ""}
-                      onChange={(e) =>
+                    onChange={(e) =>
                       handleFilterChange("phone", e.target.value)
-                      }
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
+                    }
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    />
-                  </Box>
-                </HStack>
-              </Box>
-            )}
-          </Box>
+                  />
+                </Box>
+              </HStack>
+            </Box>
+          )}
+        </Box>
 
-          {/* Table Container with Horizontal Scroll */}
-          <Box
-            pr="25px"
-            overflowX="auto"
-            css={{
-              "&::-webkit-scrollbar": {
-                height: "8px",
-              },
-              "&::-webkit-scrollbar-track": {
+        {/* Table Container with Horizontal Scroll */}
+        <Box
+          pr="25px"
+          overflowX="auto"
+          css={{
+            "&::-webkit-scrollbar": {
+              height: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
               background: useColorModeValue("#f1f1f1", "#2d3748"),
-                borderRadius: "4px",
-              },
-              "&::-webkit-scrollbar-thumb": {
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb": {
               background: useColorModeValue("#c1c1c1", "#4a5568"),
-                borderRadius: "4px",
-              },
-              "&::-webkit-scrollbar-thumb:hover": {
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
               background: useColorModeValue("#a8a8a8", "#718096"),
-              },
-            }}
-          >
-            <Table
-              {...getTableProps()}
-              variant="unstyled"
-              size="sm"
+            },
+          }}
+        >
+          <Table
+            {...getTableProps()}
+            variant="unstyled"
+            size="sm"
             minW="800px"
-              ml="25px"
-            >
-              <Thead bg={tableHeaderBg}>
-                {headerGroups.map((headerGroup, index) => (
-                  <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
-                    {headerGroup.headers.map((column, index) => (
-                      <Th
-                        {...column.getHeaderProps(column.getSortByToggleProps())}
-                        borderRight="1px"
-                        borderColor={tableBorderColor}
-                        py="12px"
-                        px="16px"
-                        key={index}
-                        fontSize="12px"
-                        fontWeight="600"
-                        color={tableTextColor}
-                        textTransform="uppercase"
-                        cursor="pointer"
-                        _hover={{ bg: tableHeaderBg }}
-                        transition="all 0.2s"
-                      >
-                        <Flex justify="space-between" align="center">
-                          {column.render("Header")}
-                          <Flex direction="column" align="center" ml={2}>
-                            {column.isSorted ? (
-                              column.isSortedDesc ? (
-                                <Icon
-                                  as={MdKeyboardArrowDown}
-                                  color="blue.500"
-                                  boxSize={4}
-                                />
-                              ) : (
-                                <Icon
-                                  as={MdKeyboardArrowUp}
-                                  color="blue.500"
-                                  boxSize={4}
-                                />
-                              )
-                            ) : (
+            ml="25px"
+          >
+            <Thead bg={tableHeaderBg}>
+              {headerGroups.map((headerGroup, index) => (
+                <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
+                  {headerGroup.headers.map((column, index) => (
+                    <Th
+                      {...column.getHeaderProps(column.getSortByToggleProps())}
+                      borderRight="1px"
+                      borderColor={tableBorderColor}
+                      py="12px"
+                      px="16px"
+                      key={index}
+                      fontSize="12px"
+                      fontWeight="600"
+                      color={tableTextColor}
+                      textTransform="uppercase"
+                      cursor="pointer"
+                      _hover={{ bg: tableHeaderBg }}
+                      transition="all 0.2s"
+                    >
+                      <Flex justify="space-between" align="center">
+                        {column.render("Header")}
+                        <Flex direction="column" align="center" ml={2}>
+                          {column.isSorted ? (
+                            column.isSortedDesc ? (
                               <Icon
-                                as={MdUnfoldMore}
-                                color={tableTextColorSecondary}
+                                as={MdKeyboardArrowDown}
+                                color="blue.500"
                                 boxSize={4}
                               />
-                            )}
-                          </Flex>
+                            ) : (
+                              <Icon
+                                as={MdKeyboardArrowUp}
+                                color="blue.500"
+                                boxSize={4}
+                              />
+                            )
+                          ) : (
+                            <Icon
+                              as={MdUnfoldMore}
+                              color={tableTextColorSecondary}
+                              boxSize={4}
+                            />
+                          )}
                         </Flex>
-                      </Th>
-                    ))}
-                  </Tr>
-                ))}
-              </Thead>
-              <Tbody>
+                      </Flex>
+                    </Th>
+                  ))}
+                </Tr>
+              ))}
+            </Thead>
+            <Tbody>
               {isLoading ? (
                 <Tr>
                   <Td
@@ -930,36 +930,36 @@ export default function VendorsTable(props) {
                   );
                 })
               )}
-              </Tbody>
-            </Table>
-          </Box>
+            </Tbody>
+          </Table>
+        </Box>
 
-          {/* Pagination */}
-          <Flex px="25px" justify="space-between" align="center" py="20px">
-            <Text fontSize="sm" color={tableTextColorSecondary}>
+        {/* Pagination */}
+        <Flex px="25px" justify="space-between" align="center" py="20px">
+          <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {pageIndex * itemsPerPage + 1} to{" "}
             {Math.min((pageIndex + 1) * itemsPerPage, Array.isArray(data) ? data.length : 0)} of{" "}
             {Array.isArray(data) ? data.length : 0} results
-            </Text>
-            <HStack spacing={2}>
-              <Button
-                size="sm"
+          </Text>
+          <HStack spacing={2}>
+            <Button
+              size="sm"
               onClick={() => previousPage()}
-                isDisabled={!canPreviousPage}
-                variant="outline"
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-              onClick={() => nextPage()}
-                isDisabled={!canNextPage}
+              isDisabled={!canPreviousPage}
               variant="outline"
-              >
-                Next
-              </Button>
-            </HStack>
-          </Flex>
+            >
+              Previous
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => nextPage()}
+              isDisabled={!canNextPage}
+              variant="outline"
+            >
+              Next
+            </Button>
+          </HStack>
+        </Flex>
       </Card>
 
       {/* Edit Vendor Modal */}
@@ -976,12 +976,12 @@ export default function VendorsTable(props) {
           <ModalCloseButton />
           <ModalBody>
             <VStack spacing={4}>
-                <FormControl isRequired>
+              <FormControl isRequired>
                 <FormLabel>Agent Company Name</FormLabel>
-                  <Input
+                <Input
                   placeholder="e.g., ABC Corporation, XYZ Ltd..."
                   value={editingVendor?.name || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("name", e.target.value)
                   }
                   bg={inputBg}
@@ -989,23 +989,23 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>Email 1</FormLabel>
-                  <Input
-                    type="email"
+                <Input
+                  type="email"
                   placeholder="e.g., contact@company.com..."
                   value={editingVendor?.email || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("email", e.target.value)
                   }
                   bg={inputBg}
@@ -1013,22 +1013,22 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>Phone 1</FormLabel>
                 <Input
                   placeholder="e.g., +1-555-123-4567..."
                   value={editingVendor?.phone || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("phone", e.target.value)
                   }
                   bg={inputBg}
@@ -1036,22 +1036,22 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>Phone 2</FormLabel>
-                  <Input
+                <Input
                   placeholder="e.g., +1-555-987-6543..."
                   value={editingVendor?.mobile || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("mobile", e.target.value)
                   }
                   bg={inputBg}
@@ -1059,22 +1059,22 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>Address 1</FormLabel>
-                  <Input
+                <Input
                   placeholder="e.g., 123 Main Street, Suite 100..."
                   value={editingVendor?.street || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("street", e.target.value)
                   }
                   bg={inputBg}
@@ -1082,22 +1082,22 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>City</FormLabel>
-                  <Input
+                <Input
                   placeholder="🏙️ e.g., New York, London, Tokyo..."
                   value={editingVendor?.city || ""}
-                    onChange={(e) =>
+                  onChange={(e) =>
                     handleEditInputChange("city", e.target.value)
                   }
                   bg={inputBg}
@@ -1105,19 +1105,19 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
+                  }}
+                />
+              </FormControl>
 
-                <FormControl>
+              <FormControl>
                 <FormLabel>Postcode</FormLabel>
-                  <Input
+                <Input
                   placeholder="e.g., 10001, SW1A 1AA, 100-0001..."
                   value={editingVendor?.zip || ""}
                   onChange={(e) => handleEditInputChange("zip", e.target.value)}
@@ -1126,16 +1126,16 @@ export default function VendorsTable(props) {
                   border="2px"
                   borderColor={borderColor}
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
                   _hover={{
                     borderColor: "blue.300",
-                    }}
-                  />
-                </FormControl>
-              </VStack>
+                  }}
+                />
+              </FormControl>
+            </VStack>
           </ModalBody>
 
           <ModalFooter>
@@ -1347,9 +1347,9 @@ export default function VendorsTable(props) {
 
             <AlertDialogFooter>
               <Button ref={cancelRef} onClick={onDeleteClose}>
-              Cancel
-            </Button>
-            <Button
+                Cancel
+              </Button>
+              <Button
                 colorScheme="red"
                 onClick={confirmDelete}
                 ml={3}
@@ -1357,7 +1357,7 @@ export default function VendorsTable(props) {
                 isDisabled={deleteLoading}
               >
                 Delete
-            </Button>
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>

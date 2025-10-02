@@ -20,7 +20,7 @@ const handleApiError = (error, operation) => {
   // HTTP errors (4xx, 5xx) - Extract detailed error message from response
   if (error.response) {
     const responseData = error.response.data;
-    
+
     // Check for JSON-RPC error format
     if (responseData && responseData.result && responseData.result.status === 'error') {
       errorMessage = responseData.result.message || errorMessage;
@@ -111,32 +111,31 @@ export const registerVendorApi = async (agentData) => {
 export const getVendorsApi = async () => {
   try {
     // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
+    // const userData = localStorage.getItem("user");
+    // let userId = null;
 
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
+    // if (userData) {
+    //   try {
+    //     const user = JSON.parse(userData);
+    //     userId = user.id;
+    //   } catch (parseError) {
+    //     console.warn(
+    //       "Failed to parse user data from localStorage:",
+    //       parseError
+    //     );
+    //   }
+    // }
 
     // Add user_id as query parameter
-    const url = userId ? `${getApiEndpoint("VENDORS")}?user_id=${userId}` : getApiEndpoint("VENDORS");
-        
+    const url = getApiEndpoint("VENDORS");
+
     const response = await api.get(url);
-    
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch agents');
     }
-    
-    return response.data;
+
+    return response.data.vendors;
   } catch (error) {
     console.error("Get agents error:", error);
     // Don't show modal here, let the component handle it
@@ -162,7 +161,7 @@ export const getVendorByIdApi = async (agentId) => {
         );
       }
     }
-    
+
     // Try different endpoint patterns with user_id
     const endpoints = [
       `${getApiEndpoint("VENDORS")}/${agentId}${userId ? `?user_id=${userId}` : ''}`,
@@ -170,10 +169,10 @@ export const getVendorByIdApi = async (agentId) => {
       `/api/vendor/${agentId}${userId ? `?user_id=${userId}` : ''}`,
       `${getApiEndpoint("VENDORS")}?id=${agentId}${userId ? `&user_id=${userId}` : ''}`
     ];
-    
+
     let response;
     let lastError;
-    
+
     for (const endpoint of endpoints) {
       try {
         response = await api.get(endpoint);
@@ -183,16 +182,16 @@ export const getVendorByIdApi = async (agentId) => {
         continue; // Try next endpoint
       }
     }
-    
+
     if (!response) {
       throw lastError || new Error("All endpoints failed");
     }
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch agent');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Get agent by ID error:", error);
