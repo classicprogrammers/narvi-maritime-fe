@@ -32,7 +32,32 @@ const vesselsAPI = {
   // Create new vessel
   createVessel: async (vesselData) => {
     try {
-      const response = await api.post("/api/vessel/create", vesselData);
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      let currentUserId = null;
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          currentUserId = user.id;
+        } catch (parseError) {
+          console.warn("Failed to parse user data from localStorage:", parseError);
+        }
+      }
+
+      // Add current_user to vessel data
+      const payload = {
+        ...vesselData,
+        current_user: currentUserId,
+      };
+
+      const response = await api.post("/api/vessel/create", payload);
+      
+      // Check if response has error status (JSON-RPC format)
+      if (response.data.result && response.data.result.status === 'error') {
+        throw new Error(response.data.result.message || 'Failed to create vessel');
+      }
+      
       return response.data;
     } catch (error) {
       console.error("Error creating vessel:", error);
@@ -43,7 +68,33 @@ const vesselsAPI = {
   // Update vessel
   updateVessel: async (id, vesselData) => {
     try {
-      const response = await api.post("/api/vessel/update", { vessel_id: id, ...vesselData });
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      let currentUserId = null;
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          currentUserId = user.id;
+        } catch (parseError) {
+          console.warn("Failed to parse user data from localStorage:", parseError);
+        }
+      }
+
+      // Add vessel_id and current_user to vessel data
+      const payload = {
+        vessel_id: id,
+        ...vesselData,
+        current_user: currentUserId,
+      };
+
+      const response = await api.post("/api/vessel/update", payload);
+      
+      // Check if response has error status (JSON-RPC format)
+      if (response.data.result && response.data.result.status === 'error') {
+        throw new Error(response.data.result.message || 'Failed to update vessel');
+      }
+      
       return response.data;
     } catch (error) {
       console.error("Error updating vessel:", error);
@@ -54,7 +105,31 @@ const vesselsAPI = {
   // Delete vessel
   deleteVessel: async (id) => {
     try {
-      const response = await api.post("/api/vessel/delete", { vessel_id: id });
+      // Get user ID from localStorage
+      const userData = localStorage.getItem("user");
+      let currentUserId = null;
+
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          currentUserId = user.id;
+        } catch (parseError) {
+          console.warn("Failed to parse user data from localStorage:", parseError);
+        }
+      }
+
+      const payload = {
+        vessel_id: id,
+        current_user: currentUserId,
+      };
+
+      const response = await api.post("/api/vessel/delete", payload);
+      
+      // Check if response has error status (JSON-RPC format)
+      if (response.data.result && response.data.result.status === 'error') {
+        throw new Error(response.data.result.message || 'Failed to delete vessel');
+      }
+      
       return response.data;
     } catch (error) {
       console.error("Error deleting vessel:", error);

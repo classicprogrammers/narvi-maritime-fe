@@ -33,10 +33,10 @@ function VendorRegistration() {
     // Redux
     const { countries, isLoading: countriesLoading, getCountries } = useVendor();
     const countryList = countries?.countries;
-   
+
     // Extract id from params
     let id = params.id;
-    
+
     // Fallback: extract ID from URL manually if useParams fails
     if (!id) {
         const pathParts = location.pathname.split('/');
@@ -45,10 +45,10 @@ function VendorRegistration() {
             id = idFromPath;
         }
     }
-    
+
     // Determine if we're in edit mode
     const isEditMode = Boolean(id);
-    
+
     // Get vendor data from location state
     const vendorDataFromState = location.state?.vendorData;
 
@@ -126,9 +126,9 @@ function VendorRegistration() {
     // Load vendor data for editing
     const loadVendorData = React.useCallback(() => {
         try {
-            
+
             let vendorData = vendorDataFromState;
-            
+
             // Fallback: try to get from localStorage if location state is not available
             if (!vendorData) {
                 const storedVendorData = localStorage.getItem(`vendor_${id}`);
@@ -140,9 +140,9 @@ function VendorRegistration() {
                     }
                 }
             }
-            
+
             if (vendorData) {
-                
+
                 const formDataToSet = {
                     name: vendorData.name || "",
                     address_type: vendorData.address_type || "",
@@ -174,9 +174,9 @@ function VendorRegistration() {
                     warnings: vendorData.warnings || "",
                     narvi_approved: vendorData.narvi_approved || "",
                 };
-                
+
                 setFormData(formDataToSet);
-                
+
                 // Set visible CNEE fields based on data
                 let maxCneeIndex = 1;
                 for (let i = 1; i <= 12; i++) {
@@ -192,10 +192,10 @@ function VendorRegistration() {
             }
         } catch (error) {
             console.error("Error loading vendor data:", error);
-            
+
             // Extract detailed error message
             let errorMessage = "Failed to load vendor data. Please try again.";
-            
+
             if (error.message) {
                 errorMessage = error.message;
             } else if (error.response && error.response.data) {
@@ -208,7 +208,7 @@ function VendorRegistration() {
                     errorMessage = responseData.error;
                 }
             }
-            
+
             setModalMessage(errorMessage);
             setIsFailureModalOpen(true);
         }
@@ -332,10 +332,10 @@ function VendorRegistration() {
         } catch (error) {
             const action = isEditMode ? "update" : "registration";
             console.error(`Agent ${action} error in component:`, error);
-            
+
             // Extract detailed error message
             let errorMessage = `Failed to ${action} agent. Please try again.`;
-            
+
             if (error.message) {
                 errorMessage = error.message;
             } else if (error.response && error.response.data) {
@@ -349,7 +349,7 @@ function VendorRegistration() {
                     errorMessage = responseData.error;
                 }
             }
-            
+
             setModalMessage(errorMessage);
             setIsFailureModalOpen(true);
         } finally {
@@ -445,10 +445,7 @@ function VendorRegistration() {
                                                 boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                                             }}
                                         >
-                                            <option value="business">Business</option>
-                                            <option value="residential">Residential</option>
                                             <option value="warehouse">Warehouse</option>
-                                            <option value="office">Office</option>
                                         </Select>
                                     </FormControl>
 
