@@ -37,13 +37,9 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
-  Collapse,
+
   Badge,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  NumberIncrementStepper,
-  NumberDecrementStepper,
+
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -52,11 +48,10 @@ import {
   MdDelete,
   MdDirectionsBoat,
 } from "react-icons/md";
+import { CloseIcon } from "@chakra-ui/icons";
+import { List, ListItem } from "@chakra-ui/react";
 import vesselsAPI from "../../../api/vessels";
-import { getStockListApi } from "../../../api/stock";
-import destinationsAPI from "../../../api/destinations";
-import countriesAPI from "../../../api/countries";
-import { getVendorsApi } from "../../../api/vendor";
+
 import { getCustomersApi } from "../../../api/customer";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
@@ -68,14 +63,10 @@ export default function Vessels() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
-  const [showVesselLines, setShowVesselLines] = useState(false);
-  const [editingLineIndex, setEditingLineIndex] = useState(null);
+
 
   // API data state
-  const [stockItems, setStockItems] = useState([]);
-  const [destinations, setDestinations] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [vendors, setVendors] = useState([]);
+
   const [customers, setCustomers] = useState([]);
   const [isLoadingApiData, setIsLoadingApiData] = useState(false);
 
@@ -95,28 +86,48 @@ export default function Vessels() {
     name: "",
     client_id: "",
     status: "pending",
-    vessel_line_ids: []
+    attachments: []
   });
 
-  // Vessel line form state
-  const [vesselLineForm, setVesselLineForm] = useState({
-    name: "",
-    client_id: "",
-    status: "stock",
-    stock_item_id: "",
-    supplier_id: "",
-    po_number_ids: [],
-    so_number_id: "",
-    shipping_instruction_id: "",
-    shipment_type: "single",
-    delivery_instruction_id: "",
-    origin: "",
-    via_hub: "",
-    ap_destination: "",
-    destination: "",
-    warehouse_id: "",
-    ready_ex_supplier: ""
-  });
+  const [previewFile, setPreviewFile] = useState(null);
+
+  const handleView = (file) => {
+    let fileUrl = null;
+
+    // ✅ Case 1: actual uploaded file
+    if (file instanceof File || file instanceof Blob) {
+      fileUrl = URL.createObjectURL(file);
+    }
+
+    // ✅ Case 2: backend URL
+    else if (file.url) {
+      fileUrl = file.url;
+    }
+
+    // ✅ Case 3: base64 data (like your case)
+    else if (file.datas) {
+      const mimeType = file.mimetype || "application/octet-stream";
+      fileUrl = `data:${mimeType};base64,${file.datas}`;
+    }
+
+    // ✅ Case 4: fallback path
+    else if (file.path) {
+      fileUrl = file.path;
+    }
+
+    const fileType =
+      file.mimetype ||
+      file.type ||
+      file.filename?.split(".").pop() ||
+      "application/octet-stream";
+
+    if (fileUrl) {
+      setPreviewFile({ ...file, fileUrl, fileType });
+    } else {
+      console.warn("⚠️ No valid file URL found for preview:", file);
+    }
+  };
+
 
   // Fetch vessels
   const fetchVessels = useCallback(async () => {
@@ -142,49 +153,13 @@ export default function Vessels() {
     }
   }, [toast]);
 
-  // Fetch API data for dropdowns
+  // Fetch API data for dropdowns (customers only)
   const fetchApiData = useCallback(async () => {
     try {
       setIsLoadingApiData(true);
-
-      // Fetch all API data in parallel
-      const [stockResponse, destinationsResponse, countriesResponse, vendorsResponse, customersResponse] = await Promise.allSettled([
-        getStockListApi(),
-        destinationsAPI.getDestinations(),
-        countriesAPI.getCountries(),
-        getVendorsApi(),
-        getCustomersApi()
-      ]);
-
-      // Handle stock items
-      if (stockResponse.status === 'fulfilled' && stockResponse.value) {
-        const stockData = stockResponse.value.stock_list || stockResponse.value;
-        setStockItems(Array.isArray(stockData) ? stockData : []);
-      }
-
-      // Handle destinations
-      if (destinationsResponse.status === 'fulfilled' && destinationsResponse.value) {
-        const destData = destinationsResponse.value.destinations || destinationsResponse.value;
-        setDestinations(Array.isArray(destData) ? destData : []);
-      }
-
-      // Handle countries
-      if (countriesResponse.status === 'fulfilled' && countriesResponse.value) {
-        const countriesData = countriesResponse.value.countries || countriesResponse.value;
-        setCountries(Array.isArray(countriesData) ? countriesData : []);
-      }
-
-      // Handle vendors
-      if (vendorsResponse.status === 'fulfilled' && vendorsResponse.value) {
-        const vendorsData = vendorsResponse.value.vendors || vendorsResponse.value;
-        setVendors(Array.isArray(vendorsData) ? vendorsData : []);
-      }
-
-      // Handle customers
-      if (customersResponse.status === 'fulfilled' && customersResponse.value) {
-        const customersData = customersResponse.value.customers || customersResponse.value;
-        setCustomers(Array.isArray(customersData) ? customersData : []);
-      }
+      const customersResponse = await getCustomersApi();
+      const customersData = customersResponse.customers || customersResponse;
+      setCustomers(Array.isArray(customersData) ? customersData : []);
 
     } catch (error) {
       console.error("Error fetching API data:", error);
@@ -233,196 +208,16 @@ export default function Vessels() {
     }));
   };
 
-  // Handle vessel line form input changes
-  const handleVesselLineInputChange = (field, value) => {
-    setVesselLineForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Add vessel line
-  const addVesselLine = () => {
-    if (!vesselLineForm.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Vessel line name is required",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    const newLine = { ...vesselLineForm };
-    setFormData(prev => ({
-      ...prev,
-      vessel_line_ids: [...prev.vessel_line_ids, newLine]
-    }));
-
-    // Reset vessel line form
-    setVesselLineForm({
-      name: "",
-      client_id: "",
-      status: "stock",
-      stock_item_id: "",
-      supplier_id: "",
-      po_number_ids: [],
-      so_number_id: "",
-      shipping_instruction_id: "",
-      shipment_type: "single",
-      delivery_instruction_id: "",
-      origin: "",
-      via_hub: "",
-      ap_destination: "",
-      destination: "",
-      warehouse_id: "",
-      ready_ex_supplier: ""
-    });
-
-    // Auto-collapse the vessel lines section after adding
-    setShowVesselLines(false);
-
-    toast({
-      title: "Success",
-      description: "Vessel line added successfully",
-      status: "success",
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  // Edit vessel line
-  const editVesselLine = (index) => {
-    const line = formData.vessel_line_ids[index];
-    setVesselLineForm(line);
-    setEditingLineIndex(index);
-  };
-
-  // Update vessel line
-  const updateVesselLine = () => {
-    if (!vesselLineForm.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Vessel line name is required",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-      return;
-    }
-
-    const updatedLines = [...formData.vessel_line_ids];
-    updatedLines[editingLineIndex] = { ...vesselLineForm };
-
-    setFormData(prev => ({
-      ...prev,
-      vessel_line_ids: updatedLines
-    }));
-
-    // Reset vessel line form
-    setVesselLineForm({
-      name: "",
-      client_id: "",
-      status: "stock",
-      stock_item_id: "",
-      supplier_id: "",
-      po_number_ids: [],
-      so_number_id: "",
-      shipping_instruction_id: "",
-      shipment_type: "single",
-      delivery_instruction_id: "",
-      origin: "",
-      via_hub: "",
-      ap_destination: "",
-      destination: "",
-      warehouse_id: "",
-      ready_ex_supplier: ""
-    });
-    setEditingLineIndex(null);
-
-    // Auto-collapse the vessel lines section after updating
-    setShowVesselLines(false);
-
-    toast({
-      title: "Success",
-      description: "Vessel line updated successfully",
-      status: "success",
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  // Remove vessel line
-  const removeVesselLine = (index) => {
-    const updatedLines = formData.vessel_line_ids.filter((_, i) => i !== index);
-    setFormData(prev => ({
-      ...prev,
-      vessel_line_ids: updatedLines
-    }));
-
-    toast({
-      title: "Success",
-      description: "Vessel line removed successfully",
-      status: "success",
-      duration: 2000,
-      isClosable: true,
-    });
-  };
-
-  // Cancel vessel line editing
-  const cancelVesselLineEdit = () => {
-    setVesselLineForm({
-      name: "",
-      client_id: "",
-      status: "stock",
-      stock_item_id: "",
-      supplier_id: "",
-      po_number_ids: [],
-      so_number_id: "",
-      shipping_instruction_id: "",
-      shipment_type: "single",
-      delivery_instruction_id: "",
-      origin: "",
-      via_hub: "",
-      ap_destination: "",
-      destination: "",
-      warehouse_id: "",
-      ready_ex_supplier: ""
-    });
-    setEditingLineIndex(null);
-  };
-
   // Reset form
   const resetForm = () => {
     setFormData({
       name: "",
       client_id: "",
       status: "pending",
-      vessel_line_ids: []
+      attachments: []
     });
-    setVesselLineForm({
-      name: "",
-      client_id: "",
-      status: "stock",
-      stock_item_id: "",
-      supplier_id: "",
-      po_number_ids: [],
-      so_number_id: "",
-      shipping_instruction_id: "",
-      shipment_type: "single",
-      delivery_instruction_id: "",
-      origin: "",
-      via_hub: "",
-      ap_destination: "",
-      destination: "",
-      warehouse_id: "",
-      ready_ex_supplier: ""
-    });
-    setEditingVessel(null);
-    setEditingLineIndex(null);
-    setShowVesselLines(false);
   };
+
 
   // Open modal for creating new vessel
   const handleNewVessel = () => {
@@ -430,19 +225,19 @@ export default function Vessels() {
     onModalOpen();
   };
 
-  // Open modal for editing vessel
+  // // Open modal for editing vessel
   const handleEditVessel = (vessel) => {
     setFormData({
       name: vessel.name || "",
       client_id: vessel.client_id || "",
       status: vessel.status || "pending",
-      vessel_line_ids: vessel.vessel_line_ids || []
+      attachments: vessel.attachments || []
     });
     setEditingVessel(vessel);
     onModalOpen();
   };
 
-  // Handle form submission (create or update)
+  // // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
       // Validate vessel form
@@ -468,50 +263,17 @@ export default function Vessels() {
         return;
       }
 
-      // Validate vessel lines
-      for (let i = 0; i < formData.vessel_line_ids.length; i++) {
-        const line = formData.vessel_line_ids[i];
-        if (!line.name || !line.name.trim()) {
-          toast({
-            title: "Error",
-            description: `Vessel line ${i + 1}: Line name is required`,
-            status: "error",
-            duration: 3000,
-            isClosable: true,
-          });
-          return;
-        }
-        if (!line.status) {
-          toast({
-            title: "Error",
-            description: `Vessel line ${i + 1}: Status is required`,
-            status: "error",
-            duration: 3000,
-            isClosable: true,
-          });
-          return;
-        }
-        if (!line.shipment_type) {
-          toast({
-            title: "Error",
-            description: `Vessel line ${i + 1}: Shipment type is required`,
-            status: "error",
-            duration: 3000,
-            isClosable: true,
-          });
-          return;
-        }
-      }
+      // No vessel lines validation needed in simplified structure
 
       setIsLoading(true);
 
       // Use the form data as is - only include vessel lines that user has actually added
-      let finalFormData = { ...formData };
-
+      let finalFormData = { ...formData, vessel_id: editingVessel?.id };
 
       if (editingVessel) {
+        console.log('worded');
         // Update existing vessel
-        const response = await vesselsAPI.updateVessel(editingVessel.id, finalFormData);
+        const response = await vesselsAPI.updateVessel(finalFormData);
 
         // Extract success message from API response
         let successMessage = "Vessel updated successfully";
@@ -604,26 +366,17 @@ export default function Vessels() {
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
+
       const response = await vesselsAPI.deleteVessel(deleteVesselId);
 
-      // Extract success message from API response
-      let successMessage = "Vessel deleted successfully";
-      let status = "success";
+      // ✅ Extract message from API
+      const message = response?.result?.message || "Vessel deleted successfully";
 
-      if (response && response.result) {
-        if (response.result && response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        } else if (response.result.message) {
-          successMessage = response.result.message;
-          status = response.result.status;
-        }
-      }
-
+      // ✅ Show success toast
       toast({
-        title: status,
-        description: successMessage,
-        status: status,
+        title: "Success",
+        description: message,
+        status: "success",
         duration: 3000,
         isClosable: true,
       });
@@ -632,27 +385,17 @@ export default function Vessels() {
       setDeleteVesselId(null);
       fetchVessels();
     } catch (error) {
-      // Extract error message from API response
-      let errorMessage = "Failed to delete vessel";
-      let status = "error";
-
-      if (error.response && error.response.data) {
-        if (error.response.data.result && error.response.data.result.message) {
-          errorMessage = error.response.data.result.message;
-          status = error.response.data.result.status;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-          status = error.response.data.result.status;
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-        status = "error";
-      }
+      // ✅ Extract and show error toast
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.result?.message ||
+        error.message ||
+        "Failed to delete vessel";
 
       toast({
-        title: status,
-        description: errorMessage,
-        status: status,
+        title: "Error",
+        description: message,
+        status: "error",
         duration: 5000,
         isClosable: true,
       });
@@ -660,6 +403,7 @@ export default function Vessels() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -746,16 +490,7 @@ export default function Vessels() {
                     Status
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Lines Count
-                  </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Stock Status
-                  </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Origin
-                  </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Destination
+                    Attachments
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Actions
@@ -765,21 +500,8 @@ export default function Vessels() {
               <Tbody>
                 {paginatedVessels.length > 0 ? (
                   paginatedVessels.map((vessel, index) => {
-                    // Get vessel lines information
-                    const vesselLines = vessel.vessel_line_ids || [];
-                    const stockStatuses = vesselLines.map(line => line.status).filter(Boolean);
-
-                    // Get origin names from countries
-                    const origins = vesselLines.map(line => {
-                      const country = countries.find(c => c.id === line.origin);
-                      return country ? country.name : line.origin;
-                    }).filter(Boolean);
-
-                    // Get destination names
-                    const destinationNames = vesselLines.map(line => {
-                      const destination = destinations.find(d => d.id === line.destination);
-                      return destination ? destination.name : line.destination;
-                    }).filter(Boolean);
+                    // Get attachments information
+                    const attachments = vessel.attachments || [];
 
                     return (
                       <Tr
@@ -827,78 +549,10 @@ export default function Vessels() {
                         </Td>
                         <Td py="12px" px="16px">
                           <Text color={textColor} fontSize="sm" fontWeight="500">
-                            {vesselLines.length} lines
+                            {attachments.length || 0} files
                           </Text>
                         </Td>
-                        <Td py="12px" px="16px">
-                          <VStack spacing={1} align="start">
-                            {stockStatuses.length > 0 ? (
-                              stockStatuses.slice(0, 3).map((status, idx) => (
-                                <Badge
-                                  key={idx}
-                                  colorScheme={
-                                    status === "stock" ? "green" :
-                                      status === "shipping_instr" ? "blue" :
-                                        status === "delivery_instr" ? "purple" :
-                                          status === "in_transit" ? "orange" :
-                                            status === "arrived_dest" ? "teal" :
-                                              status === "shipped" ? "cyan" :
-                                                status === "delivered" ? "green" :
-                                                  status === "irregularities" ? "red" :
-                                                    status === "cancelled" ? "gray" : "gray"
-                                  }
-                                  size="xs"
-                                  textTransform="capitalize"
-                                >
-                                  {status}
-                                </Badge>
-                              ))
-                            ) : (
-                              <Text color="gray.400" fontSize="xs">-</Text>
-                            )}
-                            {stockStatuses.length > 3 && (
-                              <Text color="gray.500" fontSize="xs">
-                                +{stockStatuses.length - 3} more
-                              </Text>
-                            )}
-                          </VStack>
-                        </Td>
-                        <Td py="12px" px="16px">
-                          <VStack spacing={1} align="start">
-                            {origins.length > 0 ? (
-                              origins.slice(0, 2).map((origin, idx) => (
-                                <Text key={idx} color={textColor} fontSize="xs">
-                                  {origin}
-                                </Text>
-                              ))
-                            ) : (
-                              <Text color="gray.400" fontSize="xs">-</Text>
-                            )}
-                            {origins.length > 2 && (
-                              <Text color="gray.500" fontSize="xs">
-                                +{origins.length - 2} more
-                              </Text>
-                            )}
-                          </VStack>
-                        </Td>
-                        <Td py="12px" px="16px">
-                          <VStack spacing={1} align="start">
-                            {destinationNames.length > 0 ? (
-                              destinationNames.slice(0, 2).map((destination, idx) => (
-                                <Text key={idx} color={textColor} fontSize="xs">
-                                  {destination}
-                                </Text>
-                              ))
-                            ) : (
-                              <Text color="gray.400" fontSize="xs">-</Text>
-                            )}
-                            {destinationNames.length > 2 && (
-                              <Text color="gray.500" fontSize="xs">
-                                +{destinationNames.length - 2} more
-                              </Text>
-                            )}
-                          </VStack>
-                        </Td>
+                        {/* Removed extra columns that referenced undefined variables */}
                         <Td py="12px" px="16px">
                           <HStack spacing={2}>
                             <Tooltip label="Edit Vessel">
@@ -1104,410 +758,82 @@ export default function Vessels() {
                 </Select>
               </FormControl>
 
-              {/* Vessel Lines Section */}
-              <Box>
-                <Flex justify="space-between" align="center" mb={4}>
-                  <VStack align="start" spacing={1}>
-                    <Text fontSize="lg" fontWeight="bold" color="gray.700">
-                      Vessel Lines ({formData.vessel_line_ids.length})
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Attachments
+                </FormLabel>
+                <Input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const filePromises = files.map(file => new Promise((resolve) => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const result = reader.result || '';
+                        const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : '';
+                        resolve({ filename: file.name, datas: base64data, mimetype: file.type });
+                      };
+                      reader.readAsDataURL(file);
+                    }));
+                    Promise.all(filePromises).then(attachments => {
+                      setFormData(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...attachments] }));
+                    });
+                  }}
+                  accept="application/pdf,image/*"
+                  py={1}
+                />
+                {formData.attachments && formData.attachments.length > 0 && (
+                  <Box mt={2}>
+                    <Text fontSize="sm" fontWeight="medium" mb={1}>
+                      Attached Files:
                     </Text>
-                    {formData.vessel_line_ids.length === 0 && (
-                      <Text fontSize="sm" color="gray.500" fontWeight="medium">
-                        Click "Add New Line" to add vessel line details
-                      </Text>
-                    )}
-                    {formData.vessel_line_ids.length > 0 && (
-                      <Text fontSize="sm" color="green.600" fontWeight="medium">
-                        ✓ {formData.vessel_line_ids.length} line{formData.vessel_line_ids.length !== 1 ? 's' : ''} added
-                      </Text>
-                    )}
-                  </VStack>
-                  <Button
-                    leftIcon={<Icon as={MdAdd} />}
-                    size="sm"
-                    colorScheme="blue"
-                    onClick={() => setShowVesselLines(true)}
-                  >
-                    Add New Line
-                  </Button>
-                </Flex>
-
-                {/* Display Added Vessel Lines */}
-                {formData.vessel_line_ids.length > 0 && (
-                  <Box mb={4}>
-                    <Text fontSize="sm" fontWeight="medium" color="gray.600" mb={3}>
-                      Added Vessel Lines:
-                    </Text>
-                    <VStack spacing={2} align="stretch">
-                      {formData.vessel_line_ids.map((line, index) => (
-                        <Box
+                    <List spacing={1}>
+                      {formData.attachments.map((file, index) => (
+                        <ListItem
                           key={index}
-                          p={3}
-                          border="1px"
+                          display="flex"
+                          alignItems="center"
+                          justifyContent="space-between"
+                          border="1px solid"
                           borderColor="gray.200"
                           borderRadius="md"
-                          bg="gray.50"
+                          p={2}
                         >
-                          <Flex justify="space-between" align="center">
-                            <VStack align="start" spacing={1}>
-                              <Text fontSize="sm" fontWeight="medium">
-                                {line.name || `Line ${index + 1}`}
-                              </Text>
-                              <HStack spacing={2}>
-                                <Badge colorScheme="blue" size="sm">
-                                  {line.status}
-                                </Badge>
-                                <Badge colorScheme="green" size="sm">
-                                  {line.shipment_type}
-                                </Badge>
-                                {line.supplier_id && (
-                                  <Text fontSize="xs" color="gray.500">
-                                    Supplier: {line.supplier_id}
-                                  </Text>
-                                )}
-                                {line.origin && (
-                                  <Text fontSize="xs" color="gray.500">
-                                    Origin: {(() => {
-                                      const country = countries.find(c => c.id === line.origin);
-                                      return country ? country.name : line.origin;
-                                    })()}
-                                  </Text>
-                                )}
-                                {line.destination && (
-                                  <Text fontSize="xs" color="gray.500">
-                                    Destination: {(() => {
-                                      const destination = destinations.find(d => d.id === line.destination);
-                                      return destination ? destination.name : line.destination;
-                                    })()}
-                                  </Text>
-                                )}
-                              </HStack>
-                            </VStack>
-                            <HStack spacing={2}>
-                              <Button
-                                size="xs"
-                                colorScheme="blue"
-                                variant="outline"
-                                onClick={() => {
-                                  editVesselLine(index);
-                                  setShowVesselLines(true);
-                                }}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="xs"
-                                colorScheme="red"
-                                variant="outline"
-                                onClick={() => removeVesselLine(index)}
-                              >
-                                Remove
-                              </Button>
-                            </HStack>
-                          </Flex>
-                        </Box>
+                          <Text fontSize="sm">{file.filename}</Text>
+
+                          <Box>
+                            <Button
+                              size="xs"
+                              colorScheme="blue"
+                              variant="outline"
+                              onClick={() => handleView(file)}
+                              mr={2}
+                            >
+                              View
+                            </Button>
+                            <IconButton
+                              size="xs"
+                              icon={<CloseIcon />}
+                              aria-label="Remove attachment"
+                              onClick={() => {
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  attachments: prev.attachments.filter((_, i) => i !== index),
+                                }));
+                              }}
+                            />
+                          </Box>
+                        </ListItem>
                       ))}
-                    </VStack>
+                    </List>
                   </Box>
                 )}
+              </FormControl>
 
-                <Collapse in={showVesselLines}>
-                  <VStack spacing={4} align="stretch">
-                    {/* Loading indicator for API data */}
-                    {isLoadingApiData && (
-                      <Box p={4} textAlign="center" bg="blue.50" borderRadius="md">
-                        <Text fontSize="sm" color="blue.600">
-                          Loading dropdown data...
-                        </Text>
-                      </Box>
-                    )}
-
-
-                    {/* Add/Edit Vessel Line Form */}
-                    <Box p={4} border="1px" borderColor="gray.200" borderRadius="md" bg="white">
-                      <Text fontSize="md" fontWeight="medium" color="gray.700" mb={4}>
-                        {editingLineIndex !== null ? "Edit Vessel Line" : "Add New Vessel Line"}
-                      </Text>
-
-                      <VStack spacing={4} align="stretch">
-                        {/* Row 1: Name and Client ID */}
-                        <HStack spacing={4}>
-                          <FormControl isRequired>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Line Name
-                            </FormLabel>
-                            <Input
-                              size="sm"
-                              value={vesselLineForm.name}
-                              onChange={(e) => handleVesselLineInputChange("name", e.target.value)}
-                              placeholder="Enter line name"
-                              borderRadius="md"
-                            />
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Client (Customer)
-                            </FormLabel>
-                            <SearchableSelect
-                              value={vesselLineForm.client_id}
-                              onChange={(value) => handleVesselLineInputChange("client_id", value)}
-                              options={customers}
-                              placeholder={customers.length === 0 ? "No customers found" : "Select customer"}
-                              displayKey="name"
-                              valueKey="id"
-                              formatOption={(customer) => `${customer.name || customer.company_name || `Customer ${customer.id}`} (ID: ${customer.id})`}
-                              isLoading={isLoadingApiData}
-                            />
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 2: Status and Shipment Type */}
-                        <HStack spacing={4}>
-                          <FormControl isRequired>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Status
-                            </FormLabel>
-                            <Select
-                              size="sm"
-                              value={vesselLineForm.status}
-                              onChange={(e) => handleVesselLineInputChange("status", e.target.value)}
-                              borderRadius="md"
-                            >
-                              <option value="stock">Stock</option>
-                              <option value="shipping_instr">On a Shipping Instr</option>
-                              <option value="delivery_instr">On a Delivery Instr</option>
-                              <option value="in_transit">In Transit</option>
-                              <option value="arrived_dest">Arrived Dest</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="irregularities">Irregularities</option>
-                              <option value="cancelled">Cancelled</option>
-                            </Select>
-                          </FormControl>
-                          <FormControl isRequired>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Shipment Type
-                            </FormLabel>
-                            <Select
-                              size="sm"
-                              value={vesselLineForm.shipment_type}
-                              onChange={(e) => handleVesselLineInputChange("shipment_type", e.target.value)}
-                              borderRadius="md"
-                            >
-                              <option value="single">Single</option>
-                              <option value="combined">Combined</option>
-                            </Select>
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 3: Stock Item and Supplier */}
-                        <HStack spacing={4}>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Stock Item
-                            </FormLabel>
-                            <SearchableSelect
-                              value={vesselLineForm.stock_item_id}
-                              onChange={(value) => handleVesselLineInputChange("stock_item_id", value)}
-                              options={stockItems}
-                              placeholder={stockItems.length === 0 ? "No stock items found" : "Select stock item"}
-                              displayKey="item_desc"
-                              valueKey="id"
-                              formatOption={(item) => `${item.item_desc || item.name || `Item ${item.id}`} (ID: ${item.id})`}
-                              isLoading={isLoadingApiData}
-                            />
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Supplier
-                            </FormLabel>
-                            <SearchableSelect
-                              value={vesselLineForm.supplier_id}
-                              onChange={(value) => handleVesselLineInputChange("supplier_id", value)}
-                              options={vendors}
-                              placeholder={vendors.length === 0 ? "No suppliers found" : "Select supplier"}
-                              displayKey="name"
-                              valueKey="id"
-                              formatOption={(vendor) => `${vendor.name || vendor.company_name || `Vendor ${vendor.id}`} (ID: ${vendor.id})`}
-                              isLoading={isLoadingApiData}
-                            />
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 4: SO Number and Shipping Instruction */}
-                        <HStack spacing={4}>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              SO Number ID
-                            </FormLabel>
-                            <NumberInput
-                              size="sm"
-                              value={vesselLineForm.so_number_id}
-                              onChange={(value) => handleVesselLineInputChange("so_number_id", parseInt(value) || "")}
-                            >
-                              <NumberInputField placeholder="SO Number ID" borderRadius="md" />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Shipping Instruction ID
-                            </FormLabel>
-                            <NumberInput
-                              size="sm"
-                              value={vesselLineForm.shipping_instruction_id}
-                              onChange={(value) => handleVesselLineInputChange("shipping_instruction_id", parseInt(value) || "")}
-                            >
-                              <NumberInputField placeholder="Shipping Instruction ID" borderRadius="md" />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 5: Delivery Instruction and Origin */}
-                        <HStack spacing={4}>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Delivery Instruction ID
-                            </FormLabel>
-                            <NumberInput
-                              size="sm"
-                              value={vesselLineForm.delivery_instruction_id}
-                              onChange={(value) => handleVesselLineInputChange("delivery_instruction_id", parseInt(value) || "")}
-                            >
-                              <NumberInputField placeholder="Delivery Instruction ID" borderRadius="md" />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Origin (Country)
-                            </FormLabel>
-                            <SearchableSelect
-                              value={vesselLineForm.origin}
-                              onChange={(value) => handleVesselLineInputChange("origin", value)}
-                              options={countries}
-                              placeholder={countries.length === 0 ? "No countries found" : "Select origin country"}
-                              displayKey="name"
-                              valueKey="id"
-                              formatOption={(country) => `${country.name} (${country.code || country.country_code})`}
-                              isLoading={isLoadingApiData}
-                            />
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 6: Via Hub and AP Destination */}
-                        <HStack spacing={4}>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Via Hub
-                            </FormLabel>
-                            <Input
-                              size="sm"
-                              value={vesselLineForm.via_hub}
-                              onChange={(e) => handleVesselLineInputChange("via_hub", e.target.value)}
-                              placeholder="Via Hub"
-                              borderRadius="md"
-                            />
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              AP Destination
-                            </FormLabel>
-                            <Input
-                              size="sm"
-                              value={vesselLineForm.ap_destination}
-                              onChange={(e) => handleVesselLineInputChange("ap_destination", e.target.value)}
-                              placeholder="AP Destination"
-                              borderRadius="md"
-                            />
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 7: Destination and Warehouse ID */}
-                        <HStack spacing={4}>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Destination
-                            </FormLabel>
-                            <SearchableSelect
-                              value={vesselLineForm.destination}
-                              onChange={(value) => handleVesselLineInputChange("destination", value)}
-                              options={destinations}
-                              placeholder={destinations.length === 0 ? "No destinations found" : "Select destination"}
-                              displayKey="name"
-                              valueKey="id"
-                              formatOption={(destination) => `${destination.name} (ID: ${destination.id})`}
-                              isLoading={isLoadingApiData}
-                            />
-                          </FormControl>
-                          <FormControl>
-                            <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                              Warehouse ID
-                            </FormLabel>
-                            <NumberInput
-                              size="sm"
-                              value={vesselLineForm.warehouse_id}
-                              onChange={(value) => handleVesselLineInputChange("warehouse_id", parseInt(value) || "")}
-                            >
-                              <NumberInputField placeholder="Warehouse ID" borderRadius="md" />
-                              <NumberInputStepper>
-                                <NumberIncrementStepper />
-                                <NumberDecrementStepper />
-                              </NumberInputStepper>
-                            </NumberInput>
-                          </FormControl>
-                        </HStack>
-
-                        {/* Row 8: Ready Ex Supplier */}
-                        <FormControl>
-                          <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
-                            Ready Ex Supplier
-                          </FormLabel>
-                          <Input
-                            size="sm"
-                            type="date"
-                            value={vesselLineForm.ready_ex_supplier}
-                            onChange={(e) => handleVesselLineInputChange("ready_ex_supplier", e.target.value)}
-                            borderRadius="md"
-                          />
-                        </FormControl>
-
-                        {/* Action Buttons */}
-                        <HStack spacing={2} justify="flex-end">
-                          {editingLineIndex !== null && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={cancelVesselLineEdit}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            colorScheme="blue"
-                            onClick={editingLineIndex !== null ? updateVesselLine : addVesselLine}
-                          >
-                            {editingLineIndex !== null ? "Update Line" : "Add Line"}
-                          </Button>
-                        </HStack>
-                      </VStack>
-                    </Box>
-                  </VStack>
-                </Collapse>
-              </Box>
             </VStack>
-          </ModalBody>
+
+          </ModalBody >
           <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
             <Button variant="outline" mr={3} onClick={onModalClose}>
               Cancel
@@ -1520,11 +846,55 @@ export default function Vessels() {
               {editingVessel ? "Update Vessel" : "Create Vessel"}
             </Button>
           </ModalFooter>
+        </ModalContent >
+      </Modal >
+
+      {/* File Preview Modal */}
+      <Modal isOpen={!!previewFile} onClose={() => setPreviewFile(null)} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>{previewFile?.filename}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {previewFile &&
+              (previewFile.fileType?.startsWith("image/") ? (
+                <img
+                  src={previewFile.fileUrl}
+                  alt={previewFile.filename}
+                  style={{
+                    maxWidth: "100%",
+                    borderRadius: "8px",
+                    objectFit: "contain",
+                  }}
+                />
+              ) : previewFile.fileType === "application/pdf" ? (
+                <iframe
+                  src={previewFile.fileUrl}
+                  title={previewFile.filename}
+                  width="100%"
+                  height="500px"
+                  style={{ borderRadius: "8px", border: "1px solid #ccc" }}
+                />
+              ) : (
+                <Text>
+                  File preview not available.{" "}
+                  <a
+                    href={previewFile.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#3182CE" }}
+                  >
+                    Download or view externally
+                  </a>
+                  .
+                </Text>
+              ))}
+          </ModalBody>
         </ModalContent>
       </Modal>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
+      < AlertDialog
         isOpen={isDeleteOpen}
         onClose={onDeleteClose}
         leastDestructiveRef={undefined}
@@ -1552,7 +922,9 @@ export default function Vessels() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialogOverlay>
-      </AlertDialog>
-    </Box>
+      </AlertDialog >
+    </Box >
   );
-}
+};
+
+

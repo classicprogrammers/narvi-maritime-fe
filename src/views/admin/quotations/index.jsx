@@ -58,6 +58,7 @@ import {
 } from "react-icons/md";
 import quotationsAPI from "../../../api/quotations";
 import { getCustomersApi } from "../../../api/customer";
+import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import uomAPI from "../../../api/uom";
@@ -165,6 +166,7 @@ const SearchableSelect = ({
 };
 
 export default function Quotations() {
+    const history = useHistory();
     const [quotations, setQuotations] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [vessels, setVessels] = useState([]);
@@ -178,6 +180,11 @@ export default function Quotations() {
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
     const [destinationsList, setDestinationsList] = useState([]);
+    // List filters
+    const [clientFilter, setClientFilter] = useState("");
+    const [vendorFilter, setVendorFilter] = useState("");
+    const [locationFilter, setLocationFilter] = useState("");
+    const [currencyFilter, setCurrencyFilter] = useState("");
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
@@ -185,11 +192,15 @@ export default function Quotations() {
     const [deleteQuotationId, setDeleteQuotationId] = useState(null);
 
     const toast = useToast();
+    const handleEditClick = (id) => {
+        const selected = quotations.find((q) => q.id === id);
+        history.push({ pathname: `/admin/quotations/edit/${id}`, state: { quotation: selected || null } });
+    };
 
     // Function to get only changed fields between two objects
     const getChangedFields = (original, current) => {
         const changed = {};
-        
+
         // Compare main quotation fields
         const mainFields = [
             'partner_id', 'vessel_id', 'est_to_usd', 'est_profit_usd', 'eta', 'eta_date',
@@ -197,18 +208,18 @@ export default function Quotations() {
             'client_remark', 'internal_remark', 'delivery_note', 'done', 'destination_id',
             'usd_roe', 'general_mu', 'caf'
         ];
-        
+
         mainFields.forEach(field => {
             if (original[field] !== current[field]) {
                 changed[field] = current[field];
             }
         });
-        
+
         // Compare quotation lines
         if (JSON.stringify(original.quotation_lines) !== JSON.stringify(current.quotation_lines)) {
             changed.quotation_lines = current.quotation_lines;
         }
-        
+
         return changed;
     };
 
@@ -478,7 +489,7 @@ export default function Quotations() {
             if (editingQuotation) {
                 // Update existing quotation - only send changed fields
                 const changedFields = getChangedFields(originalQuotationData, newQuotation);
-                
+
                 // Ensure quotation_lines only contains vendor_id (not vendor_name)
                 if (changedFields.quotation_lines) {
                     changedFields.quotation_lines = changedFields.quotation_lines.map(line => ({
@@ -489,13 +500,13 @@ export default function Quotations() {
                         vendor_name: undefined
                     }));
                 }
-                
+
                 // Only send changed fields + quotation_id
                 const updateData = {
                     quotation_id: editingQuotation.id,
                     ...changedFields
                 };
-                
+
                 response = await quotationsAPI.updateQuotation(updateData);
             } else {
                 // Create new quotation - send all data but ensure only vendor_id
@@ -509,7 +520,7 @@ export default function Quotations() {
                         vendor_name: undefined
                     }))
                 };
-                
+
                 response = await quotationsAPI.createQuotation(quotationData);
             }
 
@@ -667,6 +678,7 @@ export default function Quotations() {
             free_text: "",
             remark: "",
             pre_text: "",
+            pre_text_auto: false,
             currency_override: "",
             quantity: 1,
             buy_rate_calculation: "",
@@ -683,7 +695,10 @@ export default function Quotations() {
             amended_rate: "",
             rate_to_client: "",
             group_free_text: "",
-            status: "current"
+            status: "current",
+            // New worksheet-like fields
+            client_specific: false,
+            location_id: ""
         };
 
         setNewQuotation(prev => ({
@@ -739,17 +754,7 @@ export default function Quotations() {
                             Quotations
                         </Text>
                     </HStack>
-                    <Button
-                        leftIcon={<Icon as={MdAdd} />}
-                        bg="#1c4a95"
-                        color="white"
-                        size="md"
-                        px="6"
-                        py="3"
-                        borderRadius="md"
-                        _hover={{ bg: "#173f7c" }}
-                        onClick={handleNewQuotation}
-                    >
+                    <Button leftIcon={<Icon as={MdAdd} />} bg="#1c4a95" color="white" size="md" px="6" py="3" borderRadius="md" _hover={{ bg: "#173f7c" }} onClick={() => history.push('/admin/quotations/edit')}>
                         New Quotation
                     </Button>
                 </Flex>
@@ -757,64 +762,77 @@ export default function Quotations() {
                 {/* Quotations List */}
                 <Box bg="white" borderRadius="lg" boxShadow="sm" mx="25px" mb="6">
                     <Box p="6">
+                        {/* Filters Row */}
+                        <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} mb={4} alignItems="end">
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Client</Text>
+                                <SearchableSelect
+                                    value={clientFilter}
+                                    onChange={(value) => setClientFilter(value)}
+                                    options={customers}
+                                    placeholder="Select client"
+                                    displayKey="name"
+                                    valueKey="id"
+                                    formatOption={(option) => option.name}
+                                />
+                            </Box>
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Vendor</Text>
+                                <SearchableSelect
+                                    value={vendorFilter}
+                                    onChange={(value) => setVendorFilter(value)}
+                                    options={agents}
+                                    placeholder="Select vendor"
+                                    displayKey="name"
+                                    valueKey="id"
+                                    formatOption={(option) => option.name}
+                                />
+                            </Box>
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Location</Text>
+                                <SearchableSelect
+                                    value={locationFilter}
+                                    onChange={(value) => setLocationFilter(value)}
+                                    options={destinationsList}
+                                    placeholder="Select location"
+                                    displayKey="name"
+                                    valueKey="id"
+                                    formatOption={(option) => option.name}
+                                />
+                            </Box>
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Currency</Text>
+                                <SearchableSelect
+                                    value={currencyFilter}
+                                    onChange={(value) => setCurrencyFilter(value)}
+                                    options={currenciesList}
+                                    placeholder="Select currency"
+                                    displayKey="name"
+                                    valueKey="id"
+                                    formatOption={(option) => option.name}
+                                />
+                            </Box>
+                            {(clientFilter || vendorFilter || locationFilter || currencyFilter) && (
+                                <Button size="sm" variant="outline" onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); }}>Clear</Button>
+                            )}
+                        </Grid>
                         <Box overflowX="auto" borderRadius="lg" border="1px" borderColor="gray.200">
-                            <Table variant="simple" size="sm" minW="1400px" w="100%">
+                            <Table variant="simple" size="sm" minW="1200px" w="100%">
                                 <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
                                     <Tr>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="60px" w="60px">
-                                            ID
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
-                                            Customer
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
-                                            Vessel
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
-                                            ETA
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
-                                            ETA Date
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="110px" w="110px">
-                                            Deadline Date
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
-                                            Deadline Info
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
-                                            OC Number
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="110px" w="110px">
-                                            Est TO (USD)
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
-                                            Est Profit (USD)
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
-                                            Est TO
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
-                                            Est Profit
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
-                                            Destination
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="80px" w="80px">
-                                            USD ROE
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="90px" w="90px">
-                                            General MU
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="60px" w="60px">
-                                            CAF
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
-                                            Status
-                                        </Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="120px" w="120px">
-                                            Quotation Lines
-                                        </Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client Specific</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location ID</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vendor</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Rate Item Name</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Quantity</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Buy Rate</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Cost actual</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Fixed Sale</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Currency</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Rate to client</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Group</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Free text</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Status</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
                                             Actions
                                         </Th>
@@ -822,161 +840,65 @@ export default function Quotations() {
                                 </Thead>
                                 <Tbody>
                                     {quotations.length > 0 ? (
-                                        quotations.map((quotation, index) => (
-                                            <Tr
-                                                key={quotation.id}
-                                                bg={index % 2 === 0 ? "white" : "gray.50"}
-                                                _hover={{
-                                                    bg: "linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)",
-                                                    transform: "translateY(-1px)",
-                                                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                                                    transition: "all 0.2s ease"
-                                                }}
-                                                borderBottom="1px"
-                                                borderColor="gray.200"
-                                                transition="all 0.2s ease"
-                                            >
-                                                <Td py="14px" px="12px" minW="60px" w="60px">
-                                                    <Text color={textColor} fontSize="sm" fontWeight="600" textAlign="center">
-                                                        {quotation.id}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="120px" w="120px">
-                                                    <Text color={textColor} fontSize="sm" fontWeight="500" noOfLines={1}>
-                                                        {customers.find(c => c.id === quotation.partner_id)?.name || 'N/A'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="100px" w="100px">
-                                                    <Text color={textColor} fontSize="sm" fontWeight="500" noOfLines={1}>
-                                                        {vessels.find(v => v.id === quotation.vessel_id)?.name || 'N/A'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="80px" w="80px">
-                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
-                                                        {quotation.eta || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="100px" w="100px">
-                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
-                                                        {quotation.eta_date || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="110px" w="110px">
-                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
-                                                        {quotation.deadline_date || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="120px" w="120px">
-                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
-                                                        {quotation.deadline_info || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="100px" w="100px">
-                                                    <Text color={textColor} fontSize="sm" noOfLines={1}>
-                                                        {quotation.oc_number || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="110px" w="110px">
-                                                    <Text color={textColor} fontSize="sm" fontWeight="500" textAlign="right">
-                                                        {quotation.est_to_usd ? `$${Number(quotation.est_to_usd).toLocaleString()}` : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="120px" w="120px">
-                                                    <Text color={textColor} fontSize="sm" fontWeight="500" textAlign="right">
-                                                        {quotation.est_profit_usd ? `$${Number(quotation.est_profit_usd).toLocaleString()}` : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="80px" w="80px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="right">
-                                                        {quotation.estimated_to ? Number(quotation.estimated_to).toLocaleString() : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="90px" w="90px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="right">
-                                                        {quotation.estimated_profit ? Number(quotation.estimated_profit).toLocaleString() : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="90px" w="90px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="center">
-                                                        {quotation.destination || '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="80px" w="80px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="right">
-                                                        {quotation.usd_roe ? Number(quotation.usd_roe).toFixed(2) : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="90px" w="90px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="right">
-                                                        {quotation.general_mu ? Number(quotation.general_mu).toFixed(2) : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="60px" w="60px">
-                                                    <Text color={textColor} fontSize="sm" textAlign="right">
-                                                        {quotation.caf ? Number(quotation.caf).toFixed(2) : '-'}
-                                                    </Text>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="100px" w="100px">
-                                                    <Badge
-                                                        colorScheme={quotation.done === 'active' ? 'green' : 'gray'}
-                                                        variant="subtle"
-                                                        fontSize="xs"
-                                                        px="8px"
-                                                        py="2px"
-                                                        borderRadius="full"
-                                                    >
-                                                        {quotation.done === 'active' ? 'Active' : quotation.done === 'inactive' ? 'Inactive' : quotation.done || 'active'}
-                                                    </Badge>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="120px" w="120px">
-                                                    <VStack spacing={1} align="center">
-                                                        <Badge
-                                                            colorScheme="blue"
-                                                            variant="subtle"
-                                                            fontSize="xs"
-                                                            px="8px"
-                                                            py="2px"
-                                                            borderRadius="full"
-                                                        >
-                                                            {(quotation.quotation_line_ids || quotation.quotation_lines) && Array.isArray(quotation.quotation_line_ids || quotation.quotation_lines)
-                                                                ? `${(quotation.quotation_line_ids || quotation.quotation_lines).length} line${(quotation.quotation_line_ids || quotation.quotation_lines).length !== 1 ? 's' : ''}`
-                                                                : '0 lines'
-                                                            }
-                                                        </Badge>
-                                                        {(quotation.quotation_line_ids || quotation.quotation_lines) && (quotation.quotation_line_ids || quotation.quotation_lines).length > 0 && (
-                                                            <Text fontSize="xs" color="gray.500" noOfLines={1}>
-                                                                {(quotation.quotation_line_ids || quotation.quotation_lines)[0].name || 'N/A'}
-                                                                {(quotation.quotation_line_ids || quotation.quotation_lines).length > 1 && ` +${(quotation.quotation_line_ids || quotation.quotation_lines).length - 1} more`}
-                                                            </Text>
-                                                        )}
-                                                    </VStack>
-                                                </Td>
-                                                <Td py="14px" px="12px" minW="100px" w="100px">
-                                                    <HStack spacing={1} justify="center">
-                                                        <IconButton
-                                                            icon={<Icon as={MdEdit} />}
-                                                            size="sm"
-                                                            colorScheme="blue"
-                                                            variant="ghost"
-                                                            aria-label="Edit quotation"
-                                                            onClick={() => handleEditQuotation(quotation)}
-                                                            _hover={{ bg: "blue.100", transform: "scale(1.1)" }}
-                                                            transition="all 0.2s ease"
-                                                        />
-                                                        <IconButton
-                                                            icon={<Icon as={MdDelete} />}
-                                                            size="sm"
-                                                            colorScheme="red"
-                                                            variant="ghost"
-                                                            aria-label="Delete quotation"
-                                                            onClick={() => handleDeleteQuotation(quotation)}
-                                                            _hover={{ bg: "red.100", transform: "scale(1.1)" }}
-                                                            transition="all 0.2s ease"
-                                                        />
-                                                    </HStack>
-                                                </Td>
-                                            </Tr>
-                                        ))
+                                        quotations
+                                            .filter((q) => {
+                                                const matchClient = clientFilter ? q.partner_id === clientFilter : true;
+                                                const lines = q.quotation_line_ids || q.quotation_lines || [];
+                                                const matchVendor = vendorFilter ? lines.some((l) => l.vendor_id === vendorFilter) : true;
+                                                const matchLocation = locationFilter ? lines.some((l) => (l.location_id || l.location) === locationFilter) : true;
+                                                const matchCurrency = currencyFilter ? lines.some((l) => (l.sale_currency || l.currency_override) === currencyFilter) : true;
+                                                return matchClient && matchVendor && matchLocation && matchCurrency;
+                                            })
+                                            .map((quotation, index) => (
+                                                <Tr
+                                                    key={quotation.id}
+                                                    bg={index % 2 === 0 ? "white" : "gray.50"}
+                                                    _hover={{
+                                                        bg: "linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)",
+                                                        transform: "translateY(-1px)",
+                                                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                                        transition: "all 0.2s ease"
+                                                    }}
+                                                    borderBottom="1px"
+                                                    borderColor="gray.200"
+                                                    transition="all 0.2s ease"
+                                                >
+                                                    {(() => {
+                                                        const line = (quotation.quotation_line_ids || quotation.quotation_lines || [])[0] || {}; return (
+                                                            <>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.client_specific ? 'Yes' : 'No'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{destinationsList.find(d => d.id === (line.location_id || line.location))?.name || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{agents.find(a => a.id === line.vendor_id)?.name || line.vendor_id || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{rateItems.find(r => r.id === line.item_name)?.name || line.name || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.quantity ?? '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.buy_rate_calculation ?? '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.cost_actual ?? '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.fixed ? 'Yes' : 'No'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{currenciesList.find(c => c.id === (line.sale_currency || line.currency_override))?.name || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.rate_to_client ?? '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.group_free_text || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.free_text || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Badge colorScheme={line.status === 'current' ? 'green' : 'gray'} variant="subtle" fontSize="xs" px="8px" py="2px" borderRadius="full">{line.status || '-'}</Badge></Td>
+                                                            </>
+                                                        )
+                                                    })()}
+                                                    <Td py="14px" px="12px" minW="100px" w="100px">
+                                                        <HStack spacing={1} justify="center">
+                                                            <IconButton icon={<Icon as={MdEdit} />} size="sm" colorScheme="blue" variant="ghost" aria-label="Edit quotation" onClick={() => handleEditClick(quotation.id)} _hover={{ bg: "blue.100", transform: "scale(1.1)" }} transition="all 0.2s ease" />
+                                                            <IconButton
+                                                                icon={<Icon as={MdDelete} />}
+                                                                size="sm"
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                aria-label="Delete quotation"
+                                                                onClick={() => handleDeleteQuotation(quotation)}
+                                                                _hover={{ bg: "red.100", transform: "scale(1.1)" }}
+                                                                transition="all 0.2s ease"
+                                                            />
+                                                        </HStack>
+                                                    </Td>
+                                                </Tr>
+                                            ))
                                     ) : (
                                         <Tr>
                                             <Td colSpan={18} py="60px" textAlign="center">
@@ -1021,12 +943,12 @@ export default function Quotations() {
                             {/* Left Column */}
                             <VStack spacing="4" align="stretch">
                                 <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Customer</FormLabel>
+                                    <FormLabel fontSize="sm" color={textColor}>Client</FormLabel>
                                     <SearchableSelect
                                         value={newQuotation.partner_id}
                                         onChange={(value) => handleInputChange('partner_id', value)}
                                         options={customers}
-                                        placeholder="Select customer"
+                                        placeholder="Select client"
                                         displayKey="name"
                                         valueKey="id"
                                         formatOption={(option) => option.name}
@@ -1455,7 +1377,37 @@ export default function Quotations() {
                                                 />
                                             </Flex>
 
-                                            <Grid templateColumns="repeat(3, 1fr)" gap="4">
+                                            <Grid templateColumns="repeat(5, 1fr)" gap="4">
+                                                {/* Client Specific */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Client Specific</FormLabel>
+                                                    <Select
+                                                        size="sm"
+                                                        value={line.client_specific ? 'true' : 'false'}
+                                                        onChange={(e) => updateQuotationLine(index, 'client_specific', e.target.value === 'true')}
+                                                    >
+                                                        <option value={'false'}>No</option>
+                                                        <option value={'true'}>Yes</option>
+                                                    </Select>
+                                                </FormControl>
+                                                {/* Location ID */}
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Location ID</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.location_id}
+                                                        onChange={(e) => updateQuotationLine(index, 'location_id', e.target.value)}
+                                                        placeholder="Enter location id"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
                                                 {/* Rate Item Selection */}
                                                 <FormControl>
                                                     <FormLabel fontSize="sm" color={textColor}>Rate Item</FormLabel>
@@ -1898,6 +1850,50 @@ export default function Quotations() {
                                                         value={line.group_free_text}
                                                         onChange={(e) => updateQuotationLine(index, 'group_free_text', e.target.value)}
                                                         placeholder="Enter group free text"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                            </Grid>
+
+                                            {/* Pre-text controls row */}
+                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Pre-text Mode</FormLabel>
+                                                    <Select
+                                                        size="sm"
+                                                        value={line.pre_text_auto ? 'auto' : 'custom'}
+                                                        onChange={(e) => {
+                                                            const auto = e.target.value === 'auto';
+                                                            updateQuotationLine(index, 'pre_text_auto', auto);
+                                                            if (auto) updateQuotationLine(index, 'pre_text', line.name || '');
+                                                        }}
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        borderRadius="md"
+                                                        _focus={{
+                                                            borderColor: "#1c4a95",
+                                                            boxShadow: "0 0 0 1px #1c4a95",
+                                                            bg: "#f0f4ff"
+                                                        }}
+                                                    >
+                                                        <option value={'auto'}>Use Rate Item Name</option>
+                                                        <option value={'custom'}>Custom</option>
+                                                    </Select>
+                                                </FormControl>
+                                                <FormControl>
+                                                    <FormLabel fontSize="sm" color={textColor}>Pre-text</FormLabel>
+                                                    <Input
+                                                        size="sm"
+                                                        value={line.pre_text}
+                                                        onChange={(e) => updateQuotationLine(index, 'pre_text', e.target.value)}
+                                                        placeholder="Enter pre text"
                                                         border="1px"
                                                         borderColor="gray.300"
                                                         borderRadius="md"

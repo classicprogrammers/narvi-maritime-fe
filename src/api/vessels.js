@@ -1,141 +1,120 @@
-import api from "./axios";
+import axios from './axios';
 
-const vesselsAPI = {
-  // Get all vessels
-  getVessels: async () => {
-    try {
-      const response = await api.get("/api/vessels");
-      
-      // Check if response has error status (JSON-RPC format)
-      if (response.data.result && response.data.result.status === 'error') {
-        throw new Error(response.data.result.message || 'Failed to fetch vessels');
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error("Failed to fetch vessels:", error);
-      throw error;
-    }
-  },
-
-  // Get vessel by ID
-  getVesselById: async (id) => {
-    try {
-      const response = await api.get(`/api/vessels/${id}`);
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching vessel by ID:", error);
-      throw error;
-    }
-  },
-
-  // Create new vessel
-  createVessel: async (vesselData) => {
-    try {
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let currentUserId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          currentUserId = user.id;
-        } catch (parseError) {
-          console.warn("Failed to parse user data from localStorage:", parseError);
-        }
-      }
-
-      // Add current_user to vessel data
-      const payload = {
-        ...vesselData,
-        current_user: currentUserId,
-      };
-
-      const response = await api.post("/api/vessel/create", payload);
-      
-      // Check if response has error status (JSON-RPC format)
-      if (response.data.result && response.data.result.status === 'error') {
-        throw new Error(response.data.result.message || 'Failed to create vessel');
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error("Error creating vessel:", error);
-      throw error;
-    }
-  },
-
-  // Update vessel
-  updateVessel: async (id, vesselData) => {
-    try {
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let currentUserId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          currentUserId = user.id;
-        } catch (parseError) {
-          console.warn("Failed to parse user data from localStorage:", parseError);
-        }
-      }
-
-      // Add vessel_id and current_user to vessel data
-      const payload = {
-        vessel_id: id,
-        ...vesselData,
-        current_user: currentUserId,
-      };
-
-      const response = await api.post("/api/vessel/update", payload);
-      
-      // Check if response has error status (JSON-RPC format)
-      if (response.data.result && response.data.result.status === 'error') {
-        throw new Error(response.data.result.message || 'Failed to update vessel');
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error("Error updating vessel:", error);
-      throw error;
-    }
-  },
-
-  // Delete vessel
-  deleteVessel: async (id) => {
-    try {
-      // Get user ID from localStorage
-      const userData = localStorage.getItem("user");
-      let currentUserId = null;
-
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          currentUserId = user.id;
-        } catch (parseError) {
-          console.warn("Failed to parse user data from localStorage:", parseError);
-        }
-      }
-
-      const payload = {
-        vessel_id: id,
-        current_user: currentUserId,
-      };
-
-      const response = await api.post("/api/vessel/delete", payload);
-      
-      // Check if response has error status (JSON-RPC format)
-      if (response.data.result && response.data.result.status === 'error') {
-        throw new Error(response.data.result.message || 'Failed to delete vessel');
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error("Error deleting vessel:", error);
-      throw error;
-    }
-  },
+// Helper to read current user id from localStorage
+const getCurrentUserId = () => {
+  try {
+    const userData = localStorage.getItem('user');
+    if (!userData) return null;
+    const user = JSON.parse(userData);
+    return user?.id ?? null;
+  } catch (_e) {
+    return null;
+  }
 };
 
-export default vesselsAPI;
+/**
+ * Get all vessels
+ * @returns {Promise<Object>} - The API response
+ */
+export const getVessels = async () => {
+  try {
+    const response = await axios.get('/api/vessels');
+    return {
+      success: true,
+      result: response.data,
+      vessels: response.data.vessels || [],
+      message: response.data.message || 'Vessels retrieved successfully',
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Create a new vessel
+ * @param {Object} vesselData - The vessel data
+ * @param {number} vesselData.current_user - The current user ID
+ * @param {string} vesselData.name - The vessel name
+ * @param {number} vesselData.client_id - The client ID
+ * @param {Array} [vesselData.attachments] - Optional attachments
+ * @returns {Promise<Object>} - The API response
+ */
+export const createVessel = async (vesselData) => {
+  try {
+    const payload = {
+      current_user: getCurrentUserId(),
+      name: vesselData.name,
+      client_id: vesselData.client_id,
+    };
+
+    // Add attachments if provided
+    if (vesselData.attachments && vesselData.attachments.length > 0) {
+      payload.attachments = vesselData.attachments;
+    }
+
+    const response = await axios.post('/api/vessel/create', payload);
+    return { result: response.data };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Update an existing vessel
+ * @param {number} id - The vessel ID
+ * @param {Object} vesselData - The vessel data
+ * @param {number} vesselData.current_user - The current user ID
+ * @param {string} vesselData.name - The vessel name
+ * @param {number} vesselData.client_id - The client ID
+ * @param {Array} [vesselData.attachments] - Optional attachments
+ * @returns {Promise<Object>} - The API response
+ */
+export const updateVessel = async (idOrData, maybeData) => {
+  try {
+    // Support both signatures: (id, data) or (data with vessel_id)
+    const vesselId = typeof idOrData === 'object' ? idOrData?.vessel_id : idOrData;
+    const vesselData = typeof idOrData === 'object' ? idOrData : (maybeData || {});
+
+    const payload = {
+      vessel_id: vesselId,
+      current_user: getCurrentUserId(),
+      name: vesselData.name,
+      client_id: vesselData.client_id,
+    };
+
+    // Add attachments if provided
+    if (vesselData.attachments && vesselData.attachments.length > 0) {
+      payload.attachments = vesselData.attachments;
+    }
+
+    const response = await axios.post(`/api/vessel/update`, payload);
+    return { result: response.data };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Delete a vessel
+ * @param {number} id - The vessel ID
+ * @param {number} current_user - The current user ID
+ * @returns {Promise<Object>} - The API response
+ */
+export const deleteVessel = async (id) => {
+  try {
+    const response = await axios.post(`/api/vessel/delete`, {
+      vessel_id: id,
+      current_user: getCurrentUserId(),
+    });
+    return { result: response.data };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export default {
+  getVessels,
+  createVessel,
+  updateVessel,
+  deleteVessel,
+};

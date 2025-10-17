@@ -38,6 +38,7 @@ import VendorRegistration from "views/admin/vendor-registration";
 // Quotations Imports
 import Quotations from "views/admin/quotations";
 import RateList from "views/admin/quotations/rate-list";
+import QuotationEditor from "views/admin/quotations/QuotationEditor";
 import ShippingOrder from "views/admin/shipping-order";
 
 // Stock List Import
@@ -271,6 +272,12 @@ const routes = [
 
 // Hidden routes that should not appear in sidebar but are available for routing
 const hiddenRoutes = [
+  {
+    name: "Quotation Editor",
+    layout: "/admin",
+    path: "/quotations/edit/:id?",
+    component: QuotationEditor,
+  },
   {
     name: "Shipping Instruction Detail",
     layout: "/admin",
