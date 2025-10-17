@@ -836,7 +836,7 @@ export default function Quotations() {
                                 <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
                                     <Tr>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client Specific</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">QT ID</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Quotation ID</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vendor</Th>
