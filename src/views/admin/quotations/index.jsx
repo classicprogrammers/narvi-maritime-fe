@@ -812,16 +812,24 @@ export default function Quotations() {
                                     formatOption={(option) => option.name}
                                 />
                             </Box>
-                            {(clientFilter || vendorFilter || locationFilter || currencyFilter) && (
-                                <Button size="sm" variant="outline" onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); }}>Clear</Button>
-                            )}
+                            <Box gridColumn={{ base: '1 / -1', md: '1 / -1' }} display="flex" justifyContent="flex-end">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); }}
+                                    isDisabled={!clientFilter && !vendorFilter && !locationFilter && !currencyFilter}
+                                >
+                                    Clear filters
+                                </Button>
+                            </Box>
                         </Grid>
                         <Box overflowX="auto" borderRadius="lg" border="1px" borderColor="gray.200">
                             <Table variant="simple" size="sm" minW="1200px" w="100%">
                                 <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
                                     <Tr>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client Specific</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location ID</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vendor</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Rate Item Name</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Quantity</Th>
@@ -864,9 +872,12 @@ export default function Quotations() {
                                                     transition="all 0.2s ease"
                                                 >
                                                     {(() => {
-                                                        const line = (quotation.quotation_line_ids || quotation.quotation_lines || [])[0] || {}; return (
+                                                        const line = (quotation.quotation_line_ids || quotation.quotation_lines || [])[0] || {};
+                                                        const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
+                                                        return (
                                                             <>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{line.client_specific ? 'Yes' : 'No'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{destinationsList.find(d => d.id === (line.location_id || line.location))?.name || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{agents.find(a => a.id === line.vendor_id)?.name || line.vendor_id || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{rateItems.find(r => r.id === line.item_name)?.name || line.name || '-'}</Text></Td>
