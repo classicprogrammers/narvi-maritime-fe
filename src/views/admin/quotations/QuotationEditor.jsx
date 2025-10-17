@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useHistory, useLocation } from "react-router-dom";
 import {
-    Box, Flex, Grid, VStack, HStack, Text, Button, ButtonGroup, Input, Textarea, Icon,
+    Box, Flex, Grid, VStack, HStack, Text, Button, ButtonGroup, Input, Textarea, Icon, Badge,
     NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
     FormControl, FormLabel, Select, useToast,
     Table, Thead, Tbody, Tr, Th, Td, useColorModeValue
@@ -82,6 +82,56 @@ export default function QuotationEditor() {
         ...prev,
         quotation_lines: prev.quotation_lines.map((l, i) => i === idx ? { ...l, [field]: value } : l)
     }));
+
+    // Manage which line is expanded in Form view
+    const [expandedLineIdx, setExpandedLineIdx] = useState(0);
+
+    const createEmptyLine = () => ({
+        client_specific: false,
+        location_id: "",
+        vendor_id: "",
+        item_name: "",
+        rate_remark: "",
+        free_text: "",
+        pre_text: "",
+        pre_text_auto: false,
+        currency_override: "",
+        quantity: 1,
+        buy_rate_calculation: "",
+        cost_actual: "",
+        fixed: false,
+        sale_currency: "",
+        cost_sum: "",
+        roe: "",
+        cost_usd: "",
+        mu_percent: "",
+        mu_amount: "",
+        amended_rate: "",
+        rate_to_client: "",
+        group_free_text: "",
+        status: "current",
+    });
+
+    const isLineComplete = (line) => {
+        const hasLocation = Boolean(line.location_id);
+        const hasVendor = Boolean(line.vendor_id);
+        const hasItem = Boolean(line.item_name);
+        const hasQty = Number(line.quantity) > 0;
+        const hasBuyRate = line.buy_rate_calculation !== "" && line.buy_rate_calculation !== null && line.buy_rate_calculation !== undefined;
+        return hasLocation && hasVendor && hasItem && hasQty && hasBuyRate;
+    };
+
+    const canAddNewLine = () => {
+        if (!form.quotation_lines || form.quotation_lines.length === 0) return false;
+        const last = form.quotation_lines[form.quotation_lines.length - 1];
+        return isLineComplete(last);
+    };
+
+    const addNewLine = () => {
+        setForm(prev => ({ ...prev, quotation_lines: [...prev.quotation_lines, createEmptyLine()] }));
+        // Collapse previous rows and expand the newly added one
+        setExpandedLineIdx(form.quotation_lines.length);
+    };
 
     const loadMaster = useCallback(async () => {
         setCustomersLoading(true);
@@ -208,9 +258,9 @@ export default function QuotationEditor() {
     const save = async () => {
         try {
             setIsSaving(true);
-            // Execute request and inspect payload even on HTTP 200
+            // Execute request and inspect payload even on HTTP 200 (send all fields)
             const payload = isEdit
-                ? await quotationsAPI.updateQuotation({ id: Number(id), ...form })
+                ? await quotationsAPI.updateQuotation({ quotation_id: Number(id), ...form })
                 : await quotationsAPI.createQuotation(form);
 
             const resultNode = (payload && payload.result) || payload;
@@ -354,143 +404,192 @@ export default function QuotationEditor() {
                     </Grid>
                 </Box>
 
+                {viewMode === 'form' && (
+                <HStack pt={2} style={{ justifyContent: 'end' }}>
+                    {!canAddNewLine() && (
+                        <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Rate Item, Quantity and Buy Rate to add a new line</Text>
+                    )}
+                    <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                        Add another line
+                    </Button>
+                </HStack>
+                )}
+
                 {/* Lines worksheet - Form view */}
                 {viewMode === 'form' && (
                     <Box bg="white" p={{ base: 4, md: 6 }} borderRadius="md" boxShadow="sm">
                         {form.quotation_lines.map((line, idx) => (
-                            <VStack key={idx} spacing={5} align="stretch">
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Client Specific</FormLabel>
-                                        <Select size="sm" value={line.client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'client_specific', e.target.value === 'true')}>
-                                            <option value={'false'}>No</option>
-                                            <option value={'true'}>Yes</option>
-                                        </Select>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Location</FormLabel>
-                                        <SearchableSelect value={line.location_id} onChange={(v) => updateLine(idx, 'location_id', v)} options={destinations} isLoading={destinationsLoading} placeholder="Select location" />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Vendor</FormLabel>
-                                        <SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={agents} isLoading={agentsLoading} placeholder="Select vendor" />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Rate Item Name</FormLabel>
-                                        <SearchableSelect value={line.item_name} onChange={(v) => updateLine(idx, 'item_name', v)} options={rateItems} isLoading={rateItemsLoading} placeholder="Rate item" />
-                                    </FormControl>
-                                </Grid>
+                            <VStack key={idx} spacing={5} align="stretch" border="1px" borderColor="gray.200" borderRadius="md" p={4} bg={idx === expandedLineIdx ? 'white' : 'gray.50'} mb={4}>
+                                {/* Collapsed summary row */}
+                                {idx !== expandedLineIdx && (
+                                    <Grid templateColumns={{ base: '1fr', lg: 'repeat(8, 1fr)' }} gap={3} alignItems="center">
+                                        <Text fontSize="sm"><b>Location:</b> {destinations.find(d => d.id === (line.location_id || ''))?.name || line.location_id || '-'}</Text>
+                                        <Text fontSize="sm"><b>Vendor:</b> {agents.find(a => a.id === (line.vendor_id || ''))?.name || line.vendor_id || '-'}</Text>
+                                        <Text fontSize="sm"><b>Rate Item:</b> {rateItems.find(r => r.id === (line.item_name || ''))?.name || line.item_name || '-'}</Text>
+                                        <Text fontSize="sm" isTruncated><b>Qty:</b> {line.quantity ?? '-'}</Text>
+                                        <Text fontSize="sm" isTruncated><b>Buy Rate:</b> {line.buy_rate_calculation ?? '-'}</Text>
+                                        <Text fontSize="sm"><b>Client Specific:</b> {line.client_specific ? 'Yes' : 'No'}</Text>
+                                        <HStack>
+                                            <Text fontSize="sm"><b>Status:</b></Text>
+                                            <Badge colorScheme={line.status === 'current' ? 'green' : 'gray'}>{line.status || '-'}</Badge>
+                                        </HStack>
+                                        <HStack justify="flex-end">
+                                            <Button size="xs" onClick={() => setExpandedLineIdx(idx)} colorScheme="blue">Edit</Button>
+                                        </HStack>
+                                    </Grid>
+                                )}
 
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Rate Remark</FormLabel>
-                                        <Input size="sm" value={line.rate_remark} onChange={(e) => updateLine(idx, 'rate_remark', e.target.value)} />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Free text</FormLabel>
-                                        <Input size="sm" value={line.free_text} onChange={(e) => updateLine(idx, 'free_text', e.target.value)} />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Pre-text</FormLabel>
-                                        <Input size="sm" value={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.value)} />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Use Rate Item Name</FormLabel>
-                                        <Select size="sm" value={line.pre_text_auto ? 'true' : 'false'} onChange={(e) => {
-                                            const auto = e.target.value === 'true';
-                                            updateLine(idx, 'pre_text_auto', auto);
-                                            if (auto) {
-                                                const item = rateItems.find(r => r.id === line.item_name);
-                                                updateLine(idx, 'pre_text', item ? (item.name || '') : '');
-                                            }
-                                        }}>
-                                            <option value={'false'}>No</option>
-                                            <option value={'true'}>Yes</option>
-                                        </Select>
-                                    </FormControl>
-                                </Grid>
+                                {/* Expanded editable form for this line */}
+                                {idx === expandedLineIdx && (
+                                    <>
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Client Specific</FormLabel>
+                                                <Select size="sm" value={line.client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'client_specific', e.target.value === 'true')}>
+                                                    <option value={'false'}>No</option>
+                                                    <option value={'true'}>Yes</option>
+                                                </Select>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Location</FormLabel>
+                                                <SearchableSelect value={line.location_id} onChange={(v) => updateLine(idx, 'location_id', v)} options={destinations} isLoading={destinationsLoading} placeholder="Select location" />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Vendor</FormLabel>
+                                                <SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={agents} isLoading={agentsLoading} placeholder="Select vendor" />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Rate Item Name</FormLabel>
+                                                <SearchableSelect value={line.item_name} onChange={(v) => updateLine(idx, 'item_name', v)} options={rateItems} isLoading={rateItemsLoading} placeholder="Rate item" />
+                                            </FormControl>
+                                        </Grid>
 
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Currency override</FormLabel>
-                                        <SearchableSelect value={line.currency_override} onChange={(v) => updateLine(idx, 'currency_override', v)} options={currencies} isLoading={currenciesLoading} placeholder="Currency" />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Quantity</FormLabel>
-                                        <NumberInput size="sm" value={line.quantity} onChange={(v) => updateLine(idx, 'quantity', v)} min={1}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Buy Rate</FormLabel>
-                                        <NumberInput size="sm" value={line.buy_rate_calculation} onChange={(v) => updateLine(idx, 'buy_rate_calculation', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Calculation</FormLabel>
-                                        <Input size="sm" isReadOnly value={line.buy_rate_calculation ? 'Rate valid' : 'Rate invalid'} />
-                                    </FormControl>
-                                </Grid>
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Rate Remark</FormLabel>
+                                                <Input size="sm" value={line.rate_remark} onChange={(e) => updateLine(idx, 'rate_remark', e.target.value)} />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Free text</FormLabel>
+                                                <Input size="sm" value={line.free_text} onChange={(e) => updateLine(idx, 'free_text', e.target.value)} />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Pre-text</FormLabel>
+                                                <Input size="sm" value={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.value)} />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Use Rate Item Name</FormLabel>
+                                                <Select size="sm" value={line.pre_text_auto ? 'true' : 'false'} onChange={(e) => {
+                                                    const auto = e.target.value === 'true';
+                                                    updateLine(idx, 'pre_text_auto', auto);
+                                                    if (auto) {
+                                                        const item = rateItems.find(r => r.id === line.item_name);
+                                                        updateLine(idx, 'pre_text', item ? (item.name || '') : '');
+                                                    }
+                                                }}>
+                                                    <option value={'false'}>No</option>
+                                                    <option value={'true'}>Yes</option>
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
 
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Cost actual</FormLabel>
-                                        <NumberInput size="sm" value={line.cost_actual} onChange={(v) => updateLine(idx, 'cost_actual', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Fixed Sale</FormLabel>
-                                        <Select size="sm" value={line.fixed} onChange={(e) => updateLine(idx, 'fixed', e.target.value === 'true')}><option value={false}>No</option><option value={true}>Yes</option></Select>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Currency</FormLabel>
-                                        <SearchableSelect value={line.sale_currency} onChange={(v) => updateLine(idx, 'sale_currency', v)} options={currencies} isLoading={currenciesLoading} placeholder="Currency" />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Cost sum</FormLabel>
-                                        <NumberInput size="sm" value={line.cost_sum} onChange={(v) => updateLine(idx, 'cost_sum', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                </Grid>
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Currency override</FormLabel>
+                                                <SearchableSelect value={line.currency_override} onChange={(v) => updateLine(idx, 'currency_override', v)} options={currencies} isLoading={currenciesLoading} placeholder="Currency" />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Quantity</FormLabel>
+                                                <NumberInput size="sm" value={line.quantity} onChange={(v) => updateLine(idx, 'quantity', v)} min={1}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Buy Rate</FormLabel>
+                                                <NumberInput size="sm" value={line.buy_rate_calculation} onChange={(v) => updateLine(idx, 'buy_rate_calculation', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Calculation</FormLabel>
+                                                <Input size="sm" isReadOnly value={line.buy_rate_calculation ? 'Rate valid' : 'Rate invalid'} />
+                                            </FormControl>
+                                        </Grid>
 
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">ROE</FormLabel>
-                                        <NumberInput size="sm" value={line.roe} onChange={(v) => updateLine(idx, 'roe', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Cost USD</FormLabel>
-                                        <NumberInput size="sm" value={line.cost_usd} onChange={(v) => updateLine(idx, 'cost_usd', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">MU %</FormLabel>
-                                        <NumberInput size="sm" value={line.mu_percent} onChange={(v) => updateLine(idx, 'mu_percent', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">MU Amount</FormLabel>
-                                        <NumberInput size="sm" value={line.mu_amount} onChange={(v) => updateLine(idx, 'mu_amount', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                </Grid>
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Cost actual</FormLabel>
+                                                <NumberInput size="sm" value={line.cost_actual} onChange={(v) => updateLine(idx, 'cost_actual', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Fixed Sale</FormLabel>
+                                                <Select size="sm" value={line.fixed} onChange={(e) => updateLine(idx, 'fixed', e.target.value === 'true')}><option value={false}>No</option><option value={true}>Yes</option></Select>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Currency</FormLabel>
+                                                <SearchableSelect value={line.sale_currency} onChange={(v) => updateLine(idx, 'sale_currency', v)} options={currencies} isLoading={currenciesLoading} placeholder="Currency" />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Cost sum</FormLabel>
+                                                <NumberInput size="sm" value={line.cost_sum} onChange={(v) => updateLine(idx, 'cost_sum', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                        </Grid>
 
-                                <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Amended Rate</FormLabel>
-                                        <NumberInput size="sm" value={line.amended_rate} onChange={(v) => updateLine(idx, 'amended_rate', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Rate to Client</FormLabel>
-                                        <NumberInput size="sm" value={line.rate_to_client} onChange={(v) => updateLine(idx, 'rate_to_client', v)}><NumberInputField placeholder="0" /></NumberInput>
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Group Free Text</FormLabel>
-                                        <Input size="sm" value={line.group_free_text} onChange={(e) => updateLine(idx, 'group_free_text', e.target.value)} />
-                                    </FormControl>
-                                    <FormControl>
-                                        <FormLabel fontSize="sm">Status</FormLabel>
-                                        <Select size="sm" value={line.status} onChange={(e) => updateLine(idx, 'status', e.target.value)}>
-                                            <option value="current">Quote Current</option>
-                                            <option value="inactive">Inactive</option>
-                                        </Select>
-                                    </FormControl>
-                                </Grid>
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">ROE</FormLabel>
+                                                <NumberInput size="sm" value={line.roe} onChange={(v) => updateLine(idx, 'roe', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Cost USD</FormLabel>
+                                                <NumberInput size="sm" value={line.cost_usd} onChange={(v) => updateLine(idx, 'cost_usd', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">MU %</FormLabel>
+                                                <NumberInput size="sm" value={line.mu_percent} onChange={(v) => updateLine(idx, 'mu_percent', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">MU Amount</FormLabel>
+                                                <NumberInput size="sm" value={line.mu_amount} onChange={(v) => updateLine(idx, 'mu_amount', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                        </Grid>
+
+                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Amended Rate</FormLabel>
+                                                <NumberInput size="sm" value={line.amended_rate} onChange={(v) => updateLine(idx, 'amended_rate', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Rate to Client</FormLabel>
+                                                <NumberInput size="sm" value={line.rate_to_client} onChange={(v) => updateLine(idx, 'rate_to_client', v)}><NumberInputField placeholder="0" /></NumberInput>
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Group Free Text</FormLabel>
+                                                <Input size="sm" value={line.group_free_text} onChange={(e) => updateLine(idx, 'group_free_text', e.target.value)} />
+                                            </FormControl>
+                                            <FormControl>
+                                                <FormLabel fontSize="sm">Status</FormLabel>
+                                                <Select size="sm" value={line.status} onChange={(e) => updateLine(idx, 'status', e.target.value)}>
+                                                    <option value="current">Quote Current</option>
+                                                    <option value="inactive">Inactive</option>
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        <HStack justify="flex-end">
+                                            <Button size="xs" variant="outline" onClick={() => setExpandedLineIdx(-1)}>Collapse</Button>
+                                        </HStack>
+                                    </>
+                                )}
                             </VStack>
                         ))}
                     </Box>
+                )}
+
+                {viewMode === 'table' && (
+                <HStack pt={3} style={{ justifyContent: 'end' }}>
+                    {!canAddNewLine() && (
+                        <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Rate Item, Quantity and Buy Rate to add a new line</Text>
+                    )}
+                    <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                        Add another line
+                    </Button>
+                </HStack>
                 )}
 
                 {/* Lines worksheet - Table view */}
@@ -523,7 +622,7 @@ export default function QuotationEditor() {
                         >
                             <Thead>
                                 <Tr>
-                                    <Th>Client Specific</Th>
+                                    {/* <Th>Client Specific</Th> */}
                                     <Th>Location ID</Th>
                                     <Th>Vendor</Th>
                                     <Th>Rate Item Name</Th>
@@ -596,5 +695,6 @@ export default function QuotationEditor() {
         </Box>
     );
 }
+
 
 

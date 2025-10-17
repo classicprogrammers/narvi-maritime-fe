@@ -185,6 +185,7 @@ export default function Quotations() {
     const [vendorFilter, setVendorFilter] = useState("");
     const [locationFilter, setLocationFilter] = useState("");
     const [currencyFilter, setCurrencyFilter] = useState("");
+    const [idFilter, setIdFilter] = useState("");
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
@@ -777,6 +778,13 @@ export default function Quotations() {
                                 />
                             </Box>
                             <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Quotation ID</Text>
+                                <NumberInput size="sm" value={idFilter || ''} onChange={(v) => setIdFilter(v)} min={0}>
+                                    <NumberInputField placeholder="ID" />
+                                    <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
+                                </NumberInput>
+                            </Box>
+                            <Box minW="260px">
                                 <Text fontSize="sm" mb={1}>Filter by Vendor</Text>
                                 <SearchableSelect
                                     value={vendorFilter}
@@ -816,8 +824,8 @@ export default function Quotations() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); }}
-                                    isDisabled={!clientFilter && !vendorFilter && !locationFilter && !currencyFilter}
+                                    onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); setIdFilter(""); }}
+                                    isDisabled={!clientFilter && !vendorFilter && !locationFilter && !currencyFilter && !idFilter}
                                 >
                                     Clear filters
                                 </Button>
@@ -828,6 +836,7 @@ export default function Quotations() {
                                 <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
                                     <Tr>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client Specific</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">QT ID</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vendor</Th>
@@ -851,11 +860,12 @@ export default function Quotations() {
                                         quotations
                                             .filter((q) => {
                                                 const matchClient = clientFilter ? q.partner_id === clientFilter : true;
+                                                const matchId = idFilter ? String(q.id) === String(idFilter) : true;
                                                 const lines = q.quotation_line_ids || q.quotation_lines || [];
                                                 const matchVendor = vendorFilter ? lines.some((l) => l.vendor_id === vendorFilter) : true;
                                                 const matchLocation = locationFilter ? lines.some((l) => (l.location_id || l.location) === locationFilter) : true;
                                                 const matchCurrency = currencyFilter ? lines.some((l) => (l.sale_currency || l.currency_override) === currencyFilter) : true;
-                                                return matchClient && matchVendor && matchLocation && matchCurrency;
+                                                return matchClient && matchId && matchVendor && matchLocation && matchCurrency;
                                             })
                                             .map((quotation, index) => (
                                                 <Tr
@@ -877,6 +887,7 @@ export default function Quotations() {
                                                         return (
                                                             <>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{line.client_specific ? 'Yes' : 'No'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.id}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{destinationsList.find(d => d.id === (line.location_id || line.location))?.name || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{agents.find(a => a.id === line.vendor_id)?.name || line.vendor_id || '-'}</Text></Td>
@@ -896,6 +907,7 @@ export default function Quotations() {
                                                     <Td py="14px" px="12px" minW="100px" w="100px">
                                                         <HStack spacing={1} justify="center">
                                                             <IconButton icon={<Icon as={MdEdit} />} size="sm" colorScheme="blue" variant="ghost" aria-label="Edit quotation" onClick={() => handleEditClick(quotation.id)} _hover={{ bg: "blue.100", transform: "scale(1.1)" }} transition="all 0.2s ease" />
+                                                            <Button size="xs" variant="outline" onClick={() => history.push({ pathname: `/admin/quotations/detail/${quotation.id}`, state: { quotation } })}>View</Button>
                                                             <IconButton
                                                                 icon={<Icon as={MdDelete} />}
                                                                 size="sm"
