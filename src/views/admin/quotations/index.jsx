@@ -183,10 +183,20 @@ export default function Quotations() {
     const [locationsList, setLocationsList] = useState([]);
     // List filters
     const [clientFilter, setClientFilter] = useState("");
-    const [vendorFilter, setVendorFilter] = useState("");
-    const [locationFilter, setLocationFilter] = useState("");
+    const [vesselFilter, setVesselFilter] = useState("");
     const [currencyFilter, setCurrencyFilter] = useState("");
+    const [soIdFilter, setSoIdFilter] = useState("");
+    const [validityDateFilter, setValidityDateFilter] = useState("");
     const [idFilter, setIdFilter] = useState("");
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [clientFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter, idFilter]);
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
@@ -765,7 +775,7 @@ export default function Quotations() {
                 <Box bg="white" borderRadius="lg" boxShadow="sm" mx="25px" mb="6">
                     <Box p="6">
                         {/* Filters Row */}
-                        <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} mb={4} alignItems="end">
+                        <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} mb={4} alignItems="end">
                             <Box minW="260px">
                                 <Text fontSize="sm" mb={1}>Filter by Quotation ID</Text>
                                 <NumberInput size="sm" value={idFilter || ''} onChange={(v) => setIdFilter(v)} min={0}>
@@ -786,24 +796,12 @@ export default function Quotations() {
                                 />
                             </Box>
                             <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Vendor</Text>
+                                <Text fontSize="sm" mb={1}>Filter by Vessel</Text>
                                 <SearchableSelect
-                                    value={vendorFilter}
-                                    onChange={(value) => setVendorFilter(value)}
-                                    options={agents}
-                                    placeholder="Select vendor"
-                                    displayKey="name"
-                                    valueKey="id"
-                                    formatOption={(option) => option.name}
-                                />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Location</Text>
-                                <SearchableSelect
-                                    value={locationFilter}
-                                    onChange={(value) => setLocationFilter(value)}
-                                    options={locationsList}
-                                    placeholder="Select location"
+                                    value={vesselFilter}
+                                    onChange={(value) => setVesselFilter(value)}
+                                    options={vessels}
+                                    placeholder="Select vessel"
                                     displayKey="name"
                                     valueKey="id"
                                     formatOption={(option) => option.name}
@@ -821,12 +819,30 @@ export default function Quotations() {
                                     formatOption={(option) => option.name}
                                 />
                             </Box>
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by SO ID</Text>
+                                <Input
+                                    size="sm"
+                                    value={soIdFilter}
+                                    onChange={(e) => setSoIdFilter(e.target.value)}
+                                    placeholder="Enter SO ID"
+                                />
+                            </Box>
+                            <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Validity Date</Text>
+                                <Input
+                                    size="sm"
+                                    type="date"
+                                    value={validityDateFilter}
+                                    onChange={(e) => setValidityDateFilter(e.target.value)}
+                                />
+                            </Box>
                             <Box gridColumn={{ base: '1 / -1', md: '1 / -1' }} display="flex" justifyContent="flex-end">
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => { setClientFilter(""); setVendorFilter(""); setLocationFilter(""); setCurrencyFilter(""); setIdFilter(""); }}
-                                    isDisabled={!clientFilter && !vendorFilter && !locationFilter && !currencyFilter && !idFilter}
+                                    onClick={() => { setClientFilter(""); setVesselFilter(""); setCurrencyFilter(""); setSoIdFilter(""); setValidityDateFilter(""); setIdFilter(""); }}
+                                    isDisabled={!clientFilter && !vesselFilter && !currencyFilter && !soIdFilter && !validityDateFilter && !idFilter}
                                 >
                                     Clear filters
                                 </Button>
@@ -836,39 +852,41 @@ export default function Quotations() {
                             <Table variant="simple" size="sm" minW="1200px" w="100%">
                                 <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
                                     <Tr>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client Specific</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Quotation ID</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">QT Number</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Location</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vendor</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Rate Item Name</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Quantity</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Buy Rate</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Cost actual</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Fixed Sale</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vessel</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">SO ID</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Job Description</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Validity Date</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Currency</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Rate to client</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Group</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Free text</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Status</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>USD ROE</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>General MU</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>CAF</Th>
+                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Line Items</Th>
                                         <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
                                             Actions
                                         </Th>
                                     </Tr>
                                 </Thead>
                                 <Tbody>
-                                    {quotations.length > 0 ? (
-                                        quotations
-                                            .filter((q) => {
-                                                const matchClient = clientFilter ? q.partner_id === clientFilter : true;
-                                                const matchId = idFilter ? String(q.id) === String(idFilter) : true;
-                                                const lines = q.quotation_line_ids || q.quotation_lines || [];
-                                                const matchVendor = vendorFilter ? lines.some((l) => l.vendor_id === vendorFilter) : true;
-                                                const matchLocation = locationFilter ? lines.some((l) => l.location === locationFilter) : true;
-                                                const matchCurrency = currencyFilter ? lines.some((l) => (l.sale_currency || l.currency_override) === currencyFilter) : true;
-                                                return matchClient && matchId && matchVendor && matchLocation && matchCurrency;
-                                            })
-                                            .map((quotation, index) => (
+                                    {(() => {
+                                        const filteredQuotations = quotations.filter((q) => {
+                                            const matchClient = clientFilter ? q.partner_id === clientFilter : true;
+                                            const matchId = idFilter ? String(q.id) === String(idFilter) : true;
+                                            const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
+                                            const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
+                                            const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
+                                            const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
+                                            return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
+                                        });
+
+                                        const totalPages = Math.ceil(filteredQuotations.length / itemsPerPage);
+                                        const startIndex = (currentPage - 1) * itemsPerPage;
+                                        const endIndex = startIndex + itemsPerPage;
+                                        const paginatedQuotations = filteredQuotations.slice(startIndex, endIndex);
+
+                                        return filteredQuotations.length > 0 ? (
+                                            paginatedQuotations.map((quotation, index) => (
                                                 <Tr
                                                     key={quotation.id}
                                                     bg={index % 2 === 0 ? "white" : "gray.50"}
@@ -883,37 +901,27 @@ export default function Quotations() {
                                                     transition="all 0.2s ease"
                                                 >
                                                     {(() => {
-                                                        const line = (quotation.quotation_line_ids || quotation.quotation_lines || [])[0] || {};
                                                         const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
+                                                        const vesselName = vessels.find(v => v.id === quotation.vessel_id)?.name || '-';
+                                                        const currencyName = currenciesList.find(c => c.id === quotation.sale_currency)?.name || '-';
+                                                        const lineItemsCount = (quotation.quotation_line_ids || quotation.quotation_lines || []).length;
                                                         return (
                                                             <>
-                                                                <Td py="14px" px="12px">
-                                                                    <Badge
-                                                                        colorScheme={line.is_client_specific ? 'green' : 'gray'}
-                                                                        variant="solid"
-                                                                        borderRadius="full"
-                                                                        px={3}
-                                                                        py={1}
-                                                                        fontSize="xs"
-                                                                        fontWeight="bold"
-                                                                    >
-                                                                        {line.is_client_specific ? 'Yes' : 'No'}
+                                                                <Td py="14px" px="12px"><Text fontSize="sm" fontWeight="bold">{quotation.id}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{vesselName}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.oc_number || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm" isTruncated maxW="200px">{quotation.client_remark || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.eta_date || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{currencyName}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.usd_roe || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.general_mu || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.caf || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px" isNumeric>
+                                                                    <Badge colorScheme="blue" variant="solid" fontSize="xs" px="8px" py="2px" borderRadius="full">
+                                                                        {lineItemsCount} {lineItemsCount === 1 ? 'line' : 'lines'}
                                                                     </Badge>
                                                                 </Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.id}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{locationsList.find(d => String(d.id) === String(line.location))?.name || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{agents.find(a => a.id === line.vendor_id)?.name || line.vendor_id || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{rateItems.find(r => r.id === line.item_name)?.name || line.name || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.quantity ?? '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.buy_rate_calculation ?? '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.cost_actual ?? '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.fixed ? 'Yes' : 'No'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{currenciesList.find(c => c.id === (line.sale_currency || line.currency_override))?.name || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.rate_to_client ?? '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.group_free_text || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.free_text || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Badge colorScheme={line.status === 'current' ? 'green' : 'gray'} variant="subtle" fontSize="xs" px="8px" py="2px" borderRadius="full">{line.status || '-'}</Badge></Td>
                                                             </>
                                                         )
                                                     })()}
@@ -935,33 +943,95 @@ export default function Quotations() {
                                                     </Td>
                                                 </Tr>
                                             ))
-                                    ) : (
-                                        <Tr>
-                                            <Td colSpan={18} py="60px" textAlign="center">
-                                                <VStack spacing={4}>
-                                                    <Box
-                                                        p="6"
-                                                        borderRadius="full"
-                                                        bg="linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)"
-                                                        boxShadow="0 4px 12px rgba(0,0,0,0.1)"
-                                                    >
-                                                        <Icon as={MdSettings} color="blue.400" boxSize={16} />
-                                                    </Box>
-                                                    <VStack spacing={2}>
-                                                        <Text color="gray.600" fontSize="lg" fontWeight="600">
-                                                            No quotations available
-                                                        </Text>
-                                                        <Text color="gray.500" fontSize="sm" textAlign="center" maxW="300px">
-                                                            Get started by creating your first quotation. Click the "New Quotation" button above.
-                                                        </Text>
+                                        ) : (
+                                            <Tr>
+                                                <Td colSpan={12} py="60px" textAlign="center">
+                                                    <VStack spacing={4}>
+                                                        <Box
+                                                            p="6"
+                                                            borderRadius="full"
+                                                            bg="linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)"
+                                                            boxShadow="0 4px 12px rgba(0,0,0,0.1)"
+                                                        >
+                                                            <Icon as={MdSettings} color="blue.400" boxSize={16} />
+                                                        </Box>
+                                                        <VStack spacing={2}>
+                                                            <Text color="gray.600" fontSize="lg" fontWeight="600">
+                                                                No items found
+                                                            </Text>
+                                                            <Text color="gray.500" fontSize="sm" textAlign="center" maxW="300px">
+                                                                {quotations.length === 0
+                                                                    ? "Get started by creating your first quotation. Click the 'New Quotation' button above."
+                                                                    : "No quotations match your current filters. Try adjusting your search criteria."
+                                                                }
+                                                            </Text>
+                                                        </VStack>
                                                     </VStack>
-                                                </VStack>
-                                            </Td>
-                                        </Tr>
-                                    )}
+                                                </Td>
+                                            </Tr>
+                                        );
+                                    })()}
                                 </Tbody>
                             </Table>
                         </Box>
+
+                        {/* Pagination */}
+                        {(() => {
+                            const filteredQuotations = quotations.filter((q) => {
+                                const matchClient = clientFilter ? q.partner_id === clientFilter : true;
+                                const matchId = idFilter ? String(q.id) === String(idFilter) : true;
+                                const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
+                                const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
+                                const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
+                                const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
+                                return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
+                            });
+
+                            const totalPages = Math.ceil(filteredQuotations.length / itemsPerPage);
+
+                            if (totalPages <= 1) return null;
+
+                            return (
+                                <Flex justify="center" align="center" mt={6} gap={2}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        isDisabled={currentPage === 1}
+                                    >
+                                        Previous
+                                    </Button>
+
+                                    <HStack spacing={1}>
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                            <Button
+                                                key={page}
+                                                size="sm"
+                                                variant={currentPage === page ? "solid" : "outline"}
+                                                colorScheme={currentPage === page ? "blue" : "gray"}
+                                                onClick={() => setCurrentPage(page)}
+                                                minW="40px"
+                                            >
+                                                {page}
+                                            </Button>
+                                        ))}
+                                    </HStack>
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        isDisabled={currentPage === totalPages}
+                                    >
+                                        Next
+                                    </Button>
+
+                                    <Text fontSize="sm" color="gray.600" ml={4}>
+                                        Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredQuotations.length)} of {filteredQuotations.length} quotations
+                                    </Text>
+                                </Flex>
+                            );
+                        })()}
                     </Box>
                 </Box>
             </VStack>

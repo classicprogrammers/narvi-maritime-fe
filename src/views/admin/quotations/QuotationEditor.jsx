@@ -52,7 +52,7 @@ export default function QuotationEditor() {
         eta_date: "",
         name: "",
         quotation_lines: Array.from({ length: 1 }).map(() => ({
-            client_specific: false,
+            is_client_specific: false,
             location: "",
             vendor_id: "",
             item_name: "",
@@ -87,7 +87,7 @@ export default function QuotationEditor() {
     const [expandedLineIdx, setExpandedLineIdx] = useState(0);
 
     const createEmptyLine = () => ({
-        client_specific: false,
+        is_client_specific: false,
         location: "",
         vendor_id: "",
         item_name: "",
@@ -179,7 +179,7 @@ export default function QuotationEditor() {
         };
         const rawLines = (q.quotation_lines || q.quotation_line_ids || []);
         const lines = Array.isArray(rawLines) ? rawLines.map((l) => ({
-            client_specific: !!(l && l.client_specific),
+            is_client_specific: !!(l && l.is_client_specific),
             location: (l && (l.location_id || l.location)) || "",
             vendor_id: (l && l.vendor_id) || "",
             vendor_rate: (l && l.vendor_rate) || "",
@@ -207,7 +207,7 @@ export default function QuotationEditor() {
             status: (l && l.status) || "current",
         })) : [];
         const defaultLine = {
-            client_specific: false,
+            is_client_specific: false,
             location: "",
             vendor_id: "",
             item_name: "",
@@ -429,7 +429,7 @@ export default function QuotationEditor() {
                                         <Text fontSize="sm"><b>Rate Item:</b> {rateItems.find(r => r.id === (line.item_name || ''))?.name || line.item_name || '-'}</Text>
                                         <Text fontSize="sm" isTruncated><b>Qty:</b> {line.quantity ?? '-'}</Text>
                                         <Text fontSize="sm" isTruncated><b>Buy Rate:</b> {line.buy_rate_calculation ?? '-'}</Text>
-                                        <Text fontSize="sm"><b>Client Specific:</b> {line.client_specific ? 'Yes' : 'No'}</Text>
+                                        <Text fontSize="sm"><b>Client Specific:</b> {line.is_client_specific ? 'Yes' : 'No'}</Text>
                                         <HStack>
                                             <Text fontSize="sm"><b>Status:</b></Text>
                                             <Badge colorScheme={line.status === 'current' ? 'green' : 'gray'}>{line.status || '-'}</Badge>
@@ -446,7 +446,7 @@ export default function QuotationEditor() {
                                         <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Client Specific</FormLabel>
-                                                <Select size="sm" value={line.client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'client_specific', e.target.value === 'true')}>
+                                                <Select size="sm" value={line.is_client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'is_client_specific', e.target.value === 'true')}>
                                                     <option value={'false'}>No</option>
                                                     <option value={'true'}>Yes</option>
                                                 </Select>
@@ -634,7 +634,7 @@ export default function QuotationEditor() {
                                 {form.quotation_lines.map((line, idx) => (
                                     <Tr key={idx}>
                                         <Td>
-                                            <Select size="sm" value={line.client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'client_specific', e.target.value === 'true')}>
+                                            <Select size="sm" value={line.is_client_specific ? 'true' : 'false'} onChange={(e) => updateLine(idx, 'is_client_specific', e.target.value === 'true')}>
                                                 <option value={'false'}>No</option>
                                                 <option value={'true'}>Yes</option>
                                             </Select>
