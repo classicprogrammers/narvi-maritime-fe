@@ -48,6 +48,7 @@ import {
     PopoverBody,
     List,
     ListItem,
+    Switch,
 } from "@chakra-ui/react";
 import {
     MdAdd,
@@ -63,7 +64,7 @@ import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import uomAPI from "../../../api/uom";
 import currenciesAPI from "../../../api/currencies";
-import destinationsAPI from "../../../api/destinations";
+import locationsAPI from "../../../api/locations";
 
 const SearchableSelect = ({
     value,
@@ -179,7 +180,7 @@ export default function Quotations() {
     const [agents, setAgents] = useState([]);
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
-    const [destinationsList, setDestinationsList] = useState([]);
+    const [locationsList, setLocationsList] = useState([]);
     // List filters
     const [clientFilter, setClientFilter] = useState("");
     const [vendorFilter, setVendorFilter] = useState("");
@@ -357,19 +358,19 @@ export default function Quotations() {
                 setCurrenciesList([]);
             }
 
-            // Fetch destination_ids
-            const destinationsResponse = await destinationsAPI.getDestinations();
-            if (destinationsResponse.destinations && Array.isArray(destinationsResponse.destinations)) {
-                setDestinationsList(destinationsResponse.destinations);
+            // Fetch locations
+            const locationsResponse = await locationsAPI.getLocations();
+            if (locationsResponse.locations && Array.isArray(locationsResponse.locations)) {
+                setLocationsList(locationsResponse.locations);
             } else {
-                setDestinationsList([]);
+                setLocationsList([]);
             }
 
         } catch (error) {
             console.error("Failed to fetch master data:", error);
             setUomList([]);
             setCurrenciesList([]);
-            setDestinationsList([]);
+            setLocationsList([]);
         }
     }, []);
 
@@ -698,7 +699,7 @@ export default function Quotations() {
             group_free_text: "",
             status: "current",
             // New worksheet-like fields
-            client_specific: false,
+            is_client_specific: false,
             location_id: ""
         };
 
@@ -766,6 +767,13 @@ export default function Quotations() {
                         {/* Filters Row */}
                         <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4} mb={4} alignItems="end">
                             <Box minW="260px">
+                                <Text fontSize="sm" mb={1}>Filter by Quotation ID</Text>
+                                <NumberInput size="sm" value={idFilter || ''} onChange={(v) => setIdFilter(v)} min={0}>
+                                    <NumberInputField placeholder="ID" />
+                                    <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
+                                </NumberInput>
+                            </Box>
+                            <Box minW="260px">
                                 <Text fontSize="sm" mb={1}>Filter by Client</Text>
                                 <SearchableSelect
                                     value={clientFilter}
@@ -776,13 +784,6 @@ export default function Quotations() {
                                     valueKey="id"
                                     formatOption={(option) => option.name}
                                 />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Quotation ID</Text>
-                                <NumberInput size="sm" value={idFilter || ''} onChange={(v) => setIdFilter(v)} min={0}>
-                                    <NumberInputField placeholder="ID" />
-                                    <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
-                                </NumberInput>
                             </Box>
                             <Box minW="260px">
                                 <Text fontSize="sm" mb={1}>Filter by Vendor</Text>
@@ -801,7 +802,7 @@ export default function Quotations() {
                                 <SearchableSelect
                                     value={locationFilter}
                                     onChange={(value) => setLocationFilter(value)}
-                                    options={destinationsList}
+                                    options={locationsList}
                                     placeholder="Select location"
                                     displayKey="name"
                                     valueKey="id"
@@ -863,7 +864,7 @@ export default function Quotations() {
                                                 const matchId = idFilter ? String(q.id) === String(idFilter) : true;
                                                 const lines = q.quotation_line_ids || q.quotation_lines || [];
                                                 const matchVendor = vendorFilter ? lines.some((l) => l.vendor_id === vendorFilter) : true;
-                                                const matchLocation = locationFilter ? lines.some((l) => (l.location_id || l.location) === locationFilter) : true;
+                                                const matchLocation = locationFilter ? lines.some((l) => l.location === locationFilter) : true;
                                                 const matchCurrency = currencyFilter ? lines.some((l) => (l.sale_currency || l.currency_override) === currencyFilter) : true;
                                                 return matchClient && matchId && matchVendor && matchLocation && matchCurrency;
                                             })
@@ -886,10 +887,22 @@ export default function Quotations() {
                                                         const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
                                                         return (
                                                             <>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{line.client_specific ? 'Yes' : 'No'}</Text></Td>
+                                                                <Td py="14px" px="12px">
+                                                                    <Badge
+                                                                        colorScheme={line.is_client_specific ? 'green' : 'gray'}
+                                                                        variant="solid"
+                                                                        borderRadius="full"
+                                                                        px={3}
+                                                                        py={1}
+                                                                        fontSize="xs"
+                                                                        fontWeight="bold"
+                                                                    >
+                                                                        {line.is_client_specific ? 'Yes' : 'No'}
+                                                                    </Badge>
+                                                                </Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{quotation.id}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{destinationsList.find(d => d.id === (line.location_id || line.location))?.name || '-'}</Text></Td>
+                                                                <Td py="14px" px="12px"><Text fontSize="sm">{locationsList.find(d => String(d.id) === String(line.location))?.name || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{agents.find(a => a.id === line.vendor_id)?.name || line.vendor_id || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm">{rateItems.find(r => r.id === line.item_name)?.name || line.name || '-'}</Text></Td>
                                                                 <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{line.quantity ?? '-'}</Text></Td>
@@ -1256,7 +1269,7 @@ export default function Quotations() {
                                     <SearchableSelect
                                         value={newQuotation.destination}
                                         onChange={(value) => handleInputChange('destination', value)}
-                                        options={destinationsList}
+                                        options={locationsList}
                                         valueKey="id"
                                         labelKey="name"
                                         placeholder="Select destination"
@@ -1404,14 +1417,17 @@ export default function Quotations() {
                                                 {/* Client Specific */}
                                                 <FormControl>
                                                     <FormLabel fontSize="sm" color={textColor}>Client Specific</FormLabel>
-                                                    <Select
-                                                        size="sm"
-                                                        value={line.client_specific ? 'true' : 'false'}
-                                                        onChange={(e) => updateQuotationLine(index, 'client_specific', e.target.value === 'true')}
-                                                    >
-                                                        <option value={'false'}>No</option>
-                                                        <option value={'true'}>Yes</option>
-                                                    </Select>
+                                                    <HStack spacing={3}>
+                                                        <Switch
+                                                            isChecked={line.is_client_specific}
+                                                            onChange={(e) => updateQuotationLine(index, 'is_client_specific', e.target.checked)}
+                                                            colorScheme="green"
+                                                            size="md"
+                                                        />
+                                                        <Text fontSize="sm" color={textColor}>
+                                                            {line.is_client_specific ? 'Yes' : 'No'}
+                                                        </Text>
+                                                    </HStack>
                                                 </FormControl>
                                                 {/* Location ID */}
                                                 <FormControl>

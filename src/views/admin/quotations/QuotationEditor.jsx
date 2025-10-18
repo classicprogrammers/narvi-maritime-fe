@@ -3,7 +3,7 @@ import { useParams, useHistory, useLocation } from "react-router-dom";
 import {
     Box, Flex, Grid, VStack, HStack, Text, Button, ButtonGroup, Input, Textarea, Icon, Badge,
     NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
-    FormControl, FormLabel, Select, useToast,
+    FormControl, FormLabel, Select, useToast, InputGroup, InputLeftElement,
     Table, Thead, Tbody, Tr, Th, Td, useColorModeValue
 } from "@chakra-ui/react";
 import { MdViewModule, MdTableChart } from "react-icons/md";
@@ -49,16 +49,16 @@ export default function QuotationEditor() {
         usd_roe: "",
         general_mu: "",
         caf: "",
+        eta_date: "",
         name: "",
         quotation_lines: Array.from({ length: 1 }).map(() => ({
             client_specific: false,
-            location_id: "",
+            location: "",
             vendor_id: "",
             item_name: "",
             rate_remark: "",
             free_text: "",
             pre_text: "",
-            pre_text_auto: false,
             currency_override: "",
             quantity: 1,
             buy_rate_calculation: "",
@@ -88,13 +88,12 @@ export default function QuotationEditor() {
 
     const createEmptyLine = () => ({
         client_specific: false,
-        location_id: "",
+        location: "",
         vendor_id: "",
         item_name: "",
         rate_remark: "",
         free_text: "",
         pre_text: "",
-        pre_text_auto: false,
         currency_override: "",
         quantity: 1,
         buy_rate_calculation: "",
@@ -113,12 +112,11 @@ export default function QuotationEditor() {
     });
 
     const isLineComplete = (line) => {
-        const hasLocation = Boolean(line.location_id);
+        const hasLocation = Boolean(line.location);
         const hasVendor = Boolean(line.vendor_id);
-        const hasItem = Boolean(line.item_name);
         const hasQty = Number(line.quantity) > 0;
         const hasBuyRate = line.buy_rate_calculation !== "" && line.buy_rate_calculation !== null && line.buy_rate_calculation !== undefined;
-        return hasLocation && hasVendor && hasItem && hasQty && hasBuyRate;
+        return hasLocation && hasVendor && hasQty && hasBuyRate;
     };
 
     const canAddNewLine = () => {
@@ -176,12 +174,13 @@ export default function QuotationEditor() {
             usd_roe: q.usd_roe || "",
             general_mu: q.general_mu || "",
             caf: q.caf || "",
+            eta_date: q.eta_date || "",
             name: q.name || ""
         };
         const rawLines = (q.quotation_lines || q.quotation_line_ids || []);
         const lines = Array.isArray(rawLines) ? rawLines.map((l) => ({
             client_specific: !!(l && l.client_specific),
-            location_id: (l && (l.location_id || l.location)) || "",
+            location: (l && (l.location_id || l.location)) || "",
             vendor_id: (l && l.vendor_id) || "",
             vendor_rate: (l && l.vendor_rate) || "",
             item_name: (l && l.item_name) || "",
@@ -189,7 +188,6 @@ export default function QuotationEditor() {
             rate_remark: (l && l.rate_remark) || "",
             free_text: (l && l.free_text) || "",
             pre_text: (l && l.pre_text) || "",
-            pre_text_auto: !!(l && l.pre_text_auto),
             currency_override: (l && l.currency_override) || "",
             quantity: (l && l.quantity) || 0,
             buy_rate_calculation: (l && l.buy_rate_calculation) || 0,
@@ -210,13 +208,12 @@ export default function QuotationEditor() {
         })) : [];
         const defaultLine = {
             client_specific: false,
-            location_id: "",
+            location: "",
             vendor_id: "",
             item_name: "",
             rate_remark: "",
             free_text: "",
             pre_text: "",
-            pre_text_auto: false,
             currency_override: "",
             quantity: 1,
             buy_rate_calculation: "",
@@ -369,6 +366,10 @@ export default function QuotationEditor() {
                                     <FormLabel fontSize="xs" mb={1}>QT Number</FormLabel>
                                     <Input size="sm" value={form.name || ''} onChange={(e) => updateField('name', e.target.value)} placeholder="Auto/Manual" />
                                 </FormControl>
+                                <FormControl>
+                                    <FormLabel fontSize="xs" mb={1}>Validity Date (ETA)</FormLabel>
+                                    <Input size="sm" type="date" value={form.eta_date || ''} onChange={(e) => updateField('eta_date', e.target.value)} />
+                                </FormControl>
                                 <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap={3}>
                                     <FormControl>
                                         <FormLabel fontSize="xs" mb={1}>Currency</FormLabel>
@@ -405,14 +406,14 @@ export default function QuotationEditor() {
                 </Box>
 
                 {viewMode === 'form' && (
-                <HStack pt={2} style={{ justifyContent: 'end' }}>
-                    {!canAddNewLine() && (
-                        <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Rate Item, Quantity and Buy Rate to add a new line</Text>
-                    )}
-                    <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
-                        Add another line
-                    </Button>
-                </HStack>
+                    <HStack pt={2} style={{ justifyContent: 'end' }}>
+                        {!canAddNewLine() && (
+                            <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Quantity and Buy Rate to add a new line</Text>
+                        )}
+                        <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                            Add another line
+                        </Button>
+                    </HStack>
                 )}
 
                 {/* Lines worksheet - Form view */}
@@ -423,7 +424,7 @@ export default function QuotationEditor() {
                                 {/* Collapsed summary row */}
                                 {idx !== expandedLineIdx && (
                                     <Grid templateColumns={{ base: '1fr', lg: 'repeat(8, 1fr)' }} gap={3} alignItems="center">
-                                        <Text fontSize="sm"><b>Location:</b> {destinations.find(d => d.id === (line.location_id || ''))?.name || line.location_id || '-'}</Text>
+                                        <Text fontSize="sm"><b>Location:</b> {destinations.find(d => d.id === (line.location || ''))?.name || line.location || '-'}</Text>
                                         <Text fontSize="sm"><b>Vendor:</b> {agents.find(a => a.id === (line.vendor_id || ''))?.name || line.vendor_id || '-'}</Text>
                                         <Text fontSize="sm"><b>Rate Item:</b> {rateItems.find(r => r.id === (line.item_name || ''))?.name || line.item_name || '-'}</Text>
                                         <Text fontSize="sm" isTruncated><b>Qty:</b> {line.quantity ?? '-'}</Text>
@@ -452,7 +453,7 @@ export default function QuotationEditor() {
                                             </FormControl>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Location</FormLabel>
-                                                <SearchableSelect value={line.location_id} onChange={(v) => updateLine(idx, 'location_id', v)} options={destinations} isLoading={destinationsLoading} placeholder="Select location" />
+                                                <SearchableSelect value={line.location} onChange={(v) => updateLine(idx, 'location', v)} options={destinations} isLoading={destinationsLoading} placeholder="Select location" />
                                             </FormControl>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Vendor</FormLabel>
@@ -476,20 +477,6 @@ export default function QuotationEditor() {
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Pre-text</FormLabel>
                                                 <Input size="sm" value={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.value)} />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Use Rate Item Name</FormLabel>
-                                                <Select size="sm" value={line.pre_text_auto ? 'true' : 'false'} onChange={(e) => {
-                                                    const auto = e.target.value === 'true';
-                                                    updateLine(idx, 'pre_text_auto', auto);
-                                                    if (auto) {
-                                                        const item = rateItems.find(r => r.id === line.item_name);
-                                                        updateLine(idx, 'pre_text', item ? (item.name || '') : '');
-                                                    }
-                                                }}>
-                                                    <option value={'false'}>No</option>
-                                                    <option value={'true'}>Yes</option>
-                                                </Select>
                                             </FormControl>
                                         </Grid>
 
@@ -582,14 +569,14 @@ export default function QuotationEditor() {
                 )}
 
                 {viewMode === 'table' && (
-                <HStack pt={3} style={{ justifyContent: 'end' }}>
-                    {!canAddNewLine() && (
-                        <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Rate Item, Quantity and Buy Rate to add a new line</Text>
-                    )}
-                    <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
-                        Add another line
-                    </Button>
-                </HStack>
+                    <HStack pt={3} style={{ justifyContent: 'end' }}>
+                        {!canAddNewLine() && (
+                            <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Quantity and Buy Rate to add a new line</Text>
+                        )}
+                        <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                            Add another line
+                        </Button>
+                    </HStack>
                 )}
 
                 {/* Lines worksheet - Table view */}
@@ -629,7 +616,6 @@ export default function QuotationEditor() {
                                     <Th>Rate Remark</Th>
                                     <Th>Free text</Th>
                                     <Th>Pre-text</Th>
-                                    <Th>Rate Item Name</Th>
                                     <Th>Currency override</Th>
                                     <Th isNumeric>Quantity</Th>
                                     <Th isNumeric>Buy Rate</Th>
@@ -653,25 +639,12 @@ export default function QuotationEditor() {
                                                 <option value={'true'}>Yes</option>
                                             </Select>
                                         </Td>
-                                        <Td><Input size="sm" w="100%" value={line.location_id} onChange={(e) => updateLine(idx, 'location_id', e.target.value)} placeholder="Location" /></Td>
+                                        <Td><SearchableSelect value={line.location} onChange={(v) => updateLine(idx, 'location', v)} options={destinations} isLoading={destinationsLoading} placeholder="Select location" /></Td>
                                         <Td><SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={agents} placeholder="Select vendor" /></Td>
                                         <Td><SearchableSelect value={line.item_name} onChange={(v) => updateLine(idx, 'item_name', v)} options={rateItems} placeholder="Rate item" /></Td>
                                         <Td><Input size="sm" w="100%" value={line.rate_remark} onChange={(e) => updateLine(idx, 'rate_remark', e.target.value)} /></Td>
                                         <Td><Input size="sm" w="100%" value={line.free_text} onChange={(e) => updateLine(idx, 'free_text', e.target.value)} /></Td>
                                         <Td><Input size="sm" w="100%" value={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.value)} /></Td>
-                                        <Td>
-                                            <Select size="sm" value={line.pre_text_auto ? 'true' : 'false'} onChange={(e) => {
-                                                const auto = e.target.value === 'true';
-                                                updateLine(idx, 'pre_text_auto', auto);
-                                                if (auto) {
-                                                    const item = rateItems.find(r => r.id === line.item_name);
-                                                    updateLine(idx, 'pre_text', item ? (item.name || '') : '');
-                                                }
-                                            }}>
-                                                <option value={'false'}>No</option>
-                                                <option value={'true'}>Yes</option>
-                                            </Select>
-                                        </Td>
                                         <Td><SearchableSelect value={line.currency_override} onChange={(v) => updateLine(idx, 'currency_override', v)} options={currencies} placeholder="Currency" /></Td>
                                         <Td isNumeric><NumberInput size="sm" w="100%" value={line.quantity} onChange={(v) => updateLine(idx, 'quantity', v)} min={1}><NumberInputField /></NumberInput></Td>
                                         <Td isNumeric><NumberInput size="sm" w="100%" value={line.buy_rate_calculation} onChange={(v) => updateLine(idx, 'buy_rate_calculation', v)}><NumberInputField /></NumberInput></Td>
@@ -695,6 +668,3 @@ export default function QuotationEditor() {
         </Box>
     );
 }
-
-
-
