@@ -119,7 +119,7 @@ export const columnsDataAgents = [
   },
   {
     Header: "COUNTRY",
-    accessor: "country_name",
+    accessor: "country_id",
     minWidth: 150,
   },
   {

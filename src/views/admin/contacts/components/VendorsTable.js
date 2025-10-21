@@ -48,6 +48,8 @@ import {
 // Custom components
 import Card from "components/card/Card";
 import { useVendor } from "redux/hooks/useVendor";
+import { useToast } from "@chakra-ui/react";
+import countriesAPI from "../../../../api/countries";
 
 // Assets
 import {
@@ -82,6 +84,7 @@ export default function VendorsTable(props) {
     deleteLoading,
     getVendors,
   } = useVendor();
+  const toast = useToast();
 
   const [itemsPerPage] = useState(10);
   const [newVendor, setNewVendor] = useState({
@@ -97,6 +100,7 @@ export default function VendorsTable(props) {
   const [editingVendor, setEditingVendor] = useState(null);
   const [vendorToDelete, setVendorToDelete] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [countries, setCountries] = useState([]);
 
   const { isOpen, onClose } = useDisclosure();
   const {
@@ -111,6 +115,20 @@ export default function VendorsTable(props) {
   } = useDisclosure();
 
   const cancelRef = useRef();
+
+  // Load countries on component mount
+  React.useEffect(() => {
+    const loadCountries = async () => {
+      try {
+        const countriesData = await countriesAPI.getCountries();
+        const countriesList = countriesData.countries || countriesData || [];
+        setCountries(countriesList);
+      } catch (error) {
+        console.error('Error loading countries:', error);
+      }
+    };
+    loadCountries();
+  }, []);
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
@@ -394,10 +412,36 @@ export default function VendorsTable(props) {
         setVendorToDelete(null);
         // Refresh the vendors list to show updated data
         getVendors();
+
+        // Show success message
+        toast({
+          title: "Agent Deleted",
+          description: `Agent "${vendorToDelete.name}" has been successfully deleted.`,
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
       }
-      // Error handling is done by the API modal system
     } catch (error) {
-      // Error handling is done by the API modal system
+      // Show error message with detailed API error
+      let errorMessage = "Failed to delete agent";
+
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
+      // Handle specific foreign key constraint error
+      if (errorMessage.includes('violates foreign key constraint') && errorMessage.includes('sale_order')) {
+        errorMessage = `Cannot delete agent "${vendorToDelete.name}" because they have existing sales orders. Please remove all related sales orders before deleting this agent.`;
+      }
+
+      toast({
+        title: "Delete Failed",
+        description: errorMessage,
+        status: "error",
+        duration: 8000,
+        isClosable: true,
+      });
     }
   };
 
@@ -857,9 +901,13 @@ export default function VendorsTable(props) {
                             </Text>
                           );
                         } else if (cell.column.Header === "COUNTRY") {
+                          // Find country name by ID
+                          const country = countries.find(c => c.id === cell.value || c.id === parseInt(cell.value));
+                          const countryName = country ? country.name : (cell.value || "-");
+
                           data = (
                             <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
+                              {countryName}
                             </Text>
                           );
                         } else if (cell.column.Header === "WARNINGS") {
