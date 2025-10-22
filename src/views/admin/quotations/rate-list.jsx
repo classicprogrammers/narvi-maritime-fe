@@ -1496,7 +1496,6 @@ export default function RateList() {
                                             border="1px"
                                             borderColor="gray.300"
                                             _hover={{ borderColor: "gray.400" }}
-                                            type="number"
                                         />
                                         <NumberInputStepper>
                                             <NumberIncrementStepper

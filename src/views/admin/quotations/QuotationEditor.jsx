@@ -46,9 +46,9 @@ export default function QuotationEditor() {
         oc_number: "",
         client_remark: "",
         sale_currency: "USD",
-        usd_roe: "20.00",
-        general_mu: "21.00",
-        caf: "1.00",
+        usd_roe: "1.00",
+        general_mu: "25.00",
+        caf: "5.00",
         eta_date: "",
         name: "",
         quotation_lines: Array.from({ length: 1 }).map(() => ({
@@ -58,7 +58,7 @@ export default function QuotationEditor() {
             item_name: "",
             rate_remark: "",
             free_text: "",
-            pre_text: false,
+            pre_text: true,
             currency_override: "",
             quantity: 1,
             buy_rate_calculation: "",
@@ -81,6 +81,8 @@ export default function QuotationEditor() {
             product_remarks: "",
             uom_id: "",
             default_code: "",
+            // Calculated fields
+            qt_rate: "",
         })),
     });
 
@@ -124,12 +126,58 @@ export default function QuotationEditor() {
                 }
             }
 
+            // Auto-calculate line-level values when cost_sum, roe, or mu_percent changes
+            if (field === 'cost_sum' || field === 'roe' || field === 'mu_percent') {
+                const line = newForm.quotation_lines[idx];
+                const costSum = parseFloat(line.cost_sum || 0);
+                const roe = parseFloat(line.roe || form.usd_roe || 1.00);
+                const muPercent = parseFloat(line.mu_percent || form.general_mu || 25.00);
+
+                // Calculate Cost USD = Cost sum / ROE
+                const costUSD = costSum / roe;
+
+                // Calculate MU Amount = Cost USD × MU%
+                const muAmount = (costUSD * muPercent) / 100;
+
+                // Calculate QT Rate = Cost USD + MU Amount
+                const qtRate = costUSD + muAmount;
+
+                // Apply CAF to QT Rate
+                const caf = parseFloat(form.caf || 5.00);
+                let rateToClient = qtRate;
+                if (caf !== 0) {
+                    rateToClient = qtRate * (1 + caf / 100);
+                }
+
+                // Round up if specified
+                if (form.round_up_rate_to_client) {
+                    rateToClient = Math.ceil(rateToClient);
+                }
+
+                newForm.quotation_lines[idx] = {
+                    ...line,
+                    cost_usd: costUSD,
+                    mu_amount: muAmount,
+                    qt_rate: qtRate,
+                    rate_to_client: rateToClient
+                };
+            }
+
             // Clear rate item selection when vendor changes
             if (field === 'vendor_id') {
                 const line = newForm.quotation_lines[idx];
                 newForm.quotation_lines[idx] = {
                     ...line,
                     item_name: "" // Clear the selected rate item when vendor changes
+                };
+            }
+
+            // Clear rate item selection when Client Specific is unchecked
+            if (field === 'is_client_specific' && !value) {
+                const line = newForm.quotation_lines[idx];
+                newForm.quotation_lines[idx] = {
+                    ...line,
+                    item_name: "" // Clear the selected rate item when Client Specific is unchecked
                 };
             }
 
@@ -144,6 +192,7 @@ export default function QuotationEditor() {
                         rate: selectedProduct.rate || "",
                         fixed_rate: selectedProduct.fixed_rate || "",
                         product_remarks: selectedProduct.remarks || "",
+                        rate_remark: selectedProduct.remarks || "", // Prefill rate remark with product remarks
                         uom_id: selectedProduct.uom_id || "",
                         default_code: selectedProduct.default_code || "",
                         buy_rate_calculation: selectedProduct.rate || "", // Set as default buy rate
@@ -153,7 +202,7 @@ export default function QuotationEditor() {
 
             return newForm;
         });
-    }, [rateItems]);
+    }, [rateItems, form.caf, form.general_mu, form.round_up_rate_to_client, form.usd_roe]);
 
     // Manage which line is expanded in Form view
     const [expandedLineIdx, setExpandedLineIdx] = useState(0);
@@ -165,7 +214,7 @@ export default function QuotationEditor() {
         item_name: "",
         rate_remark: "",
         free_text: "",
-        pre_text: false,
+        pre_text: true,
         currency_override: "",
         quantity: 1,
         buy_rate_calculation: "",
@@ -188,6 +237,8 @@ export default function QuotationEditor() {
         product_remarks: "",
         uom_id: "",
         default_code: "",
+        // Calculated fields
+        qt_rate: "",
     }), []);
 
     const isLineComplete = useCallback((line) => {
@@ -251,8 +302,6 @@ export default function QuotationEditor() {
         } finally {
             setCurrenciesLoading(false);
         }
-
-        // Removed destinations load; using countries list for Location
 
         try {
             // Load countries for Location field
@@ -354,6 +403,11 @@ export default function QuotationEditor() {
 
     // Filter rate items based on selected vendor's seller_ids for each quotation line
     const getRateItemOptionsForLine = useCallback((line) => {
+        // Hide rate items until Client Specific checkbox is selected
+        if (!line.is_client_specific) {
+            return [];
+        }
+
         if (!line.vendor_id || !rateItems.length) {
             return rateItems;
         }
@@ -372,17 +426,8 @@ export default function QuotationEditor() {
         return filteredRateItems;
     }, [rateItems]);
 
-    // Get currency name from UOM ID
-    const getCurrencyNameFromUomId = useCallback((uomId) => {
-        if (!uomId || !currencies.length) {
-            return uomId || "";
-        }
 
-        const currency = currencies.find(c => c.id === uomId || c.id === parseInt(uomId));
-        return currency ? currency.name : uomId;
-    }, [currencies]);
-
-    // Status-specific calculations
+    // Status-specific calculations based on Excel sheet logic
     const statusCalculations = useMemo(() => {
         const statuses = ['current', 'pending', 'order', 'toinvoice'];
         const calculations = {};
@@ -390,49 +435,48 @@ export default function QuotationEditor() {
         statuses.forEach(status => {
             const statusLines = form.quotation_lines.filter(line => line.status === status);
 
-            // Calculate total cost based on quantity, buy rate, and cost actual
-            const cost = statusLines.reduce((sum, line) => {
-                const quantity = parseFloat(line.quantity || 0);
-                const buyRate = parseFloat(line.buy_rate_calculation || 0);
-                const costActual = parseFloat(line.cost_actual || 0);
+            // Calculate totals for this status based on Excel sheet logic
+            let totalCostUSD = 0;
+            let totalMUAmount = 0;
+            let totalQTRate = 0;
 
-                // Use cost_actual if available, otherwise calculate from quantity * buy_rate
-                let lineCost = costActual;
-                if (!lineCost && quantity && buyRate) {
-                    lineCost = quantity * buyRate;
-                }
+            statusLines.forEach(line => {
+                const costSum = parseFloat(line.cost_sum || 0);
+                const roe = parseFloat(line.roe || form.usd_roe || 1.00);
+                const muPercent = parseFloat(line.mu_percent || form.general_mu || 25.00);
 
-                // Apply ROE conversion if needed
-                const roe = parseFloat(line.roe || form.usd_roe || 20.00);
-                if (line.sale_currency && line.sale_currency !== 'USD') {
-                    lineCost = lineCost * roe;
-                }
+                // Cost USD = Cost sum / ROE (Excel logic)
+                const costUSD = costSum / roe;
 
-                return sum + lineCost;
-            }, 0);
+                // MU Amount = Cost USD × MU% (Excel logic)
+                const muAmount = (costUSD * muPercent) / 100;
 
-            // Calculate markup using general markup percentage
-            const generalMu = parseFloat(form.general_mu || 21.00);
-            const markup = (cost * generalMu) / 100;
-            let sale = cost + markup;
+                // QT Rate = Cost USD + MU Amount (Excel logic)
+                const qtRate = costUSD + muAmount;
 
-            // Apply CAF if needed
-            const caf = parseFloat(form.caf || 1.00);
-            if (caf !== 1.00) {
-                sale = sale * caf;
+                totalCostUSD += costUSD;
+                totalMUAmount += muAmount;
+                totalQTRate += qtRate;
+            });
+
+            // Apply CAF to the total sale amount
+            const caf = parseFloat(form.caf || 5.00);
+            let finalSale = totalQTRate;
+            if (caf !== 0) {
+                finalSale = totalQTRate * (1 + caf / 100);
             }
 
             // Round up if specified
             if (form.round_up_rate_to_client) {
-                sale = Math.ceil(sale);
+                finalSale = Math.ceil(finalSale);
             }
 
-            const profitRate = sale === 0 ? 0 : ((sale - cost) / sale) * 100;
+            const profitRate = finalSale === 0 ? 0 : ((finalSale - totalCostUSD) / finalSale) * 100;
 
             calculations[status] = {
-                cost: cost.toFixed(2),
-                markup: markup.toFixed(2),
-                sale: sale.toFixed(2),
+                cost: totalCostUSD.toFixed(2),
+                markup: totalMUAmount.toFixed(2),
+                sale: finalSale.toFixed(2),
                 profitRate: `${profitRate.toFixed(1)}%`
             };
         });
@@ -534,22 +578,31 @@ export default function QuotationEditor() {
                                     <Box>
                                         <Text fontSize="xs" fontWeight="bold" mb={1}>USD RDE</Text>
                                         <NumberInput size="sm" value={form.usd_roe} onChange={(v) => updateField('usd_roe', v)}>
-                                            <NumberInputField placeholder="20.00" />
+                                            <NumberInputField placeholder="1.00" />
                                         </NumberInput>
                                     </Box>
                                     <Box>
                                         <Text fontSize="xs" fontWeight="bold" mb={1}>General MU</Text>
                                         <NumberInput size="sm" value={form.general_mu} onChange={(v) => updateField('general_mu', v)}>
-                                            <NumberInputField placeholder="21.00" />
+                                            <NumberInputField placeholder="25.00" />
                                         </NumberInput>
                                     </Box>
                                     <Box>
                                         <Text fontSize="xs" fontWeight="bold" mb={1}>CAF</Text>
                                         <NumberInput size="sm" value={form.caf} onChange={(v) => updateField('caf', v)}>
-                                            <NumberInputField placeholder="1.00" />
+                                            <NumberInputField placeholder="5.00" />
                                         </NumberInput>
                                     </Box>
                                 </Grid>
+                                <Box mt={2}>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.round_up_rate_to_client || false}
+                                        onChange={(e) => updateField('round_up_rate_to_client', e.target.checked)}
+                                        style={{ marginRight: '8px' }}
+                                    />
+                                    <Text fontSize="xs" fontWeight="bold" as="span">Round up rate to client</Text>
+                                </Box>
                             </Box>
 
                             {/* Financial Summary Section */}
@@ -650,14 +703,12 @@ export default function QuotationEditor() {
                             <VStack key={idx} spacing={5} align="stretch" border="1px" borderColor="gray.200" borderRadius="md" p={4} bg={idx === expandedLineIdx ? 'white' : 'gray.50'} mb={4}>
                                 {/* Collapsed summary row */}
                                 {idx !== expandedLineIdx && (
-                                    <Grid templateColumns={{ base: '1fr', lg: 'repeat(10, 1fr)' }} gap={3} alignItems="center">
+                                    <Grid templateColumns={{ base: '1fr', lg: 'repeat(8, 1fr)' }} gap={3} alignItems="center">
                                         <Text fontSize="sm"><b>Location:</b> {countries.find(c => c.id === (line.location || ''))?.name || line.location || '-'}</Text>
                                         <Text fontSize="sm"><b>Vendor:</b> {agents.find(a => a.id === (line.vendor_id || ''))?.name || line.vendor_id || '-'}</Text>
                                         <Text fontSize="sm"><b>Rate Item:</b> {rateItems.find(r => r.id === (line.item_name || ''))?.name || line.item_name || '-'}</Text>
                                         <Text fontSize="sm" isTruncated><b>Qty:</b> {line.quantity ?? '-'}</Text>
-                                        <Text fontSize="sm" isTruncated><b>Rate:</b> {line.rate ?? '-'}</Text>
                                         <Text fontSize="sm" isTruncated><b>Buy Rate:</b> {line.buy_rate_calculation ?? '-'}</Text>
-                                        <Text fontSize="sm"><b>Currency:</b> {getCurrencyNameFromUomId(line.uom_id) || '-'}</Text>
                                         <Text fontSize="sm"><b>Client Specific:</b> {line.is_client_specific ? 'Yes' : 'No'}</Text>
                                         <HStack>
                                             <Text fontSize="sm"><b>Status:</b></Text>
@@ -703,7 +754,14 @@ export default function QuotationEditor() {
                                             </FormControl>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Rate Item Name</FormLabel>
-                                                <SearchableSelect value={line.item_name} onChange={(v) => updateLine(idx, 'item_name', v)} options={getRateItemOptionsForLine(line)} isLoading={rateItemsLoading} placeholder="Rate item" />
+                                                <SearchableSelect
+                                                    value={line.item_name}
+                                                    onChange={(v) => updateLine(idx, 'item_name', v)}
+                                                    options={getRateItemOptionsForLine(line)}
+                                                    isLoading={rateItemsLoading}
+                                                    placeholder={!line.vendor_id ? "Please select the vendor first" : (line.is_client_specific ? "Rate item" : "Select Client Specific first")}
+                                                    isDisabled={!line.is_client_specific || !line.vendor_id}
+                                                />
                                             </FormControl>
                                         </Grid>
 
@@ -717,42 +775,12 @@ export default function QuotationEditor() {
                                                 <Input size="sm" value={line.free_text} onChange={(e) => updateLine(idx, 'free_text', e.target.value)} />
                                             </FormControl>
                                             <FormControl>
-                                                <FormLabel fontSize="sm">Pre-text</FormLabel>
-                                                <Input type="checkbox" checked={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.checked)} />
+                                                <FormLabel fontSize="sm">Pre-text Rate Item Name</FormLabel>
+                                                <input type="checkbox" checked={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.checked)} />
                                             </FormControl>
                                             <FormControl>
-                                                <FormLabel fontSize="sm">Rate Text</FormLabel>
-                                                <Input size="sm" value={line.rate_text} onChange={(e) => updateLine(idx, 'rate_text', e.target.value)} />
-                                            </FormControl>
-                                        </Grid>
-
-                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(4, 1fr)' }} gap={4}>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Rate</FormLabel>
-                                                <NumberInput size="sm" value={line.rate} onChange={(v) => updateLine(idx, 'rate', v)}>
-                                                    <NumberInputField placeholder="0" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Fixed Rate</FormLabel>
-                                                <NumberInput size="sm" value={line.fixed_rate} onChange={(v) => updateLine(idx, 'fixed_rate', v)}>
-                                                    <NumberInputField placeholder="0" />
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Product Remarks</FormLabel>
+                                                <FormLabel fontSize="sm">Remark</FormLabel>
                                                 <Input size="sm" value={line.product_remarks} onChange={(e) => updateLine(idx, 'product_remarks', e.target.value)} />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Currency (UOM)</FormLabel>
-                                                <Input size="sm" value={getCurrencyNameFromUomId(line.uom_id)} isReadOnly bg="gray.100" />
-                                            </FormControl>
-                                        </Grid>
-
-                                        <Grid templateColumns={{ base: '1fr', lg: 'repeat(2, 1fr)' }} gap={4}>
-                                            <FormControl>
-                                                <FormLabel fontSize="sm">Default Code</FormLabel>
-                                                <Input size="sm" value={line.default_code} onChange={(e) => updateLine(idx, 'default_code', e.target.value)} />
                                             </FormControl>
                                         </Grid>
 
@@ -890,18 +918,13 @@ export default function QuotationEditor() {
                             <Thead>
                                 <Tr>
                                     <Th>Client Specific</Th>
-                                    <Th>Location</Th>
+                                    <Th>Location ID</Th>
                                     <Th>Vendor</Th>
                                     <Th>Rate Item Name</Th>
                                     <Th>Rate Remark</Th>
                                     <Th>Free text</Th>
-                                    <Th>Pre-text</Th>
-                                    <Th>Rate Text</Th>
-                                    <Th isNumeric>Rate</Th>
-                                    <Th isNumeric>Fixed Rate</Th>
-                                    <Th>Product Remarks</Th>
-                                    <Th>Currency (UOM)</Th>
-                                    <Th>Default Code</Th>
+                                    <Th>Pre-text Rate Item Name</Th>
+                                    <Th>Remark</Th>
                                     <Th>Currency override</Th>
                                     <Th isNumeric>Quantity</Th>
                                     <Th>Buy Rate</Th>
@@ -917,8 +940,7 @@ export default function QuotationEditor() {
                                     <Th isNumeric>QT Rate</Th>
                                     <Th isNumeric>Amended Rate</Th>
                                     <Th>Rate to client</Th>
-                                    <Th>Group</Th>
-                                    <Th>Free text</Th>
+                                    <Th>Group Free text</Th>
                                     <Th>Status</Th>
                                 </Tr>
                             </Thead>
@@ -945,18 +967,21 @@ export default function QuotationEditor() {
                                             />
                                         </Td>
                                         <Td><SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={getFilteredVendorsForLine(line)} placeholder="Vendor" /></Td>
-                                        <Td><SearchableSelect value={line.item_name} onChange={(v) => updateLine(idx, 'item_name', v)} options={getRateItemOptionsForLine(line)} placeholder="Rate item" /></Td>
+                                        <Td>
+                                            <SearchableSelect
+                                                value={line.item_name}
+                                                onChange={(v) => updateLine(idx, 'item_name', v)}
+                                                options={getRateItemOptionsForLine(line)}
+                                                placeholder={!line.vendor_id ? "Please select the vendor first" : (line.is_client_specific ? "Rate item" : "Select Client Specific first")}
+                                                isDisabled={!line.is_client_specific || !line.vendor_id}
+                                            />
+                                        </Td>
                                         <Td><Input size="sm" w="100%" value={line.rate_remark} onChange={(e) => updateLine(idx, 'rate_remark', e.target.value)} placeholder="Remark" /></Td>
                                         <Td><Input size="sm" w="100%" value={line.free_text} onChange={(e) => updateLine(idx, 'free_text', e.target.value)} placeholder="Free text" /></Td>
                                         <Td textAlign="center">
                                             <input type="checkbox" checked={line.pre_text} onChange={(e) => updateLine(idx, 'pre_text', e.target.checked)} style={{ width: '18px', height: '18px', maxHeight: '18px', maxWidth: '18px' }} />
                                         </Td>
-                                        <Td><Input size="sm" w="100%" value={line.rate_text} onChange={(e) => updateLine(idx, 'rate_text', e.target.value)} placeholder="Rate text" /></Td>
-                                        <Td isNumeric><NumberInput size="sm" w="100%" value={line.rate} onChange={(v) => updateLine(idx, 'rate', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
-                                        <Td isNumeric><NumberInput size="sm" w="100%" value={line.fixed_rate} onChange={(v) => updateLine(idx, 'fixed_rate', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
-                                        <Td><Input size="sm" w="100%" value={line.product_remarks} onChange={(e) => updateLine(idx, 'product_remarks', e.target.value)} placeholder="Remarks" /></Td>
-                                        <Td><Input size="sm" w="100%" value={getCurrencyNameFromUomId(line.uom_id)} isReadOnly bg="gray.100" placeholder="Currency" /></Td>
-                                        <Td><Input size="sm" w="100%" value={line.default_code} onChange={(e) => updateLine(idx, 'default_code', e.target.value)} placeholder="Default code" /></Td>
+                                        <Td><Input size="sm" w="100%" value={line.product_remarks} onChange={(e) => updateLine(idx, 'product_remarks', e.target.value)} placeholder="Remark" /></Td>
                                         <Td><SearchableSelect value={line.currency_override} onChange={(v) => updateLine(idx, 'currency_override', v)} options={currencyOptions} placeholder="Currency" /></Td>
                                         <Td isNumeric><NumberInput size="sm" w="100%" value={line.quantity} onChange={(v) => updateLine(idx, 'quantity', v)} min={1}><NumberInputField /></NumberInput></Td>
                                         <Td><NumberInput size="sm" w="100%" value={line.buy_rate_calculation} onChange={(v) => updateLine(idx, 'buy_rate_calculation', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
@@ -972,8 +997,7 @@ export default function QuotationEditor() {
                                         <Td isNumeric><NumberInput size="sm" w="100%" value={line.qt_rate} onChange={(v) => updateLine(idx, 'qt_rate', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
                                         <Td isNumeric><NumberInput size="sm" w="100%" value={line.amended_rate} onChange={(v) => updateLine(idx, 'amended_rate', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
                                         <Td><NumberInput size="sm" w="100%" value={line.rate_to_client} onChange={(v) => updateLine(idx, 'rate_to_client', v)}><NumberInputField placeholder="0,00" /></NumberInput></Td>
-                                        <Td><Input size="sm" w="100%" value={line.group_free_text} onChange={(e) => updateLine(idx, 'group_free_text', e.target.value)} placeholder="Group" /></Td>
-                                        <Td><Input size="sm" w="100%" value={line.group_free_text} placeholder="Free text" /></Td>
+                                        <Td><Input size="sm" w="100%" value={line.group_free_text} onChange={(e) => updateLine(idx, 'group_free_text', e.target.value)} placeholder="Group Free text" /></Td>
                                         <Td>
                                             <Select size="sm" value={line.status} onChange={(e) => updateLine(idx, 'status', e.target.value)}>
                                                 <option value="current">Quote Current</option>
