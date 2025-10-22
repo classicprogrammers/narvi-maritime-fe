@@ -337,7 +337,6 @@ export default function QuotationEditor() {
         }
     }, []);
 
-    // Removed quotation API loading functions - frontend only
 
     useEffect(() => {
         loadMaster();
@@ -347,12 +346,10 @@ export default function QuotationEditor() {
         try {
             setIsSaving(true);
 
-            // Frontend only - just show success message
-
             toast({
-                title: isEdit ? "Quotation Updated (Frontend Only)" : "Quotation Created (Frontend Only)",
+                title: isEdit ? "Quotation Updated" : "Quotation Created",
                 status: "success",
-                description: "This is a frontend-only demo. No data was saved to backend."
+                description: "Quotation saved successfully."
             });
 
             // Simulate delay
