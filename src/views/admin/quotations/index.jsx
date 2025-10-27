@@ -57,7 +57,7 @@ import {
     MdEdit,
     MdKeyboardArrowDown,
 } from "react-icons/md";
-// import quotationsAPI from "../../../api/quotations"; // commented: using dummy quotes for the list
+import quotationsAPI from "../../../api/quotations";
 import { getCustomersApi } from "../../../api/customer";
 import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
@@ -263,17 +263,28 @@ export default function Quotations() {
 
     // Fetch quotations
     const fetchQuotations = useCallback(async () => {
-        // Use dummy data for the list; API call commented in imports
         setIsLoading(true);
         try {
-            const dummyQuotations = [
-               
-            ];
-            setQuotations(dummyQuotations);
+            const response = await quotationsAPI.getQuotations();
+            if (response.status === "success" && response.quotations) {
+                setQuotations(response.quotations);
+            } else {
+                setQuotations([]);
+            }
+        } catch (error) {
+            console.error("Failed to fetch quotations:", error);
+            setQuotations([]);
+            toast({
+                title: "Failed to load quotations",
+                description: error.message || "Please try again later.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [toast]);
 
     // Fetch customers
     const fetchCustomers = useCallback(async () => {
@@ -508,8 +519,7 @@ export default function Quotations() {
                     ...changedFields
                 };
 
-                // response = await quotationsAPI.updateQuotation(updateData); // disabled in dummy mode
-                response = { result: { status: "success", message: "Quotation updated (dummy)" } };
+                response = await quotationsAPI.updateQuotation(updateData);
             } else {
                 // Create new quotation - send all data but ensure only vendor_id
                 const quotationData = {
@@ -523,8 +533,7 @@ export default function Quotations() {
                     }))
                 };
 
-                // response = await quotationsAPI.createQuotation(quotationData); // disabled in dummy mode
-                response = { result: { status: "success", message: "Quotation created (dummy)", quotation: { id: Date.now(), ...quotationData } } };
+                response = await quotationsAPI.createQuotation(quotationData);
             }
 
             // Extract message from API response
@@ -603,8 +612,7 @@ export default function Quotations() {
     const confirmDelete = async () => {
         try {
             setIsLoading(true);
-            // const response = await quotationsAPI.deleteQuotation({ quotation_id: deleteQuotationId }); // disabled in dummy mode
-            const response = { result: { status: "success", message: "Quotation deleted (dummy)" } };
+            const response = await quotationsAPI.deleteQuotation({ quotation_id: deleteQuotationId });
 
             // Extract success message from API response
             let successMessage = "Quotation deleted successfully";

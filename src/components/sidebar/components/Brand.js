@@ -21,11 +21,13 @@ export function SidebarBrand(props) {
       src={require("assets/img/ship-logo.png")}
       alt='Logo'
       transition="all 0.2s"
+      style={{ maxWidth: '80px', maxHeight: '80px' }}
     /> :
       <Image
         src={require("assets/img/Logo.png")}
         alt='Logo'
         transition="all 0.2s"
+        style={{ maxHeight: '90px' }}
       />
 }
     </Flex>

@@ -45,7 +45,6 @@ export default function QuotationDetail() {
                     const data = await quotationsAPI.getQuotationById(id);
                     setQuotation(data.quotation || data);
                 } catch (e) {
-                    // ignore, simple view
                 }
             }
             const [cust, ves, cur, loc, vendorsRes, productsRes] = await Promise.all([

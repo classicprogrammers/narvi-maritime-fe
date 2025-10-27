@@ -11,7 +11,6 @@ import api from "../../../api/axios";
 import { getCustomersApi } from "../../../api/customer";
 import vesselsAPI from "../../../api/vessels";
 import currenciesAPI from "../../../api/currencies";
-// import locationsAPI from "../../../api/locations"; // replaced by countries for Location field
 import countriesAPI from "../../../api/countries";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
@@ -25,7 +24,6 @@ export default function QuotationEditor() {
     const [customers, setCustomers] = useState([]);
     const [vessels, setVessels] = useState([]);
     const [currencies, setCurrencies] = useState([]);
-    // const [destinations, setDestinations] = useState([]);
     const [countries, setCountries] = useState([]);
     const [agents, setAgents] = useState([]);
     const [rateItems, setRateItems] = useState([]);
@@ -34,7 +32,6 @@ export default function QuotationEditor() {
 
     const [customersLoading, setCustomersLoading] = useState(false);
     const [vesselsLoading, setVesselsLoading] = useState(false);
-    // const [destinationsLoading, setDestinationsLoading] = useState(false);
     const [agentsLoading, setAgentsLoading] = useState(false);
     const [rateItemsLoading, setRateItemsLoading] = useState(false);
     const [currenciesLoading, setCurrenciesLoading] = useState(false);
@@ -74,14 +71,12 @@ export default function QuotationEditor() {
             rate_to_client: "",
             group_free_text: "",
             status: "current",
-            // New fields from product API
             rate_text: "",
             rate: "",
             fixed_rate: "",
             product_remarks: "",
             uom_id: "",
             default_code: "",
-            // Calculated fields
             qt_rate: "",
         })),
     });
@@ -90,11 +85,10 @@ export default function QuotationEditor() {
         setForm(prev => {
             const newForm = { ...prev, [field]: value };
 
-            // If client is changed, clear all rate item selections in quotation lines
             if (field === 'partner_id') {
                 newForm.quotation_lines = prev.quotation_lines.map(line => ({
                     ...line,
-                    item_name: "" // Clear the selected rate item
+                    item_name: ""
                 }));
             }
 
@@ -109,7 +103,6 @@ export default function QuotationEditor() {
                 quotation_lines: prev.quotation_lines.map((l, i) => i === idx ? { ...l, [field]: value } : l)
             };
 
-            // Auto-calculate cost fields when quantity or buy rate changes
             if (field === 'quantity' || field === 'buy_rate_calculation') {
                 const line = newForm.quotation_lines[idx];
                 const quantity = parseFloat(line.quantity || 0);
@@ -126,30 +119,22 @@ export default function QuotationEditor() {
                 }
             }
 
-            // Auto-calculate line-level values when cost_sum, roe, or mu_percent changes
             if (field === 'cost_sum' || field === 'roe' || field === 'mu_percent') {
                 const line = newForm.quotation_lines[idx];
                 const costSum = parseFloat(line.cost_sum || 0);
                 const roe = parseFloat(line.roe || form.usd_roe || 1.00);
                 const muPercent = parseFloat(line.mu_percent || form.general_mu || 25.00);
 
-                // Calculate Cost USD = Cost sum / ROE
                 const costUSD = costSum / roe;
-
-                // Calculate MU Amount = Cost USD × MU%
                 const muAmount = (costUSD * muPercent) / 100;
-
-                // Calculate QT Rate = Cost USD + MU Amount
                 const qtRate = costUSD + muAmount;
 
-                // Apply CAF to QT Rate
                 const caf = parseFloat(form.caf || 5.00);
                 let rateToClient = qtRate;
                 if (caf !== 0) {
                     rateToClient = qtRate * (1 + caf / 100);
                 }
 
-                // Round up if specified
                 if (form.round_up_rate_to_client) {
                     rateToClient = Math.ceil(rateToClient);
                 }
@@ -163,7 +148,6 @@ export default function QuotationEditor() {
                 };
             }
 
-            // Clear rate item selection when vendor changes
             if (field === 'vendor_id') {
                 const line = newForm.quotation_lines[idx];
                 newForm.quotation_lines[idx] = {
@@ -172,7 +156,6 @@ export default function QuotationEditor() {
                 };
             }
 
-            // Clear rate item selection when Client Specific is unchecked
             if (field === 'is_client_specific' && !value) {
                 const line = newForm.quotation_lines[idx];
                 newForm.quotation_lines[idx] = {
@@ -181,7 +164,6 @@ export default function QuotationEditor() {
                 };
             }
 
-            // Auto-fill product fields when rate item is selected
             if (field === 'item_name' && value) {
                 const selectedProduct = rateItems.find(item => item.id === value);
                 if (selectedProduct) {
@@ -192,10 +174,10 @@ export default function QuotationEditor() {
                         rate: selectedProduct.rate || "",
                         fixed_rate: selectedProduct.fixed_rate || "",
                         product_remarks: selectedProduct.remarks || "",
-                        rate_remark: selectedProduct.remarks || "", // Prefill rate remark with product remarks
+                        rate_remark: selectedProduct.remarks || "",
                         uom_id: selectedProduct.uom_id || "",
                         default_code: selectedProduct.default_code || "",
-                        buy_rate_calculation: selectedProduct.rate || "", // Set as default buy rate
+                        buy_rate_calculation: selectedProduct.rate || "",
                     };
                 }
             }
@@ -204,7 +186,6 @@ export default function QuotationEditor() {
         });
     }, [rateItems, form.caf, form.general_mu, form.round_up_rate_to_client, form.usd_roe]);
 
-    // Manage which line is expanded in Form view
     const [expandedLineIdx, setExpandedLineIdx] = useState(0);
 
     const createEmptyLine = useCallback(() => ({
@@ -230,14 +211,12 @@ export default function QuotationEditor() {
         rate_to_client: "",
         group_free_text: "",
         status: "current",
-        // New fields from product API
         rate_text: "",
         rate: "",
         fixed_rate: "",
         product_remarks: "",
         uom_id: "",
         default_code: "",
-        // Calculated fields
         qt_rate: "",
     }), []);
 
@@ -257,20 +236,17 @@ export default function QuotationEditor() {
 
     const addNewLine = useCallback(() => {
         setForm(prev => ({ ...prev, quotation_lines: [...prev.quotation_lines, createEmptyLine()] }));
-        // Collapse previous rows and expand the newly added one
         setExpandedLineIdx(prev => prev + 1);
     }, [createEmptyLine]);
 
     const removeLine = useCallback((idx) => {
         setForm(prev => {
             const newLines = prev.quotation_lines.filter((_, i) => i !== idx);
-            // Ensure at least one line remains
             if (newLines.length === 0) {
                 return { ...prev, quotation_lines: [createEmptyLine()] };
             }
             return { ...prev, quotation_lines: newLines };
         });
-        // Reset expanded line index if the removed line was expanded
         setExpandedLineIdx(prev => (prev >= idx ? (prev > idx ? prev - 1 : -1) : prev));
     }, [createEmptyLine]);
 
@@ -279,15 +255,12 @@ export default function QuotationEditor() {
         setCustomersLoading(true);
         setVesselsLoading(true);
         setCurrenciesLoading(true);
-        // setDestinationsLoading(true);
         setCountriesLoading(true);
         setAgentsLoading(true);
         setRateItemsLoading(true);
 
         try {
-            // Load customers
             const custData = await getCustomersApi();
-            // Handle different possible data structures
             const customers = custData.customers || custData.data || custData || [];
             setCustomers(customers);
         } catch (error) {
@@ -297,7 +270,6 @@ export default function QuotationEditor() {
         }
 
         try {
-            // Load vessels
             const vesData = await vesselsAPI.getVessels();
             setVessels(vesData.vessels || []);
         } catch (error) {
@@ -307,7 +279,6 @@ export default function QuotationEditor() {
         }
 
         try {
-            // Load currencies
             const curData = await currenciesAPI.getCurrencies();
             setCurrencies(curData.currencies || []);
         } catch (error) {
@@ -317,7 +288,6 @@ export default function QuotationEditor() {
         }
 
         try {
-            // Load countries for Location field
             const countriesData = await countriesAPI.getCountries();
             const countriesList = countriesData.countries || countriesData || [];
             setCountries(countriesList);
@@ -328,7 +298,6 @@ export default function QuotationEditor() {
         }
 
         try {
-            // Load agents/vendors
             const vendorData = await api.get('/api/vendor/list');
             const vendorsList = vendorData.data.vendors || [];
             setAgents(vendorsList);
@@ -339,7 +308,6 @@ export default function QuotationEditor() {
         }
 
         try {
-            // Load rate items/products
             const productData = await api.get('/api/products');
             const rateItems = productData.data.products || [];
             setRateItems(rateItems);
@@ -380,22 +348,18 @@ export default function QuotationEditor() {
         }
     };
 
-    // Memoize options to prevent unnecessary re-renders
     const customerOptions = useMemo(() => {
         return customers;
     }, [customers]);
     const vesselOptions = useMemo(() => vessels, [vessels]);
     const currencyOptions = useMemo(() => currencies, [currencies]);
-    // const destinationOptions = useMemo(() => destinations, [destinations]);
     const countryOptions = useMemo(() => countries, [countries]);
-    // Helper to derive vessel's country_id (supports id or nested object)
     const vesselCountryId = useMemo(() => {
         const vessel = vessels.find(v => v.id === form.vessel_id);
         const countryId = vessel?.country_id?.id ?? vessel?.country_id ?? null;
         return countryId;
     }, [vessels, form.vessel_id]);
 
-    // Per-line vendor filtering by selected location (country) or vessel country
     const getFilteredVendorsForLine = useCallback((line) => {
         const selectedCountryId = line.location || vesselCountryId;
 
@@ -423,13 +387,11 @@ export default function QuotationEditor() {
         }
 
         const filteredRateItems = rateItems.filter(item => {
-            // Check if the item has seller_ids and if it includes the selected vendor ID
             if (item.seller_ids && Array.isArray(item.seller_ids)) {
                 return item.seller_ids.some(seller =>
                     seller.id === line.vendor_id || seller === line.vendor_id
                 );
             }
-            // If no seller_ids, show all items (or you can decide to hide them)
             return true;
         });
 
@@ -455,13 +417,8 @@ export default function QuotationEditor() {
                 const roe = parseFloat(line.roe || form.usd_roe || 1.00);
                 const muPercent = parseFloat(line.mu_percent || form.general_mu || 25.00);
 
-                // Cost USD = Cost sum / ROE (Excel logic)
                 const costUSD = costSum / roe;
-
-                // MU Amount = Cost USD × MU% (Excel logic)
                 const muAmount = (costUSD * muPercent) / 100;
-
-                // QT Rate = Cost USD + MU Amount (Excel logic)
                 const qtRate = costUSD + muAmount;
 
                 totalCostUSD += costUSD;
