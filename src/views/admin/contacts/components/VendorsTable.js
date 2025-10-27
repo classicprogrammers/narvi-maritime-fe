@@ -89,6 +89,7 @@ export default function VendorsTable(props) {
   const [itemsPerPage] = useState(10);
   const [newVendor, setNewVendor] = useState({
     name: "",
+    agentsdb_id: "",
     email: "",
     phone: "",
     mobile: "",
@@ -154,6 +155,8 @@ export default function VendorsTable(props) {
         (item) =>
           (item.name &&
             item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.agentsdb_id &&
+            item.agentsdb_id.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.email &&
             item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.phone && item.phone.toString().includes(searchValue)) ||
@@ -312,6 +315,7 @@ export default function VendorsTable(props) {
         // Reset form
         setNewVendor({
           name: "",
+          agentsdb_id: "",
           email: "",
           phone: "",
           mobile: "",
@@ -450,6 +454,7 @@ export default function VendorsTable(props) {
     // Reset form
     setNewVendor({
       name: "",
+      agentsdb_id: "",
       email: "",
       phone: "",
       mobile: "",
@@ -530,7 +535,7 @@ export default function VendorsTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search agents by name, email, phone, city..."
+                  placeholder="Search agents by name, shortname, email, phone, city..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -854,7 +859,17 @@ export default function VendorsTable(props) {
                     >
                       {row.cells.map((cell, index) => {
                         let data = "";
-                        if (cell.column.Header === "COMPANY_NAME") {
+                        if (cell.column.Header === "AGENT_ID") {
+                          data = (
+                            <Text
+                              color={textColor}
+                              fontSize="sm"
+                              fontWeight="500"
+                            >
+                              {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "COMPANY_NAME") {
                           data = (
                             <Text
                               color={textColor}
@@ -1048,6 +1063,29 @@ export default function VendorsTable(props) {
               </FormControl>
 
               <FormControl>
+                <FormLabel>Agent Shortname</FormLabel>
+                <Input
+                  placeholder="e.g., ABC, XYZ, DEF..."
+                  value={editingVendor?.agentsdb_id || ""}
+                  onChange={(e) =>
+                    handleEditInputChange("agentsdb_id", e.target.value)
+                  }
+                  bg={inputBg}
+                  color={inputText}
+                  border="2px"
+                  borderColor={borderColor}
+                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
                 <FormLabel>Email 1</FormLabel>
                 <Input
                   type="email"
@@ -1222,6 +1260,22 @@ export default function VendorsTable(props) {
                   value={newVendor.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   placeholder="Enter agent company name"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Agent Shortname</FormLabel>
+                <Input
+                  value={newVendor.agentsdb_id}
+                  onChange={(e) => handleInputChange("agentsdb_id", e.target.value)}
+                  placeholder="Enter agent shortname"
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}

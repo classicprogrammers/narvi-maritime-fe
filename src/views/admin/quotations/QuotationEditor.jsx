@@ -6,7 +6,7 @@ import {
     FormControl, FormLabel, Select, useToast,
     Table, Thead, Tbody, Tr, Th, Td
 } from "@chakra-ui/react";
-import { MdViewModule, MdTableChart } from "react-icons/md";
+import { MdViewModule, MdTableChart, MdDelete } from "react-icons/md";
 import api from "../../../api/axios";
 import { getCustomersApi } from "../../../api/customer";
 import vesselsAPI from "../../../api/vessels";
@@ -259,6 +259,19 @@ export default function QuotationEditor() {
         setForm(prev => ({ ...prev, quotation_lines: [...prev.quotation_lines, createEmptyLine()] }));
         // Collapse previous rows and expand the newly added one
         setExpandedLineIdx(prev => prev + 1);
+    }, [createEmptyLine]);
+
+    const removeLine = useCallback((idx) => {
+        setForm(prev => {
+            const newLines = prev.quotation_lines.filter((_, i) => i !== idx);
+            // Ensure at least one line remains
+            if (newLines.length === 0) {
+                return { ...prev, quotation_lines: [createEmptyLine()] };
+            }
+            return { ...prev, quotation_lines: newLines };
+        });
+        // Reset expanded line index if the removed line was expanded
+        setExpandedLineIdx(prev => (prev >= idx ? (prev > idx ? prev - 1 : -1) : prev));
     }, [createEmptyLine]);
 
 
@@ -711,8 +724,9 @@ export default function QuotationEditor() {
                                             <Text fontSize="sm"><b>Status:</b></Text>
                                             <Badge colorScheme={line.status === 'current' ? 'green' : 'gray'}>{line.status || '-'}</Badge>
                                         </HStack>
-                                        <HStack justify="flex-end">
+                                        <HStack justify="flex-end" spacing={2}>
                                             <Button size="xs" onClick={() => setExpandedLineIdx(idx)} colorScheme="blue">Edit</Button>
+                                            <Button size="xs" onClick={() => removeLine(idx)} colorScheme="red" variant="outline" leftIcon={<Icon as={MdDelete} />}>Delete</Button>
                                         </HStack>
                                     </Grid>
                                 )}
@@ -862,7 +876,8 @@ export default function QuotationEditor() {
                                                 </Select>
                                             </FormControl>
                                         </Grid>
-                                        <HStack justify="flex-end">
+                                        <HStack justify="flex-end" spacing={2}>
+                                            <Button size="xs" colorScheme="red" variant="outline" onClick={() => removeLine(idx)} leftIcon={<Icon as={MdDelete} />}>Delete Line</Button>
                                             <Button size="xs" variant="outline" onClick={() => setExpandedLineIdx(-1)}>Collapse</Button>
                                         </HStack>
                                     </>
@@ -939,6 +954,7 @@ export default function QuotationEditor() {
                                     <Th>Rate to client</Th>
                                     <Th>Group Free text</Th>
                                     <Th>Status</Th>
+                                    <Th>Actions</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
@@ -1003,6 +1019,11 @@ export default function QuotationEditor() {
                                                 <option value="toinvoice">ToInvoice</option>
                                                 <option value="inactive">Inactive</option>
                                             </Select>
+                                        </Td>
+                                        <Td textAlign="center">
+                                            <Button size="xs" onClick={() => removeLine(idx)} colorScheme="red" variant="outline" leftIcon={<Icon as={MdDelete} />}>
+                                                Delete
+                                            </Button>
                                         </Td>
                                     </Tr>
                                 ))}

@@ -83,9 +83,9 @@ export const columnsDataClient = [
 
 export const columnsDataAgents = [
   {
-    Header: "DB_ID",
-    accessor: "id",
-    minWidth: 100,
+    Header: "AGENT_ID",
+    accessor: "agentsdb_id",
+    minWidth: 150,
   },
   {
     Header: "COMPANY_NAME",

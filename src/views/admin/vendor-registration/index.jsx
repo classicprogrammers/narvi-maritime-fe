@@ -70,6 +70,7 @@ function VendorRegistration() {
     // Form state
     const [formData, setFormData] = React.useState({
         name: "",
+        agentsdb_id: "",
         address_type: "",
         street: "",
         street2: "",
@@ -145,6 +146,7 @@ function VendorRegistration() {
 
                 const formDataToSet = {
                     name: vendorData.name || "",
+                    agentsdb_id: vendorData.agentsdb_id || "",
                     address_type: vendorData.address_type || "",
                     street: vendorData.street || "",
                     street2: vendorData.street2 || "",
@@ -292,6 +294,7 @@ function VendorRegistration() {
                 if (!isEditMode) {
                     setFormData({
                         name: "",
+                        agentsdb_id: "",
                         address_type: "",
                         street: "",
                         street2: "",
@@ -413,6 +416,23 @@ function VendorRegistration() {
                                             Basic Information
                                         </Text>
                                     </HStack>
+
+                                    <FormControl>
+                                        <FormLabel color={textColorSecondary}>Agents DB ID</FormLabel>
+                                        <Input
+                                            value={formData.agentsdb_id}
+                                            onChange={(e) => handleInputChange("agentsdb_id", e.target.value)}
+                                            placeholder="Enter agents DB ID"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            _focus={{
+                                                borderColor: "blue.400",
+                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                                            }}
+                                            _placeholder={{ color: placeholderColor }}
+                                        />
+                                    </FormControl>
 
                                     <FormControl isRequired>
                                         <FormLabel color={textColorSecondary}>Agent Company Name</FormLabel>

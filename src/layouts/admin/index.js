@@ -211,6 +211,8 @@ export default function Dashboard(props) {
                 secondary={getActiveNavbar(routes)}
                 message={getActiveNavbarText(routes)}
                 fixed={fixed}
+                toggleSidebar={toggleSidebar}
+                isSidebarHovered={isSidebarHovered}
                 {...rest}
               />
             </Box>
