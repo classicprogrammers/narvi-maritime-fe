@@ -63,6 +63,7 @@ import {
   MdKeyboardArrowUp,
   MdUnfoldMore,
   MdFilterList,
+  MdVisibility,
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
@@ -73,12 +74,6 @@ export default function CustomerTable(props) {
     client_id: "",
     name: "",
     category: "",
-    city: "",
-    country: "",
-    email: "",
-    phone: "",
-    reg_no: "",
-    website: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -147,8 +142,8 @@ export default function CustomerTable(props) {
   };
 
   // Filter data based on search and filters
-  const filteredData = useMemo(() => {
-    let filtered = tableData;
+  const filteredCustomers = useMemo(() => {
+    let filtered = Array.isArray(tableData) ? [...tableData] : [];
 
     // Apply search filter
     if (searchValue) {
@@ -212,67 +207,18 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply city filter
-    if (filters.city) {
-      filtered = filtered.filter(
-        (item) =>
-          item.city &&
-          item.city.toLowerCase().includes(filters.city.toLowerCase())
-      );
-    }
-
-    // Apply country filter
-    if (filters.country) {
-      filtered = filtered.filter(
-        (item) =>
-          item.country_name &&
-          item.country_name.toLowerCase().includes(filters.country.toLowerCase())
-      );
-    }
-
-    // Apply email filter
-    if (filters.email) {
-      filtered = filtered.filter(
-        (item) =>
-          (item.email && item.email.toLowerCase().includes(filters.email.toLowerCase())) ||
-          (item.email2 && item.email2.toLowerCase().includes(filters.email.toLowerCase()))
-      );
-    }
-
-    // Apply phone filter
-    if (filters.phone) {
-      filtered = filtered.filter(
-        (item) =>
-          (item.phone && item.phone.toString().includes(filters.phone)) ||
-          (item.phone2 && item.phone2.toString().includes(filters.phone))
-      );
-    }
-
-    // Apply registration number filter
-    if (filters.reg_no) {
-      filtered = filtered.filter(
-        (item) =>
-          item.reg_no &&
-          item.reg_no.toLowerCase().includes(filters.reg_no.toLowerCase())
-      );
-    }
-
-    // Apply website filter
-    if (filters.website) {
-      filtered = filtered.filter(
-        (item) =>
-          item.website &&
-          item.website.toLowerCase().includes(filters.website.toLowerCase())
-      );
-    }
-
-    return filtered;
+    return filtered.map((item) => ({
+      ...item,
+      location: [item.city, item.country_name || item.country?.name]
+        .filter(Boolean)
+        .join(", "),
+    }));
   }, [tableData, searchValue, filters]);
 
   const data = useMemo(() => {
-    const sortedData = applyCustomSorting(filteredData);
+    const sortedData = applyCustomSorting(filteredCustomers);
     return sortedData;
-  }, [filteredData, sortOrder]);
+  }, [filteredCustomers, sortOrder]);
 
   const tableInstance = useTable(
     {
@@ -345,12 +291,6 @@ export default function CustomerTable(props) {
       client_id: "",
       name: "",
       category: "",
-      city: "",
-      country: "",
-      email: "",
-      phone: "",
-      reg_no: "",
-      website: "",
     });
   };
 
@@ -484,11 +424,15 @@ export default function CustomerTable(props) {
   };
 
   const handleEdit = (customer) => {
-    if (!customer || !customer.id) {
-      return;
-    }
-    setEditingCustomer({ ...customer });
-    onEditOpen();
+    if (!customer || !customer.id) return;
+
+    const original = Array.isArray(tableData)
+      ? tableData.find((item) => String(item.id) === String(customer.id))
+      : null;
+
+    const payload = original || customer;
+    // Navigate to the registration page in edit mode
+    history.push('/admin/customer-registration', { client: payload, clientId: payload.id });
   };
 
   const handleDelete = (customer) => {
@@ -497,6 +441,17 @@ export default function CustomerTable(props) {
     }
     setCustomerToDelete(customer);
     onDeleteOpen();
+  };
+
+  const handleView = (customer) => {
+    if (!customer || !customer.id) return;
+    const original = Array.isArray(tableData)
+      ? tableData.find((item) => String(item.id) === String(customer.id))
+      : null;
+
+    const payload = original || customer;
+
+    history.push(`/admin/contacts/customer/${customer.id}`, { client: payload });
   };
 
   const confirmDelete = async () => {
@@ -714,12 +669,6 @@ export default function CustomerTable(props) {
             {(filters.client_id ||
               filters.name ||
               filters.category ||
-              filters.city ||
-              filters.country ||
-              filters.email ||
-              filters.phone ||
-              filters.reg_no ||
-              filters.website ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -843,184 +792,14 @@ export default function CustomerTable(props) {
                 </Box>
               </HStack>
 
-              {/* Second Row - Location Info */}
-              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                {/* City Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    City
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., New York, London, Tokyo..."
-                    value={filters.city}
-                    onChange={(e) => handleFilterChange("city", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Country Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Country
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., Singapore, USA, UK..."
-                    value={filters.country}
-                    onChange={(e) => handleFilterChange("country", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Registration Number Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Registration Number
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., SG12345678..."
-                    value={filters.reg_no}
-                    onChange={(e) => handleFilterChange("reg_no", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-              </HStack>
-
-              {/* Third Row - Contact Info */}
-              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                {/* Email Filter */}
-                <Box minW="250px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Email
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., john@company.com..."
-                    value={filters.email || ""}
-                    onChange={(e) =>
-                      handleFilterChange("email", e.target.value)
-                    }
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Phone Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Phone
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., +1-555-123-4567..."
-                    value={filters.phone || ""}
-                    onChange={(e) =>
-                      handleFilterChange("phone", e.target.value)
-                    }
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Website Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Website
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., http://acme.com..."
-                    value={filters.website}
-                    onChange={(e) => handleFilterChange("website", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-              </HStack>
+              {/* Additional filters removed to match simplified table */}
             </Box>
           )}
         </Box>
 
         {/* Table Container with Horizontal Scroll */}
         <Box
-          pr="25px"
+          px="15px"
           overflowX="auto"
           css={{
             "&::-webkit-scrollbar": {
@@ -1043,8 +822,7 @@ export default function CustomerTable(props) {
             {...getTableProps()}
             variant="unstyled"
             size="sm"
-            minW="800px"
-            ml="25px"
+            minW="600px"
           >
             <Thead bg={tableHeaderBg}>
               {headerGroups.map((headerGroup, index) => (
@@ -1052,7 +830,7 @@ export default function CustomerTable(props) {
                   {headerGroup.headers.map((column, index) => (
                     <Th
                       {...column.getHeaderProps(column.getSortByToggleProps())}
-                      borderRight="1px"
+                      border="1px"
                       borderColor={tableBorderColor}
                       py="12px"
                       px="16px"
@@ -1134,108 +912,42 @@ export default function CustomerTable(props) {
                       key={index}
                       bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                       _hover={{ bg: hoverBg }}
-                      borderBottom="1px"
+                      border="1px"
                       borderColor={tableBorderColor}
                     >
                       {row.cells.map((cell, index) => {
-                        let data = "";
+                        const value = cell.value;
+                        let data = (
+                          <Text color={textColor} fontSize="sm">
+                            {value || "-"}
+                          </Text>
+                        );
+
                         if (cell.column.Header === "CLIENT ID") {
                           data = (
-                            <Text
-                              color={textColor}
-                              fontSize="sm"
-                              fontWeight="600"
-                            >
-                              {cell.value || "-"}
+                            <Text color={textColor} fontSize="sm" fontWeight="600">
+                              {value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "FULL NAME") {
+                        } else if (cell.column.Header === "CITY / COUNTRY") {
                           data = (
                             <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "CATEGORY") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "ADDRESS1") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "ADDRESS2") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "POSTCODE") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "CITY") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "COUNTRY") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "REG NO") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "EMAIL1") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "EMAIL2") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "PHONE1") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "PHONE2") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "WEBSITE") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "REMARKS") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
+                              {value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
-                            <HStack spacing={2}>
+                            <HStack spacing={1}>
+                              <Tooltip label="View Client">
+                                <IconButton
+                                  icon={<Icon as={MdVisibility} />}
+                                  size="sm"
+                                  colorScheme="teal"
+                                  variant="ghost"
+                                  onClick={() => handleView(row.original)}
+                                  aria-label="View client"
+                                />
+                              </Tooltip>
                               <Tooltip label="Edit Client">
                                 <IconButton
                                   icon={<Icon as={MdEdit} />}
@@ -1258,13 +970,8 @@ export default function CustomerTable(props) {
                               </Tooltip>
                             </HStack>
                           );
-                        } else {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
                         }
+
                         return (
                           <Td
                             {...cell.getCellProps()}
@@ -1292,9 +999,7 @@ export default function CustomerTable(props) {
         <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
           {/* Results Info */}
           <Text fontSize="sm" color={tableTextColorSecondary}>
-            Showing {pageIndex * itemsPerPage + 1} to{" "}
-            {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of{" "}
-            {data.length} results
+            Showing {data.length === 0 ? 0 : pageIndex * itemsPerPage + 1} to {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of {data.length} results
           </Text>
 
           {/* Pagination Controls */}
@@ -1347,15 +1052,15 @@ export default function CustomerTable(props) {
               </Button>
 
               {/* Previous Page */}
-            <Button
-              size="sm"
-              onClick={() => previousPage()}
-              isDisabled={!canPreviousPage}
-              variant="outline"
+              <Button
+                size="sm"
+                onClick={() => previousPage()}
+                isDisabled={!canPreviousPage}
+                variant="outline"
                 aria-label="Previous page"
-            >
+              >
                 «
-            </Button>
+              </Button>
 
               {/* Page Numbers */}
               {(() => {
@@ -1392,11 +1097,11 @@ export default function CustomerTable(props) {
               })()}
 
               {/* Next Page */}
-            <Button
-              size="sm"
-              onClick={() => nextPage()}
-              isDisabled={!canNextPage}
-              variant="outline"
+              <Button
+                size="sm"
+                onClick={() => nextPage()}
+                isDisabled={!canNextPage}
+                variant="outline"
                 aria-label="Next page"
               >
                 »
@@ -1411,7 +1116,7 @@ export default function CustomerTable(props) {
                 aria-label="Last page"
               >
                 »»
-            </Button>
+              </Button>
             </HStack>
 
             {/* Page Info */}
@@ -1442,21 +1147,21 @@ export default function CustomerTable(props) {
                   Basic Information
                 </Text>
                 <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4}>
-              <FormControl isRequired>
+                  <FormControl isRequired>
                     <FormLabel>Client Name</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., ACME Shipping Co."
-                  value={editingCustomer?.name || ""}
+                      value={editingCustomer?.name || ""}
                       onChange={(e) => handleEditInputChange("name", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1477,8 +1182,8 @@ export default function CustomerTable(props) {
                         boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                       }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
                   <FormControl isRequired>
                     <FormLabel>Client Category</FormLabel>
@@ -1502,21 +1207,21 @@ export default function CustomerTable(props) {
                     </Select>
                   </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Registration Number</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., SG12345678"
                       value={editingCustomer?.reg_no || ""}
                       onChange={(e) => handleEditInputChange("reg_no", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1545,24 +1250,24 @@ export default function CustomerTable(props) {
                         boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                       }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Street Address 2</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., #01-03/04 Changi Cargo Megaplex"
                       value={editingCustomer?.street2 || ""}
                       onChange={(e) => handleEditInputChange("street2", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1583,24 +1288,24 @@ export default function CustomerTable(props) {
                         boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                       }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Postal Code</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., 819454"
                       value={editingCustomer?.zip || ""}
                       onChange={(e) => handleEditInputChange("zip", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1655,25 +1360,25 @@ export default function CustomerTable(props) {
                         boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                       }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Secondary Email</FormLabel>
-                <Input
+                    <Input
                       type="email"
                       placeholder="e.g., backup@acme.com"
                       value={editingCustomer?.email2 || ""}
                       onChange={(e) => handleEditInputChange("email2", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1694,43 +1399,43 @@ export default function CustomerTable(props) {
                         boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                       }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Secondary Phone</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., +65 9876 5432"
                       value={editingCustomer?.phone2 || ""}
                       onChange={(e) => handleEditInputChange("phone2", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                    />
+                  </FormControl>
 
-              <FormControl>
+                  <FormControl>
                     <FormLabel>Website</FormLabel>
-                <Input
+                    <Input
                       placeholder="e.g., http://acme.com"
                       value={editingCustomer?.website || ""}
                       onChange={(e) => handleEditInputChange("website", e.target.value)}
-                  bg={inputBg}
-                  color={inputText}
-                  border="2px"
-                  borderColor={borderColor}
-                  _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
@@ -1759,8 +1464,8 @@ export default function CustomerTable(props) {
                       boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                     }}
                     _hover={{ borderColor: "blue.300" }}
-                />
-              </FormControl>
+                  />
+                </FormControl>
               </Box>
             </VStack>
           </ModalBody>

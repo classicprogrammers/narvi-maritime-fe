@@ -24,6 +24,7 @@ import {
   MdStraighten,
   MdPublic,
   MdPlace,
+  MdPhone,
 } from "react-icons/md";
 
 // Admin Imports
@@ -34,6 +35,9 @@ import Customer from "views/admin/contacts/Customer";
 import Vendors from "views/admin/contacts/Vendors";
 import CustomerRegistration from "views/admin/customer-registration";
 import VendorRegistration from "views/admin/vendor-registration";
+import ClientDetail from "views/admin/contacts/ClientDetail";
+import AgentDetail from "views/admin/contacts/AgentDetail";
+import Phonebook from "views/admin/phonebook";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
@@ -86,6 +90,7 @@ const routes = [
         path: "/contacts/customer",
         icon: <Icon as={MdPeople} width="20px" height="20px" color="inherit" />,
         component: Customer,
+        exact: true,
       },
 
       {
@@ -95,6 +100,14 @@ const routes = [
           <Icon as={MdBusiness} width="20px" height="20px" color="inherit" />
         ),
         component: Vendors,
+        exact: true,
+      },
+      {
+        name: "Phonebook",
+        path: "/contacts/phonebook",
+        icon: <Icon as={MdPhone} width="20px" height="20px" color="inherit" />,
+        component: Phonebook,
+        exact: true,
       },
     ],
   },
@@ -308,6 +321,18 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/vendor-registration/:id?",
     component: VendorRegistration,
+  },
+  {
+    name: "Agent Detail",
+    layout: "/admin",
+    path: "/contacts/agents/:id",
+    component: AgentDetail,
+  },
+  {
+    name: "Client Detail",
+    layout: "/admin",
+    path: "/contacts/customer/:id",
+    component: ClientDetail,
   },
 ];
 

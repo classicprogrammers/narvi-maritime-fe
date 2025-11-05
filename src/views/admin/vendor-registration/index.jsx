@@ -8,12 +8,18 @@ import {
     FormControl,
     FormLabel,
     Input,
-    Select,
     Text,
     useColorModeValue,
     VStack,
     HStack,
     Icon,
+    Table,
+    Thead,
+    Tbody,
+    Tr,
+    Th,
+    Td,
+    IconButton,
 } from "@chakra-ui/react";
 // Custom components
 import Card from "components/card/Card";
@@ -21,7 +27,8 @@ import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdRemove } from "react-icons/md";
 // API
-import { registerVendorApi, updateVendorApi } from "api/vendor";
+import { registerVendorApi, updateVendorApi, createVendorPersonApi } from "api/vendor";
+import SearchableSelect from "components/forms/SearchableSelect";
 // Redux
 import { useVendor } from "redux/hooks/useVendor";
 
@@ -65,7 +72,11 @@ function VendorRegistration() {
     const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
     const inputBg = useColorModeValue("white", "navy.900");
     const inputText = useColorModeValue("gray.700", "gray.100");
-    const placeholderColor = useColorModeValue("gray.400", "gray.500");
+    // const placeholderColor = useColorModeValue("gray.400", "gray.500");
+    const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
+    const headingColor = useColorModeValue("secondaryGray.900", "white");
+    const borderLight = useColorModeValue("gray.200", "whiteAlpha.200");
+    const gridInputWidth = { base: "60%", md: "60%" };
 
     // Form state
     const [formData, setFormData] = React.useState({
@@ -99,7 +110,39 @@ function VendorRegistration() {
         cnee_text: "",
         warnings: "",
         narvi_approved: "",
+        remarks: "",
     });
+
+    // Agent People table (same UX as clients)
+    const peopleTableColumns = [
+        { key: "company_name", label: "Agent company" },
+        { key: "first_name", label: "First name" },
+        { key: "last_name", label: "Last name" },
+        { key: "prefix", label: "Prefix" },
+        { key: "job_title", label: "Job title" },
+        { key: "email", label: "E-mail" },
+        { key: "tel_direct", label: "Tel direct" },
+        { key: "phone", label: "Mobile" },
+        { key: "tel_other", label: "Tel other" },
+        { key: "linked_in", label: "LinkedIn" },
+        { key: "remarks", label: "Remark" },
+    ];
+
+    const emptyPersonRow = {
+        company_name: "",
+        first_name: "",
+        last_name: "",
+        prefix: "",
+        job_title: "",
+        email: "",
+        tel_direct: "",
+        phone: "",
+        tel_other: "",
+        linked_in: "",
+        remarks: "",
+    };
+
+    const [peopleRows, setPeopleRows] = React.useState([]);
 
     // State to track how many CNEE fields are visible
     const [visibleCneeFields, setVisibleCneeFields] = React.useState(1);
@@ -290,6 +333,15 @@ function VendorRegistration() {
                 setModalMessage(`Agent "${formData.name}" has been ${action} successfully!`);
                 setIsSuccessModalOpen(true);
 
+                // Create people rows if any
+                const createdAgentId = isEditMode ? id : result.result.id;
+                if (createdAgentId && peopleRows.length > 0) {
+                    for (const row of peopleRows) {
+                        await createVendorPersonApi(createdAgentId, row);
+                    }
+                    setPeopleRows([]);
+                }
+
                 // Reset form only for new registrations
                 if (!isEditMode) {
                     setFormData({
@@ -407,342 +459,131 @@ function VendorRegistration() {
                 <Box px="25px" pb="25px">
                     <form onSubmit={handleSubmit}>
                         <VStack spacing={6} align="stretch">
-                            {/* Basic Information Section */}
-                            <Card p="6" borderRadius="lg" border="1px" borderColor={borderColor}>
-                                <VStack spacing={4} align="stretch">
-                                    <HStack spacing={2} mb={4}>
-                                        <Icon as={MdBusiness} color={textColorBrand} boxSize={6} />
-                                        <Text fontSize="lg" fontWeight="600" color={textColor}>
-                                            Basic Information
-                                        </Text>
-                                    </HStack>
+                            {/* Personal Information grid (matches client) */}
+                            <Box border="1px solid" borderColor={borderLight} borderRadius="md" overflow="hidden">
+                                <Box>
+                                    <Box as={"div"}>
+                                        <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }}>
+                                            {/* Company name */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
+                                                <Input name="name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* Address1 */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
+                                                <Input name="street" value={formData.street} onChange={(e) => handleInputChange('street', e.target.value)} placeholder="Street address" size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Agents DB ID</FormLabel>
-                                        <Input
-                                            value={formData.agentsdb_id}
-                                            onChange={(e) => handleInputChange("agentsdb_id", e.target.value)}
-                                            placeholder="Enter agents DB ID"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
+                                            {/* Address2 */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
+                                                <Input name="street2" value={formData.street2} onChange={(e) => handleInputChange('street2', e.target.value)} placeholder="Suite / Unit" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* Postcode + City */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode + City</Text>
+                                                <HStack spacing={2} w={gridInputWidth}>
+                                                    <Input name="zip" value={formData.zip} onChange={(e) => handleInputChange('zip', e.target.value)} placeholder="Zip" size="sm" />
+                                                    <Input name="city" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} placeholder="City" size="sm" />
+                                                </HStack>
+                                            </Box>
 
-                                    <FormControl isRequired>
-                                        <FormLabel color={textColorSecondary}>Agent Company Name</FormLabel>
-                                        <Input
-                                            value={formData.name}
-                                            onChange={(e) => handleInputChange("name", e.target.value)}
-                                            placeholder="Enter agent company name"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
+                                            {/* Country */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
+                                                <Box w={gridInputWidth}>
+                                                    <SearchableSelect
+                                                        value={formData.country_id}
+                                                        onChange={(val) => handleInputChange('country_id', val)}
+                                                        options={countryList || []}
+                                                        placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
+                                                        displayKey="name"
+                                                        valueKey="id"
+                                                        isLoading={countriesLoading}
+                                                    />
+                                                </Box>
+                                            </Box>
+                                            {/* Reg No */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
+                                                <Input name="reg_no" value={formData.reg_no} onChange={(e) => handleInputChange('reg_no', e.target.value)} placeholder="Registration" size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Address Type</FormLabel>
-                                        <Select
-                                            value={formData.address_type}
-                                            onChange={(e) => handleInputChange("address_type", e.target.value)}
-                                            placeholder="Select address type"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                        >
-                                            <option value="warehouse">Warehouse</option>
-                                        </Select>
-                                    </FormControl>
+                                            {/* Agents DB ID (Agent Code) */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
+                                                <Input name="agentsdb_id" value={formData.agentsdb_id} onChange={(e) => handleInputChange('agentsdb_id', e.target.value)} placeholder="AG-001" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* Email1 */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
+                                                <Input type="email" name="email" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="name@company.com" size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                                    <FormControl isRequired>
-                                        <FormLabel color={textColorSecondary}>Email Address 1</FormLabel>
-                                        <Input
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => handleInputChange("email", e.target.value)}
-                                            placeholder="Enter primary email address"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
+                                            {/* Email2 */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
+                                                <Input type="email" name="email2" value={formData.email2} onChange={(e) => handleInputChange('email2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* Phone1 */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
+                                                <Input name="phone" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder="+65..." size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Email Address 2</FormLabel>
-                                        <Input
-                                            type="email"
-                                            value={formData.email2}
-                                            onChange={(e) => handleInputChange("email2", e.target.value)}
-                                            placeholder="Enter secondary email address"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-                                </VStack>
-                            </Card>
+                                            {/* Phone2 */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
+                                                <Input name="phone2" value={formData.phone2} onChange={(e) => handleInputChange('phone2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* Website */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
+                                                <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                            {/* Contact Information Section */}
-                            <Card p="6" borderRadius="lg" border="1px" borderColor={borderColor}>
-                                <VStack spacing={4} align="stretch">
-                                    <HStack spacing={2} mb={4}>
-                                        <Icon as={MdPerson} color={textColorBrand} boxSize={6} />
-                                        <Text fontSize="lg" fontWeight="600" color={textColor}>
-                                            Contact Information
-                                        </Text>
-                                    </HStack>
+                                            {/* Remarks */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Remarks</Text>
+                                                <Input name="remarks" value={formData.remarks} onChange={(e) => handleInputChange('remarks', e.target.value)} placeholder="Notes..." size="sm" w={gridInputWidth} />
+                                            </Box>
 
-                                    <HStack spacing={4}>
-                                        <FormControl>
-                                            <FormLabel color={textColorSecondary}>Phone 1</FormLabel>
-                                            <Input
-                                                value={formData.phone}
-                                                onChange={(e) => handleInputChange("phone", e.target.value)}
-                                                placeholder="Enter primary phone number"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                _focus={{
-                                                    borderColor: "blue.400",
-                                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                                }}
-                                                _placeholder={{ color: placeholderColor }}
-                                            />
-                                        </FormControl>
+                                            {/* Address Type */}
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
+                                                <Input name="address_type" value={formData.address_type} onChange={(e) => handleInputChange('address_type', e.target.value)} placeholder="e.g., Warehouse, Office, Main" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                            {/* PIC (kept for parity with previous vendor form) */}
+                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
+                                                <Input name="pic" value={formData.pic} onChange={(e) => handleInputChange('pic', e.target.value)} placeholder="Person in charge" size="sm" w={gridInputWidth} />
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                </Box>
+                                {/* Close border wrapper */}
+                            </Box>
 
-                                        <FormControl>
-                                            <FormLabel color={textColorSecondary}>Phone 2</FormLabel>
-                                            <Input
-                                                value={formData.phone2}
-                                                onChange={(e) => handleInputChange("phone2", e.target.value)}
-                                                placeholder="Enter secondary phone number"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                _focus={{
-                                                    borderColor: "blue.400",
-                                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                                }}
-                                                _placeholder={{ color: placeholderColor }}
-                                            />
-                                        </FormControl>
-                                    </HStack>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Website</FormLabel>
-                                        <Input
-                                            value={formData.website}
-                                            onChange={(e) => handleInputChange("website", e.target.value)}
-                                            placeholder="Enter website URL"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>PIC (Person in Charge)</FormLabel>
-                                        <Input
-                                            value={formData.pic}
-                                            onChange={(e) => handleInputChange("pic", e.target.value)}
-                                            placeholder="Enter person in charge name"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-                                </VStack>
-                            </Card>
-
-                            {/* Address Information Section */}
-                            <Card p="6" borderRadius="lg" border="1px" borderColor={borderColor}>
-                                <VStack spacing={4} align="stretch">
-                                    <HStack spacing={2} mb={4}>
-                                        <Icon as={MdBusiness} color={textColorBrand} boxSize={6} />
-                                        <Text fontSize="lg" fontWeight="600" color={textColor}>
-                                            Address Information
-                                        </Text>
-                                    </HStack>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Address 1</FormLabel>
-                                        <Input
-                                            value={formData.street}
-                                            onChange={(e) => handleInputChange("street", e.target.value)}
-                                            placeholder="Enter primary address"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Address 2</FormLabel>
-                                        <Input
-                                            value={formData.street2}
-                                            onChange={(e) => handleInputChange("street2", e.target.value)}
-                                            placeholder="Enter secondary address"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-
-                                    <HStack spacing={4}>
-                                        <FormControl>
-                                            <FormLabel color={textColorSecondary}>City</FormLabel>
-                                            <Input
-                                                value={formData.city}
-                                                onChange={(e) => handleInputChange("city", e.target.value)}
-                                                placeholder="Enter city"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                _focus={{
-                                                    borderColor: "blue.400",
-                                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                                }}
-                                                _placeholder={{ color: placeholderColor }}
-                                            />
-                                        </FormControl>
-
-                                        <FormControl>
-                                            <FormLabel color={textColorSecondary}>Postcode</FormLabel>
-                                            <Input
-                                                value={formData.zip}
-                                                onChange={(e) => handleInputChange("zip", e.target.value)}
-                                                placeholder="Enter postcode"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                _focus={{
-                                                    borderColor: "blue.400",
-                                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                                }}
-                                                _placeholder={{ color: placeholderColor }}
-                                            />
-                                        </FormControl>
-                                    </HStack>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Country</FormLabel>
-                                        <Select
-                                            value={formData.country_id}
-                                            onChange={(e) => handleInputChange("country_id", e.target.value)}
-                                            placeholder="Select country"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            isDisabled={countriesLoading}
-                                        >
-                                            {countryList && countryList.map((country) => (
-                                                <option key={country.id} value={country.id}>
-                                                    {country.name}
-                                                </option>
-                                            ))}
-                                        </Select>
-                                    </FormControl>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Registration Number</FormLabel>
-                                        <Input
-                                            value={formData.reg_no}
-                                            onChange={(e) => handleInputChange("reg_no", e.target.value)}
-                                            placeholder="Enter registration number"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-                                </VStack>
-                            </Card>
-
-                            {/* CNEE Information Section */}
-                            <Card p="6" borderRadius="lg" border="1px" borderColor={borderColor}>
-                                <VStack spacing={4} align="stretch">
-                                    <HStack spacing={2} mb={4} justify="space-between">
+                            {/* CNEE Information (moved into personal information area) */}
+                            <Box border="1px solid" borderColor={borderLight} borderRadius="md" overflow="hidden">
+                                <Box px={4} py={3} bg={sectionHeadingBg} borderBottom="1px" borderColor={borderLight}>
+                                    <HStack justify="space-between">
                                         <HStack spacing={2}>
-                                            <Icon as={MdPerson} color={textColorBrand} boxSize={6} />
-                                            <Text fontSize="lg" fontWeight="600" color={textColor}>
-                                                CNEE Information
-                                            </Text>
+                                            <Icon as={MdBusiness} color={textColorBrand} />
+                                            <Text fontSize="sm" fontWeight="600" color={headingColor}>CNEE Information</Text>
                                         </HStack>
-                                        <Button
-                                            size="sm"
-                                            colorScheme="blue"
-                                            variant="outline"
-                                            leftIcon={<Icon as={MdAdd} />}
-                                            onClick={addCneeField}
-                                            isDisabled={visibleCneeFields >= 12}
-                                        >
-                                            Add More
-                                        </Button>
+                                        <Button size="xs" variant="outline" leftIcon={<Icon as={MdAdd} />} onClick={addCneeField} isDisabled={visibleCneeFields >= 12}>Add More</Button>
                                     </HStack>
-
-                                    {/* Dynamic CNEE Fields */}
+                                </Box>
+                                <Box p={4}>
                                     {Array.from({ length: visibleCneeFields }, (_, index) => {
                                         const fieldNumber = index + 1;
                                         const fieldName = `cnee${fieldNumber}`;
                                         return (
-                                            <HStack key={fieldNumber} spacing={4} align="end">
+                                            <HStack key={fieldNumber} spacing={4} align="end" mb={3}>
                                                 <FormControl flex={1}>
-                                                    <FormLabel color={textColorSecondary}>
-                                                        CNEE {fieldNumber}
-                                                    </FormLabel>
+                                                    <FormLabel color={textColorSecondary}>CNEE {fieldNumber}</FormLabel>
                                                     <Input
                                                         value={formData[fieldName] || ""}
                                                         onChange={(e) => handleInputChange(fieldName, e.target.value)}
@@ -750,20 +591,10 @@ function VendorRegistration() {
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
-                                                        _focus={{
-                                                            borderColor: "blue.400",
-                                                            boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                                        }}
-                                                        _placeholder={{ color: placeholderColor }}
                                                     />
                                                 </FormControl>
                                                 {visibleCneeFields > 1 && (
-                                                    <Button
-                                                        size="sm"
-                                                        colorScheme="red"
-                                                        variant="outline"
-                                                        onClick={() => removeCneeField(fieldNumber)}
-                                                    >
+                                                    <Button size="sm" colorScheme="red" variant="outline" onClick={() => removeCneeField(fieldNumber)}>
                                                         <Icon as={MdRemove} />
                                                     </Button>
                                                 )}
@@ -771,41 +602,31 @@ function VendorRegistration() {
                                         );
                                     })}
 
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>CNEE Text</FormLabel>
-                                        <Input
-                                            value={formData.cnee_text}
-                                            onChange={(e) => handleInputChange("cnee_text", e.target.value)}
-                                            placeholder="Enter additional CNEE text"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-
-                                    <FormControl>
-                                        <FormLabel color={textColorSecondary}>Warnings</FormLabel>
-                                        <Input
-                                            value={formData.warnings}
-                                            onChange={(e) => handleInputChange("warnings", e.target.value)}
-                                            placeholder="Enter any warnings or notes"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
-                                        />
-                                    </FormControl>
-
-                                    <FormControl>
+                                    <HStack spacing={4}>
+                                        <FormControl>
+                                            <FormLabel color={textColorSecondary}>CNEE Text</FormLabel>
+                                            <Input
+                                                value={formData.cnee_text}
+                                                onChange={(e) => handleInputChange("cnee_text", e.target.value)}
+                                                placeholder="Enter additional CNEE text"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </FormControl>
+                                        <FormControl>
+                                            <FormLabel color={textColorSecondary}>Warnings</FormLabel>
+                                            <Input
+                                                value={formData.warnings}
+                                                onChange={(e) => handleInputChange("warnings", e.target.value)}
+                                                placeholder="Enter any warnings or notes"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </FormControl>
+                                    </HStack>
+                                    <FormControl mt={3}>
                                         <FormLabel color={textColorSecondary}>Narvi Maritime Approved Agent</FormLabel>
                                         <Input
                                             value={formData.narvi_approved}
@@ -814,43 +635,127 @@ function VendorRegistration() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                            _focus={{
-                                                borderColor: "blue.400",
-                                                boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                            }}
-                                            _placeholder={{ color: placeholderColor }}
                                         />
                                     </FormControl>
-                                </VStack>
-                            </Card>
+                                </Box>
+                            </Box>
 
-                            {/* Submit Button */}
-                            <HStack spacing={4} justify="center" pt={4}>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={handleBackToVendors}
-                                    size="lg"
-                                    px={8}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    colorScheme="blue"
-                                    size="lg"
-                                    px={8}
-                                    isLoading={isLoading}
-                                    loadingText={isEditMode ? "Updating..." : "Registering..."}
-                                    leftIcon={<Icon as={isEditMode ? MdEdit : MdPersonAdd} />}
-                                >
-                                    {isEditMode ? "Update Agent" : "Register Agent"}
-                                </Button>
-                            </HStack>
                         </VStack>
                     </form>
                 </Box>
             </Card>
+
+            {/* Agent People Section */}
+            <Card p="6" mt={2} borderRadius="lg" border="1px" borderColor={borderColor}>
+                <VStack spacing={4} align="stretch">
+                    <HStack spacing={2} mb={2} justify="space-between">
+                        <HStack spacing={2}>
+                            <Icon as={MdPerson} color={textColorBrand} boxSize={6} />
+                            <Text fontSize="lg" fontWeight="600" color={textColor}>
+                                Agent People
+                            </Text>
+                        </HStack>
+                        <Button
+                            size="sm"
+                            colorScheme="blue"
+                            onClick={() => {
+                                const required = ["first_name", "last_name", "email"];
+                                const hasIncomplete = peopleRows.some((row) =>
+                                    required.some((f) => !String(row[f] || "").trim())
+                                );
+                                if (hasIncomplete) return;
+                                setPeopleRows((prev) => [
+                                    ...prev,
+                                    { ...emptyPersonRow, company_name: formData.name || "" },
+                                ]);
+                            }}
+                        >
+                            Add Agent Person
+                        </Button>
+                    </HStack>
+
+                    <Box border="1px solid" borderColor={borderColor} borderRadius="lg" overflow="auto" bg={inputBg}>
+                        <Table size="sm">
+                            <Thead>
+                                <Tr>
+                                    {peopleTableColumns.map((c) => (
+                                        <Th key={c.key} fontSize="xs" textTransform="uppercase">{c.label}</Th>
+                                    ))}
+                                    <Th fontSize="xs" textTransform="uppercase" w="80px">Actions</Th>
+                                </Tr>
+                            </Thead>
+                            <Tbody>
+                                {peopleRows.length === 0 ? (
+                                    <Tr>
+                                        <Td colSpan={peopleTableColumns.length + 1} textAlign="center" py={8}>
+                                            <Text color={textColorSecondary}>No agent people added yet.</Text>
+                                        </Td>
+                                    </Tr>
+                                ) : (
+                                    peopleRows.map((row, rowIndex) => (
+                                        <Tr key={rowIndex}>
+                                            {peopleTableColumns.map((column) => (
+                                                <Td key={column.key} minW="170px" px={3} py={2}>
+                                                    <Input
+                                                        value={row[column.key]}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            setPeopleRows((prev) => {
+                                                                const updated = [...prev];
+                                                                updated[rowIndex] = { ...updated[rowIndex], [column.key]: value };
+                                                                return updated;
+                                                            });
+                                                        }}
+                                                        size="sm"
+                                                        isRequired={["first_name", "last_name", "email"].includes(column.key)}
+                                                        isReadOnly={column.key === "company_name"}
+                                                        isDisabled={column.key === "company_name"}
+                                                    />
+                                                </Td>
+                                            ))}
+                                            <Td px={3} py={2}>
+                                                <IconButton
+                                                    aria-label="Delete row"
+                                                    icon={<MdRemove />}
+                                                    size="sm"
+                                                    colorScheme="red"
+                                                    variant="ghost"
+                                                    onClick={() => setPeopleRows((prev) => prev.filter((_, idx) => idx !== rowIndex))}
+                                                />
+                                            </Td>
+                                        </Tr>
+                                    ))
+                                )}
+                            </Tbody>
+                        </Table>
+                    </Box>
+                </VStack>
+            </Card>
+
+            {/* Final Submit Buttons */}
+            <HStack spacing={4} justify="center" pt={4} px="25px" pb="25px">
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBackToVendors}
+                    size="lg"
+                    px={8}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    colorScheme="blue"
+                    size="lg"
+                    px={8}
+                    isLoading={isLoading}
+                    loadingText={isEditMode ? "Updating..." : "Registering..."}
+                    leftIcon={<Icon as={isEditMode ? MdEdit : MdPersonAdd} />}
+                    onClick={(e) => { e.preventDefault(); const form = document.querySelector('form'); if (form) { form.requestSubmit(); } }}
+                >
+                    {isEditMode ? "Update Agent" : "Register Agent"}
+                </Button>
+            </HStack>
 
             {/* Success Modal */}
             <SuccessModal

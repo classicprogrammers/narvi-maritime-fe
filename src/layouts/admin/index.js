@@ -129,6 +129,7 @@ export default function Dashboard(props) {
             path={prop.layout + prop.path}
             component={prop.component}
             key={key}
+            exact={prop.exact}
           />
         );
       }
@@ -144,6 +145,7 @@ export default function Dashboard(props) {
             path={prop.layout + subItem.path}
             component={subItem.component}
             key={`${key}-${subKey}`}
+            exact={subItem.exact}
           />
         ));
       } else {

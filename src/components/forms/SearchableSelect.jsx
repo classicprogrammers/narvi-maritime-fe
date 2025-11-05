@@ -41,7 +41,9 @@ const SearchableSelect = ({
     } else {
       setFilteredOptions(options);
     }
-  }, [searchValue, options, formatOption]);
+  // Exclude formatOption from deps to avoid infinite loops due to new function identity on each render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue, options]);
 
   // Load initial data when popover opens
   useEffect(() => {

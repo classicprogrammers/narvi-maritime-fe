@@ -253,6 +253,47 @@ export const updateVendorApi = async (agentId, data) => {
   }
 };
 
+// Create Agent Person API
+export const createVendorPersonApi = async (agentId, person) => {
+  try {
+    // Get user ID from localStorage
+    const userData = localStorage.getItem("user");
+    let userId = null;
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        userId = user.id;
+      } catch (_) {}
+    }
+
+    const payload = {
+      // Link to agent
+      vendor_id: agentId,
+      user_id: userId,
+      // Person fields
+      prefix: person.prefix,
+      job_title: person.job_title,
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      tel_direct: person.tel_direct,
+      phone: person.phone,
+      tel_other: person.tel_other,
+      linked_in: person.linked_in,
+      remarks: person.remarks,
+      // Some backends expect parent_id/client_id; include for compatibility
+      parent_id: agentId,
+      client_id: agentId,
+    };
+
+    const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), payload);
+    return response.data;
+  } catch (error) {
+    console.error("Create agent person error:", error);
+    throw error;
+  }
+};
+
 // Delete Agent API
 export const deleteVendorApi = async (agentId) => {
   try {

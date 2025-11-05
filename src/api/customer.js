@@ -1,11 +1,9 @@
 // Customer API functions
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
-
-// Import the global modal system
 import { showApiModal } from "../components/ApiModal";
 
-// Helper function to handle API errors and show modals
+// Centralized error handler that also surfaces a modal for the user
 const handleApiError = (error, operation) => {
   console.error(`${operation} failed:`, error);
 
@@ -20,7 +18,7 @@ const handleApiError = (error, operation) => {
   // HTTP errors (4xx, 5xx) - Extract detailed error message from response
   if (error.response) {
     const responseData = error.response.data;
-    
+
     // Check for JSON-RPC error format
     if (responseData && responseData.result && responseData.result.status === 'error') {
       errorMessage = responseData.result.message || errorMessage;
@@ -45,6 +43,22 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
+// --- Small utilities -------------------------------------------------------
+const getCurrentUserId = () => {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.id ?? null;
+  } catch (_e) {
+    return null;
+  }
+};
+
+// Remove keys with value === undefined (keep null/empty string if intentionally provided)
+const removeUndefined = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
 // Get Countries API
 export const getCountriesApi = async () => {
   try {
@@ -59,32 +73,12 @@ export const getCountriesApi = async () => {
 // Register Customer API
 export const registerCustomerApi = async (customerData) => {
   try {
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-      } catch (parseError) {
-        console.warn(
-          "Failed to parse user data from localStorage:",
-          parseError
-        );
-      }
-    }
-
-    // Add user_id to customer data
-    const payload = {
+    const payload = removeUndefined({
       ...customerData,
-      user_id: userId,
-    };
+      user_id: getCurrentUserId(),
+    });
 
-    const response = await api.post(
-      getApiEndpoint("CUSTOMER_REGISTER"),
-      payload
-    );
+    const response = await api.post(getApiEndpoint("CUSTOMER_REGISTER"), payload);
     const result = response.data;
 
     // Check if the JSON-RPC response indicates an error
@@ -108,12 +102,10 @@ export const registerCustomerApi = async (customerData) => {
 export const getCustomersApi = async () => {
   try {
     const response = await api.get(getApiEndpoint("CUSTOMERS"));
-    
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch customers');
     }
-    
     return response.data;
   } catch (error) {
     console.error("Get customers error:", error);
@@ -124,14 +116,72 @@ export const getCustomersApi = async () => {
 // Update Customer API
 export const updateCustomerApi = async (customerId, data) => {
   try {
-    const response = await api.post(
-      `${getApiEndpoint("CUSTOMER_UPDATE")}/${customerId}`,
-      data
-    );
+    const payload = removeUndefined({
+      current_user: getCurrentUserId(),
+      customer_id: customerId,
+      client_code: data.client_code,
+      client_category: data.client_category,
+      street: data.street,
+      street2: data.street2,
+      zip: data.zip,
+      city: data.city,
+      country_id: data.country_id,
+      reg_no: data.reg_no,
+      email: data.email,
+      email2: data.email2,
+      phone: data.phone,
+      phone2: data.phone2,
+      website: data.website,
+      remarks: data.remarks,
+      linked_in: data.linked_in,
+      tel_direct: data.tel_direct,
+      tel_other: data.tel_other,
+      prefix: data.prefix,
+      job_title: data.job_title,
+      parent_id: data.parent_id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      name: data.name,
+      client_type: data.client_type,
+      address_type: data.address_type,
+    });
+
+    const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
     return response.data;
   } catch (error) {
     console.error("Update customer error:", error);
     handleApiError(error, "Update customer");
+  }
+};
+
+// Create Client Person for a Customer
+export const createCustomerPersonApi = async (customerId, person) => {
+  try {
+    const payload = removeUndefined({
+      current_user: getCurrentUserId(),
+      customer_id: customerId,
+      // Some backends expect client_id instead of customer_id
+      client_id: customerId,
+      // Person-only fields
+      prefix: person.prefix,
+      job_title: person.job_title,
+      // Link person to the client
+      parent_id: customerId,
+      first_name: person.first_name,
+      last_name: person.last_name,
+      email: person.email,
+      tel_direct: person.tel_direct,
+      phone: person.phone,
+      tel_other: person.tel_other,
+      linked_in: person.linked_in,
+      remarks: person.remarks,
+    });
+
+    const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
+    return response.data;
+  } catch (error) {
+    console.error("Create customer person error:", error);
+    handleApiError(error, "Create client person");
   }
 };
 

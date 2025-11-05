@@ -61,6 +61,7 @@ import {
   MdKeyboardArrowUp,
   MdUnfoldMore,
   MdFilterList,
+  MdVisibility,
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
@@ -68,11 +69,11 @@ export default function VendorsTable(props) {
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
+    agent_id: "",
     company: "",
     city: "",
-    status: "",
+    country: "",
     email: "",
-    phone: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -168,47 +169,66 @@ export default function VendorsTable(props) {
       );
     }
 
+    // Apply agent id filter
+    if (filters.agent_id) {
+      filtered = filtered.filter(
+        (item) =>
+          item.agentsdb_id &&
+          String(item.agentsdb_id).toLowerCase().includes(filters.agent_id.toLowerCase())
+      );
+    }
+
     // Apply company filter
     if (filters.company) {
       filtered = filtered.filter(
-        (item) => item.company && item.company.toLowerCase().includes(filters.company.toLowerCase())
+        (item) => (item.name || "").toLowerCase().includes(filters.company.toLowerCase())
       );
     }
 
     // Apply city filter
     if (filters.city) {
       filtered = filtered.filter(
-        (item) =>
-          item.city &&
-          item.city.toLowerCase().includes(filters.city.toLowerCase())
+        (item) => (item.city || "").toLowerCase().includes(filters.city.toLowerCase())
       );
     }
 
-    // Apply status filter (if status field exists)
-    if (filters.status) {
-      filtered = filtered.filter((item) => item.status === filters.status);
+    // Apply country filter (by country name)
+    if (filters.country) {
+      const needle = filters.country.toLowerCase();
+      filtered = filtered.filter((item) => {
+        const country = countries.find(
+          (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
+        );
+        const countryName = country ? country.name : item.country_name || "";
+        return (countryName || "").toLowerCase().includes(needle);
+      });
     }
 
-    // Apply email filter
+    // Apply email filter (checks both)
     if (filters.email) {
+      const needle = filters.email.toLowerCase();
       filtered = filtered.filter(
         (item) =>
-          item.email &&
-          item.email.toLowerCase().includes(filters.email.toLowerCase())
+          (item.email && item.email.toLowerCase().includes(needle)) ||
+          (item.email2 && item.email2.toLowerCase().includes(needle))
       );
     }
 
-    // Apply phone filter
-    if (filters.phone) {
-      filtered = filtered.filter(
-        (item) =>
-          (item.phone && item.phone.toString().includes(filters.phone)) ||
-          (item.mobile && item.mobile.toString().includes(filters.phone))
+    // Add computed display fields
+    const withComputed = filtered.map((item) => {
+      const countryObj = countries.find(
+        (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
       );
-    }
+      const countryName = countryObj ? countryObj.name : item.country_name || "";
+      return {
+        ...item,
+        city_country: [item.city, countryName].filter(Boolean).join(", "),
+        emails: [item.email, item.email2].filter(Boolean),
+      };
+    });
 
-    return filtered;
-  }, [tableData, searchValue, filters]);
+    return withComputed;
+  }, [tableData, searchValue, filters, countries]);
 
   const data = useMemo(() => {
     const sortedData = applyCustomSorting(Array.isArray(filteredData) ? filteredData : []);
@@ -271,13 +291,7 @@ export default function VendorsTable(props) {
   };
 
   const clearAllFilters = () => {
-    setFilters({
-      company: "",
-      city: "",
-      status: "",
-      email: "",
-      phone: "",
-    });
+    setFilters({ agent_id: "", company: "", city: "", country: "", email: "" });
   };
 
   const clearAllSorting = () => {
@@ -559,12 +573,12 @@ export default function VendorsTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.company || filters.city || filters.status
+                  filters.agent_id || filters.company || filters.city || filters.country || filters.email
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.company || filters.city || filters.status
+                  filters.agent_id || filters.company || filters.city || filters.country || filters.email
                     ? "blue"
                     : "gray"
                 }
@@ -607,9 +621,11 @@ export default function VendorsTable(props) {
             </Box>
 
             {/* Clear All */}
-            {(filters.company ||
+            {(filters.agent_id ||
+              filters.company ||
               filters.city ||
-              filters.status ||
+              filters.country ||
+              filters.email ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -644,9 +660,50 @@ export default function VendorsTable(props) {
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
                 Filter by Specific Fields
               </Text>
+              <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                {/* Agent ID Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Agent ID
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., ABC, XYZ..."
+                    value={filters.agent_id}
+                    onChange={(e) => handleFilterChange("agent_id", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
 
-              {/* First Row - Basic Info */}
-              <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                {/* Company Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Company Name
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., Transcoma, ABC Shipping..."
+                    value={filters.company}
+                    onChange={(e) => handleFilterChange("company", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
 
                 {/* City Filter */}
                 <Box minW="200px" flex="1">
@@ -659,25 +716,39 @@ export default function VendorsTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="e.g., New York, London, Tokyo..."
+                    placeholder="e.g., Algeciras, Singapore..."
                     value={filters.city}
                     onChange={(e) => handleFilterChange("city", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   />
                 </Box>
-              </HStack>
 
-              {/* Second Row - Contact Info */}
-              <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                {/* Country Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Country
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., Spain, Singapore..."
+                    value={filters.country}
+                    onChange={(e) => handleFilterChange("country", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
+
                 {/* Email Filter */}
                 <Box minW="250px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
@@ -689,49 +760,13 @@ export default function VendorsTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="e.g., john@company.com..."
-                    value={filters.email || ""}
-                    onChange={(e) =>
-                      handleFilterChange("email", e.target.value)
-                    }
+                    placeholder="e.g., ops@agent.com..."
+                    value={filters.email}
+                    onChange={(e) => handleFilterChange("email", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Phone Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Phone
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., +1-555-123-4567..."
-                    value={filters.phone || ""}
-                    onChange={(e) =>
-                      handleFilterChange("phone", e.target.value)
-                    }
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
                     _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   />
                 </Box>
@@ -742,7 +777,7 @@ export default function VendorsTable(props) {
 
         {/* Table Container with Horizontal Scroll */}
         <Box
-          pr="25px"
+          px="15px"
           overflowX="auto"
           css={{
             "&::-webkit-scrollbar": {
@@ -766,7 +801,6 @@ export default function VendorsTable(props) {
             variant="unstyled"
             size="sm"
             minW="800px"
-            ml="25px"
           >
             <Thead bg={tableHeaderBg}>
               {headerGroups.map((headerGroup, index) => (
@@ -774,7 +808,7 @@ export default function VendorsTable(props) {
                   {headerGroup.headers.map((column, index) => (
                     <Th
                       {...column.getHeaderProps(column.getSortByToggleProps())}
-                      borderRight="1px"
+                      border="1px"
                       borderColor={tableBorderColor}
                       py="12px"
                       px="16px"
@@ -854,7 +888,7 @@ export default function VendorsTable(props) {
                       key={index}
                       bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                       _hover={{ bg: hoverBg }}
-                      borderBottom="1px"
+                      border="1px"
                       borderColor={tableBorderColor}
                     >
                       {row.cells.map((cell, index) => {
@@ -879,67 +913,47 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "EMAIL1") {
+                        } else if (cell.column.Header === "CITY / COUNTRY") {
+                          const countryObj = countries.find(
+                            (c) => c.id === row.original.country_id || c.id === parseInt(row.original.country_id)
+                          );
+                          const countryName = countryObj ? countryObj.name : row.original.country_name || "";
+                          const value = [row.original.city, countryName].filter(Boolean).join(", ") || "-";
                           data = (
                             <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
+                              {value}
                             </Text>
                           );
-                        } else if (cell.column.Header === "PHONE1") {
+                        } else if (cell.column.Header === "EMAILS") {
+                          const primary = row.original.email || "-";
+                          const secondary = row.original.email2;
                           data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "PHONE2") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "ADDRESS1") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "CITY") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "POSTCODE") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "COUNTRY") {
-                          // Find country name by ID
-                          const country = countries.find(c => c.id === cell.value || c.id === parseInt(cell.value));
-                          const countryName = country ? country.name : (cell.value || "-");
-
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {countryName}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "WARNINGS") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
-                          );
-                        } else if (cell.column.Header === "NARVI_MARITIME_APPROVED_AGENT") {
-                          data = (
-                            <Text color={textColor} fontSize="sm">
-                              {cell.value || "-"}
-                            </Text>
+                            <Box>
+                              <Text color={textColor} fontSize="sm">{primary}</Text>
+                              {secondary ? (
+                                <Text color={tableTextColorSecondary} fontSize="xs">{secondary}</Text>
+                              ) : null}
+                            </Box>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
                             <HStack spacing={2}>
+                              <Tooltip label="View Agent">
+                                <IconButton
+                                  icon={<Icon as={MdVisibility} />}
+                                  size="sm"
+                                  colorScheme="teal"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const original = Array.isArray(tableData)
+                                      ? tableData.find((v) => String(v.id) === String(row.original.id))
+                                      : null;
+                                    const payload = original || row.original;
+                                    history.push(`/admin/contacts/agents/${row.original.id}`, { agent: payload });
+                                  }}
+                                  aria-label="View agent"
+                                />
+                              </Tooltip>
                               <Tooltip label="Edit Agent">
                                 <IconButton
                                   icon={<Icon as={MdEdit} />}
