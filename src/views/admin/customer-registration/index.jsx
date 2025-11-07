@@ -19,6 +19,13 @@ import {
     Td,
     IconButton,
     Select,
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogContent,
+    AlertDialogOverlay,
+    useDisclosure,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 // Custom components
@@ -92,6 +99,11 @@ function CustomerRegistration() {
     const [peopleRows, setPeopleRows] = React.useState([]);
     // Track original children to detect deletions and updates
     const [originalChildren, setOriginalChildren] = React.useState([]);
+
+    // Delete confirmation dialog
+    const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
+    const [rowToDelete, setRowToDelete] = React.useState(null);
+    const cancelRef = React.useRef();
 
     // Chakra color mode
     const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -268,7 +280,7 @@ function CustomerRegistration() {
                 );
                 originalChildren.forEach((originalChild) => {
                     if (!currentPeopleIds.has(originalChild.id)) {
-                        // This child was deleted
+                        // This child was deleted - send delete operation
                         children.push({
                             id: originalChild.id,
                             op: "delete"
@@ -489,6 +501,21 @@ function CustomerRegistration() {
     // Handle failure modal close
     const handleFailureModalClose = () => {
         setIsFailureModalOpen(false);
+    };
+
+    // Handle confirmed deletion of client people row
+    const handleConfirmDelete = () => {
+        if (rowToDelete !== null) {
+            setPeopleRows((prev) => prev.filter((_, idx) => idx !== rowToDelete));
+            setRowToDelete(null);
+            onDeleteDialogClose();
+        }
+    };
+
+    // Handle cancel deletion
+    const handleCancelDelete = () => {
+        setRowToDelete(null);
+        onDeleteDialogClose();
     };
 
     return (
@@ -747,7 +774,16 @@ function CustomerRegistration() {
                                                                     size="sm"
                                                                     colorScheme="red"
                                                                     variant="ghost"
-                                                                    onClick={() => setPeopleRows((prev) => prev.filter((_, idx) => idx !== rowIndex))}
+                                                                    onClick={() => {
+                                                                        // If row has _originalId (came from API), show confirmation
+                                                                        if (row._originalId) {
+                                                                            setRowToDelete(rowIndex);
+                                                                            onDeleteDialogOpen();
+                                                                        } else {
+                                                                            // New row, delete immediately without confirmation
+                                                                            setPeopleRows((prev) => prev.filter((_, idx) => idx !== rowIndex));
+                                                                        }
+                                                                    }}
                                                                 />
                                                             </Td>
                                                         </Tr>
@@ -757,8 +793,6 @@ function CustomerRegistration() {
                                         </Table>
                                     </Box>
                                 </Box>
-
-                                {/* Address fields moved into Personal Information grid above */}
 
                                 {/* Submit Button */}
                                 <Button
@@ -802,6 +836,34 @@ function CustomerRegistration() {
                 title="Client Registration Failed"
                 message={modalMessage}
             />
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                isOpen={isDeleteDialogOpen}
+                leastDestructiveRef={cancelRef}
+                onClose={handleCancelDelete}
+            >
+                <AlertDialogOverlay>
+                    <AlertDialogContent>
+                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                            Delete Client Person
+                        </AlertDialogHeader>
+
+                        <AlertDialogBody>
+                            We have noticed you want to delete this client person. This change will be permanently deleted once you click on the "Update Client" button. Are you sure you want to continue?
+                        </AlertDialogBody>
+
+                        <AlertDialogFooter>
+                            <Button ref={cancelRef} onClick={handleCancelDelete}>
+                                Cancel
+                            </Button>
+                            <Button colorScheme="red" onClick={handleConfirmDelete} ml={3}>
+                                Delete
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialogOverlay>
+            </AlertDialog>
         </Box>
     );
 }
