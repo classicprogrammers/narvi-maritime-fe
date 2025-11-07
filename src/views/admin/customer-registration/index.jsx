@@ -9,7 +9,6 @@ import {
     Text,
     useColorModeValue,
     VStack,
-    HStack,
     Icon,
     Heading,
     Table,
@@ -26,7 +25,7 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
-import { MdPersonAdd, MdPerson } from "react-icons/md";
+import { MdPersonAdd, MdPerson, MdArrowBack } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
 import SearchableSelect from "components/forms/SearchableSelect";
@@ -61,6 +60,20 @@ function CustomerRegistration() {
         { key: "linked_in", label: "LinkedIn" },
         { key: "remarks", label: "Remark" },
     ];
+
+    const peoplePlaceholders = {
+        company_name: "Auto",
+        first_name: "First Name",
+        last_name: "Last Name",
+        prefix: "",
+        job_title: "Job Title",
+        email: "Email",
+        tel_direct: "Tel direct",
+        phone: "Mobile",
+        tel_other: "Tel other",
+        linked_in: "LinkedIn",
+        remarks: "Notes...",
+    };
 
     const emptyPersonRow = {
         company_name: "",
@@ -495,12 +508,11 @@ function CustomerRegistration() {
                             {editingClient ? "Edit Client" : "Client Registration"}
                         </Text>
                         <Button
-                            leftIcon={<Icon as={MdPersonAdd} />}
-                            colorScheme="blue"
+                            leftIcon={<Icon as={MdArrowBack} />}
                             size="sm"
                             onClick={() => history.push('/admin/contacts/customer')}
                         >
-                            View Clients
+                            Back to Clients
                         </Button>
                     </Flex>
 
@@ -521,53 +533,17 @@ function CustomerRegistration() {
                                         <Box>
                                             <Box as={"div"}>
                                                 <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }}>
-                                                    {/* Company name */}
+                                                    {/* 1. Client Code */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Client Code</Text>
+                                                        <Input name="client_code" value={formData.client_code} onChange={handleInputChange} placeholder="Client ID" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 2. Company name */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
-                                                        <Input name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
+                                                        <Input name="name" value={formData.name} onChange={handleInputChange} placeholder="Client Full Name" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* Address1 */}
-                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
-                                                        <Input name="street" value={formData.street} onChange={handleInputChange} placeholder="Street address" size="sm" w={gridInputWidth} />
-                                                    </Box>
-
-                                                    {/* Address2 */}
-                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
-                                                        <Input name="street2" value={formData.street2} onChange={handleInputChange} placeholder="Suite / Unit" size="sm" w={gridInputWidth} />
-                                                    </Box>
-                                                    {/* Postcode + City */}
-                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode + City</Text>
-                                                        <HStack spacing={2} w={gridInputWidth}>
-                                                            <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="Zip" size="sm" />
-                                                            <Input name="city" value={formData.city} onChange={handleInputChange} placeholder="City" size="sm" />
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Country */}
-                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
-                                                        <Box w={gridInputWidth}>
-                                                            <SearchableSelect
-                                                                value={formData.country_id}
-                                                                onChange={(val) => setFormData((prev) => ({ ...prev, country_id: val }))}
-                                                                options={countryList || []}
-                                                                placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
-                                                                displayKey="name"
-                                                                valueKey="id"
-                                                                isLoading={countriesLoading}
-                                                            />
-                                                        </Box>
-                                                    </Box>
-                                                    {/* Reg No */}
-                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
-                                                        <Input name="reg_no" value={formData.reg_no} onChange={handleInputChange} placeholder="Registration" size="sm" w={gridInputWidth} />
-                                                    </Box>
-
-                                                    {/* Category */}
+                                                    {/* 3. Category */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Category</Text>
                                                         <Box w={gridInputWidth}>
@@ -585,45 +561,75 @@ function CustomerRegistration() {
                                                             />
                                                         </Box>
                                                     </Box>
-                                                    {/* Email1 */}
+                                                    {/* 4. Address1 */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
+                                                        <Input name="street" value={formData.street} onChange={handleInputChange} placeholder="Street address" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 5. Address2 */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
+                                                        <Input name="street2" value={formData.street2} onChange={handleInputChange} placeholder="Suite / Unit" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 6. Postcode */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
+                                                        <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="Zip" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 7. City */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
+                                                        <Input name="city" value={formData.city} onChange={handleInputChange} placeholder="City" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 8. Country */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
+                                                        <Box w={gridInputWidth}>
+                                                            <SearchableSelect
+                                                                value={formData.country_id}
+                                                                onChange={(val) => setFormData((prev) => ({ ...prev, country_id: val }))}
+                                                                options={countryList || []}
+                                                                placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
+                                                                displayKey="name"
+                                                                valueKey="id"
+                                                                isLoading={countriesLoading}
+                                                            />
+                                                        </Box>
+                                                    </Box>
+                                                    {/* 9. Reg No */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
+                                                        <Input name="reg_no" value={formData.reg_no} onChange={handleInputChange} placeholder="Registration" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 10. Email1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
                                                         <Input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="name@company.com" size="sm" w={gridInputWidth} />
                                                     </Box>
-
-                                                    {/* Email2 */}
+                                                    {/* 11. Email2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
                                                         <Input type="email" name="email2" value={formData.email2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* Phone1 */}
+                                                    {/* 12. Phone1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
                                                         <Input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+65..." size="sm" w={gridInputWidth} />
                                                     </Box>
-
-                                                    {/* Phone2 */}
+                                                    {/* 13. Phone2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
                                                         <Input name="phone2" value={formData.phone2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* Website */}
+                                                    {/* 14. Website */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
                                                         <Input name="website" value={formData.website} onChange={handleInputChange} placeholder="https://..." size="sm" w={gridInputWidth} />
                                                     </Box>
-
-                                                    {/* PIC and Job Title belong to Client People, so not shown here */}
-
-                                                    {/* Remarks */}
+                                                    {/* 15. Remarks */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Remarks</Text>
                                                         <Input name="remarks" value={formData.remarks} onChange={handleInputChange} placeholder="Notes..." size="sm" w={gridInputWidth} />
-                                                    </Box>
-                                                    {/* Client Code */}
-                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Client Code</Text>
-                                                        <Input name="client_code" value={formData.client_code} onChange={handleInputChange} placeholder="ACME123" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                 </Box>
                                             </Box>
@@ -729,7 +735,7 @@ function CustomerRegistration() {
                                                                                 borderColor: "blue.500",
                                                                                 boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
                                                                             }}
-                                                                            placeholder={"company_name" in row ? (column.key === "company_name" ? "" : undefined) : undefined}
+                                                                            placeholder={peoplePlaceholders[column.key] || undefined}
                                                                         />
                                                                     )}
                                                                 </Td>

@@ -20,7 +20,7 @@ export const columnsDataClient = [
     minWidth: 250,
   },
   {
-    Header: "CHILDREN",
+    Header: "CLIENT PEOPLE",
     accessor: "children_count",
     minWidth: 100,
   },

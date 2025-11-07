@@ -9,13 +9,13 @@ import {
   Stack,
   Text,
   useColorModeValue,
+  Icon,
   Table,
   Thead,
+  Tbody,
   Tr,
   Th,
-  Tbody,
   Td,
-  Icon,
 } from "@chakra-ui/react";
 import { MdPrint } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
@@ -73,9 +73,9 @@ const ClientDetail = () => {
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("secondaryGray.900", "white");
-  const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const labelColor = useColorModeValue("gray.600", "gray.300");
   const valueColor = useColorModeValue("gray.800", "white");
+  const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
 
   const client = useMemo(() => {
@@ -126,6 +126,10 @@ const ClientDetail = () => {
       <style>
         {`
           @media print {
+            @page {
+              size: A4;
+              margin: 1cm;
+            }
             body * {
               visibility: hidden;
             }
@@ -137,10 +141,29 @@ const ClientDetail = () => {
               left: 0;
               top: 0;
               width: 100%;
+              padding: 0;
+              margin: 0;
             }
             .no-print {
               display: none !important;
             }
+            .print-content .chakra-box {
+              overflow: visible !important;
+            }
+            .print-content .chakra-grid {
+              page-break-inside: avoid !important;
+            }
+            /* Hide table on print, show grid instead */
+            .print-content .client-people-table {
+              display: none !important;
+            }
+            .print-content .client-people-grid {
+              display: block !important;
+            }
+          }
+          /* Show table on screen, hide grid */
+          .client-people-grid {
+            display: none;
           }
         `}
       </style>
@@ -205,7 +228,8 @@ const ClientDetail = () => {
                   Client People
                 </Heading>
 
-                <Box border="1px solid" borderColor={borderColor} borderRadius="lg" overflow="auto" bg={cardBg} boxShadow="sm">
+                {/* Table view for on-screen display */}
+                <Box className="client-people-table" border="1px solid" borderColor={borderColor} borderRadius="lg" overflow="auto" bg={cardBg} boxShadow="sm">
                   <Table size="sm" sx={{ tableLayout: "auto" }}>
                     <Thead bg={sectionHeadingBg} position="sticky" top={0} zIndex={1}>
                       <Tr>
@@ -238,6 +262,47 @@ const ClientDetail = () => {
                       )}
                     </Tbody>
                   </Table>
+                </Box>
+
+                {/* Grid view for printing */}
+                <Box className="client-people-grid">
+                  {clientPeople.length === 0 ? (
+                    <Box border="1px solid" borderColor={borderColor} borderRadius="md" p={8} textAlign="center">
+                      <Text color={labelColor}>No client people available.</Text>
+                    </Box>
+                  ) : (
+                    <Stack spacing={6}>
+                      {clientPeople.map((person, personIndex) => (
+                        <Box key={personIndex} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+                          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
+                            {peopleTableColumns.map((column, idx) => {
+                              const addRightBorder = idx % 2 === 0; // first column cells
+                              return (
+                                <GridItem
+                                  key={column.key}
+                                  px={4}
+                                  py={2}
+                                  borderColor={borderColor}
+                                  borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                                  display="flex"
+                                  justifyContent="space-between"
+                                  alignItems="center"
+                                  gap={2}
+                                >
+                                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
+                                    {column.label}
+                                  </Text>
+                                  <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
+                                    {prettyValue(person[column.key])}
+                                  </Text>
+                                </GridItem>
+                              );
+                            })}
+                          </Grid>
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
                 </Box>
               </Box>
             </Stack>

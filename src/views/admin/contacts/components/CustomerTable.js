@@ -1028,7 +1028,7 @@ export default function CustomerTable(props) {
                               {value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "CHILDREN") {
+                        } else if (cell.column.Header === "CLIENT PEOPLE") {
                           const childrenCount = value || 0;
                           data = (
                             <HStack spacing={2} align="center">

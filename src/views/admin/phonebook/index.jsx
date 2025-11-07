@@ -130,7 +130,7 @@ const Phonebook = () => {
                   <Tr>
                     <Th>Type</Th>
                     <Th>Company</Th>
-                    <Th>Person</Th>
+                    <Th>People</Th>
                     <Th>Email</Th>
                     <Th>Phone</Th>
                     <Th>DB ID</Th>
