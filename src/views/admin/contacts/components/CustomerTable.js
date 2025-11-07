@@ -64,6 +64,7 @@ import {
   MdUnfoldMore,
   MdFilterList,
   MdVisibility,
+  MdPeople,
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
@@ -71,9 +72,10 @@ export default function CustomerTable(props) {
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
-    client_id: "",
+    client_code: "",
     name: "",
-    category: "",
+    company_type: "",
+    email: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -145,6 +147,12 @@ export default function CustomerTable(props) {
   const filteredCustomers = useMemo(() => {
     let filtered = Array.isArray(tableData) ? [...tableData] : [];
 
+    // Filter to show only parent companies (parent_id === false, null, or undefined)
+    // Children have parent_id as a number (their parent's ID)
+    filtered = filtered.filter((item) =>
+      item.parent_id === false || item.parent_id === null || item.parent_id === undefined
+    );
+
     // Apply search filter
     if (searchValue) {
       filtered = filtered.filter(
@@ -153,6 +161,8 @@ export default function CustomerTable(props) {
             item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.client_code &&
             item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
+          (item.company_type &&
+            item.company_type.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.client_category &&
             item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.street &&
@@ -180,12 +190,12 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply client ID filter
-    if (filters.client_id) {
+    // Apply client code filter
+    if (filters.client_code) {
       filtered = filtered.filter(
         (item) =>
           item.client_code &&
-          item.client_code.toLowerCase().includes(filters.client_id.toLowerCase())
+          item.client_code.toLowerCase().includes(filters.client_code.toLowerCase())
       );
     }
 
@@ -198,21 +208,42 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply category filter
-    if (filters.category) {
+    // Apply company type filter
+    if (filters.company_type) {
       filtered = filtered.filter(
         (item) =>
-          item.client_category &&
-          item.client_category.toLowerCase().includes(filters.category.toLowerCase())
+          item.company_type &&
+          item.company_type.toLowerCase() === filters.company_type.toLowerCase()
       );
     }
 
-    return filtered.map((item) => ({
-      ...item,
-      location: [item.city, item.country_name || item.country?.name]
+    // Apply email filter
+    if (filters.email) {
+      filtered = filtered.filter(
+        (item) =>
+          (item.email && item.email.toLowerCase().includes(filters.email.toLowerCase())) ||
+          (item.email2 && item.email2.toLowerCase().includes(filters.email.toLowerCase()))
+      );
+    }
+
+    return filtered.map((item) => {
+      // Merge emails
+      const emails = [item.email, item.email2]
         .filter(Boolean)
-        .join(", "),
-    }));
+        .join(", ");
+
+      // Count children
+      const childrenCount = Array.isArray(item.children) ? item.children.length : 0;
+
+      return {
+        ...item,
+        location: [item.city, item.country_name || item.country?.name]
+          .filter(Boolean)
+          .join(", "),
+        emails: emails || "-",
+        children_count: childrenCount,
+      };
+    });
   }, [tableData, searchValue, filters]);
 
   const data = useMemo(() => {
@@ -288,9 +319,10 @@ export default function CustomerTable(props) {
 
   const clearAllFilters = () => {
     setFilters({
-      client_id: "",
+      client_code: "",
       name: "",
-      category: "",
+      company_type: "",
+      email: "",
     });
   };
 
@@ -426,13 +458,25 @@ export default function CustomerTable(props) {
   const handleEdit = (customer) => {
     if (!customer || !customer.id) return;
 
+    // Get the complete original object from tableData by matching ID
+    // This ensures we get the full object with all fields including children array
     const original = Array.isArray(tableData)
-      ? tableData.find((item) => String(item.id) === String(customer.id))
+      ? tableData.find((item) => {
+        // Handle both string and number ID comparisons
+        const itemId = item.id;
+        const customerId = customer.id;
+        return String(itemId) === String(customerId) || itemId === customerId;
+      })
       : null;
 
+    // Use the original object if found (contains all original fields), otherwise fall back to customer
     const payload = original || customer;
-    // Navigate to the registration page in edit mode
-    history.push('/admin/customer-registration', { client: payload, clientId: payload.id });
+
+    // Navigate to the registration page in edit mode with complete data
+    history.push('/admin/customer-registration', {
+      client: payload,
+      clientId: payload.id
+    });
   };
 
   const handleDelete = (customer) => {
@@ -445,12 +489,22 @@ export default function CustomerTable(props) {
 
   const handleView = (customer) => {
     if (!customer || !customer.id) return;
+
+    // Get the complete original object from tableData by matching ID
+    // This ensures we get the full object with all fields including children array
     const original = Array.isArray(tableData)
-      ? tableData.find((item) => String(item.id) === String(customer.id))
+      ? tableData.find((item) => {
+        // Handle both string and number ID comparisons
+        const itemId = item.id;
+        const customerId = customer.id;
+        return String(itemId) === String(customerId) || itemId === customerId;
+      })
       : null;
 
+    // Use the original object if found (contains all original fields), otherwise fall back to customer
     const payload = original || customer;
 
+    // Navigate to the view page with complete data
     history.push(`/admin/contacts/customer/${customer.id}`, { client: payload });
   };
 
@@ -594,7 +648,7 @@ export default function CustomerTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search clients by name, ID, category, address, email, phone, website, remarks..."
+                  placeholder="Search clients by name, client code, company type, email, phone, address..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -618,12 +672,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.company || filters.city || filters.status
+                  filters.client_code || filters.name || filters.company_type || filters.email
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.company || filters.city || filters.status
+                  filters.client_code || filters.name || filters.company_type || filters.email
                     ? "blue"
                     : "gray"
                 }
@@ -666,9 +720,10 @@ export default function CustomerTable(props) {
             </Box>
 
             {/* Clear All */}
-            {(filters.client_id ||
+            {(filters.client_code ||
               filters.name ||
-              filters.category ||
+              filters.company_type ||
+              filters.email ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -706,10 +761,10 @@ export default function CustomerTable(props) {
 
               {/* First Row - Basic Info */}
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                {/* Client ID Filter */}
+                {/* Client Code Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Client ID
+                    Client Code
                   </Text>
                   <Input
                     variant="outline"
@@ -717,9 +772,9 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="e.g., ACME123..."
-                    value={filters.client_id}
-                    onChange={(e) => handleFilterChange("client_id", e.target.value)}
+                    placeholder="e.g., CPH, ACME123..."
+                    value={filters.client_code}
+                    onChange={(e) => handleFilterChange("client_code", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
                     _focus={{
@@ -760,10 +815,10 @@ export default function CustomerTable(props) {
                   />
                 </Box>
 
-                {/* Category Filter */}
+                {/* Company Type Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Category
+                    Company Type
                   </Text>
                   <Select
                     variant="outline"
@@ -771,9 +826,9 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="Select category..."
-                    value={filters.category}
-                    onChange={(e) => handleFilterChange("category", e.target.value)}
+                    placeholder="Select company type..."
+                    value={filters.company_type}
+                    onChange={(e) => handleFilterChange("company_type", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
                     _focus={{
@@ -784,11 +839,37 @@ export default function CustomerTable(props) {
                       borderColor: "blue.300",
                     }}
                   >
-                    <option value="">All Categories</option>
-                    <option value="shipspares">Ship Spares</option>
-                    <option value="bunker">Bunker</option>
-                    <option value="other">Other</option>
+                    <option value="">All Types</option>
+                    <option value="company">Company</option>
+                    <option value="person">Person</option>
                   </Select>
+                </Box>
+
+                {/* Email Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Email
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., example@email.com..."
+                    value={filters.email}
+                    onChange={(e) => handleFilterChange("email", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                    }}
+                    _hover={{
+                      borderColor: "blue.300",
+                    }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
                 </Box>
               </HStack>
 
@@ -923,17 +1004,55 @@ export default function CustomerTable(props) {
                           </Text>
                         );
 
-                        if (cell.column.Header === "CLIENT ID") {
+                        if (cell.column.Header === "CLIENT CODE") {
                           data = (
                             <Text color={textColor} fontSize="sm" fontWeight="600">
                               {value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "CITY / COUNTRY") {
+                        } else if (cell.column.Header === "CLIENT NAME") {
+                          data = (
+                            <Text color={textColor} fontSize="sm" fontWeight="500">
+                              {value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "COMPANY TYPE") {
+                          data = (
+                            <Text color={textColor} fontSize="sm" textTransform="capitalize">
+                              {value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "EMAIL") {
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {value || "-"}
                             </Text>
+                          );
+                        } else if (cell.column.Header === "CHILDREN") {
+                          const childrenCount = value || 0;
+                          data = (
+                            <HStack spacing={2} align="center">
+                              <Icon
+                                as={MdPeople}
+                                color={childrenCount > 0 ? "blue.500" : "gray.400"}
+                                boxSize={4}
+                              />
+                              <Box
+                                as="span"
+                                px={2}
+                                py={1}
+                                borderRadius="md"
+                                bg={childrenCount > 0 ? "blue.50" : "gray.100"}
+                                color={childrenCount > 0 ? "blue.700" : "gray.600"}
+                                fontWeight="600"
+                                fontSize="sm"
+                                minW="32px"
+                                textAlign="center"
+                                display="inline-block"
+                              >
+                                {childrenCount}
+                              </Box>
+                            </HStack>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (

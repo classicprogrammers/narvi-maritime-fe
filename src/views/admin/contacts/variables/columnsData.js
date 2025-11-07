@@ -1,23 +1,28 @@
 export const columnsDataClient = [
   {
-    Header: "CLIENT ID",
-    accessor: "client_code",
-    minWidth: 100,
-  },
-  {
-    Header: "FULL NAME",
+    Header: "CLIENT NAME",
     accessor: "name",
     minWidth: 180,
   },
   {
-    Header: "CATEGORY",
-    accessor: "client_category",
-    minWidth: 150,
+    Header: "CLIENT CODE",
+    accessor: "client_code",
+    minWidth: 100,
   },
   {
-    Header: "CITY / COUNTRY",
-    accessor: "location",
-    minWidth: 200,
+    Header: "COMPANY TYPE",
+    accessor: "company_type",
+    minWidth: 120,
+  },
+  {
+    Header: "EMAIL",
+    accessor: "emails",
+    minWidth: 250,
+  },
+  {
+    Header: "CHILDREN",
+    accessor: "children_count",
+    minWidth: 100,
   },
   {
     Header: "ACTIONS",

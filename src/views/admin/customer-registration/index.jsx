@@ -19,6 +19,7 @@ import {
     Th,
     Td,
     IconButton,
+    Select,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 // Custom components
@@ -27,7 +28,7 @@ import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import { MdPersonAdd, MdPerson } from "react-icons/md";
 // API
-import { registerCustomerApi, createCustomerPersonApi, updateCustomerApi } from "api/customer";
+import { registerCustomerApi, updateCustomerApi } from "api/customer";
 import SearchableSelect from "components/forms/SearchableSelect";
 // Redux
 import { useCustomer } from "redux/hooks/useCustomer";
@@ -76,6 +77,8 @@ function CustomerRegistration() {
     };
 
     const [peopleRows, setPeopleRows] = React.useState([]);
+    // Track original children to detect deletions and updates
+    const [originalChildren, setOriginalChildren] = React.useState([]);
 
     // Chakra color mode
     const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -144,6 +147,41 @@ function CustomerRegistration() {
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
             });
+
+            // Populate peopleRows from children array if it exists
+            if (Array.isArray(editingClient.children) && editingClient.children.length > 0) {
+                // Store original children with IDs for tracking updates/deletes
+                setOriginalChildren(editingClient.children);
+
+                const childrenRows = editingClient.children.map((child) => {
+                    // Helper function to convert false/null/undefined to empty string
+                    const getValue = (val) => (val !== false && val !== null && val !== undefined) ? String(val) : "";
+
+                    return {
+                        // Store original ID for tracking updates
+                        _originalId: child.id,
+                        company_name: editingClient.name || "",
+                        first_name: getValue(child.first_name),
+                        last_name: getValue(child.last_name),
+                        prefix: getValue(child.prefix),
+                        job_title: getValue(child.job_title),
+                        email: getValue(child.email),
+                        tel_direct: getValue(child.tel_direct),
+                        phone: getValue(child.phone),
+                        tel_other: getValue(child.tel_other),
+                        linked_in: getValue(child.linked_in),
+                        remarks: getValue(child.remarks),
+                    };
+                });
+                setPeopleRows(childrenRows);
+            } else {
+                setPeopleRows([]);
+                setOriginalChildren([]);
+            }
+        } else {
+            // Reset peopleRows and originalChildren when not editing
+            setPeopleRows([]);
+            setOriginalChildren([]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingClient?.id]);
@@ -203,6 +241,116 @@ function CustomerRegistration() {
         }
 
         try {
+            // Build children payload with operations (update, delete, create)
+            const children = [];
+
+            if (editingClient) {
+                // When editing, we need to handle updates, deletes, and creates
+
+                // 1. Find deleted children (in originalChildren but not in peopleRows)
+                const currentPeopleIds = new Set(
+                    peopleRows
+                        .filter(row => row._originalId)
+                        .map(row => row._originalId)
+                );
+                originalChildren.forEach((originalChild) => {
+                    if (!currentPeopleIds.has(originalChild.id)) {
+                        // This child was deleted
+                        children.push({
+                            id: originalChild.id,
+                            op: "delete"
+                        });
+                    }
+                });
+
+                // 2. Find updated and new children
+                peopleRows.forEach((row) => {
+                    if (row._originalId) {
+                        // This is an update - child exists with ID
+                        const childPayload = {
+                            id: row._originalId,
+                            op: "update",
+                            first_name: row.first_name || undefined,
+                            last_name: row.last_name || undefined,
+                            name: `${row.first_name || ""} ${row.last_name || ""}`.trim() || undefined,
+                            company_type: "person",
+                            client_category: formData.client_category || undefined,
+                            email: row.email || undefined,
+                            email2: row.email2 || undefined,
+                            phone: row.phone || undefined,
+                            phone2: row.phone2 || undefined,
+                            prefix: row.prefix || undefined,
+                            job_title: row.job_title || undefined,
+                            tel_direct: row.tel_direct || undefined,
+                            tel_other: row.tel_other || undefined,
+                            linked_in: row.linked_in || undefined,
+                            remarks: row.remarks || undefined,
+                        };
+                        // Remove undefined values
+                        Object.keys(childPayload).forEach(key => {
+                            if (childPayload[key] === undefined) {
+                                delete childPayload[key];
+                            }
+                        });
+                        children.push(childPayload);
+                    } else {
+                        // This is a new child - no original ID
+                        const childPayload = {
+                            first_name: row.first_name || undefined,
+                            last_name: row.last_name || undefined,
+                            name: `${row.first_name || ""} ${row.last_name || ""}`.trim() || undefined,
+                            company_type: "person",
+                            client_category: formData.client_category || undefined,
+                            email: row.email || undefined,
+                            email2: row.email2 || undefined,
+                            phone: row.phone || undefined,
+                            phone2: row.phone2 || undefined,
+                            prefix: row.prefix || undefined,
+                            job_title: row.job_title || undefined,
+                            tel_direct: row.tel_direct || undefined,
+                            tel_other: row.tel_other || undefined,
+                            linked_in: row.linked_in || undefined,
+                            remarks: row.remarks || undefined,
+                        };
+                        // Remove undefined values
+                        Object.keys(childPayload).forEach(key => {
+                            if (childPayload[key] === undefined) {
+                                delete childPayload[key];
+                            }
+                        });
+                        children.push(childPayload);
+                    }
+                });
+            } else {
+                // When creating new, all children are new (no operations needed)
+                peopleRows.forEach((row) => {
+                    const childPayload = {
+                        first_name: row.first_name || undefined,
+                        last_name: row.last_name || undefined,
+                        name: `${row.first_name || ""} ${row.last_name || ""}`.trim() || undefined,
+                        company_type: "person",
+                        client_category: formData.client_category || undefined,
+                        email: row.email || undefined,
+                        email2: row.email2 || undefined,
+                        phone: row.phone || undefined,
+                        phone2: row.phone2 || undefined,
+                        prefix: row.prefix || undefined,
+                        job_title: row.job_title || undefined,
+                        tel_direct: row.tel_direct || undefined,
+                        tel_other: row.tel_other || undefined,
+                        linked_in: row.linked_in || undefined,
+                        remarks: row.remarks || undefined,
+                    };
+                    // Remove undefined values
+                    Object.keys(childPayload).forEach(key => {
+                        if (childPayload[key] === undefined) {
+                            delete childPayload[key];
+                        }
+                    });
+                    children.push(childPayload);
+                });
+            }
+
             const doRegister = async () => registerCustomerApi({
                 name: formData.name,
                 client_code: formData.client_code,
@@ -219,19 +367,20 @@ function CustomerRegistration() {
                 reg_no: formData.reg_no,
                 website: formData.website,
                 remarks: formData.remarks,
+                company_type: "company",
+                children: children.length ? children : undefined,
             });
             const doUpdate = async () => updateCustomerApi(editingClient.id, {
                 ...formData,
                 country_id: parseInt(formData.country_id) || null,
+                children: children.length ? children : undefined,
             });
 
             const result = editingClient ? await doUpdate() : await doRegister();
 
             // Check if the API call was actually successful
-            if (
-                (!editingClient && result && result.result && result.result.status === "success") ||
-                (editingClient && result)
-            ) {
+            // For both register and update, check result.status === "success"
+            if (result && result.result && result.result.status === "success") {
                 const createdClientId = editingClient ? editingClient.id : result.result.id;
                 // Add the new client to Redux
                 const newClient = {
@@ -261,13 +410,6 @@ function CustomerRegistration() {
 
                 addCustomerToRedux(newClient);
 
-                // If any people rows were added, create them now using returned client id
-                if (createdClientId && peopleRows.length > 0) {
-                    for (const row of peopleRows) {
-                        await createCustomerPersonApi(createdClientId, row);
-                    }
-                }
-
                 setModalMessage(editingClient ? "Client updated successfully!" : "Client registered successfully!");
                 setIsSuccessModalOpen(true);
 
@@ -292,15 +434,33 @@ function CustomerRegistration() {
                     job_title: "",
                 });
                 setPeopleRows([]);
+                setOriginalChildren([]);
             } else {
-                // API returned an error or invalid response
-                setModalMessage(editingClient ? "Update failed. Please try again." : "Registration failed. Please try again.");
+                // API returned an error or invalid response (fallback - should be caught in catch block)
+                let errorMsg = editingClient ? "Update failed. Please try again." : "Registration failed. Please try again.";
+
+                // Check if result has error details
+                if (result && result.result && result.result.status === "error") {
+                    errorMsg = result.result.message || errorMsg;
+
+                    // Add validation errors if present
+                    if (result.result.errors && typeof result.result.errors === "object") {
+                        const errorDetails = Object.entries(result.result.errors)
+                            .map(([field, message]) => `• ${field}: ${message}`)
+                            .join("\n");
+                        if (errorDetails) {
+                            errorMsg = `${errorMsg}\n\nValidation Errors:\n${errorDetails}`;
+                        }
+                    }
+                }
+
+                setModalMessage(errorMsg);
                 setIsFailureModalOpen(true);
             }
         } catch (error) {
+            // Error modal is already shown by the API error handler (handleApiError)
+            // Just log the error and stop loading
             console.error("Registration error:", error);
-            setModalMessage(error.message || "An unexpected error occurred. Please try again.");
-            setIsFailureModalOpen(true);
         } finally {
             setIsLoading(false);
         }
@@ -518,30 +678,60 @@ function CustomerRegistration() {
                                                         <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
                                                             {peopleTableColumns.map((column) => (
                                                                 <Td key={column.key} minW="170px" px={3} py={2}>
-                                                                    <Input
-                                                                        value={row[column.key]}
-                                                                        onChange={(e) => {
-                                                                            const value = e.target.value;
-                                                                            setPeopleRows((prev) => {
-                                                                                const updated = [...prev];
-                                                                                updated[rowIndex] = { ...updated[rowIndex], [column.key]: value };
-                                                                                return updated;
-                                                                            });
-                                                                        }}
-                                                                        size="sm"
-                                                                        isRequired={["first_name", "last_name", "email"].includes(column.key)}
-                                                                        isReadOnly={column.key === "company_name"}
-                                                                        isDisabled={column.key === "company_name"}
-                                                                        style={{ backgroundColor: "#f7f7f77a" }}
-                                                                        border="1px solid"
-                                                                        borderColor={borderColor}
-                                                                        borderRadius="md"
-                                                                        _focus={{
-                                                                            borderColor: "blue.500",
-                                                                            boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
-                                                                        }}
-                                                                        placeholder={"company_name" in row ? (column.key === "company_name" ? "" : undefined) : undefined}
-                                                                    />
+                                                                    {column.key === "prefix" ? (
+                                                                        <Select
+                                                                            value={row[column.key] || ""}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setPeopleRows((prev) => {
+                                                                                    const updated = [...prev];
+                                                                                    updated[rowIndex] = { ...updated[rowIndex], [column.key]: value || "" };
+                                                                                    return updated;
+                                                                                });
+                                                                            }}
+                                                                            size="sm"
+                                                                            style={{ backgroundColor: "#f7f7f77a" }}
+                                                                            border="1px solid"
+                                                                            borderColor={borderColor}
+                                                                            borderRadius="md"
+                                                                            _focus={{
+                                                                                borderColor: "blue.500",
+                                                                                boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
+                                                                            }}
+                                                                        >
+                                                                            <option value="">Select Prefix</option>
+                                                                            <option value="mr">Mr.</option>
+                                                                            <option value="ms">Ms.</option>
+                                                                            <option value="mrs">Mrs.</option>
+                                                                            <option value="dr">Dr.</option>
+                                                                            <option value="prof">Prof.</option>
+                                                                        </Select>
+                                                                    ) : (
+                                                                        <Input
+                                                                            value={row[column.key]}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setPeopleRows((prev) => {
+                                                                                    const updated = [...prev];
+                                                                                    updated[rowIndex] = { ...updated[rowIndex], [column.key]: value };
+                                                                                    return updated;
+                                                                                });
+                                                                            }}
+                                                                            size="sm"
+                                                                            isRequired={["first_name", "last_name", "email"].includes(column.key)}
+                                                                            isReadOnly={column.key === "company_name"}
+                                                                            isDisabled={column.key === "company_name"}
+                                                                            style={{ backgroundColor: "#f7f7f77a" }}
+                                                                            border="1px solid"
+                                                                            borderColor={borderColor}
+                                                                            borderRadius="md"
+                                                                            _focus={{
+                                                                                borderColor: "blue.500",
+                                                                                boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
+                                                                            }}
+                                                                            placeholder={"company_name" in row ? (column.key === "company_name" ? "" : undefined) : undefined}
+                                                                        />
+                                                                    )}
                                                                 </Td>
                                                             ))}
                                                             <Td px={3} py={2}>
