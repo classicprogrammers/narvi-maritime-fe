@@ -31,7 +31,6 @@ import {
   FormControl,
   FormLabel,
   Select,
-  Textarea,
   useToast,
   AlertDialog,
   AlertDialogBody,
@@ -44,7 +43,6 @@ import {
 import {
   MdSearch,
   MdAdd,
-  MdSettings,
   MdFilterList,
   MdChevronLeft,
   MdChevronRight,
@@ -298,86 +296,6 @@ export default function ShippingInstructions() {
     setSearchTerm(value);
   };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < Math.ceil(shippingInstructions.length / 10)) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handleSettingsClick = () => {
-    toast({
-      title: "Settings",
-      description: "Settings panel opened! Configure your shipping instructions preferences.",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleFilterClick = () => {
-    toast({
-      title: "Filter",
-      description: "Filter panel opened! Filter your shipping instructions by various criteria.",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleDeleteSelected = () => {
-    if (selectedItems.length > 0) {
-      const confirmed = window.confirm(`Are you sure you want to delete ${selectedItems.length} selected item(s)?`);
-      if (confirmed) {
-        const newInstructions = shippingInstructions.filter(item => !selectedItems.includes(item.id));
-        setShippingInstructions(newInstructions);
-        localStorage.setItem('shippingInstructions', JSON.stringify(newInstructions));
-        setSelectedItems([]);
-        
-        toast({
-          title: "Items Deleted",
-          description: `${selectedItems.length} item(s) deleted successfully!`,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } else {
-      toast({
-        title: "No Selection",
-        description: "Please select items to delete.",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const handleExportData = () => {
-    toast({
-      title: "Export Data",
-      description: "Exporting shipping instructions data to CSV/Excel...",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleRefreshData = () => {
-    setShippingInstructions(loadShippingInstructions());
-    toast({
-      title: "Data Refreshed",
-      description: "Shipping instructions data refreshed!",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>

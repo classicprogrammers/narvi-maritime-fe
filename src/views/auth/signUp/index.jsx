@@ -18,11 +18,9 @@ import {
   useToast,
 } from "@chakra-ui/react";
 // Custom components
-import { HSeparator } from "components/separator/Separator";
 import DefaultAuth from "layouts/auth/Default";
 // Assets
 import illustration from "assets/img/auth/auth.png";
-import { FcGoogle } from "react-icons/fc";
 import { MdOutlineRemoveRedEye } from "react-icons/md";
 import { RiEyeCloseLine } from "react-icons/ri";
 // Redux
@@ -44,16 +42,6 @@ function SignUp() {
   const textColorDetails = useColorModeValue("navy.700", "secondaryGray.600");
   const textColorBrand = useColorModeValue("#174693", "white");
   const brandStars = useColorModeValue("#174693", "#174693");
-  const googleBg = useColorModeValue("secondaryGray.300", "whiteAlpha.200");
-  const googleText = useColorModeValue("navy.700", "white");
-  const googleHover = useColorModeValue(
-    { bg: "gray.200" },
-    { bg: "whiteAlpha.300" }
-  );
-  const googleActive = useColorModeValue(
-    { bg: "secondaryGray.300" },
-    { bg: "whiteAlpha.200" }
-  );
 
   // Form state
   const [show, setShow] = React.useState(false);

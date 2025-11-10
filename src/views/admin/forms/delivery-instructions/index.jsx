@@ -44,7 +44,6 @@ import {
 import {
   MdSearch,
   MdAdd,
-  MdSettings,
   MdFilterList,
   MdChevronLeft,
   MdChevronRight,
@@ -224,10 +223,10 @@ export default function DeliveryInstructions() {
 
   const handleSaveDeliveryInstruction = () => {
     setIsLoading(true);
-    
+
     setTimeout(() => {
       const newInstructions = [...deliveryInstructions];
-      
+
       if (editingItem) {
         // Update existing item
         const index = newInstructions.findIndex(item => item.id === editingItem.id);
@@ -255,7 +254,7 @@ export default function DeliveryInstructions() {
           isClosable: true,
         });
       }
-      
+
       setDeliveryInstructions(newInstructions);
       localStorage.setItem('deliveryInstructions', JSON.stringify(newInstructions));
       setIsModalOpen(false);
@@ -266,12 +265,12 @@ export default function DeliveryInstructions() {
 
   const handleConfirmDelete = () => {
     setIsLoading(true);
-    
+
     setTimeout(() => {
       const newInstructions = deliveryInstructions.filter(item => item.id !== editingItem.id);
       setDeliveryInstructions(newInstructions);
       localStorage.setItem('deliveryInstructions', JSON.stringify(newInstructions));
-      
+
       toast({
         title: "Delivery Instruction Deleted",
         description: "The delivery instruction has been deleted successfully.",
@@ -279,7 +278,7 @@ export default function DeliveryInstructions() {
         duration: 3000,
         isClosable: true,
       });
-      
+
       setIsDeleteDialogOpen(false);
       setEditingItem(null);
       setIsLoading(false);
@@ -290,86 +289,6 @@ export default function DeliveryInstructions() {
     setSearchTerm(value);
   };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < Math.ceil(deliveryInstructions.length / 10)) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handleSettingsClick = () => {
-    toast({
-      title: "Settings",
-      description: "Settings panel opened! Configure your delivery instructions preferences.",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleFilterClick = () => {
-    toast({
-      title: "Filter",
-      description: "Filter panel opened! Filter your delivery instructions by various criteria.",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleDeleteSelected = () => {
-    if (selectedItems.length > 0) {
-      const confirmed = window.confirm(`Are you sure you want to delete ${selectedItems.length} selected item(s)?`);
-      if (confirmed) {
-        const newInstructions = deliveryInstructions.filter(item => !selectedItems.includes(item.id));
-        setDeliveryInstructions(newInstructions);
-        localStorage.setItem('deliveryInstructions', JSON.stringify(newInstructions));
-        setSelectedItems([]);
-        
-        toast({
-          title: "Items Deleted",
-          description: `${selectedItems.length} item(s) deleted successfully!`,
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    } else {
-      toast({
-        title: "No Selection",
-        description: "Please select items to delete.",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const handleExportData = () => {
-    toast({
-      title: "Export Data",
-      description: "Exporting delivery instructions data to CSV/Excel...",
-      status: "info",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
-  const handleRefreshData = () => {
-    setDeliveryInstructions(loadDeliveryInstructions());
-    toast({
-      title: "Data Refreshed",
-      description: "Delivery instructions data refreshed!",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-  };
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -394,7 +313,7 @@ export default function DeliveryInstructions() {
               </Text>
             </VStack>
           </HStack>
-          
+
           <HStack spacing={4}>
             <HStack spacing={2}>
               <Text fontSize="sm" color="gray.600">

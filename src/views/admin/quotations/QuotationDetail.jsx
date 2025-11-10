@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useHistory, useLocation } from "react-router-dom";
 import {
-    Box, Flex, Grid, VStack, HStack, Text, Badge, Button, Table, Thead, Tbody, Tr, Th, Td, useColorModeValue,
-    Icon, Divider, Card, CardBody, CardHeader, Stat, StatLabel, StatNumber, StatHelpText
+    Box, Flex, Grid, VStack, HStack, Text, Badge, Button, Table, Thead, Tbody, Tr, Th, Td,
+    Icon, Divider, Card, CardBody, CardHeader, Stat, StatLabel, StatNumber
 } from "@chakra-ui/react";
-import { MdEdit, MdArrowBack, MdPrint, MdShare, MdInfo, MdAttachMoney, MdLocationOn, MdBusiness, MdDescription } from "react-icons/md";
+import { MdEdit, MdArrowBack, MdPrint, MdInfo, MdAttachMoney, MdLocationOn, MdBusiness, MdDescription } from "react-icons/md";
 import quotationsAPI from "../../../api/quotations";
 import { getCustomersApi } from "../../../api/customer";
 import vesselsAPI from "../../../api/vessels";
@@ -24,16 +24,6 @@ export default function QuotationDetail() {
     const [vendors, setVendors] = useState([]);
     const [rateItems, setRateItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-
-    const cardBg = useColorModeValue('gray.50', 'gray.700');
-    const cardBorder = useColorModeValue('gray.200', 'whiteAlpha.200');
-    const mutedTextColor = useColorModeValue('gray.600', 'gray.300');
-    const tableBorderColor = useColorModeValue('gray.200', 'whiteAlpha.200');
-    const rowOddBg = useColorModeValue('white', 'gray.800');
-    const rowEvenBg = useColorModeValue('gray.50', 'gray.700');
-    const theadBg = useColorModeValue('gray.50', 'gray.700');
-    const highlightBg = useColorModeValue('yellow.50', 'yellow.900');
-    const highlightBorder = useColorModeValue('yellow.200', 'yellow.700');
 
     useEffect(() => {
         (async () => {

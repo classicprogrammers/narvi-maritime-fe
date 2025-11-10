@@ -75,7 +75,6 @@ export default function StockList() {
     const inputBg = useColorModeValue("white", "navy.900");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
-    const hoverBg = useColorModeValue("blue.50", "gray.700");
     const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
@@ -83,7 +82,6 @@ export default function StockList() {
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
-    const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
     // Fetch stock list on component mount
     useEffect(() => {
@@ -134,6 +132,7 @@ export default function StockList() {
         }
 
         return applyCustomSorting(filtered);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stockList, searchValue, filters, sortOrder]);
 
     const handleFilterChange = (field, value) => {

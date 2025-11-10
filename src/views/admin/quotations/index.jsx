@@ -395,12 +395,6 @@ export default function Quotations() {
     }, [fetchQuotations, fetchCustomers, fetchVessels, fetchRateItems, fetchAgents, fetchMasterData]);
 
     // Handler functions
-    const handleNewQuotation = () => {
-        setEditingQuotation(null);
-        resetForm();
-        onNewQuotationOpen();
-    };
-
     const handleEditQuotation = (quotation) => {
         setEditingQuotation(quotation);
 
@@ -878,7 +872,6 @@ export default function Quotations() {
                                             return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
                                         });
 
-                                        const totalPages = Math.ceil(filteredQuotations.length / itemsPerPage);
                                         const startIndex = (currentPage - 1) * itemsPerPage;
                                         const endIndex = startIndex + itemsPerPage;
                                         const paginatedQuotations = filteredQuotations.slice(startIndex, endIndex);
