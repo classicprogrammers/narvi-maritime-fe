@@ -199,7 +199,7 @@ export default function Quotations() {
     }, [clientFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter, idFilter]);
 
     // Modal states
-    const { isOpen: isNewQuotationOpen, onOpen: onNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
+    const { isOpen: isNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const [deleteQuotationId, setDeleteQuotationId] = useState(null);
 

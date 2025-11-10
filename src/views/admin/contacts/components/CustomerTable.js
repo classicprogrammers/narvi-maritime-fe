@@ -82,8 +82,6 @@ export default function CustomerTable(props) {
   const {
     updateCustomer,
     deleteCustomer,
-    registerCustomer,
-    addCustomerToRedux,
     updateLoading,
     deleteLoading,
     getCustomers,
@@ -94,31 +92,10 @@ export default function CustomerTable(props) {
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    client_code: "",
-    client_category: "",
-    email: "",
-    email2: "",
-    phone: "",
-    phone2: "",
-    street: "",
-    street2: "",
-    city: "",
-    zip: "",
-    country_id: null,
-    reg_no: "",
-    website: "",
-    remarks: "",
-  });
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [customerToDelete, setCustomerToDelete] = useState(null);
-  const [isRegistering, setIsRegistering] = useState(false);
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
   const {
     isOpen: isEditOpen,
-    onOpen: onEditOpen,
     onClose: onEditClose,
   } = useDisclosure();
   const {
@@ -249,6 +226,7 @@ export default function CustomerTable(props) {
   const data = useMemo(() => {
     const sortedData = applyCustomSorting(filteredCustomers);
     return sortedData;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredCustomers, sortOrder]);
 
   const tableInstance = useTable(
@@ -264,7 +242,6 @@ export default function CustomerTable(props) {
 
   const {
     getTableProps,
-    getTableBodyProps,
     headerGroups,
     page,
     prepareRow,
@@ -280,7 +257,6 @@ export default function CustomerTable(props) {
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
-  const searchIconColor = useColorModeValue("gray.700", "white");
   const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.700", "gray.100");
   const hoverBg = useColorModeValue("blue.50", "gray.700");
@@ -291,24 +267,10 @@ export default function CustomerTable(props) {
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
   const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
-  const scrollbarTrackBg = useColorModeValue("#f1f1f1", "#2d3748");
-  const scrollbarThumbBg = useColorModeValue("#c1c1c1", "#4a5568");
-  const scrollbarThumbHoverBg = useColorModeValue("#a8a8a8", "#718096");
-  const dropdownBg = useColorModeValue("white", "gray.800");
-  const dropdownText = useColorModeValue("gray.700", "gray.100");
-  const dropdownHoverBg = useColorModeValue("gray.50", "gray.700");
-  const dropdownBorder = useColorModeValue("gray.200", "whiteAlpha.200");
   const modalBg = useColorModeValue("white", "gray.800");
   const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
   const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
-
-  const handleInputChange = (field, value) => {
-    setNewCustomer((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
@@ -337,16 +299,6 @@ export default function CustomerTable(props) {
     setSortOrder("newest");
   };
 
-  // Get unique values for dropdowns
-  const getUniqueCompanies = () => {
-    const companies = tableData.map(item => item.company).filter(Boolean);
-    return [...new Set(companies)].sort();
-  };
-
-  const getUniqueStatuses = () => {
-    const statuses = tableData.map(item => item.status).filter(Boolean);
-    return [...new Set(statuses)].sort();
-  };
 
   const handleEditInputChange = (field, value) => {
     setEditingCustomer((prev) => ({
@@ -355,45 +307,6 @@ export default function CustomerTable(props) {
     }));
   };
 
-  const handleSaveCustomer = async () => {
-    // Validate required fields
-    if (!newCustomer.name || newCustomer.name.trim() === "") {
-      return;
-    }
-
-    try {
-      setIsRegistering(true);
-      // Call the API to register the customer
-      const result = await registerCustomer(newCustomer);
-
-      if (result.success) {
-        onClose();
-
-        // Reset form
-        setNewCustomer({
-          name: "",
-          client_code: "",
-          client_category: "",
-          email: "",
-          email2: "",
-          phone: "",
-          phone2: "",
-          street: "",
-          street2: "",
-          city: "",
-          zip: "",
-          country_id: null,
-          reg_no: "",
-          website: "",
-          remarks: "",
-        });
-      }
-    } catch (error) {
-      // Error handling is done by the API modal system
-    } finally {
-      setIsRegistering(false);
-    }
-  };
 
   const handleSaveEdit = async () => {
     try {
@@ -532,27 +445,6 @@ export default function CustomerTable(props) {
     }
   };
 
-  const handleCancel = () => {
-    onClose();
-    // Reset form
-    setNewCustomer({
-      name: "",
-      client_code: "",
-      client_category: "",
-      email: "",
-      email2: "",
-      phone: "",
-      phone2: "",
-      street: "",
-      street2: "",
-      city: "",
-      zip: "",
-      country_id: null,
-      reg_no: "",
-      website: "",
-      remarks: "",
-    });
-  };
 
   const handleCancelEdit = () => {
     onEditClose();
