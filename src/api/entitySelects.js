@@ -135,10 +135,12 @@ export const getQuotationsForSelect = async (searchTerm = '') => {
   }
 };
 
-export default {
+const entitySelects = {
   getUsersForSelect,
   getCustomersForSelect,
   getVesselsForSelect,
   getDestinationsForSelect,
   getQuotationsForSelect,
 };
+
+export default entitySelects;

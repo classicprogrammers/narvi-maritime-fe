@@ -50,10 +50,12 @@ export const deleteQuotation = async (quotationData) => {
   }
 };
 
-export default {
+const quotations = {
   getQuotations,
   getQuotationById,
   createQuotation,
   updateQuotation,
   deleteQuotation,
 };
+
+export default quotations;

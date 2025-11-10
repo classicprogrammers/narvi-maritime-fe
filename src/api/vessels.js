@@ -112,9 +112,11 @@ export const deleteVessel = async (id) => {
   }
 };
 
-export default {
+const vessels = {
   getVessels,
   createVessel,
   updateVessel,
   deleteVessel,
 };
+
+export default vessels;
