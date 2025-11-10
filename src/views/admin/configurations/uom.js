@@ -37,7 +37,6 @@ import {
   useToast,
   Tooltip,
   Badge,
-  Textarea,
   Select,
   Tabs,
   TabList,
@@ -50,7 +49,6 @@ import {
   MdSearch,
   MdEdit,
   MdDelete,
-  MdStraighten,
 } from "react-icons/md";
 import uomAPI from "../../../api/uom";
 
@@ -236,6 +234,7 @@ export default function UOM() {
   useEffect(() => {
     fetchUOM();
     fetchCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter UOM based on search

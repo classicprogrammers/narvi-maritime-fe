@@ -31,9 +31,7 @@ import {
   FormLabel,
   useToast,
   Tooltip,
-  Badge,
   Select,
-  Checkbox,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -94,6 +92,7 @@ export default function Countries() {
   // Load countries on component mount
   useEffect(() => {
     fetchCountries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter countries based on search and status

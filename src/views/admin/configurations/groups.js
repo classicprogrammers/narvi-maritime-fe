@@ -36,7 +36,6 @@ import {
   FormLabel,
   useToast,
   Tooltip,
-  Badge,
   Select,
 } from "@chakra-ui/react";
 import {
@@ -44,7 +43,6 @@ import {
   MdSearch,
   MdEdit,
   MdDelete,
-  MdGroups,
 } from "react-icons/md";
 import groupsAPI from "../../../api/groups";
 
@@ -100,6 +98,7 @@ export default function Groups() {
   // Load groups on component mount
   useEffect(() => {
     fetchGroups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter groups based on search

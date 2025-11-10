@@ -36,8 +36,6 @@ import {
   FormLabel,
   useToast,
   Tooltip,
-  Badge,
-  Textarea,
   Select,
 } from "@chakra-ui/react";
 import {
@@ -45,7 +43,6 @@ import {
   MdSearch,
   MdEdit,
   MdDelete,
-  MdLocationOn,
 } from "react-icons/md";
 import locationsAPI from "../../../api/locations";
 
@@ -101,6 +98,7 @@ export default function Locations() {
   // Load locations on component mount
   useEffect(() => {
     fetchLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter locations based on search

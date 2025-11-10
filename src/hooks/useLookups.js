@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { getEntityName, getEntityNames } from '../api/lookups';
 
 export const useLookups = () => {
@@ -8,7 +8,6 @@ export const useLookups = () => {
     customers: {},
     users: {},
   });
-  const [isLoading, setIsLoading] = useState(false);
 
   // Get a single entity name
   const getEntityNameById = useCallback(async (entityType, id) => {
@@ -58,7 +57,6 @@ export const useLookups = () => {
 
   return {
     lookupData,
-    isLoading,
     getEntityNameById,
     getEntityNamesByIds,
     getCachedName,

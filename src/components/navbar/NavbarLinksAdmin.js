@@ -10,7 +10,6 @@ import {
   Text,
   useColorModeValue,
   IconButton,
-  useColorMode,
 } from "@chakra-ui/react";
 // Custom Components
 import { ItemContent } from "components/menu/ItemContent";
@@ -25,8 +24,6 @@ import {
   MdNotificationsNone,
   MdMenu,
   MdClose,
-  MdLightMode,
-  MdDarkMode,
 } from "react-icons/md";
 import { FaEthereum } from "react-icons/fa";
 import routes from "routes.js";
@@ -37,7 +34,6 @@ import { useUser } from "redux/hooks/useUser";
 export default function HeaderLinks(props) {
   const { secondary } = props;
   const { toggleSidebar, setToggleSidebar } = useContext(SidebarContext);
-  const { colorMode, toggleColorMode } = useColorMode();
   const history = useHistory();
   const { logout, user } = useUser();
 

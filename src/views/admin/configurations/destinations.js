@@ -92,6 +92,7 @@ export default function Destinations() {
   // Load destinations on component mount
   useEffect(() => {
     fetchDestinations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter destinations based on search

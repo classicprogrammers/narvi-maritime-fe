@@ -96,6 +96,7 @@ export default function Currencies() {
   // Load currencies on component mount
   useEffect(() => {
     fetchCurrencies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter currencies based on search and status
