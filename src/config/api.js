@@ -16,10 +16,10 @@ export const API_CONFIG = {
     CUSTOMER_REGISTER: "/api/customer/register",
     CUSTOMER_UPDATE: "/api/customer/update",
     CUSTOMER_DELETE: "/api/customer/delete",
-    VENDOR_REGISTER: "/api/vendor/register",
-    VENDOR_UPDATE: "/api/vendor/update",
+    VENDOR_REGISTER: "/api/agent/register",
+    VENDOR_UPDATE: "/api/agent/update",
     VENDOR_DELETE: "/api/vendor/delete",
-    VENDORS: "/api/vendor/list",
+    VENDORS: "/api/agents",
     // Stock list endpoints
     STOCK_LIST: "/api/stock/list",
     STOCK_UPDATE: "/api/stock/list/update",

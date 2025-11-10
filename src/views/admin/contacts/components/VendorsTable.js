@@ -62,6 +62,7 @@ import {
   MdUnfoldMore,
   MdFilterList,
   MdVisibility,
+  MdGroups,
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
@@ -71,9 +72,9 @@ export default function VendorsTable(props) {
   const [filters, setFilters] = useState({
     agent_id: "",
     company: "",
+    reg_no: "",
     city: "",
     country: "",
-    email: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -150,22 +151,46 @@ export default function VendorsTable(props) {
   const filteredData = useMemo(() => {
     let filtered = Array.isArray(tableData) ? tableData : [];
 
+    const isTopLevelAgent = (item) => {
+      const parentValue = item?.parent_id ?? item?.parentId ?? item?.parent;
+      return (
+        parentValue === false ||
+        parentValue === null ||
+        parentValue === undefined ||
+        parentValue === ""
+      );
+    };
+
+    filtered = filtered.filter(isTopLevelAgent);
+
     // Apply search filter
     if (searchValue) {
+      const searchLower = searchValue.toLowerCase();
       filtered = filtered.filter(
-        (item) =>
-          (item.name &&
-            item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.agentsdb_id &&
-            item.agentsdb_id.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.email &&
-            item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.phone && item.phone.toString().includes(searchValue)) ||
-          (item.mobile && item.mobile.toString().includes(searchValue)) ||
-          (item.street &&
-            item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.city &&
-            item.city.toLowerCase().includes(searchValue.toLowerCase()))
+        (item) => {
+          const name = (item.name || "").toLowerCase();
+          const agentsdbId = (item.agentsdb_id || "").toLowerCase();
+          const regNo = (item.reg_no || item.registration_no || item.registrationNo || "").toLowerCase();
+          const city = (item.city || "").toLowerCase();
+          const countryObj = countries.find(
+            (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
+          );
+          const countryName = (countryObj ? countryObj.name : item.country_name || "").toLowerCase();
+          const warnings = (item.warnings || item.warning || "").toLowerCase();
+          const email = (item.email || item.email2 || "").toLowerCase();
+          const phone = (item.phone || item.phone2 || "").toString().toLowerCase();
+
+          return (
+            name.includes(searchLower) ||
+            agentsdbId.includes(searchLower) ||
+            regNo.includes(searchLower) ||
+            city.includes(searchLower) ||
+            countryName.includes(searchLower) ||
+            warnings.includes(searchLower) ||
+            email.includes(searchLower) ||
+            phone.includes(searchLower)
+          );
+        }
       );
     }
 
@@ -182,6 +207,16 @@ export default function VendorsTable(props) {
     if (filters.company) {
       filtered = filtered.filter(
         (item) => (item.name || "").toLowerCase().includes(filters.company.toLowerCase())
+      );
+    }
+
+    // Apply registration no filter
+    if (filters.reg_no) {
+      filtered = filtered.filter(
+        (item) => {
+          const regNo = item.reg_no || item.registration_no || item.registrationNo || "";
+          return String(regNo).toLowerCase().includes(filters.reg_no.toLowerCase());
+        }
       );
     }
 
@@ -204,15 +239,6 @@ export default function VendorsTable(props) {
       });
     }
 
-    // Apply email filter (checks both)
-    if (filters.email) {
-      const needle = filters.email.toLowerCase();
-      filtered = filtered.filter(
-        (item) =>
-          (item.email && item.email.toLowerCase().includes(needle)) ||
-          (item.email2 && item.email2.toLowerCase().includes(needle))
-      );
-    }
 
     // Add computed display fields
     const withComputed = filtered.map((item) => {
@@ -220,10 +246,69 @@ export default function VendorsTable(props) {
         (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
       );
       const countryName = countryObj ? countryObj.name : item.country_name || "";
+      const rawChildren =
+        item.children ??
+        item.agent_people ??
+        item.people ??
+        item.contacts ??
+        [];
+      const derivedCount = Array.isArray(rawChildren) ? rawChildren.length : 0;
+      const fallbackCount =
+        item.children_count ??
+        item.child_count ??
+        item.total_contacts ??
+        item.contact_count ??
+        derivedCount;
+      const parsedCount = Number.isFinite(fallbackCount)
+        ? fallbackCount
+        : parseInt(fallbackCount, 10);
+      const childCount = Number.isNaN(parsedCount)
+        ? derivedCount
+        : Math.max(parsedCount, derivedCount);
+
+      const warningsValue = item.warnings ?? item.warning ?? "";
+      const registrationNo =
+        item.reg_no ?? item.registration_no ?? item.registrationNo ?? "";
+      const normalizedChildren = Array.isArray(rawChildren)
+        ? rawChildren.map((child, index) => {
+          const firstName = child?.first_name || child?.firstname || "";
+          const lastName = child?.last_name || child?.lastname || "";
+          const fullName =
+            child?.name ||
+            [firstName, lastName].filter(Boolean).join(" ").trim();
+          const jobTitle = child?.job_title || child?.title || "";
+          const email =
+            child?.email ||
+            child?.email1 ||
+            child?.email2 ||
+            child?.primary_email ||
+            "";
+          const phone =
+            child?.tel_direct ||
+            child?.phone ||
+            child?.tel_other ||
+            child?.mobile ||
+            "";
+          return {
+            id:
+              child?.id ||
+              child?.person_id ||
+              child?.contact_id ||
+              `${fullName || email || phone || index}-${index}`,
+            name: fullName || email || phone || "Unnamed Contact",
+            jobTitle,
+            email,
+            phone,
+          };
+        })
+        : [];
       return {
         ...item,
         city_country: [item.city, countryName].filter(Boolean).join(", "),
-        emails: [item.email, item.email2].filter(Boolean),
+        warnings: warningsValue,
+        reg_no: registrationNo,
+        children_count: childCount,
+        children_display: normalizedChildren,
       };
     });
 
@@ -275,6 +360,13 @@ export default function VendorsTable(props) {
   const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
   const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
+  const peopleIconBgActive = useColorModeValue("blue.100", "whiteAlpha.200");
+  const peopleIconBgInactive = useColorModeValue("gray.200", "whiteAlpha.200");
+  const peopleIconColorActive = useColorModeValue("blue.600", "blue.200");
+  const peopleIconColorInactive = useColorModeValue("gray.500", "gray.400");
+  const peopleBadgeBgActive = useColorModeValue("blue.500", "blue.300");
+  const peopleBadgeBgInactive = useColorModeValue("gray.200", "whiteAlpha.500");
+  const peopleBadgeTextInactive = useColorModeValue("gray.600", "gray.400");
 
   const handleInputChange = (field, value) => {
     setNewVendor((prev) => ({
@@ -291,7 +383,7 @@ export default function VendorsTable(props) {
   };
 
   const clearAllFilters = () => {
-    setFilters({ agent_id: "", company: "", city: "", country: "", email: "" });
+    setFilters({ agent_id: "", company: "", reg_no: "", city: "", country: "" });
   };
 
   const clearAllSorting = () => {
@@ -406,7 +498,16 @@ export default function VendorsTable(props) {
   // };
 
   const handleDelete = (vendor) => {
-    if (!vendor || !vendor.id) {
+    const agentId = vendor?.id || vendor?.agent_id || vendor?.vendor_id;
+    if (!vendor || !agentId) {
+      console.error("Cannot delete: Agent ID not found", vendor);
+      toast({
+        title: "Delete Error",
+        description: "Cannot delete agent: Agent ID not found.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
       return;
     }
     setVendorToDelete(vendor);
@@ -415,15 +516,29 @@ export default function VendorsTable(props) {
 
   const confirmDelete = async () => {
     try {
-      // Check if vendor still exists
-      if (!vendorToDelete || !vendorToDelete.id) {
+      // Check if vendor still exists and get the ID
+      if (!vendorToDelete) {
+        onDeleteClose();
+        setVendorToDelete(null);
+        return;
+      }
+
+      const agentId = vendorToDelete.id || vendorToDelete.agent_id || vendorToDelete.vendor_id;
+      if (!agentId) {
+        toast({
+          title: "Delete Error",
+          description: "Cannot delete agent: Agent ID not found.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
         onDeleteClose();
         setVendorToDelete(null);
         return;
       }
 
       // Call the API to delete the vendor
-      const result = await deleteVendor(vendorToDelete.id);
+      const result = await deleteVendor(agentId);
 
       if (result.success) {
         onDeleteClose();
@@ -434,9 +549,19 @@ export default function VendorsTable(props) {
         // Show success message
         toast({
           title: "Agent Deleted",
-          description: `Agent "${vendorToDelete.name}" has been successfully deleted.`,
+          description: `Agent "${vendorToDelete.name || 'Unknown'}" has been successfully deleted.`,
           status: "success",
           duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        // Handle failure from API
+        const errorMessage = result.error || "Failed to delete agent";
+        toast({
+          title: "Delete Failed",
+          description: errorMessage,
+          status: "error",
+          duration: 8000,
           isClosable: true,
         });
       }
@@ -450,7 +575,7 @@ export default function VendorsTable(props) {
 
       // Handle specific foreign key constraint error
       if (errorMessage.includes('violates foreign key constraint') && errorMessage.includes('sale_order')) {
-        errorMessage = `Cannot delete agent "${vendorToDelete.name}" because they have existing sales orders. Please remove all related sales orders before deleting this agent.`;
+        errorMessage = `Cannot delete agent "${vendorToDelete?.name || 'Unknown'}" because they have existing sales orders. Please remove all related sales orders before deleting this agent.`;
       }
 
       toast({
@@ -507,7 +632,9 @@ export default function VendorsTable(props) {
               leftIcon={<Icon as={MdAdd} />}
               colorScheme="blue"
               size="sm"
-              onClick={() => history.push("/admin/vendor-registration")}
+              onClick={() => {
+                history.push("/admin/vendor-registration");
+              }}
             >
               Add Agent
             </Button>
@@ -623,9 +750,9 @@ export default function VendorsTable(props) {
             {/* Clear All */}
             {(filters.agent_id ||
               filters.company ||
+              filters.reg_no ||
               filters.city ||
               filters.country ||
-              filters.email ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -727,6 +854,28 @@ export default function VendorsTable(props) {
                   />
                 </Box>
 
+                {/* Registration No Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Registration No
+                  </Text>
+                  <Input
+                    variant="outline"
+                    fontSize="sm"
+                    bg={inputBg}
+                    color={inputText}
+                    borderRadius="8px"
+                    placeholder="e.g., REG-1234..."
+                    value={filters.reg_no}
+                    onChange={(e) => handleFilterChange("reg_no", e.target.value)}
+                    border="2px"
+                    borderColor={borderColor}
+                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                    _hover={{ borderColor: "blue.300" }}
+                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                  />
+                </Box>
+
                 {/* Country Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
@@ -749,27 +898,6 @@ export default function VendorsTable(props) {
                   />
                 </Box>
 
-                {/* Email Filter */}
-                <Box minW="250px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Email
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., ops@agent.com..."
-                    value={filters.email}
-                    onChange={(e) => handleFilterChange("email", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
               </HStack>
             </Box>
           )}
@@ -893,7 +1021,7 @@ export default function VendorsTable(props) {
                     >
                       {row.cells.map((cell, index) => {
                         let data = "";
-                        if (cell.column.Header === "AGENT_ID") {
+                        if (cell.column.Header === "AGENT ID") {
                           data = (
                             <Text
                               color={textColor}
@@ -903,7 +1031,7 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "COMPANY_NAME") {
+                        } else if (cell.column.Header === "COMPANY NAME") {
                           data = (
                             <Text
                               color={textColor}
@@ -911,6 +1039,12 @@ export default function VendorsTable(props) {
                               fontWeight="600"
                             >
                               {cell.value || "-"}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "REGISTRATION NO") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {row.original.reg_no || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "CITY / COUNTRY") {
@@ -924,16 +1058,84 @@ export default function VendorsTable(props) {
                               {value}
                             </Text>
                           );
-                        } else if (cell.column.Header === "EMAILS") {
-                          const primary = row.original.email || "-";
-                          const secondary = row.original.email2;
+                        } else if (cell.column.Header === "WARNINGS") {
+                          const warningsText = row.original.warnings || "-";
                           data = (
-                            <Box>
-                              <Text color={textColor} fontSize="sm">{primary}</Text>
-                              {secondary ? (
-                                <Text color={tableTextColorSecondary} fontSize="xs">{secondary}</Text>
-                              ) : null}
-                            </Box>
+                            <Text
+                              color={
+                                warningsText && warningsText !== "-"
+                                  ? "red.500"
+                                  : tableTextColorSecondary
+                              }
+                              fontSize="sm"
+                            >
+                              {warningsText}
+                            </Text>
+                          );
+                        } else if (cell.column.Header === "AGENT PEOPLE") {
+                          const rawCount = Number(row.original.children_count ?? 0);
+                          const childCount = Number.isNaN(rawCount) ? 0 : rawCount;
+                          const hasPeople = childCount > 0;
+                          const peopleList = Array.isArray(row.original.children_display)
+                            ? row.original.children_display
+                            : [];
+                          const tooltipContent = hasPeople
+                            ? peopleList
+                              .slice(0, 5)
+                              .map((person) => {
+                                const pieces = [
+                                  person.name,
+                                  person.jobTitle,
+                                  person.email || person.phone,
+                                ].filter(Boolean);
+                                return pieces.join(" · ");
+                              })
+                              .join("\n") + (peopleList.length > 5 ? `\n+${peopleList.length - 5} more` : "")
+                            : "";
+
+                          data = (
+                            <Tooltip
+                              label={tooltipContent}
+                              placement="top"
+                              hasArrow
+                              isDisabled={!hasPeople}
+                              maxW="260px"
+                              whiteSpace="pre-wrap"
+                              openDelay={150}
+                            >
+                              <HStack spacing={2}>
+                                <Flex
+                                  align="center"
+                                  justify="center"
+                                  w="28px"
+                                  h="28px"
+                                  borderRadius="full"
+                                  bg={hasPeople ? peopleIconBgActive : peopleIconBgInactive}
+                                >
+                                  <Icon
+                                    as={MdGroups}
+                                    color={hasPeople ? peopleIconColorActive : peopleIconColorInactive}
+                                    boxSize={4}
+                                  />
+                                </Flex>
+                                <Box
+                                  minW="28px"
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="md"
+                                  bg={hasPeople ? peopleBadgeBgActive : peopleBadgeBgInactive}
+                                >
+                                  <Text
+                                    color={hasPeople ? "white" : peopleBadgeTextInactive}
+                                    fontSize="sm"
+                                    fontWeight="700"
+                                    textAlign="center"
+                                  >
+                                    {childCount}
+                                  </Text>
+                                </Box>
+                              </HStack>
+                            </Tooltip>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (
@@ -944,12 +1146,25 @@ export default function VendorsTable(props) {
                                   size="sm"
                                   colorScheme="teal"
                                   variant="ghost"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const agentId = row.original.id || row.original.agent_id || row.original.vendor_id;
+                                    if (!agentId) {
+                                      console.error("Agent ID not found in row data:", row.original);
+                                      toast({
+                                        title: "View Error",
+                                        description: "Cannot view agent: Agent ID not found.",
+                                        status: "error",
+                                        duration: 3000,
+                                        isClosable: true,
+                                      });
+                                      return;
+                                    }
                                     const original = Array.isArray(tableData)
-                                      ? tableData.find((v) => String(v.id) === String(row.original.id))
+                                      ? tableData.find((v) => String(v.id || v.agent_id || v.vendor_id) === String(agentId))
                                       : null;
                                     const payload = original || row.original;
-                                    history.push(`/admin/contacts/agents/${row.original.id}`, { agent: payload });
+                                    history.push(`/admin/contacts/agents/${agentId}`, { agent: payload });
                                   }}
                                   aria-label="View agent"
                                 />
@@ -960,11 +1175,24 @@ export default function VendorsTable(props) {
                                   size="sm"
                                   colorScheme="blue"
                                   variant="ghost"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const agentId = row.original.id || row.original.agent_id || row.original.vendor_id;
+                                    if (!agentId) {
+                                      console.error("Agent ID not found in row data:", row.original);
+                                      toast({
+                                        title: "Edit Error",
+                                        description: "Cannot edit agent: Agent ID not found.",
+                                        status: "error",
+                                        duration: 3000,
+                                        isClosable: true,
+                                      });
+                                      return;
+                                    }
                                     // Store vendor data in localStorage as backup
-                                    localStorage.setItem(`vendor_${row.original.id}`, JSON.stringify(row.original));
+                                    localStorage.setItem(`vendor_${agentId}`, JSON.stringify(row.original));
                                     history.push({
-                                      pathname: `/admin/vendor-registration/${row.original.id}`,
+                                      pathname: `/admin/vendor-registration/${agentId}`,
                                       state: { vendorData: row.original }
                                     });
                                   }}
@@ -977,7 +1205,10 @@ export default function VendorsTable(props) {
                                   size="sm"
                                   colorScheme="red"
                                   variant="ghost"
-                                  onClick={() => handleDelete(row.original)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(row.original);
+                                  }}
                                   aria-label="Delete agent"
                                 />
                               </Tooltip>

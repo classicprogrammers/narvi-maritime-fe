@@ -75,9 +75,14 @@ const vendorSlice = createSlice({
     deleteAgentSuccess: (state, action) => {
       state.deleteLoading = false;
       // Remove the agent from the agents array
-      state.agents = state.agents.filter(
-        (agent) => agent.id !== action.payload.id
-      );
+      // Handle ID comparison as string or number, and check multiple ID fields
+      const deletedId = action.payload?.id || action.payload?.agent_id || action.payload?.vendor_id;
+      if (deletedId) {
+        state.agents = state.agents.filter((agent) => {
+          const agentId = agent.id || agent.agent_id || agent.vendor_id;
+          return String(agentId) !== String(deletedId);
+        });
+      }
       state.deleteError = null;
     },
     deleteAgentFailure: (state, action) => {

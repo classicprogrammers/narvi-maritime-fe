@@ -45,6 +45,133 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
+const normalizeUserId = (userId) => {
+  if (userId === null || userId === undefined || userId === "") {
+    return null;
+  }
+  const parsed = parseInt(userId, 10);
+  return Number.isNaN(parsed) ? userId : parsed;
+};
+
+const normalizeBoolean = (value, fallback = false) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "y", "approved"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no", "n", "not approved"].includes(normalized)) {
+      return false;
+    }
+  }
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+  return Boolean(value);
+};
+
+const normalizeNumber = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
+};
+
+const normalizeString = (value) => {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+};
+
+const buildAgentPayload = (agentData = {}, userId) => {
+  // Children array is already built in the component with correct structure (op, id, etc.)
+  // Just use it directly without transformation
+  const children = Array.isArray(agentData.children) ? agentData.children : [];
+
+  const approvalValue =
+    agentData.narvi_maritime_approved_agent ?? agentData.narvi_approved;
+
+  // Handle parent_id: preserve the value if explicitly set (including null), otherwise default to false
+  const parentIdValue = agentData.parent_id !== undefined 
+    ? agentData.parent_id
+    : (agentData.parentId !== undefined 
+      ? agentData.parentId
+      : (agentData.parent !== undefined
+        ? agentData.parent
+        : false));
+
+  const payload = {
+    current_user:
+      agentData.current_user ?? userId ?? agentData.user_id ?? null,
+    user_id: agentData.user_id ?? userId ?? agentData.current_user ?? null,
+    parent_id: parentIdValue,
+    agentsdb_id: normalizeString(agentData.agentsdb_id),
+    name: normalizeString(agentData.name),
+    agents_address_type: normalizeString(
+      agentData.agents_address_type ?? agentData.address_type
+    ),
+    street: normalizeString(agentData.street),
+    street2: normalizeString(agentData.street2),
+    zip: normalizeString(agentData.zip),
+    city: normalizeString(agentData.city),
+    country_id: normalizeNumber(agentData.country_id),
+    reg_no: normalizeString(agentData.reg_no),
+    email: normalizeString(agentData.email),
+    email2: normalizeString(agentData.email2),
+    phone: normalizeString(agentData.phone),
+    phone2: normalizeString(agentData.phone2),
+    website: normalizeString(agentData.website),
+    agents_pic: normalizeString(agentData.agents_pic ?? agentData.pic),
+    cnee1: normalizeString(agentData.cnee1),
+    cnee2: normalizeString(agentData.cnee2),
+    cnee3: normalizeString(agentData.cnee3),
+    cnee4: normalizeString(agentData.cnee4),
+    cnee5: normalizeString(agentData.cnee5),
+    cnee6: normalizeString(agentData.cnee6),
+    cnee7: normalizeString(agentData.cnee7),
+    cnee8: normalizeString(agentData.cnee8),
+    cnee9: normalizeString(agentData.cnee9),
+    cnee10: normalizeString(agentData.cnee10),
+    cnee11: normalizeString(agentData.cnee11),
+    cnee12: normalizeString(agentData.cnee12),
+    cnee_text: normalizeString(agentData.cnee_text),
+    warnings: normalizeString(agentData.warnings),
+    narvi_maritime_approved_agent: normalizeBoolean(approvalValue, false),
+    remarks: normalizeString(agentData.remarks),
+    is_agent: agentData.is_agent ?? true,
+    children,
+  };
+
+  return payload;
+};
+
+const determineSuccessStatus = (response) => {
+  if (!response) return false;
+  if (response.result && response.result.status) {
+    return response.result.status === "success";
+  }
+  if (typeof response.status === "string") {
+    return response.status.toLowerCase() === "success";
+  }
+  if (typeof response.success === "boolean") {
+    return response.success;
+  }
+  return false;
+};
+
+const withSuccessFlag = (response) => {
+  if (!response) return response;
+  const success = determineSuccessStatus(response);
+  if (typeof response.success === "boolean" && response.success === success) {
+    return response;
+  }
+  return { ...response, success };
+};
+
 // Get Countries API
 export const getCountriesApi = async () => {
   try {
@@ -66,7 +193,7 @@ export const registerVendorApi = async (agentData) => {
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        userId = user.id;
+        userId = normalizeUserId(user.id);
       } catch (parseError) {
         console.warn(
           "Failed to parse user data from localStorage:",
@@ -75,11 +202,7 @@ export const registerVendorApi = async (agentData) => {
       }
     }
 
-    // Add user_id to agent data
-    const payload = {
-      ...agentData,
-      user_id: userId,
-    };
+    const payload = buildAgentPayload(agentData, userId);
 
     const response = await api.post(
       getApiEndpoint("VENDOR_REGISTER"),
@@ -89,17 +212,36 @@ export const registerVendorApi = async (agentData) => {
 
 
     // Check if the JSON-RPC response indicates an error
-    if (result.result && result.result.status === "error") {
-      throw new Error(result.result.message || "Registration failed");
+    if (
+      (result.result && result.result.status === "error") ||
+      (typeof result.status === "string" && result.status.toLowerCase() === "error") ||
+      result.success === false
+    ) {
+      // Return the error result so the component can extract validation errors
+      // Don't throw, let the component handle it based on success flag
+      return {
+        success: false,
+        result: result.result || result,
+        error: result?.result?.message || result?.message || "Registration failed",
+        ...result, // Include full result for error extraction
+      };
     }
 
     // Check if the response has the expected structure
     if (!result.result || result.result.status !== "success") {
-      console.error("Invalid response structure:", result);
-      throw new Error("Invalid response from server");
+      const success = determineSuccessStatus(result);
+      if (!success) {
+        // Return error result instead of throwing
+        return {
+          success: false,
+          result: result.result || result,
+          error: result?.result?.message || result?.message || "Invalid response from server",
+          ...result, // Include full result for error extraction
+        };
+      }
     }
 
-    return result;
+    return withSuccessFlag(result);
   } catch (error) {
     console.error("Register vendor error:", error);
     // Don't show modal here, let the component handle it
@@ -135,7 +277,25 @@ export const getVendorsApi = async () => {
       throw new Error(response.data.result.message || 'Failed to fetch agents');
     }
 
-    return response.data.vendors;
+    const responseData = response.data;
+
+    if (Array.isArray(responseData)) {
+      return responseData;
+    }
+
+    if (Array.isArray(responseData.agents)) {
+      return responseData.agents;
+    }
+
+    if (Array.isArray(responseData.vendors)) {
+      return responseData.vendors;
+    }
+
+    if (responseData.result && Array.isArray(responseData.result.agents)) {
+      return responseData.result.agents;
+    }
+
+    return responseData;
   } catch (error) {
     console.error("Get agents error:", error);
     // Don't show modal here, let the component handle it
@@ -164,10 +324,11 @@ export const getVendorByIdApi = async (agentId) => {
 
     // Try different endpoint patterns with user_id
     const endpoints = [
+      `/api/agent/get/${agentId}${userId ? `?user_id=${userId}` : ''}`,
+      `/api/agent/${agentId}${userId ? `?user_id=${userId}` : ''}`,
       `${getApiEndpoint("VENDORS")}/${agentId}${userId ? `?user_id=${userId}` : ''}`,
-      `/api/vendor/get/${agentId}${userId ? `?user_id=${userId}` : ''}`,
+      `${getApiEndpoint("VENDORS")}?id=${agentId}${userId ? `&user_id=${userId}` : ''}`,
       `/api/vendor/${agentId}${userId ? `?user_id=${userId}` : ''}`,
-      `${getApiEndpoint("VENDORS")}?id=${agentId}${userId ? `&user_id=${userId}` : ''}`
     ];
 
     let response;
@@ -189,8 +350,19 @@ export const getVendorByIdApi = async (agentId) => {
 
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch agent');
+      const errorMsg = response.data.result.message || 'Failed to fetch agent';
+      console.error("API returned error:", errorMsg, response.data);
+      throw new Error(errorMsg);
     }
+
+    // Log the response structure for debugging
+    console.log("getVendorByIdApi response:", {
+      hasResult: !!response.data?.result,
+      hasData: !!response.data?.data,
+      hasAgent: !!response.data?.agent,
+      resultStatus: response.data?.result?.status,
+      fullResponse: response.data,
+    });
 
     return response.data;
   } catch (error) {
@@ -210,7 +382,7 @@ export const updateVendorApi = async (agentId, data) => {
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        userId = user.id;
+        userId = normalizeUserId(user.id);
       } catch (parseError) {
         console.warn(
           "Failed to parse user data from localStorage:",
@@ -219,11 +391,11 @@ export const updateVendorApi = async (agentId, data) => {
       }
     }
 
-    // Add agent_id and user_id to the request body
     const payload = {
-      ...data,
-      vendor_id: agentId, // Backend still expects vendor_id
-      user_id: userId
+      ...buildAgentPayload(data, userId),
+      agent_id: agentId,
+      vendor_id: agentId,
+      id: agentId,
     };
 
     const response = await api.post(
@@ -234,18 +406,37 @@ export const updateVendorApi = async (agentId, data) => {
 
 
     // Check if the JSON-RPC response indicates an error
-    if (result.result && result.result.status === "error") {
-      throw new Error(result.result.message || "Update failed");
+    if (
+      (result.result && result.result.status === "error") ||
+      (typeof result.status === "string" && result.status.toLowerCase() === "error") ||
+      result.success === false
+    ) {
+      // Return the error result so the component can extract validation errors
+      // Don't throw, let the component handle it based on success flag
+      return {
+        success: false,
+        result: result.result || result,
+        error: result?.result?.message || result?.message || "Update failed",
+        ...result, // Include full result for error extraction
+      };
     }
 
     // Check if the response has the expected structure
     if (!result.result || result.result.status !== "success") {
-      console.error("Invalid response structure:", result);
-      throw new Error("Invalid response from server");
+      const success = determineSuccessStatus(result);
+      if (!success) {
+        // Return error result instead of throwing
+        return {
+          success: false,
+          result: result.result || result,
+          error: result?.result?.message || result?.message || "Invalid response from server",
+          ...result, // Include full result for error extraction
+        };
+      }
     }
 
     console.log("Agent update successful:", result);
-    return result;
+    return withSuccessFlag(result);
   } catch (error) {
     console.error("Update agent error:", error);
     // Don't show modal here, let the component handle it
@@ -253,50 +444,13 @@ export const updateVendorApi = async (agentId, data) => {
   }
 };
 
-// Create Agent Person API
-export const createVendorPersonApi = async (agentId, person) => {
-  try {
-    // Get user ID from localStorage
-    const userData = localStorage.getItem("user");
-    let userId = null;
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        userId = user.id;
-      } catch (_) {}
-    }
-
-    const payload = {
-      // Link to agent
-      vendor_id: agentId,
-      user_id: userId,
-      // Person fields
-      prefix: person.prefix,
-      job_title: person.job_title,
-      first_name: person.first_name,
-      last_name: person.last_name,
-      email: person.email,
-      tel_direct: person.tel_direct,
-      phone: person.phone,
-      tel_other: person.tel_other,
-      linked_in: person.linked_in,
-      remarks: person.remarks,
-      // Some backends expect parent_id/client_id; include for compatibility
-      parent_id: agentId,
-      client_id: agentId,
-    };
-
-    const response = await api.post(getApiEndpoint("VENDOR_UPDATE"), payload);
-    return response.data;
-  } catch (error) {
-    console.error("Create agent person error:", error);
-    throw error;
-  }
-};
-
 // Delete Agent API
 export const deleteVendorApi = async (agentId) => {
   try {
+    if (!agentId) {
+      throw new Error("Agent ID is required for deletion");
+    }
+
     // Get user ID from localStorage
     const userData = localStorage.getItem("user");
     let userId = null;
@@ -313,32 +467,58 @@ export const deleteVendorApi = async (agentId) => {
       }
     }
 
-    // Add agent_id and user_id to the request body
+    // Add agent_id and user information to the request body
+    // Match the backend expectation: agent_id (required) and current_user (optional)
     const payload = {
-      vendor_id: agentId, // Backend still expects vendor_id
-      user_id: userId
+      id: agentId,
+      agent_id: agentId,
+      current_user: userId, // Backend expects current_user in payload
+      user_id: userId, // Also include user_id for consistency
     };
 
-    const response = await api.post(
-      getApiEndpoint("VENDOR_DELETE"),
-      payload
-    );
+    // Try agent delete endpoint first (consistent with other agent endpoints)
+    // Fallback to vendor delete endpoint for backward compatibility
+    let response;
+    let endpoint = "/api/agent/delete";
+
+    try {
+      response = await api.post(endpoint, payload);
+    } catch (err) {
+      // If 404, try the fallback endpoint
+      if (err.response?.status === 404) {
+        endpoint = getApiEndpoint("VENDOR_DELETE");
+        response = await api.post(endpoint, payload);
+      } else {
+        throw err;
+      }
+    }
+
     const result = response.data;
 
-
     // Check if the JSON-RPC response indicates an error
-    if (result.result && result.result.status === "error") {
-      throw new Error(result.result.message || "Delete failed");
+    if (
+      (result.result && result.result.status === "error") ||
+      (typeof result.status === "string" && result.status.toLowerCase() === "error") ||
+      result.success === false
+    ) {
+      const message =
+        result?.result?.message ||
+        result?.message ||
+        "Delete failed";
+      throw new Error(message);
     }
 
     // Check if the response has the expected structure
     if (!result.result || result.result.status !== "success") {
-      console.error("Invalid response structure:", result);
-      throw new Error("Invalid response from server");
+      const success = determineSuccessStatus(result);
+      if (!success) {
+        console.error("Invalid response structure:", result);
+        throw new Error(result?.result?.message || result?.message || "Invalid response from server");
+      }
     }
 
     console.log("Agent delete successful:", result);
-    return result;
+    return withSuccessFlag(result);
   } catch (error) {
     console.error("Delete agent error:", error);
     // Don't show modal here, let the component handle it

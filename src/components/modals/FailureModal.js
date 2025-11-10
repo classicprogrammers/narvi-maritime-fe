@@ -54,6 +54,8 @@ const FailureModal = ({
             fontSize="md"
             color={useColorModeValue("gray.600", "gray.300")}
             lineHeight="1.6"
+            whiteSpace="pre-line"
+            textAlign="left"
           >
             {message}
           </Text>

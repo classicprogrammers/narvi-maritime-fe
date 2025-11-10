@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Box, VStack } from "@chakra-ui/react";
 import VendorsTable from "views/admin/contacts/components/VendorsTable";
 import { columnsDataAgents } from "views/admin/contacts/variables/columnsData";
@@ -7,7 +7,19 @@ import { useVendor } from "redux/hooks/useVendor";
 export default function Vendors() {
   const { vendors, isLoading, getVendors } = useVendor();
 
-  // Load vendors on component mount
+  const topLevelAgents = useMemo(() => {
+    if (!Array.isArray(vendors)) return [];
+    return vendors.filter((agent) => {
+      const parentValue = agent?.parent_id ?? agent?.parentId ?? agent?.parent;
+      return (
+        parentValue === false ||
+        parentValue === null ||
+        parentValue === undefined ||
+        parentValue === ""
+      );
+    });
+  }, [vendors]);
+
   useEffect(() => {
     getVendors();
   }, [getVendors]);
@@ -17,7 +29,7 @@ export default function Vendors() {
       <VStack spacing={6} align="stretch">
         <VendorsTable
           columnsData={columnsDataAgents}
-          tableData={Array.isArray(vendors) ? vendors : []}
+          tableData={topLevelAgents}
           isLoading={isLoading}
         />
       </VStack>

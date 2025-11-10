@@ -68,7 +68,13 @@ export const deleteAgent = (agentId) => async (dispatch) => {
   try {
     dispatch(deleteAgentStart());
     const result = await deleteVendorApi(agentId);
-    dispatch(deleteAgentSuccess(result));
+    // Pass the agentId in the payload so the slice can filter it out
+    // The API response might not have the id field in the expected format
+    const payload = { 
+      id: agentId,
+      ...(result?.result?.data || result?.data || result?.result || result || {})
+    };
+    dispatch(deleteAgentSuccess(payload));
     return { success: true, data: result };
   } catch (error) {
     const errorMessage = error.message || "Failed to delete agent";
