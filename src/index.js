@@ -18,9 +18,9 @@ ReactDOM.render(
         <BrowserRouter>
           <AppWrapper>
             <Switch>
+              <Route exact path="/" render={() => <Redirect to="/auth/sign-in" />} />
               <Route path={`/auth`} component={AuthLayout} />
               <ProtectedRoute path={`/admin`} component={AdminLayout} />
-              <Redirect from="/" to="/auth/sign-in" />
             </Switch>
           </AppWrapper>
         </BrowserRouter>

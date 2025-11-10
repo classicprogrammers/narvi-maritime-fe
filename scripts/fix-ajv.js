@@ -2,23 +2,50 @@
 const fs = require('fs');
 const path = require('path');
 
-const problematicPath = path.join(
-  __dirname,
-  '..',
-  'node_modules',
-  'fork-ts-checker-webpack-plugin',
-  'node_modules',
-  'ajv-keywords',
-  'keywords',
-  '_formatLimit.js'
-);
-
-if (fs.existsSync(problematicPath)) {
+// Find all instances of _formatLimit.js in nested node_modules
+function findFormatLimitFiles(rootDir, fileList = [], depth = 0) {
+  // Limit depth to avoid infinite recursion
+  if (depth > 10) return fileList;
+  
   try {
-    let content = fs.readFileSync(problematicPath, 'utf8');
+    const entries = fs.readdirSync(rootDir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(rootDir, entry.name);
+      
+      if (entry.isDirectory()) {
+        // Check if this is an ajv-keywords directory
+        if (entry.name === 'ajv-keywords') {
+          const formatLimitPath = path.join(fullPath, 'keywords', '_formatLimit.js');
+          if (fs.existsSync(formatLimitPath)) {
+            fileList.push(formatLimitPath);
+          }
+        }
+        
+        // Recursively search in node_modules directories
+        if (entry.name === 'node_modules' || depth === 0) {
+          findFormatLimitFiles(fullPath, fileList, depth + 1);
+        }
+      }
+    }
+  } catch (e) {
+    // Skip if can't read directory
+  }
+  
+  return fileList;
+}
+
+// Fix a single _formatLimit.js file
+function fixFormatLimitFile(filePath) {
+  try {
+    let content = fs.readFileSync(filePath, 'utf8');
+    
+    // Check if already fixed
+    if (content.includes('ajv._formats || ajv.formats || {}')) {
+      return false; // Already fixed
+    }
     
     // Fix the extendFormats function to handle undefined formats
-    // Replace the function with a safe version that works with ajv 8.x
     const safeFunction = `function extendFormats(ajv) {
   // In ajv 8.x, formats might be stored differently or not exist
   var formats = ajv._formats || ajv.formats || {};
@@ -42,7 +69,7 @@ if (fs.existsSync(problematicPath)) {
   }
 }`;
     
-    // Find and replace the function more carefully
+    // Find and replace the function
     const functionStart = content.indexOf('function extendFormats(ajv)');
     if (functionStart !== -1) {
       // Find the end of the function (next function or end of file)
@@ -56,15 +83,32 @@ if (fs.existsSync(problematicPath)) {
       // Reconstruct with the fixed function
       content = before + safeFunction + '\n\n' + after;
       
-      // Remove any duplicate code that might have been created
-      content = content.replace(/\n\s*if \(!format\.compare\)\s*\n\s*format\.compare = COMPARE_FORMATS\[name\];\s*\n\s*\}\s*\n\s*\}\s*\n\s*if \(!format\.compare\)/g, '\n    if (!format.compare)');
-      
-      fs.writeFileSync(problematicPath, content, 'utf8');
-      console.log('✅ Fixed ajv-keywords compatibility issue');
+      fs.writeFileSync(filePath, content, 'utf8');
+      return true;
     }
   } catch (error) {
-    console.warn('⚠️  Could not fix ajv-keywords:', error.message);
+    console.warn(`⚠️  Could not fix ${filePath}:`, error.message);
   }
+  return false;
+}
+
+// Main execution
+const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+const formatLimitFiles = findFormatLimitFiles(nodeModulesPath);
+
+if (formatLimitFiles.length === 0) {
+  console.log('ℹ️  No ajv-keywords _formatLimit.js files found in nested modules');
 } else {
-  console.log('ℹ️  fork-ts-checker-webpack-plugin nested modules not found (may be hoisted)');
+  let fixedCount = 0;
+  for (const filePath of formatLimitFiles) {
+    if (fixFormatLimitFile(filePath)) {
+      fixedCount++;
+      console.log(`✅ Fixed: ${path.relative(nodeModulesPath, filePath)}`);
+    }
+  }
+  if (fixedCount > 0) {
+    console.log(`✅ Fixed ${fixedCount} ajv-keywords compatibility issue(s)`);
+  } else {
+    console.log('ℹ️  All ajv-keywords files already fixed');
+  }
 }
