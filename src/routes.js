@@ -72,6 +72,9 @@ import SignInCentered from "views/auth/signIn";
 import ForgotPassword from "views/auth/forgotPassword";
 import SignUp from "views/auth/signUp";
 
+// Users
+import Users from "views/admin/users";
+
 const routes = [
   {
     name: "Dashboard",
@@ -149,6 +152,13 @@ const routes = [
     icon: <Icon as={MdInventory} width="20px" height="20px" color="inherit" />,
     path: "/stock-list",
     component: StockList,
+  },
+  {
+    name: "Users",
+    layout: "/admin",
+    path: "/users",
+    icon: <Icon as={MdPeople} width="20px" height="20px" color="inherit" />,
+    component: Users,
   },
   {
     name: "Forms",
