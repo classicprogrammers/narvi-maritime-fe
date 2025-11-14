@@ -6,6 +6,8 @@ import {
     Button,
     Flex,
     Input,
+    InputGroup,
+    InputRightElement,
     Text,
     useColorModeValue,
     VStack,
@@ -32,7 +34,7 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
-import { MdPersonAdd, MdPerson, MdArrowBack } from "react-icons/md";
+import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
 import SearchableSelect from "components/forms/SearchableSelect";
@@ -140,6 +142,8 @@ function CustomerRegistration() {
         phone2: "",
         street: "",
         street2: "",
+        street3: "",
+        street4: "",
         city: "",
         zip: "",
         country_id: "",
@@ -149,6 +153,15 @@ function CustomerRegistration() {
         prefix: "",
         job_title: "",
     });
+
+    // Address fields visibility state (default: 2, max: 4)
+    const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
+
+    const addMoreAddress = () => {
+        if (visibleAddressFields < 4) {
+            setVisibleAddressFields(prev => prev + 1);
+        }
+    };
 
     // Prefill when editing
     React.useEffect(() => {
@@ -163,6 +176,8 @@ function CustomerRegistration() {
                 phone2: editingClient.phone2 || "",
                 street: editingClient.street || "",
                 street2: editingClient.street2 || "",
+                street3: editingClient.street3 || "",
+                street4: editingClient.street4 || "",
                 city: editingClient.city || "",
                 zip: editingClient.zip || "",
                 country_id: editingClient.country_id || "",
@@ -172,6 +187,12 @@ function CustomerRegistration() {
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
             });
+
+            // Determine how many address fields to show based on existing data
+            let maxAddressIndex = 2;
+            if (editingClient.street3) maxAddressIndex = 3;
+            if (editingClient.street4) maxAddressIndex = 4;
+            setVisibleAddressFields(maxAddressIndex);
 
             // Populate peopleRows from children array if it exists
             if (Array.isArray(editingClient.children) && editingClient.children.length > 0) {
@@ -386,6 +407,8 @@ function CustomerRegistration() {
                 phone2: formData.phone2,
                 street: formData.street,
                 street2: formData.street2,
+                street3: formData.street3 || undefined,
+                street4: formData.street4 || undefined,
                 city: formData.city,
                 zip: formData.zip,
                 country_id: parseInt(formData.country_id) || null,
@@ -449,6 +472,8 @@ function CustomerRegistration() {
                     phone2: "",
                     street: "",
                     street2: "",
+                    street3: "",
+                    street4: "",
                     city: "",
                     zip: "",
                     country_id: "",
@@ -458,6 +483,7 @@ function CustomerRegistration() {
                     prefix: "",
                     job_title: "",
                 });
+                setVisibleAddressFields(2);
                 setPeopleRows([]);
                 setOriginalChildren([]);
             } else {
@@ -596,8 +622,56 @@ function CustomerRegistration() {
                                                     {/* 5. Address2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
-                                                        <Input name="street2" value={formData.street2} onChange={handleInputChange} placeholder="Suite / Unit" size="sm" w={gridInputWidth} />
+                                                        <InputGroup w={gridInputWidth}>
+                                                            <Input name="street2" value={formData.street2} onChange={handleInputChange} placeholder="Suite / Unit" size="sm" pr={visibleAddressFields < 3 ? "32px" : "0"} />
+                                                            {visibleAddressFields < 3 && (
+                                                                <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                    <IconButton
+                                                                        aria-label="Add Address3"
+                                                                        icon={<Icon as={MdAdd} />}
+                                                                        size="xs"
+                                                                        variant="ghost"
+                                                                        colorScheme="blue"
+                                                                        onClick={addMoreAddress}
+                                                                        h="24px"
+                                                                        w="24px"
+                                                                        minW="24px"
+                                                                    />
+                                                                </InputRightElement>
+                                                            )}
+                                                        </InputGroup>
                                                     </Box>
+                                                    {/* Address3 - conditionally shown */}
+                                                    {visibleAddressFields >= 3 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
+                                                            <InputGroup w={gridInputWidth}>
+                                                                <Input name="street3" value={formData.street3} onChange={handleInputChange} placeholder="Additional address line" size="sm" pr={visibleAddressFields < 4 ? "32px" : "0"} />
+                                                                {visibleAddressFields < 4 && (
+                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                        <IconButton
+                                                                            aria-label="Add Address4"
+                                                                            icon={<Icon as={MdAdd} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={addMoreAddress}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
+                                                            </InputGroup>
+                                                        </Box>
+                                                    )}
+                                                    {/* Address4 - conditionally shown */}
+                                                    {visibleAddressFields >= 4 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: visibleAddressFields >= 3 ? `1px solid ${borderColor}` : "none" }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                                            <Input name="street4" value={formData.street4} onChange={handleInputChange} placeholder="Additional address line" size="sm" w={gridInputWidth} />
+                                                        </Box>
+                                                    )}
                                                     {/* 6. Postcode */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>

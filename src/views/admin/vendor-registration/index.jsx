@@ -5,6 +5,8 @@ import {
     Button,
     Flex,
     Input,
+    InputGroup,
+    InputRightElement,
     Text,
     useColorModeValue,
     VStack,
@@ -46,6 +48,8 @@ const INITIAL_FORM_DATA = {
     address_type: "",
     street: "",
     street2: "",
+    street3: "",
+    street4: "",
     zip: "",
     city: "",
     country_id: "",
@@ -317,11 +321,19 @@ function VendorRegistration() {
     const [rowToDelete, setRowToDelete] = React.useState(null);
     const cancelRef = React.useRef();
     const [visibleCneeFields, setVisibleCneeFields] = React.useState(1);
+    // Address fields visibility state (default: 2, max: 4)
+    const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
     const hasIncompletePersonRow = React.useMemo(
         () => peopleRows.some((row) => REQUIRED_PERSON_FIELDS.some((field) => !String(row[field] || "").trim())),
         [peopleRows]
     );
+
+    const addMoreAddress = () => {
+        if (visibleAddressFields < 4) {
+            setVisibleAddressFields(prev => prev + 1);
+        }
+    };
 
     const addCneeField = () => {
         if (visibleCneeFields < MAX_CNEE_FIELDS) {
@@ -368,6 +380,8 @@ function VendorRegistration() {
                 address_type: vendorData.agents_address_type || vendorData.address_type || "",
                 street: vendorData.street || "",
                 street2: vendorData.street2 || "",
+                street3: vendorData.street3 || "",
+                street4: vendorData.street4 || "",
                 zip: vendorData.zip || "",
                 city: vendorData.city || "",
                 country_id: vendorData.country_id || "",
@@ -395,6 +409,12 @@ function VendorRegistration() {
                 narvi_approved: convertApprovalValueToBoolean(vendorData.narvi_maritime_approved_agent ?? vendorData.narvi_approved),
                 remarks: vendorData.remarks || "",
             });
+
+            // Determine how many address fields to show based on existing data
+            let maxAddressIndex = 2;
+            if (vendorData.street3) maxAddressIndex = 3;
+            if (vendorData.street4) maxAddressIndex = 4;
+            setVisibleAddressFields(maxAddressIndex);
 
             const peopleFromApi = vendorData.children || vendorData.agent_people || vendorData.people || vendorData.contacts || [];
 
@@ -594,6 +614,7 @@ function VendorRegistration() {
                     setPeopleRows([]);
                     setOriginalChildren([]);
                     setVisibleCneeFields(1);
+                    setVisibleAddressFields(2);
                 }
             } else {
                 // Backend returned an error response
@@ -747,8 +768,56 @@ function VendorRegistration() {
                                     {/* Address2 */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
-                                        <Input name="street2" value={formData.street2} onChange={(e) => handleInputChange('street2', e.target.value)} placeholder="Suite / Unit" size="sm" w={gridInputWidth} />
+                                        <InputGroup w={gridInputWidth}>
+                                            <Input name="street2" value={formData.street2} onChange={(e) => handleInputChange('street2', e.target.value)} placeholder="Suite / Unit" size="sm" pr={visibleAddressFields < 3 ? "32px" : "0"} />
+                                            {visibleAddressFields < 3 && (
+                                                <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                    <IconButton
+                                                        aria-label="Add Address3"
+                                                        icon={<Icon as={MdAdd} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        colorScheme="blue"
+                                                        onClick={addMoreAddress}
+                                                        h="24px"
+                                                        w="24px"
+                                                        minW="24px"
+                                                    />
+                                                </InputRightElement>
+                                            )}
+                                        </InputGroup>
                                     </Box>
+                                    {/* Address3 - conditionally shown */}
+                                    {visibleAddressFields >= 3 && (
+                                        <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
+                                            <InputGroup w={gridInputWidth}>
+                                                <Input name="street3" value={formData.street3} onChange={(e) => handleInputChange('street3', e.target.value)} placeholder="Additional address line" size="sm" pr={visibleAddressFields < 4 ? "32px" : "0"} />
+                                                {visibleAddressFields < 4 && (
+                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                        <IconButton
+                                                            aria-label="Add Address4"
+                                                            icon={<Icon as={MdAdd} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                            onClick={addMoreAddress}
+                                                            h="24px"
+                                                            w="24px"
+                                                            minW="24px"
+                                                        />
+                                                    </InputRightElement>
+                                                )}
+                                            </InputGroup>
+                                        </Box>
+                                    )}
+                                    {/* Address4 - conditionally shown */}
+                                    {visibleAddressFields >= 4 && (
+                                        <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: visibleAddressFields >= 3 ? `1px solid ${borderLight}` : "none" }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                            <Input name="street4" value={formData.street4} onChange={(e) => handleInputChange('street4', e.target.value)} placeholder="Additional address line" size="sm" w={gridInputWidth} />
+                                        </Box>
+                                    )}
                                     {/* Postcode + City */}
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode + City</Text>
