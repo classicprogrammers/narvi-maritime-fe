@@ -39,7 +39,7 @@ import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
-const REQUIRED_PERSON_FIELDS = ["first_name", "last_name", "email"];
+const REQUIRED_PERSON_FIELDS = ["first_name", "email"];
 const MAX_CNEE_FIELDS = 12;
 
 const INITIAL_FORM_DATA = {

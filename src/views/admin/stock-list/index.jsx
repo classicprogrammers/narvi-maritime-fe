@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
     Box,
     Flex,
@@ -26,37 +26,27 @@ import {
     InputLeftElement,
     Select,
     Tooltip,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalBody,
-    ModalCloseButton,
-    useDisclosure,
     VStack,
     useToast,
-    FormControl,
-    FormLabel,
-    NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
-    Textarea,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdSearch, MdFilterList, MdSave, MdClose } from "react-icons/md";
+import { MdRefresh, MdEdit, MdSearch, MdFilterList, MdAdd, MdDelete } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
+import { deleteStockItemApi } from "../../../api/stock";
+import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
+import { useHistory } from "react-router-dom";
 
 export default function StockList() {
+    const history = useHistory();
     const [searchValue, setSearchValue] = useState("");
     const [filters, setFilters] = useState({
         status: "",
     });
     const [sortOrder, setSortOrder] = useState("newest");
     const [showFilterFields, setShowFilterFields] = useState(false);
-    const [editingStock, setEditingStock] = useState(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [stockToDelete, setStockToDelete] = useState(null);
+    const cancelRef = React.useRef();
 
-    const { isOpen, onOpen, onClose } = useDisclosure();
     const toast = useToast();
 
     const {
@@ -83,9 +73,13 @@ export default function StockList() {
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
 
+    // Ensure we only auto-fetch once (avoids double calls in StrictMode)
+    const hasFetchedInitialData = useRef(false);
+
     // Fetch stock list on component mount
     useEffect(() => {
-        if (stockList.length === 0 && !isLoading) {
+        if (!hasFetchedInitialData.current && stockList.length === 0 && !isLoading) {
+            hasFetchedInitialData.current = true;
             getStockList();
         }
     }, [getStockList, stockList.length, isLoading]);
@@ -154,37 +148,42 @@ export default function StockList() {
         setSortOrder("newest");
     };
 
+
+    // Handle edit - navigate to form page
     const handleEditStock = (stock) => {
-        setEditingStock({ ...stock });
-        onOpen();
+        history.push(`/admin/stock-list/form/${stock.id}`);
     };
 
-    const handleSaveStock = async () => {
-        if (!editingStock) return;
+    // Handle create new - navigate to form page
+    const handleCreateNew = () => {
+        history.push("/admin/stock-list/form");
+    };
+
+
+    // Handle delete
+    const handleDeleteStock = async () => {
+        if (!stockToDelete) return;
 
         try {
-            // Find the original stock item for comparison
-            const originalStock = stockList.find(item => item.id === editingStock.id);
-            
-            const result = await updateStockItem(editingStock.id, editingStock, originalStock);
-            if (result.success) {
+            const result = await deleteStockItemApi(stockToDelete.id);
+            if (result && result.result && result.result.status === 'success') {
                 toast({
                     title: 'Success',
-                    description: 'Stock item updated successfully',
+                    description: 'Stock item deleted successfully',
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
                 });
-                onClose();
-                setEditingStock(null);
-                // Note: Auto-refresh is handled in the Redux action
+                setDeleteDialogOpen(false);
+                setStockToDelete(null);
+                getStockList();
             } else {
-                throw new Error(result.error);
+                throw new Error(result?.result?.message || 'Failed to delete stock item');
             }
         } catch (error) {
             toast({
                 title: 'Error',
-                description: 'Failed to update stock item',
+                description: error.message || 'Failed to delete stock item',
                 status: 'error',
                 duration: 5000,
                 isClosable: true,
@@ -192,16 +191,9 @@ export default function StockList() {
         }
     };
 
-    const handleCancelEdit = () => {
-        onClose();
-        setEditingStock(null);
-    };
-
-    const handleInputChange = (field, value) => {
-        setEditingStock((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
+    const handleDeleteClick = (stock) => {
+        setStockToDelete(stock);
+        setDeleteDialogOpen(true);
     };
 
     // Format date for display
@@ -287,11 +279,19 @@ export default function StockList() {
                         )}
                     </HStack>
                     <HStack spacing="3">
-                            <IconButton
-                                size="sm"
-                                    icon={<Icon as={MdRefresh} />}
-                                    variant="ghost"
-                                    aria-label="Refresh"
+                        <Button
+                            leftIcon={<Icon as={MdAdd} />}
+                            colorScheme="blue"
+                            onClick={handleCreateNew}
+                            size="sm"
+                        >
+                            Create New
+                        </Button>
+                        <IconButton
+                            size="sm"
+                            icon={<Icon as={MdRefresh} />}
+                            variant="ghost"
+                            aria-label="Refresh"
                             onClick={() => getStockList()}
                             isLoading={isLoading}
                         />
@@ -307,15 +307,15 @@ export default function StockList() {
                                 Search Stock Items
                             </Text>
                             <InputGroup>
-                            <InputLeftElement>
+                                <InputLeftElement>
                                     <Icon as={MdSearch} color={textColor} />
-                            </InputLeftElement>
-                            <Input
+                                </InputLeftElement>
+                                <Input
                                     variant="outline"
                                     fontSize="sm"
-                                bg={inputBg}
-                                color={inputText}
-                                borderRadius="8px"
+                                    bg={inputBg}
+                                    color={inputText}
+                                    borderRadius="8px"
                                     placeholder="Search stock items, IDs, clients, vessels..."
                                     value={searchValue}
                                     onChange={(e) => setSearchValue(e.target.value)}
@@ -328,8 +328,8 @@ export default function StockList() {
                                     _hover={{
                                         borderColor: "blue.300",
                                     }}
-                            />
-                        </InputGroup>
+                                />
+                            </InputGroup>
                         </Box>
 
                         {/* Filter Button */}
@@ -337,18 +337,18 @@ export default function StockList() {
                             <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                                 Advanced Filters
                             </Text>
-                        <Button
+                            <Button
                                 size="md"
                                 variant={filters.status ? "solid" : "outline"}
                                 colorScheme={filters.status ? "blue" : "gray"}
-                            leftIcon={<Icon as={MdFilterList} />}
+                                leftIcon={<Icon as={MdFilterList} />}
                                 onClick={() => setShowFilterFields(!showFilterFields)}
                                 borderRadius="10px"
                                 border="2px"
                                 borderColor={borderColor}
                             >
                                 {showFilterFields ? "Hide Filters" : "Show Filters"}
-                        </Button>
+                            </Button>
                         </Box>
 
                         {/* Sort Dropdown */}
@@ -362,7 +362,7 @@ export default function StockList() {
                                 size="md"
                                 bg={inputBg}
                                 color={inputText}
-                            borderRadius="8px"
+                                borderRadius="8px"
                                 border="2px"
                                 borderColor={borderColor}
                                 _focus={{
@@ -385,9 +385,9 @@ export default function StockList() {
                                 <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                                     &nbsp;
                                 </Text>
-                        <Button
+                                <Button
                                     size="md"
-                            variant="outline"
+                                    variant="outline"
                                     onClick={clearAllFiltersAndSorting}
                                     colorScheme="red"
                                     _hover={{ bg: "red.50" }}
@@ -395,7 +395,7 @@ export default function StockList() {
                                     border="2px"
                                 >
                                     Clear All
-                        </Button>
+                                </Button>
                             </Box>
                         )}
                     </HStack>
@@ -421,12 +421,12 @@ export default function StockList() {
                                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                                         Status
                                     </Text>
-                                <Select
+                                    <Select
                                         value={filters.status}
                                         onChange={(e) => handleFilterChange("status", e.target.value)}
-                                    size="sm"
-                                    bg={inputBg}
-                                    color={inputText}
+                                        size="sm"
+                                        bg={inputBg}
+                                        color={inputText}
                                         borderRadius="8px"
                                         border="2px"
                                         borderColor={borderColor}
@@ -443,11 +443,11 @@ export default function StockList() {
                                         <option value="in_transit">In Transit</option>
                                         <option value="delivered">Delivered</option>
                                         <option value="cancelled">Cancelled</option>
-                                </Select>
+                                    </Select>
                                 </Box>
                             </HStack>
                         </Box>
-                        )}
+                    )}
                 </Box>
 
                 {/* Table Container */}
@@ -455,136 +455,68 @@ export default function StockList() {
                     <Table
                         variant="unstyled"
                         size="sm"
-                        minW="1200px"
+                        minW="3000px"
                         ml="25px"
                     >
                         <Thead bg={tableHeaderBg}>
                             <Tr>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Stock Item ID
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Status
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Client ID
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Vessel ID
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    SO Number
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Weight (kg)
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Value
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Create Date
-                                    </Th>
-                                    <Th
-                                        borderRight="1px"
-                                    borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                    color={tableTextColor}
-                                        textTransform="uppercase"
-                                    >
-                                    Actions
-                                    </Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Client</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Vessel</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">PIC</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Stock Status</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Supplier</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">PO Number</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Warehouse ID</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Shipping Doc</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Items</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Weight kgs</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Length cm</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Width cm</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Height cm</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Volume no dim</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">LWH Text</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Details</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Value</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Currency</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Origin</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Via HUB</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Ready as Supplier</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Date on stock</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Remarks</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Client Access</Th>
+                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Actions</Th>
                             </Tr>
                         </Thead>
                         <Tbody>
                             {isLoading ? (
                                 <Tr>
-                                    <Td colSpan={9} textAlign="center" py="8">
+                                    <Td colSpan={25} textAlign="center" py="8">
                                         <Spinner size="lg" color="blue.500" />
                                     </Td>
                                 </Tr>
                             ) : filteredAndSortedStock.length === 0 ? (
                                 <Tr>
-                                    <Td colSpan={9} textAlign="center" py="8">
-                                        <Text color={tableTextColor} fontSize="lg">
-                                            {searchValue || Object.values(filters).some(f => f) 
-                                                ? "No stock items match your search criteria." 
-                                                : "No stock items available."}
-                                        </Text>
+                                    <Td colSpan={25} textAlign="center" py="16">
+                                        <VStack spacing="4">
+                                            <Text color={tableTextColor} fontSize="lg" fontWeight="600">
+                                                {searchValue || Object.values(filters).some((f) => f)
+                                                    ? "No stock items match your filters"
+                                                    : "No stock items available yet"}
+                                            </Text>
+                                            <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
+                                                {searchValue || Object.values(filters).some((f) => f)
+                                                    ? "Try adjusting your search or clearing filters to see more results."
+                                                    : "Start building your stock database by adding the first record."}
+                                            </Text>
+                                            <Button
+                                                size="sm"
+                                                colorScheme="blue"
+                                                leftIcon={<Icon as={MdAdd} />}
+                                                onClick={handleCreateNew}
+                                            >
+                                                Create Stock Item
+                                            </Button>
+                                        </VStack>
                                     </Td>
                                 </Tr>
                             ) : (
@@ -595,102 +527,81 @@ export default function StockList() {
                                         borderBottom="1px"
                                         borderColor={tableBorderColor}
                                     >
-                                        <Td
-                                        borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        >
-                                            <Text
-                                                color={textColor}
-                                                fontSize="sm"
-                                        fontWeight="600"
-                                            >
-                                                {item.stock_item_id || "-"}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.client_id || item.client || "-"}</Text>
                                         </Td>
-                                        <Td
-                                        borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        >
-                                            <Badge
-                                                colorScheme={getStatusColor(item.stock_status)}
-                                                size="sm"
-                                                borderRadius="full"
-                                                px="3"
-                                                py="1"
-                                            >
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.vessel_id || item.vessel || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.pic || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
                                                 {item.stock_status || "-"}
                                             </Badge>
                                         </Td>
-                                        <Td
-                                        borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {item.client_id || "-"}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.supplier_id || item.supplier || "-"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {item.vessel_id || "-"}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.po_number || "-"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {item.so_number_id || "-"}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.warehouse_id || "-"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {item.weight_kg || "0.0"} kg
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.shipping_doc || "-"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {item.value || "0.0"}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.items || item.item_desc || "-"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
-                                            <Text color={tableTextColor} fontSize="sm">
-                                                {formatDate(item.sl_create_datetime)}
-                                            </Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.weight_kg || item.weight_kgs || "0.0"}</Text>
                                         </Td>
-                                        <Td
-                                            borderRight="1px"
-                                            borderColor={tableBorderColor}
-                                            py="12px"
-                                            px="16px"
-                                        >
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.length_cm || "0.0"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.width_cm || "0.0"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.height_cm || "0.0"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.volume_no_dim || item.volume_cbm || "0.0"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.lwh_text || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.details || item.item_desc || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.value || "0.0"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.currency || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.origin || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.via_hub || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.ready_as_supplier ? "Yes" : "No"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{formatDate(item.date_on_stock)}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm" noOfLines={1}>{item.remarks || "-"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                            <Text color={tableTextColor} fontSize="sm">{item.client_access ? "Yes" : "No"}</Text>
+                                        </Td>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
                                             <HStack spacing="2">
                                                 <Tooltip label="Edit Stock Item">
                                                     <IconButton
@@ -702,13 +613,23 @@ export default function StockList() {
                                                         aria-label="Edit stock item"
                                                     />
                                                 </Tooltip>
+                                                <Tooltip label="Delete Stock Item">
+                                                    <IconButton
+                                                        icon={<Icon as={MdDelete} />}
+                                                        size="sm"
+                                                        colorScheme="red"
+                                                        variant="ghost"
+                                                        onClick={() => handleDeleteClick(item)}
+                                                        aria-label="Delete stock item"
+                                                    />
+                                                </Tooltip>
                                             </HStack>
                                         </Td>
                                     </Tr>
                                 ))
                             )}
-                            </Tbody>
-                        </Table>
+                        </Tbody>
+                    </Table>
                 </Box>
 
                 {/* Results Summary */}
@@ -719,379 +640,31 @@ export default function StockList() {
                 </Flex>
             </Card>
 
-            {/* Edit Stock Item Modal */}
-            <Modal isOpen={isOpen} onClose={onClose} size="4xl">
-                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
-                <ModalContent maxW="900px" borderRadius="xl" boxShadow="2xl">
-                    <ModalHeader
-                        bg="linear-gradient(135deg, #1c4a95 0%, #2c5aa0 100%)"
-                        color="white"
-                        borderRadius="xl 0 0 0"
-                        py="6"
-                    >
-                        <VStack align="start" spacing="2">
-                            <Text fontSize="xl" fontWeight="bold">
-                                Edit Stock Item
-                            </Text>
-                            <Text fontSize="lg" opacity="0.9">
-                                {editingStock?.stock_item_id}
-                            </Text>
-                        </VStack>
-                    </ModalHeader>
-                    <ModalCloseButton color="white" size="lg" />
-                    <ModalBody p="6">
-                        {editingStock && (
-                            <VStack spacing={6}>
-                                {/* Basic Information */}
-                                <Box w="100%">
-                                    <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
-                                        Basic Information
-                                    </Text>
-                                    <VStack spacing={4}>
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Stock Item ID</FormLabel>
-                                                <Input
-                                                    value={editingStock.stock_item_id || ""}
-                                                    isReadOnly
-                                                    bg="gray.100"
-                                                />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Status</FormLabel>
-                                                <Select
-                                                    value={editingStock.stock_status || ""}
-                                                    onChange={(e) => handleInputChange("stock_status", e.target.value)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                >
-                                                    <option value="pending">Pending</option>
-                                                    <option value="in_transit">In Transit</option>
-                                                    <option value="delivered">Delivered</option>
-                                                    <option value="cancelled">Cancelled</option>
-                                                </Select>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Weight (kg)</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.weight_kg || 0}
-                                                    onChange={(value) => handleInputChange("weight_kg", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Value</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.value || 0}
-                                                    onChange={(value) => handleInputChange("value", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>PCS Count</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.pcs_count || 0}
-                                                    onChange={(value) => handleInputChange("pcs_count", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Length (cm)</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.length_cm || 0}
-                                                    onChange={(value) => handleInputChange("length_cm", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Width (cm)</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.width_cm || 0}
-                                                    onChange={(value) => handleInputChange("width_cm", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Height (cm)</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.height_cm || 0}
-                                                    onChange={(value) => handleInputChange("height_cm", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Volume (CBM)</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.volume_cbm || 0}
-                                                    onChange={(value) => handleInputChange("volume_cbm", parseFloat(value) || 0)}
-                                                    min={0}
-                                                    precision={2}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Client ID</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.client_id || 0}
-                                                    onChange={(value) => handleInputChange("client_id", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Vessel ID</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.vessel_id || 0}
-                                                    onChange={(value) => handleInputChange("vessel_id", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Supplier ID</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.supplier_id || 0}
-                                                    onChange={(value) => handleInputChange("supplier_id", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Origin</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.origin || 0}
-                                                    onChange={(value) => handleInputChange("origin", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Destination</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.destination || 0}
-                                                    onChange={(value) => handleInputChange("destination", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Warehouse ID</FormLabel>
-                                                <NumberInput
-                                                    value={editingStock.warehouse_id || 0}
-                                                    onChange={(value) => handleInputChange("warehouse_id", parseInt(value) || 0)}
-                                                    min={0}
-                                                >
-                                                    <NumberInputField />
-                                                    <NumberInputStepper>
-                                                        <NumberIncrementStepper />
-                                                        <NumberDecrementStepper />
-                                                    </NumberInputStepper>
-                                                </NumberInput>
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Extra</FormLabel>
-                                                <Input
-                                                    value={editingStock.extra || ""}
-                                                    onChange={(e) => handleInputChange("extra", e.target.value)}
-                                                    placeholder="Enter extra information..."
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Item Description</FormLabel>
-                                                <Input
-                                                    value={editingStock.item_desc || ""}
-                                                    onChange={(e) => handleInputChange("item_desc", e.target.value)}
-                                                    placeholder="Enter item description..."
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Date on Stock</FormLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={editingStock.date_on_stock || ""}
-                                                    onChange={(e) => handleInputChange("date_on_stock", e.target.value)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Expected Ready in Stock</FormLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={editingStock.exp_ready_in_stock || ""}
-                                                    onChange={(e) => handleInputChange("exp_ready_in_stock", e.target.value)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Shipped Date</FormLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={editingStock.shipped_date || ""}
-                                                    onChange={(e) => handleInputChange("shipped_date", e.target.value)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                        </HStack>
-
-                                        <HStack spacing={4} w="100%">
-                                            <FormControl>
-                                                <FormLabel>Delivered Date</FormLabel>
-                                                <Input
-                                                    type="date"
-                                                    value={editingStock.delivered_date || ""}
-                                                    onChange={(e) => handleInputChange("delivered_date", e.target.value)}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                />
-                                            </FormControl>
-                                            <FormControl>
-                                                <FormLabel>Submit to Stock DB</FormLabel>
-                                                <Select
-                                                    value={editingStock.submit_to_stockdb ? "true" : "false"}
-                                                    onChange={(e) => handleInputChange("submit_to_stockdb", e.target.value === "true")}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                >
-                                                    <option value="false">No</option>
-                                                    <option value="true">Yes</option>
-                                                </Select>
-                                            </FormControl>
-                                        </HStack>
-
-                                        <FormControl>
-                                            <FormLabel>Remarks</FormLabel>
-                                            <Textarea
-                                                value={editingStock.remarks || ""}
-                                                onChange={(e) => handleInputChange("remarks", e.target.value)}
-                                                placeholder="Enter remarks..."
-                                                bg={inputBg}
-                                                color={inputText}
-                                                rows={3}
-                                            />
-                                        </FormControl>
-                                    </VStack>
-                                </Box>
-
-                                {/* Action Buttons */}
-                                <HStack spacing={4} w="100%" justify="flex-end">
-                                    <Button
-                                        leftIcon={<Icon as={MdClose} />}
-                                        onClick={handleCancelEdit}
-                                        variant="outline"
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        leftIcon={<Icon as={MdSave} />}
-                                        onClick={handleSaveStock}
-                                        colorScheme="blue"
-                                        isLoading={updateLoading}
-                                        loadingText="Saving..."
-                                    >
-                                        Save Changes
-                                    </Button>
-                                </HStack>
-                            </VStack>
-                        )}
-                    </ModalBody>
-                </ModalContent>
-            </Modal>
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                isOpen={deleteDialogOpen}
+                leastDestructiveRef={cancelRef}
+                onClose={() => setDeleteDialogOpen(false)}
+            >
+                <AlertDialogOverlay>
+                    <AlertDialogContent>
+                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                            Delete Stock Item
+                        </AlertDialogHeader>
+                        <AlertDialogBody>
+                            Are you sure you want to delete this stock item? This action cannot be undone.
+                        </AlertDialogBody>
+                        <AlertDialogFooter>
+                            <Button ref={cancelRef} onClick={() => setDeleteDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button colorScheme="red" onClick={handleDeleteStock} ml={3}>
+                                Delete
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialogOverlay>
+            </AlertDialog>
         </Box>
     );
 } 

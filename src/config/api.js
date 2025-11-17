@@ -22,7 +22,9 @@ export const API_CONFIG = {
     VENDORS: "/api/agents",
     // Stock list endpoints
     STOCK_LIST: "/api/stock/list",
+    STOCK_CREATE: "/api/stock/create",
     STOCK_UPDATE: "/api/stock/list/update",
+    STOCK_DELETE: "/api/stock/delete",
     // Product endpoints
     PRODUCTS: "/api/products",
     PRODUCT_CREATE: "/api/product/create",

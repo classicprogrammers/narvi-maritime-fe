@@ -25,6 +25,8 @@ import {
   MdPublic,
   MdPlace,
   MdPhone,
+  MdAdd,
+  MdStorage,
 } from "react-icons/md";
 
 // Admin Imports
@@ -46,8 +48,9 @@ import QuotationEditor from "views/admin/quotations/QuotationEditor";
 import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import ShippingOrder from "views/admin/shipping-order";
 
-// Stock List Import
+// Stock List Imports
 import StockList from "views/admin/stock-list";
+import StockForm from "views/admin/stock-list/StockForm";
 
 // Forms Imports
 import ShippingInstructions from "views/admin/forms/shipping-instructions";
@@ -150,8 +153,14 @@ const routes = [
     name: "Stock List",
     layout: "/admin",
     icon: <Icon as={MdInventory} width="20px" height="20px" color="inherit" />,
-    path: "/stock-list",
-    component: StockList,
+    submenu: [
+      {
+        name: "Main DB",
+        path: "/stock-list/main-db",
+        icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
+        component: StockList,
+      },
+    ],
   },
   {
     name: "Users",
@@ -343,6 +352,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/contacts/customer/:id",
     component: ClientDetail,
+  },
+  {
+    name: "Stock Form",
+    layout: "/admin",
+    path: "/stock-list/form/:id?",
+    component: StockForm,
   },
 ];
 

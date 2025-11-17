@@ -149,3 +149,37 @@ export const getStockItemByIdApi = async (stockId) => {
     handleApiError(error, "Get stock item");
   }
 };
+
+// Create stock item
+export const createStockItemApi = async (stockData) => {
+  try {
+    const response = await api.post(getApiEndpoint("STOCK_CREATE"), stockData);
+    
+    // Check if response has error status (JSON-RPC format)
+    if (response.data.result && response.data.result.status === 'error') {
+      throw new Error(response.data.result.message || 'Failed to create stock item');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error("Create stock item error:", error);
+    handleApiError(error, "Create stock item");
+  }
+};
+
+// Delete stock item
+export const deleteStockItemApi = async (stockId) => {
+  try {
+    const response = await api.post(getApiEndpoint("STOCK_DELETE"), { id: stockId });
+    
+    // Check if response has error status (JSON-RPC format)
+    if (response.data.result && response.data.result.status === 'error') {
+      throw new Error(response.data.result.message || 'Failed to delete stock item');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error("Delete stock item error:", error);
+    handleApiError(error, "Delete stock item");
+  }
+};

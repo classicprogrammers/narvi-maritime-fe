@@ -745,7 +745,7 @@ function CustomerRegistration() {
                                             Client People
                                         </Heading>
                                         <Button colorScheme="blue" onClick={() => {
-                                            const required = ["first_name", "last_name", "email"];
+                                            const required = ["first_name", "email"];
                                             const hasIncomplete = peopleRows.some((row) =>
                                                 required.some((f) => !String(row[f] || "").trim())
                                             );
@@ -754,7 +754,7 @@ function CustomerRegistration() {
                                                 ...prev,
                                                 { ...emptyPersonRow, company_name: formData.name || "" },
                                             ]);
-                                        }} isDisabled={peopleRows.some((row) => ["first_name", "last_name", "email"].some((f) => !String(row[f] || "").trim()))}>
+                                        }} isDisabled={peopleRows.some((row) => ["first_name", "email"].some((f) => !String(row[f] || "").trim()))}>
                                             Add Client Person
                                         </Button>
                                     </Flex>
@@ -825,7 +825,7 @@ function CustomerRegistration() {
                                                                                 });
                                                                             }}
                                                                             size="sm"
-                                                                            isRequired={["first_name", "last_name", "email"].includes(column.key)}
+                                                                            isRequired={["first_name", "email"].includes(column.key)}
                                                                             isReadOnly={column.key === "company_name"}
                                                                             isDisabled={column.key === "company_name"}
                                                                             style={{ backgroundColor: "#f7f7f77a" }}
