@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 // chakra imports
 import {
@@ -27,6 +27,41 @@ export function SidebarLinks(props) {
 
   const { routes, collapsed = false } = props;
   const [openSubmenus, setOpenSubmenus] = useState({});
+
+  // Auto-open submenus on mount if current path matches a submenu item
+  useEffect(() => {
+    const checkAndOpenSubmenus = () => {
+      const newOpenSubmenus = {};
+      
+      const checkRoutes = (routeList) => {
+        routeList.forEach((route) => {
+          if (route.submenu && route.submenu.length > 0) {
+            // Check if any submenu item matches current location
+            const hasActiveSubmenu = route.submenu.some((subItem) => {
+              const subPath = route.layout + subItem.path;
+              return location.pathname.includes(subPath.toLowerCase());
+            });
+            
+            if (hasActiveSubmenu) {
+              newOpenSubmenus[route.name] = true;
+            }
+          }
+          
+          // Recursively check nested routes
+          if (route.items) {
+            checkRoutes(route.items);
+          }
+        });
+      };
+      
+      checkRoutes(routes);
+      if (Object.keys(newOpenSubmenus).length > 0) {
+        setOpenSubmenus(newOpenSubmenus);
+      }
+    };
+    
+    checkAndOpenSubmenus();
+  }, [location.pathname, routes]);
 
   // verifies if routeName is the one active (in browser input)
   const activeRoute = (routeName) => {

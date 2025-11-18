@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
     Box,
     Flex,
@@ -21,30 +21,19 @@ import {
     AlertTitle,
     AlertDescription,
     Card,
-    Input,
-    InputGroup,
-    InputLeftElement,
-    Select,
-    Tooltip,
     VStack,
     useToast,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdSearch, MdFilterList, MdAdd, MdDelete } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdDelete } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { deleteStockItemApi } from "../../../api/stock";
-import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
+import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Checkbox } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
 
 export default function StockList() {
     const history = useHistory();
-    const [searchValue, setSearchValue] = useState("");
-    const [filters, setFilters] = useState({
-        status: "",
-    });
-    const [sortOrder, setSortOrder] = useState("newest");
-    const [showFilterFields, setShowFilterFields] = useState(false);
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [stockToDelete, setStockToDelete] = useState(null);
+    const [selectedRows, setSelectedRows] = useState(new Set());
+    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
     const cancelRef = React.useRef();
 
     const toast = useToast();
@@ -55,23 +44,39 @@ export default function StockList() {
         error,
         updateLoading,
         getStockList,
-        updateStockItem,
     } = useStock();
 
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
-    const inputBg = useColorModeValue("white", "navy.900");
-    const inputText = useColorModeValue("gray.700", "gray.100");
-    const borderColor = useColorModeValue("gray.200", "gray.700");
-    const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
     const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+    const headerProps = {
+        borderRight: "1px",
+        borderColor: tableBorderColor,
+        py: "12px",
+        px: "16px",
+        fontSize: "12px",
+        fontWeight: "600",
+        color: tableTextColor,
+        textTransform: "uppercase",
+    };
+    const cellProps = {
+        borderRight: "1px",
+        borderColor: tableBorderColor,
+        py: "12px",
+        px: "16px",
+        minW: "130px",
+    };
+    const cellText = {
+        color: tableTextColor,
+        fontSize: "sm",
+    };
 
     // Ensure we only auto-fetch once (avoids double calls in StrictMode)
     const hasFetchedInitialData = useRef(false);
@@ -93,65 +98,15 @@ export default function StockList() {
         }
     }, [isLoading, stockList.length]);
 
-    // Apply custom sorting
-    const applyCustomSorting = (data) => {
-        if (sortOrder === "newest") {
-            return [...data].sort((a, b) => new Date(b.sl_create_datetime || b.id) - new Date(a.sl_create_datetime || a.id));
-        } else if (sortOrder === "oldest") {
-            return [...data].sort((a, b) => new Date(a.sl_create_datetime || a.id) - new Date(b.sl_create_datetime || b.id));
-        } else if (sortOrder === "alphabetical") {
-            return [...data].sort((a, b) => (a.stock_item_id || "").localeCompare(b.stock_item_id || ""));
+    // Use stock list directly without filtering
+    const filteredAndSortedStock = stockList;
+
+    // Handle bulk edit - navigate to form page with selected IDs
+    const handleBulkEdit = () => {
+        const selectedIds = Array.from(selectedRows);
+        if (selectedIds.length > 0) {
+            history.push(`/admin/stock-list/form?ids=${selectedIds.join(',')}`);
         }
-        return data;
-    };
-
-    // Filter and sort data
-    const filteredAndSortedStock = useMemo(() => {
-        let filtered = stockList;
-
-        // Apply search filter
-        if (searchValue) {
-            filtered = filtered.filter(
-                (item) =>
-                    (item.stock_item_id && item.stock_item_id.toLowerCase().includes(searchValue.toLowerCase())) ||
-                    (item.id && item.id.toString().includes(searchValue)) ||
-                    (item.client_id && item.client_id.toString().includes(searchValue)) ||
-                    (item.vessel_id && item.vessel_id.toString().includes(searchValue))
-            );
-        }
-
-        // Apply status filter
-        if (filters.status) {
-            filtered = filtered.filter((item) => item.stock_status === filters.status);
-        }
-
-        return applyCustomSorting(filtered);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stockList, searchValue, filters, sortOrder]);
-
-    const handleFilterChange = (field, value) => {
-        setFilters((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-    };
-
-    const clearAllFilters = () => {
-        setFilters({
-            status: "",
-        });
-    };
-
-    const clearAllFiltersAndSorting = () => {
-        clearAllFilters();
-        setSearchValue("");
-        setSortOrder("newest");
-    };
-
-
-    // Handle edit - navigate to form page
-    const handleEditStock = (stock) => {
-        history.push(`/admin/stock-list/form/${stock.id}`);
     };
 
     // Handle create new - navigate to form page
@@ -159,31 +114,57 @@ export default function StockList() {
         history.push("/admin/stock-list/form");
     };
 
+    // Handle row selection
+    const handleRowSelect = (itemId, isSelected) => {
+        setSelectedRows(prev => {
+            const newSet = new Set(prev);
+            if (isSelected) {
+                newSet.add(itemId);
+            } else {
+                newSet.delete(itemId);
+            }
+            return newSet;
+        });
+    };
 
-    // Handle delete
-    const handleDeleteStock = async () => {
-        if (!stockToDelete) return;
+    // Handle select all
+    const handleSelectAll = (isSelected) => {
+        if (isSelected) {
+            setSelectedRows(new Set(filteredAndSortedStock.map(item => item.id)));
+        } else {
+            setSelectedRows(new Set());
+        }
+    };
+
+
+    // Handle bulk delete
+    const handleBulkDelete = async () => {
+        if (selectedRows.size === 0) return;
 
         try {
-            const result = await deleteStockItemApi(stockToDelete.id);
-            if (result && result.result && result.result.status === 'success') {
+            const deletePromises = Array.from(selectedRows).map(id => deleteStockItemApi(id));
+            const results = await Promise.all(deletePromises);
+
+            const successCount = results.filter(r => r && r.result && r.result.status === 'success').length;
+
+            if (successCount > 0) {
                 toast({
                     title: 'Success',
-                    description: 'Stock item deleted successfully',
+                    description: `${successCount} stock item(s) deleted successfully`,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
                 });
-                setDeleteDialogOpen(false);
-                setStockToDelete(null);
+                setBulkDeleteDialogOpen(false);
+                setSelectedRows(new Set());
                 getStockList();
             } else {
-                throw new Error(result?.result?.message || 'Failed to delete stock item');
+                throw new Error('Failed to delete stock items');
             }
         } catch (error) {
             toast({
                 title: 'Error',
-                description: error.message || 'Failed to delete stock item',
+                description: error.message || 'Failed to delete stock items',
                 status: 'error',
                 duration: 5000,
                 isClosable: true,
@@ -191,15 +172,30 @@ export default function StockList() {
         }
     };
 
-    const handleDeleteClick = (stock) => {
-        setStockToDelete(stock);
-        setDeleteDialogOpen(true);
+    const handleBulkDeleteClick = () => {
+        if (selectedRows.size > 0) {
+            setBulkDeleteDialogOpen(true);
+        }
     };
 
     // Format date for display
     const formatDate = (dateString) => {
-        if (!dateString) return "N/A";
-        return new Date(dateString).toLocaleDateString();
+        if (!dateString) return "-";
+        const parsed = new Date(dateString);
+        return Number.isNaN(parsed.getTime()) ? dateString : parsed.toLocaleDateString();
+    };
+
+    const formatDateTime = (value) => {
+        if (!value) return "-";
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+    };
+
+    const renderText = (value) => {
+        if (value === null || value === undefined || value === "" || value === false) {
+            return "-";
+        }
+        return value;
     };
 
     // Get status color
@@ -298,368 +294,211 @@ export default function StockList() {
                     </HStack>
                 </Flex>
 
-                {/* Enhanced Filter & Sort Section */}
-                <Box px="25px" mb="20px">
-                    <HStack spacing={6} flexWrap="wrap" align="flex-start">
-                        {/* Search */}
-                        <Box minW="300px" flex="1">
-                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                                Search Stock Items
-                            </Text>
-                            <InputGroup>
-                                <InputLeftElement>
-                                    <Icon as={MdSearch} color={textColor} />
-                                </InputLeftElement>
-                                <Input
-                                    variant="outline"
-                                    fontSize="sm"
-                                    bg={inputBg}
-                                    color={inputText}
-                                    borderRadius="8px"
-                                    placeholder="Search stock items, IDs, clients, vessels..."
-                                    value={searchValue}
-                                    onChange={(e) => setSearchValue(e.target.value)}
-                                    border="2px"
-                                    borderColor={borderColor}
-                                    _focus={{
-                                        borderColor: "blue.400",
-                                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                    }}
-                                    _hover={{
-                                        borderColor: "blue.300",
-                                    }}
-                                />
-                            </InputGroup>
-                        </Box>
-
-                        {/* Filter Button */}
-                        <Box>
-                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                                Advanced Filters
-                            </Text>
-                            <Button
-                                size="md"
-                                variant={filters.status ? "solid" : "outline"}
-                                colorScheme={filters.status ? "blue" : "gray"}
-                                leftIcon={<Icon as={MdFilterList} />}
-                                onClick={() => setShowFilterFields(!showFilterFields)}
-                                borderRadius="10px"
-                                border="2px"
-                                borderColor={borderColor}
-                            >
-                                {showFilterFields ? "Hide Filters" : "Show Filters"}
-                            </Button>
-                        </Box>
-
-                        {/* Sort Dropdown */}
-                        <Box>
-                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                                Sort Options
-                            </Text>
-                            <Select
-                                value={sortOrder}
-                                onChange={(e) => setSortOrder(e.target.value)}
-                                size="md"
-                                bg={inputBg}
-                                color={inputText}
-                                borderRadius="8px"
-                                border="2px"
-                                borderColor={borderColor}
-                                _focus={{
-                                    borderColor: "blue.400",
-                                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                }}
-                                _hover={{
-                                    borderColor: "blue.300",
-                                }}
-                            >
-                                <option value="newest">Newest First</option>
-                                <option value="oldest">Oldest First</option>
-                                <option value="alphabetical">A-Z Alphabetical</option>
-                            </Select>
-                        </Box>
-
-                        {/* Clear All */}
-                        {(filters.status || searchValue || sortOrder !== "newest") && (
-                            <Box>
-                                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                                    &nbsp;
-                                </Text>
-                                <Button
-                                    size="md"
-                                    variant="outline"
-                                    onClick={clearAllFiltersAndSorting}
-                                    colorScheme="red"
-                                    _hover={{ bg: "red.50" }}
-                                    borderRadius="10px"
-                                    border="2px"
-                                >
-                                    Clear All
-                                </Button>
-                            </Box>
-                        )}
-                    </HStack>
-
-                    {/* Expandable Filter Fields */}
-                    {showFilterFields && (
-                        <Box
-                            mt={4}
-                            pt={4}
-                            borderTop="2px"
-                            borderColor={borderColor}
-                            bg={expandableFilterBg}
-                            borderRadius="12px"
-                            p="20px"
+                {/* Bulk Action Buttons */}
+                {selectedRows.size > 0 && (
+                    <Flex px="25px" mb="20px" align="center" gap="3">
+                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                            {selectedRows.size} item(s) selected
+                        </Text>
+                        <Button
+                            leftIcon={<Icon as={MdEdit} />}
+                            colorScheme="blue"
+                            size="sm"
+                            onClick={handleBulkEdit}
                         >
-                            <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
-                                Filter by Specific Fields
-                            </Text>
-
-                            <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                                {/* Status Filter */}
-                                <Box minW="200px" flex="1">
-                                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                                        Status
-                                    </Text>
-                                    <Select
-                                        value={filters.status}
-                                        onChange={(e) => handleFilterChange("status", e.target.value)}
-                                        size="sm"
-                                        bg={inputBg}
-                                        color={inputText}
-                                        borderRadius="8px"
-                                        border="2px"
-                                        borderColor={borderColor}
-                                        _focus={{
-                                            borderColor: "blue.400",
-                                            boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                                        }}
-                                        _hover={{
-                                            borderColor: "blue.300",
-                                        }}
-                                    >
-                                        <option value="">All Statuses</option>
-                                        <option value="pending">Pending</option>
-                                        <option value="in_transit">In Transit</option>
-                                        <option value="delivered">Delivered</option>
-                                        <option value="cancelled">Cancelled</option>
-                                    </Select>
-                                </Box>
-                            </HStack>
-                        </Box>
-                    )}
-                </Box>
+                            Edit Selected
+                        </Button>
+                        <Button
+                            leftIcon={<Icon as={MdDelete} />}
+                            colorScheme="red"
+                            size="sm"
+                            onClick={handleBulkDeleteClick}
+                        >
+                            Delete Selected
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedRows(new Set())}
+                        >
+                            Clear Selection
+                        </Button>
+                    </Flex>
+                )}
 
                 {/* Table Container */}
                 <Box pr="25px" overflowX="auto">
-                    <Table
-                        variant="unstyled"
-                        size="sm"
-                        minW="3000px"
-                        ml="25px"
-                    >
-                        <Thead bg={tableHeaderBg}>
-                            <Tr>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Client</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Vessel</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">PIC</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Stock Status</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Supplier</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">PO Number</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Warehouse ID</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Shipping Doc</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Items</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Weight kgs</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Length cm</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Width cm</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Height cm</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Volume no dim</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">LWH Text</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Details</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Value</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Currency</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Origin</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Via HUB</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Ready as Supplier</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Date on stock</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Remarks</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Client Access</Th>
-                                <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase">Actions</Th>
-                            </Tr>
-                        </Thead>
-                        <Tbody>
-                            {isLoading ? (
+                    {filteredAndSortedStock.length > 0 && (
+                        <Table
+                            variant="unstyled"
+                            size="sm"
+                            minW="5000px"
+                            ml="25px"
+                        >
+                            <Thead bg={tableHeaderBg}>
                                 <Tr>
-                                    <Td colSpan={25} textAlign="center" py="8">
-                                        <Spinner size="lg" color="blue.500" />
-                                    </Td>
+                                    <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
+                                        <Checkbox
+                                            isChecked={selectedRows.size > 0 && selectedRows.size === filteredAndSortedStock.length}
+                                            isIndeterminate={selectedRows.size > 0 && selectedRows.size < filteredAndSortedStock.length}
+                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                            size="sm"
+                                        />
+                                    </Th>
+                                    <Th {...headerProps}>Stock Item ID</Th>
+                                    <Th {...headerProps}>SL CreateDate</Th>
+                                    <Th {...headerProps}>Client</Th>
+                                    <Th {...headerProps}>Vessel</Th>
+                                    <Th {...headerProps}>SO Number</Th>
+                                    <Th {...headerProps}>SI Number</Th>
+                                    <Th {...headerProps}>SI Combined</Th>
+                                    <Th {...headerProps}>DI Number</Th>
+                                    <Th {...headerProps}>Stock Status</Th>
+                                    <Th {...headerProps}>Supplier</Th>
+                                    <Th {...headerProps}>PO Number</Th>
+                                    <Th {...headerProps}>Extra 2</Th>
+                                    <Th {...headerProps}>Origin</Th>
+                                    <Th {...headerProps}>Via HUB</Th>
+                                    <Th {...headerProps}>AP Destination</Th>
+                                    <Th {...headerProps}>Destination</Th>
+                                    <Th {...headerProps}>Warehouse ID</Th>
+                                    <Th {...headerProps}>Shipping Doc</Th>
+                                    <Th {...headerProps}>Export Doc</Th>
+                                    <Th {...headerProps}>Remarks</Th>
+                                    <Th {...headerProps}>Date on stock</Th>
+                                    <Th {...headerProps}>Exp ready in stock</Th>
+                                    <Th {...headerProps}>Shipped Date</Th>
+                                    <Th {...headerProps}>Delivered Date</Th>
+                                    <Th {...headerProps}>Details</Th>
+                                    <Th {...headerProps}>Items</Th>
+                                    <Th {...headerProps}>Weight kgs</Th>
+                                    <Th {...headerProps}>Length cm</Th>
+                                    <Th {...headerProps}>Width cm</Th>
+                                    <Th {...headerProps}>Height cm</Th>
+                                    <Th {...headerProps}>Volume no dim</Th>
+                                    <Th {...headerProps}>Volume cbm</Th>
+                                    <Th {...headerProps}>LWH Text</Th>
+                                    <Th {...headerProps}>CW Airfreight</Th>
+                                    <Th {...headerProps}>Value</Th>
+                                    <Th {...headerProps}>Currency</Th>
+                                    <Th {...headerProps}>Client Access</Th>
+                                    <Th {...headerProps}>PIC</Th>
                                 </Tr>
-                            ) : filteredAndSortedStock.length === 0 ? (
-                                <Tr>
-                                    <Td colSpan={25} textAlign="center" py="16">
-                                        <VStack spacing="4">
-                                            <Text color={tableTextColor} fontSize="lg" fontWeight="600">
-                                                {searchValue || Object.values(filters).some((f) => f)
-                                                    ? "No stock items match your filters"
-                                                    : "No stock items available yet"}
-                                            </Text>
-                                            <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
-                                                {searchValue || Object.values(filters).some((f) => f)
-                                                    ? "Try adjusting your search or clearing filters to see more results."
-                                                    : "Start building your stock database by adding the first record."}
-                                            </Text>
-                                            <Button
-                                                size="sm"
-                                                colorScheme="blue"
-                                                leftIcon={<Icon as={MdAdd} />}
-                                                onClick={handleCreateNew}
-                                            >
-                                                Create Stock Item
-                                            </Button>
-                                        </VStack>
-                                    </Td>
-                                </Tr>
-                            ) : (
-                                filteredAndSortedStock.map((item, index) => (
+                            </Thead>
+                            <Tbody>
+                                {filteredAndSortedStock.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                                         borderBottom="1px"
                                         borderColor={tableBorderColor}
                                     >
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.client_id || item.client || "-"}</Text>
+                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
+                                            <Checkbox
+                                                isChecked={selectedRows.has(item.id)}
+                                                onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                                                size="sm"
+                                            />
                                         </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.vessel_id || item.vessel || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.pic || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime || item.created_date)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.client || item.client_name || item.client_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.vessel || item.vessel_name || item.vessel_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id)}</Text></Td>
+                                        <Td {...cellProps}>
                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
-                                                {item.stock_status || "-"}
+                                                {renderText(item.stock_status)}
                                             </Badge>
                                         </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.supplier_id || item.supplier || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.po_number || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.warehouse_id || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.shipping_doc || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.items || item.item_desc || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.weight_kg || item.weight_kgs || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.length_cm || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.width_cm || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.height_cm || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.volume_no_dim || item.volume_cbm || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.lwh_text || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.details || item.item_desc || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.value || "0.0"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.currency || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.origin || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.via_hub || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.ready_as_supplier ? "Yes" : "No"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{formatDate(item.date_on_stock)}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm" noOfLines={1}>{item.remarks || "-"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <Text color={tableTextColor} fontSize="sm">{item.client_access ? "Yes" : "No"}</Text>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="16px">
-                                            <HStack spacing="2">
-                                                <Tooltip label="Edit Stock Item">
-                                                    <IconButton
-                                                        icon={<Icon as={MdEdit} />}
-                                                        size="sm"
-                                                        colorScheme="blue"
-                                                        variant="ghost"
-                                                        onClick={() => handleEditStock(item)}
-                                                        aria-label="Edit stock item"
-                                                    />
-                                                </Tooltip>
-                                                <Tooltip label="Delete Stock Item">
-                                                    <IconButton
-                                                        icon={<Icon as={MdDelete} />}
-                                                        size="sm"
-                                                        colorScheme="red"
-                                                        variant="ghost"
-                                                        onClick={() => handleDeleteClick(item)}
-                                                        aria-label="Delete stock item"
-                                                    />
-                                                </Tooltip>
-                                            </HStack>
-                                        </Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.supplier || item.supplier_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.extra)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.origin)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.items || item.item_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.currency || item.currency_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic || item.pic_id)}</Text></Td>
                                     </Tr>
-                                ))
-                            )}
-                        </Tbody>
-                    </Table>
+                                ))}
+                            </Tbody>
+                        </Table>
+                    )}
+
+                    {!isLoading && filteredAndSortedStock.length === 0 && (
+                        <Box textAlign="center" py="16" px="25px">
+                            <VStack spacing="4">
+                                <Text color={tableTextColor} fontSize="lg" fontWeight="600">
+                                    No stock items available yet
+                                </Text>
+                                <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
+                                    Start building your stock database by adding the first record.
+                                </Text>
+                                <Button
+                                    size="sm"
+                                    colorScheme="blue"
+                                    leftIcon={<Icon as={MdAdd} />}
+                                    onClick={handleCreateNew}
+                                >
+                                    Create Stock Item
+                                </Button>
+                            </VStack>
+                        </Box>
+                    )}
                 </Box>
 
                 {/* Results Summary */}
-                <Flex px="25px" justify="space-between" align="center" py="20px">
-                    <Text fontSize="sm" color={tableTextColorSecondary}>
-                        Showing {filteredAndSortedStock.length} of {stockList.length} stock items
-                    </Text>
-                </Flex>
+                {filteredAndSortedStock.length > 0 && (
+                    <Flex px="25px" justify="space-between" align="center" py="20px">
+                        <Text fontSize="sm" color={tableTextColorSecondary}>
+                            Showing {filteredAndSortedStock.length} of {stockList.length} stock items
+                        </Text>
+                    </Flex>
+                )}
             </Card>
-
-            {/* Delete Confirmation Dialog */}
+            {/* Bulk Delete Confirmation Dialog */}
             <AlertDialog
-                isOpen={deleteDialogOpen}
+                isOpen={bulkDeleteDialogOpen}
                 leastDestructiveRef={cancelRef}
-                onClose={() => setDeleteDialogOpen(false)}
+                onClose={() => setBulkDeleteDialogOpen(false)}
             >
                 <AlertDialogOverlay>
                     <AlertDialogContent>
                         <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                            Delete Stock Item
+                            Delete Selected Stock Items
                         </AlertDialogHeader>
                         <AlertDialogBody>
-                            Are you sure you want to delete this stock item? This action cannot be undone.
+                            Are you sure you want to delete {selectedRows.size} selected stock item(s)? This action cannot be undone.
                         </AlertDialogBody>
                         <AlertDialogFooter>
-                            <Button ref={cancelRef} onClick={() => setDeleteDialogOpen(false)}>
+                            <Button ref={cancelRef} onClick={() => setBulkDeleteDialogOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button colorScheme="red" onClick={handleDeleteStock} ml={3}>
-                                Delete
+                            <Button colorScheme="red" onClick={handleBulkDelete} ml={3}>
+                                Delete All
                             </Button>
                         </AlertDialogFooter>
                     </AlertDialogContent>

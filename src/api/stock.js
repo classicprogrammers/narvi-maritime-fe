@@ -62,63 +62,16 @@ export const getStockListApi = async () => {
   }
 };
 
-// Update stock item - only send changed parameters
-export const updateStockItemApi = async (stockId, stockData, originalData = {}) => {
+// Update stock item - payload must include the same fields as the list items
+export const updateStockItemApi = async (stockId, stockData = {}) => {
   try {
-    // Helper function to check if a value has actually changed
-    const hasChanged = (newValue, oldValue) => {
-      // Handle null/undefined cases
-      if (newValue === null || newValue === undefined) {
-        return oldValue !== null && oldValue !== undefined;
-      }
-      if (oldValue === null || oldValue === undefined) {
-        return newValue !== null && newValue !== undefined;
-      }
-      // For numbers, compare values
-      if (typeof newValue === 'number' && typeof oldValue === 'number') {
-        return newValue !== oldValue;
-      }
-      // For strings, trim and compare
-      if (typeof newValue === 'string' && typeof oldValue === 'string') {
-        return newValue.trim() !== oldValue.trim();
-      }
-      // For booleans, direct comparison
-      if (typeof newValue === 'boolean' && typeof oldValue === 'boolean') {
-        return newValue !== oldValue;
-      }
-      // For dates, compare ISO strings
-      if (newValue instanceof Date && oldValue instanceof Date) {
-        return newValue.toISOString() !== oldValue.toISOString();
-      }
-      // Default comparison
-      return newValue !== oldValue;
-    };
-
-    // Build payload with only changed fields
-    const payload = { id: stockId };
-    const fieldsToCheck = [
-      'client_id', 'vessel_id', 'supplier_id', 'extra', 'origin', 'destination',
-      'warehouse_id', 'date_on_stock', 'exp_ready_in_stock', 'shipped_date',
-      'delivered_date', 'weight_kg', 'length_cm', 'width_cm', 'height_cm',
-      'volume_cbm', 'remarks', 'item_desc', 'pcs_count', 'submit_to_stockdb',
-      'stock_status', 'value'
-    ];
-
-    fieldsToCheck.forEach(field => {
-      if (hasChanged(stockData[field], originalData[field])) {
-        payload[field] = stockData[field] !== undefined ? stockData[field] : null;
-      }
-    });
-
-    // Only proceed if there are actual changes
-    if (Object.keys(payload).length === 1) { // Only has 'id'
-      console.log("No changes detected, skipping update");
-      return { result: { status: 'success', message: 'No changes detected' } };
-    }
-
     const response = await api.post(
       getApiEndpoint("STOCK_UPDATE"),
-      payload
+      {
+        stock_id: stockId,
+        id: stockId,
+        ...stockData,
+      }
     );
     
     // Check if response has error status (JSON-RPC format)
@@ -170,7 +123,10 @@ export const createStockItemApi = async (stockData) => {
 // Delete stock item
 export const deleteStockItemApi = async (stockId) => {
   try {
-    const response = await api.post(getApiEndpoint("STOCK_DELETE"), { id: stockId });
+    const response = await api.post(getApiEndpoint("STOCK_DELETE"), {
+      stock_id: stockId,
+      id: stockId,
+    });
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {

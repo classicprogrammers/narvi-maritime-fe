@@ -10,6 +10,7 @@ import {
   ListItem,
   Icon,
   Spinner,
+  useColorModeValue,
 } from '@chakra-ui/react';
 import { MdKeyboardArrowDown } from 'react-icons/md';
 
@@ -26,8 +27,14 @@ const SearchableSelect = ({
   error,
   isRequired = false,
   label,
+  bg,
+  color,
+  borderColor,
   ...props
 }) => {
+  const defaultBg = useColorModeValue("white", "gray.800");
+  const defaultColor = useColorModeValue("gray.700", "gray.100");
+  const defaultBorderColor = useColorModeValue("gray.300", "gray.600");
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [filteredOptions, setFilteredOptions] = useState(options);
@@ -74,10 +81,11 @@ const SearchableSelect = ({
           justifyContent="space-between"
           variant="outline"
           size="sm"
-          bg="white"
-          borderColor={error ? "red.300" : "gray.300"}
-          _hover={{ borderColor: error ? "red.400" : "gray.400" }}
-          _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95", bg: "#f0f4ff" }}
+          bg={bg || defaultBg}
+          color={color || defaultColor}
+          borderColor={error ? "red.300" : (borderColor || defaultBorderColor)}
+          _hover={{ borderColor: error ? "red.400" : (borderColor || defaultBorderColor) }}
+          _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95" }}
           onClick={() => setIsOpen(!isOpen)}
           borderRadius="md"
           fontWeight="normal"
