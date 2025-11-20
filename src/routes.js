@@ -53,6 +53,7 @@ import StockList from "views/admin/stock-list";
 import StockForm from "views/admin/stock-list/StockForm";
 import Stocks from "views/admin/stock-list/Stocks";
 import StockDBMainEdit from "views/admin/stock-list/StockDBMainEdit";
+import NewStockItem from "views/admin/stock-list/NewStockItem";
 
 // Forms Imports
 import ShippingInstructions from "views/admin/forms/shipping-instructions";
@@ -161,6 +162,12 @@ const routes = [
         path: "/stock-list/main-db",
         icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
         component: StockList,
+      },
+      {
+        name: "Add Stock",
+        path: "/stock-list/add-stock",
+        icon: <Icon as={MdAdd} width="20px" height="20px" color="inherit" />,
+        component: NewStockItem,
       },
       {
         name: "Stocks",
