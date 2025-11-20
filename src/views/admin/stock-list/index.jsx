@@ -24,11 +24,15 @@ import {
     VStack,
     useToast,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdAdd, MdDelete } from "react-icons/md";
+import { MdRefresh, MdEdit, MdDelete } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { deleteStockItemApi } from "../../../api/stock";
 import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Checkbox } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
+import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect, getUsersForSelect } from "../../../api/entitySelects";
+import { getVendorsApi } from "../../../api/vendor";
+import currenciesAPI from "../../../api/currencies";
+import locationsAPI from "../../../api/locations";
 
 export default function StockList() {
     const history = useHistory();
@@ -48,6 +52,15 @@ export default function StockList() {
 
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Lookup data for IDs -> Names
+    const [clients, setClients] = useState([]);
+    const [vessels, setVessels] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [destinations, setDestinations] = useState([]);
+    const [currencies, setCurrencies] = useState([]);
+    const [locations, setLocations] = useState([]);
+    const [users, setUsers] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -98,21 +111,65 @@ export default function StockList() {
         }
     }, [isLoading, stockList.length]);
 
+    // Fetch all lookup data for IDs -> Names
+    useEffect(() => {
+        const fetchLookupData = async () => {
+            try {
+                const [
+                    clientsData,
+                    vesselsData,
+                    vendorsData,
+                    destinationsData,
+                    currenciesData,
+                    locationsData,
+                    usersData
+                ] = await Promise.all([
+                    getCustomersForSelect().catch(() => []),
+                    getVesselsForSelect().catch(() => []),
+                    getVendorsApi().catch(() => []),
+                    getDestinationsForSelect().catch(() => []),
+                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })),
+                    locationsAPI.getLocations().catch(() => ({ locations: [] })),
+                    getUsersForSelect().catch(() => [])
+                ]);
+                setClients(clientsData || []);
+                setVessels(vesselsData || []);
+                setVendors(Array.isArray(vendorsData) ? vendorsData : vendorsData?.vendors || vendorsData?.agents || []);
+                setDestinations(destinationsData || []);
+                setCurrencies(currenciesData?.currencies || currenciesData || []);
+                setLocations(locationsData?.locations || locationsData || []);
+                setUsers(usersData || []);
+            } catch (error) {
+                console.error('Failed to fetch lookup data:', error);
+            }
+        };
+        fetchLookupData();
+    }, []);
+
     // Use stock list directly without filtering
     const filteredAndSortedStock = stockList;
 
-    // Handle bulk edit - navigate to form page with selected IDs
+    // Handle bulk edit - navigate to StockDB Main edit page with selected items' full data
     const handleBulkEdit = () => {
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
-            history.push(`/admin/stock-list/form?ids=${selectedIds.join(',')}`);
+            // Filter the full data objects from stockList for selected items
+            const selectedItemsData = stockList.filter(item => selectedIds.includes(item.id));
+            history.push({
+                pathname: '/admin/stock-list/main-db-edit',
+                state: { selectedItems: selectedItemsData, isBulkEdit: true }
+            });
         }
     };
 
-    // Handle create new - navigate to form page
-    const handleCreateNew = () => {
-        history.push("/admin/stock-list/form");
+    // Handle single item edit - navigate to StockDB Main edit page with item's full data
+    const handleEditItem = (item) => {
+        history.push({
+            pathname: '/admin/stock-list/main-db-edit',
+            state: { selectedItems: [item], isBulkEdit: false }
+        });
     };
+
 
     // Handle row selection
     const handleRowSelect = (itemId, isSelected) => {
@@ -134,6 +191,78 @@ export default function StockList() {
         } else {
             setSelectedRows(new Set());
         }
+    };
+
+    // Helper functions to get names from IDs
+    const getClientName = (clientId) => {
+        if (!clientId) return "-";
+        const client = clients.find(c => String(c.id) === String(clientId));
+        return client ? client.name : `Client ${clientId}`;
+    };
+
+    const getVesselName = (vesselId) => {
+        if (!vesselId) return "-";
+        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        return vessel ? vessel.name : `Vessel ${vesselId}`;
+    };
+
+    const getSupplierName = (supplierId) => {
+        if (!supplierId) return "-";
+        const vendor = vendors.find(v => String(v.id) === String(supplierId));
+        return vendor ? vendor.name : `Supplier ${supplierId}`;
+    };
+
+    const getDestinationName = (destId) => {
+        if (!destId) return "-";
+        const destination = destinations.find(d => String(d.id) === String(destId));
+        if (destination) return destination.name;
+        const destByName = destinations.find(d =>
+            String(d.name).toLowerCase() === String(destId).toLowerCase() ||
+            String(d.code || "").toLowerCase() === String(destId).toLowerCase()
+        );
+        if (destByName) return destByName.name;
+        return `Dest ${destId}`;
+    };
+
+    const getCurrencyName = (currencyId) => {
+        if (!currencyId) return "-";
+        const currency = currencies.find(c => String(c.id) === String(currencyId) || String(c.currency_id) === String(currencyId));
+        if (currency) return currency.name || currency.code || `Currency ${currencyId}`;
+        if (typeof currencyId === 'string' && currencyId.length <= 5) return currencyId;
+        return `Currency ${currencyId}`;
+    };
+
+    const getLocationName = (locationId) => {
+        if (!locationId) return "-";
+        const location = locations.find(l => String(l.id) === String(locationId) || String(l.location_id) === String(locationId));
+        if (location) return location.name || location.code || `Location ${locationId}`;
+        if (typeof locationId === 'string' && locationId.length <= 10) return locationId;
+        return `Location ${locationId}`;
+    };
+
+    const getUserName = (userId) => {
+        if (!userId) return "-";
+        const user = users.find(u => String(u.id) === String(userId));
+        return user ? (user.name || user.email || `User ${userId}`) : `User ${userId}`;
+    };
+
+    const getLocationOrDestinationName = (value) => {
+        if (!value) return "-";
+        const dest = destinations.find(d =>
+            String(d.id) === String(value) ||
+            String(d.name).toLowerCase() === String(value).toLowerCase() ||
+            String(d.code || "").toLowerCase() === String(value).toLowerCase()
+        );
+        if (dest) return dest.name;
+        const loc = locations.find(l =>
+            String(l.id) === String(value) ||
+            String(l.location_id) === String(value) ||
+            String(l.name || "").toLowerCase() === String(value).toLowerCase() ||
+            String(l.code || "").toLowerCase() === String(value).toLowerCase()
+        );
+        if (loc) return loc.name || loc.code || `Loc ${value}`;
+        if (typeof value === 'string' && value.length <= 10) return value;
+        return value;
     };
 
 
@@ -275,14 +404,6 @@ export default function StockList() {
                         )}
                     </HStack>
                     <HStack spacing="3">
-                        <Button
-                            leftIcon={<Icon as={MdAdd} />}
-                            colorScheme="blue"
-                            onClick={handleCreateNew}
-                            size="sm"
-                        >
-                            Create New
-                        </Button>
                         <IconButton
                             size="sm"
                             icon={<Icon as={MdRefresh} />}
@@ -345,44 +466,48 @@ export default function StockList() {
                                             size="sm"
                                         />
                                     </Th>
-                                    <Th {...headerProps}>Stock Item ID</Th>
-                                    <Th {...headerProps}>SL CreateDate</Th>
-                                    <Th {...headerProps}>Client</Th>
-                                    <Th {...headerProps}>Vessel</Th>
-                                    <Th {...headerProps}>SO Number</Th>
-                                    <Th {...headerProps}>SI Number</Th>
-                                    <Th {...headerProps}>SI Combined</Th>
-                                    <Th {...headerProps}>DI Number</Th>
-                                    <Th {...headerProps}>Stock Status</Th>
-                                    <Th {...headerProps}>Supplier</Th>
-                                    <Th {...headerProps}>PO Number</Th>
-                                    <Th {...headerProps}>Extra 2</Th>
-                                    <Th {...headerProps}>Origin</Th>
-                                    <Th {...headerProps}>Via HUB</Th>
-                                    <Th {...headerProps}>AP Destination</Th>
-                                    <Th {...headerProps}>Destination</Th>
-                                    <Th {...headerProps}>Warehouse ID</Th>
-                                    <Th {...headerProps}>Shipping Doc</Th>
-                                    <Th {...headerProps}>Export Doc</Th>
-                                    <Th {...headerProps}>Remarks</Th>
-                                    <Th {...headerProps}>Date on stock</Th>
-                                    <Th {...headerProps}>Exp ready in stock</Th>
-                                    <Th {...headerProps}>Shipped Date</Th>
-                                    <Th {...headerProps}>Delivered Date</Th>
-                                    <Th {...headerProps}>Details</Th>
-                                    <Th {...headerProps}>Items</Th>
-                                    <Th {...headerProps}>Weight kgs</Th>
-                                    <Th {...headerProps}>Length cm</Th>
-                                    <Th {...headerProps}>Width cm</Th>
-                                    <Th {...headerProps}>Height cm</Th>
-                                    <Th {...headerProps}>Volume no dim</Th>
-                                    <Th {...headerProps}>Volume cbm</Th>
-                                    <Th {...headerProps}>LWH Text</Th>
-                                    <Th {...headerProps}>CW Airfreight</Th>
-                                    <Th {...headerProps}>Value</Th>
-                                    <Th {...headerProps}>Currency</Th>
-                                    <Th {...headerProps}>Client Access</Th>
+                                    <Th {...headerProps}>STOCKITEMID</Th>
+                                    <Th {...headerProps}>SL CREATE DATE</Th>
+                                    <Th {...headerProps}>CLIENT</Th>
+                                    <Th {...headerProps}>VESSEL</Th>
+                                    <Th {...headerProps}>SO NUMBER</Th>
+                                    <Th {...headerProps}>SI NUMBER</Th>
+                                    <Th {...headerProps}>SI COMBINED</Th>
+                                    <Th {...headerProps}>DI NUMBER</Th>
+                                    <Th {...headerProps}>STOCK STATUS</Th>
+                                    <Th {...headerProps}>SUPPLIER</Th>
+                                    <Th {...headerProps}>PO NUMBER</Th>
+                                    <Th {...headerProps}>EXTRA 2</Th>
+                                    <Th {...headerProps}>ORIGIN</Th>
+                                    <Th {...headerProps}>VIA HUB</Th>
+                                    <Th {...headerProps}>AP DESTINATION</Th>
+                                    <Th {...headerProps}>DESTINATION</Th>
+                                    <Th {...headerProps}>WAREHOUSE ID</Th>
+                                    <Th {...headerProps}>SHIPPING DOC</Th>
+                                    <Th {...headerProps}>EXPORT DOC</Th>
+                                    <Th {...headerProps}>REMARKS</Th>
+                                    <Th {...headerProps}>DATE ON STOCK</Th>
+                                    <Th {...headerProps}>EXP READY IN STOCK</Th>
+                                    <Th {...headerProps}>SHIPPED DATE</Th>
+                                    <Th {...headerProps}>DELIVERED DATE</Th>
+                                    <Th {...headerProps}>DETAILS</Th>
+                                    <Th {...headerProps}>ITEMS</Th>
+                                    <Th {...headerProps}>WEIGHT KG</Th>
+                                    <Th {...headerProps}>LENGTH CM</Th>
+                                    <Th {...headerProps}>WIDTH CM</Th>
+                                    <Th {...headerProps}>HEIGHT CM</Th>
+                                    <Th {...headerProps}>VOLUME NO DIM</Th>
+                                    <Th {...headerProps}>VOLUME CBM</Th>
+                                    <Th {...headerProps}>LWH TEXT</Th>
+                                    <Th {...headerProps}>CW AIRFREIGHT</Th>
+                                    <Th {...headerProps}>VALUE</Th>
+                                    <Th {...headerProps}>CURRENCY</Th>
+                                    <Th {...headerProps}>CLIENT ACCESS</Th>
                                     <Th {...headerProps}>PIC</Th>
+                                    <Th {...headerProps}>SO STATUS</Th>
+                                    <Th {...headerProps}>VESSEL DEST</Th>
+                                    <Th {...headerProps}>VESSEL ETA</Th>
+                                    <Th {...headerProps}>SL CREATE DATE TIMESTAMP</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
@@ -401,26 +526,26 @@ export default function StockList() {
                                             />
                                         </Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime || item.created_date)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.client || item.client_name || item.client_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.vessel || item.vessel_name || item.vessel_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id || item.so_number)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
                                         <Td {...cellProps}>
                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
                                                 {renderText(item.stock_status)}
                                             </Badge>
                                         </Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.supplier || item.supplier_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.extra)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.origin)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
@@ -437,11 +562,15 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight || item.cw_airfreight)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.currency || item.currency_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic || item.pic_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getUserName(item.pic_id || item.pic)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
                                     </Tr>
                                 ))}
                             </Tbody>
@@ -455,16 +584,8 @@ export default function StockList() {
                                     No stock items available yet
                                 </Text>
                                 <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
-                                    Start building your stock database by adding the first record.
+                                    No stock items found.
                                 </Text>
-                                <Button
-                                    size="sm"
-                                    colorScheme="blue"
-                                    leftIcon={<Icon as={MdAdd} />}
-                                    onClick={handleCreateNew}
-                                >
-                                    Create Stock Item
-                                </Button>
                             </VStack>
                         </Box>
                     )}

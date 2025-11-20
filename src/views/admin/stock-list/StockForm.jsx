@@ -72,7 +72,7 @@ export default function StockForm() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
 
-    // Default empty row template
+    // Default empty row template – only keep fields that exist in the UI
     const getEmptyRow = () => ({
         id: Date.now() + Math.random(), // Unique ID for each row
         stockId: null, // Store the original stock ID for updates
@@ -85,73 +85,29 @@ export default function StockForm() {
         poNumber: "",
         warehouseId: "",
         shippingDoc: "",
-        exportDoc: "",
         items: "",
-        itemId: "",
-        item: "",
         weightKgs: "",
         lengthCm: "",
         widthCm: "",
         heightCm: "",
         volumeNoDim: "",
-        volumeCbm: "",
         lwhText: "",
         details: "",
         value: "",
-        cwFreight: "",
         currency: "",
         origin: "",
-        apDestination: "",
-        destination: "",
-        viaHub: "",
-        readyAsSupplier: false,
-        expReadyInStock: "",
-        dateOnStock: "",
-        shippedDate: "",
-        deliveredDate: "",
+        viaHub: "", // Free text field
+        expReadyInStock: "", // Date field
         remarks: "",
         clientAccess: false,
-        soNumber: "",
-        shippingInstruction: "",
-        shipmentType: "",
-        deliveryInstruction: "",
-        extra: "",
-        vesselDestination: "",
-        vesselEta: "",
-        notes: "",
-        // Additional fields from the image
-        name: "",
-        type: "",
-        priority: "",
-        assignedTo: "",
-        dueDate: "",
-        createdBy: "",
-        createdDate: "",
-        lastModifiedBy: "",
-        lastModifiedDate: "",
-        description: "",
-        comments: "",
-        attachments: "",
-        tags: "",
-        progress: "",
-        category: "",
-        subcategory: "",
-        relatedItems: "",
-        startDate: "",
-        endDate: "",
-        effort: "",
-        cost: "",
-        risk: "",
-        impact: "",
-        resolution: "",
-        feedback: "",
-        version: "",
-        owner: "",
-        department: "",
-        project: "",
-        milestone: "",
-        dependencies: "",
-        url: "",
+        // Internal fields for API payload (auto-filled or calculated)
+        vesselDestination: "", // Auto-filled from vessel
+        vesselEta: "", // Auto-filled from vessel
+        destination: "", // Auto-filled from vessel (destination field)
+        apDestination: "", // Auto-filled from vessel destination
+        itemId: "",
+        item: 1,
+        volumeCbm: "",
     });
 
     // Form state - array of rows
@@ -405,7 +361,7 @@ export default function StockForm() {
         );
     }, [clients]);
 
-    // Normalize vessel IDs when vessels are loaded
+    // Normalize vessel IDs when vessels are loaded and auto-fill vessel_destination and vessel_eta
     useEffect(() => {
         if (!vessels.length) return;
         setFormRows((prevRows) =>
@@ -418,7 +374,23 @@ export default function StockForm() {
                 const exactMatch = vessels.find((vessel) => String(vessel.id) === normalizedValue);
                 if (exactMatch) {
                     console.log("Found vessel match:", exactMatch.id, "for value:", normalizedValue);
-                    return { ...row, vessel: String(exactMatch.id) };
+                    const updatedRow = { ...row, vessel: String(exactMatch.id) };
+                    // Auto-fill destination, vessel_destination, and ap_destination from vessel data
+                    const vesselDestId = exactMatch.destination_id || exactMatch.destination;
+                    if (vesselDestId) {
+                        const destId = String(vesselDestId);
+                        updatedRow.destination = destId;
+                        updatedRow.vesselDestination = destId;
+                        updatedRow.apDestination = destId;
+                    }
+                    // Auto-fill vessel_eta from vessel data
+                    if (exactMatch.eta || exactMatch.eta_date) {
+                        const etaDate = exactMatch.eta_date || exactMatch.eta;
+                        updatedRow.vesselEta = etaDate instanceof Date
+                            ? etaDate.toISOString().split('T')[0]
+                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
+                    }
+                    return updatedRow;
                 }
                 // Try fallback matching by name
                 const fallbackMatch = vessels.find(
@@ -426,7 +398,23 @@ export default function StockForm() {
                 );
                 if (fallbackMatch) {
                     console.log("Found vessel fallback match:", fallbackMatch.id, "for value:", normalizedValue);
-                    return { ...row, vessel: String(fallbackMatch.id) };
+                    const updatedRow = { ...row, vessel: String(fallbackMatch.id) };
+                    // Auto-fill destination, vessel_destination, and ap_destination from vessel data
+                    const vesselDestId = fallbackMatch.destination_id || fallbackMatch.destination;
+                    if (vesselDestId) {
+                        const destId = String(vesselDestId);
+                        updatedRow.destination = destId;
+                        updatedRow.vesselDestination = destId;
+                        updatedRow.apDestination = destId;
+                    }
+                    // Auto-fill vessel_eta from vessel data
+                    if (fallbackMatch.eta || fallbackMatch.eta_date) {
+                        const etaDate = fallbackMatch.eta_date || fallbackMatch.eta;
+                        updatedRow.vesselEta = etaDate instanceof Date
+                            ? etaDate.toISOString().split('T')[0]
+                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
+                    }
+                    return updatedRow;
                 }
                 console.log("No vessel match found for value:", normalizedValue);
                 return row;
@@ -492,6 +480,14 @@ export default function StockForm() {
         );
     }, [clients]);
 
+    const toNumber = (value) => {
+        if (value === "" || value === null || value === undefined) {
+            return 0;
+        }
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? 0 : parsed;
+    };
+
     const loadFormDataFromStock = (stock, returnData = false) => {
         // Convert IDs to strings for consistent comparison, but preserve empty strings
         // Handle false, null, undefined, and empty strings as empty
@@ -510,8 +506,6 @@ export default function StockForm() {
             id: stock.id || Date.now() + Math.random(),
             stockId: stock.id || null, // Store the original stock ID for updates
             stockItemId: getFieldValue(stock.stock_item_id),
-            // Prioritize _id fields and convert to string for dropdown matching
-            // If client_id is 40, normalizeId(40) returns "40", which is truthy, so use it
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
             pic: normalizeId(stock.pic_id) || normalizeId(stock.pic) || "",
@@ -520,73 +514,32 @@ export default function StockForm() {
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number),
             warehouseId: getFieldValue(stock.warehouse_id),
             shippingDoc: getFieldValue(stock.shipping_doc),
-            exportDoc: getFieldValue(stock.export_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
-            itemId: getFieldValue(stock.item_id),
-            item: getFieldValue(stock.item, 0),
-            weightKgs: stock.weight_kg ?? stock.weight_kgs ?? "",
-            lengthCm: getFieldValue(stock.length_cm, 0),
-            widthCm: getFieldValue(stock.width_cm, 0),
-            heightCm: getFieldValue(stock.height_cm, 0),
-            volumeNoDim: getFieldValue(stock.volume_dim, 0) || getFieldValue(stock.volume_no_dim, 0),
-            volumeCbm: getFieldValue(stock.volume_cbm, 0),
+            weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
+            lengthCm: getFieldValue(stock.length_cm, ""),
+            widthCm: getFieldValue(stock.width_cm, ""),
+            heightCm: getFieldValue(stock.height_cm, ""),
+            volumeNoDim: getFieldValue(
+                stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm,
+                ""
+            ),
             lwhText: getFieldValue(stock.lwh_text),
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
-            value: getFieldValue(stock.value, 0),
+            value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
-            apDestination: getFieldValue(stock.ap_destination),
-            destination: getFieldValue(stock.destination) || getFieldValue(stock.vessel_destination),
-            viaHub: getFieldValue(stock.via_hub),
-            readyAsSupplier: stock.ready_as_supplier || false,
-            expReadyInStock: getFieldValue(stock.exp_ready_in_stock),
-            dateOnStock: getFieldValue(stock.date_on_stock),
-            shippedDate: getFieldValue(stock.shipped_date),
-            deliveredDate: getFieldValue(stock.delivered_date),
+            viaHub: getFieldValue(stock.via_hub, ""), // Free text field
+            expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
             clientAccess: Boolean(stock.client_access),
-            soNumber: getFieldValue(stock.so_number_id),
-            shippingInstruction: getFieldValue(stock.shipping_instruction_id),
-            shipmentType: getFieldValue(stock.shipment_type),
-            deliveryInstruction: getFieldValue(stock.delivery_instruction_id),
-            extra: getFieldValue(stock.extra),
-            vesselDestination: getFieldValue(stock.vessel_destination),
+            // Internal fields for API payload (auto-filled or from data)
+            vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta),
-            cwFreight: getFieldValue(stock.cw_freight, 0),
-            notes: getFieldValue(stock.notes) || getFieldValue(stock.remarks),
-            // Additional fields retained
-            name: stock.name || stock.stock_item_id || "",
-            type: stock.type || "",
-            priority: stock.priority || "",
-            assignedTo: stock.assigned_to || "",
-            dueDate: stock.due_date || "",
-            createdBy: stock.created_by || "",
-            createdDate: stock.sl_create_datetime || stock.created_date || "",
-            lastModifiedBy: stock.last_modified_by || "",
-            lastModifiedDate: stock.last_modified_date || "",
-            description: stock.description || stock.details || "",
-            comments: stock.comments || "",
-            attachments: stock.attachments || "",
-            tags: stock.tags || "",
-            progress: stock.progress || "",
-            category: stock.category || "",
-            subcategory: stock.subcategory || "",
-            relatedItems: stock.related_items || "",
-            startDate: stock.start_date || "",
-            endDate: stock.end_date || "",
-            effort: stock.effort || "",
-            cost: stock.cost || "",
-            risk: stock.risk || "",
-            impact: stock.impact || "",
-            resolution: stock.resolution || "",
-            feedback: stock.feedback || "",
-            version: stock.version || "",
-            owner: stock.owner || "",
-            department: stock.department || "",
-            project: stock.project || "",
-            milestone: stock.milestone || "",
-            dependencies: stock.dependencies || "",
-            url: stock.url || "",
+            destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || "",
+            apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
+            itemId: normalizeId(stock.item_id) || "",
+            item: toNumber(stock.item) || 1,
+            volumeCbm: getFieldValue(stock.volume_cbm, ""),
         };
 
         if (returnData) {
@@ -598,10 +551,47 @@ export default function StockForm() {
     const handleInputChange = (rowIndex, field, value) => {
         setFormRows(prev => {
             const newRows = [...prev];
-            newRows[rowIndex] = {
+            const updatedRow = {
                 ...newRows[rowIndex],
                 [field]: value
             };
+
+            // Auto-fill vessel-related fields when vessel is selected
+            if (field === "vessel" && value) {
+                const selectedVessel = vessels.find(v => String(v.id) === String(value));
+                if (selectedVessel) {
+                    // Auto-fill destination and vessel_destination from vessel
+                    const vesselDestinationId = selectedVessel.destination_id || selectedVessel.destination;
+                    if (vesselDestinationId) {
+                        const destId = String(vesselDestinationId);
+                        updatedRow.destination = destId; // For destination field
+                        updatedRow.vesselDestination = destId; // For vessel_destination field
+                        updatedRow.apDestination = destId; // For ap_destination field
+                    }
+                    // Auto-fill vessel_eta from vessel
+                    if (selectedVessel.eta || selectedVessel.eta_date) {
+                        const etaDate = selectedVessel.eta_date || selectedVessel.eta;
+                        updatedRow.vesselEta = etaDate instanceof Date
+                            ? etaDate.toISOString().split('T')[0]
+                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
+                    }
+                }
+            }
+
+            // Calculate volume_cbm from dimensions if available
+            if (field === "lengthCm" || field === "widthCm" || field === "heightCm" || field === "volumeNoDim") {
+                const length = toNumber(updatedRow.lengthCm || 0);
+                const width = toNumber(updatedRow.widthCm || 0);
+                const height = toNumber(updatedRow.heightCm || 0);
+                if (length > 0 && width > 0 && height > 0) {
+                    // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
+                    updatedRow.volumeCbm = ((length * width * height) / 1000000).toFixed(2);
+                } else if (updatedRow.volumeNoDim) {
+                    updatedRow.volumeCbm = updatedRow.volumeNoDim;
+                }
+            }
+
+            newRows[rowIndex] = updatedRow;
             return newRows;
         });
     };
@@ -640,60 +630,51 @@ export default function StockForm() {
         }
     };
 
-    const toNumber = (value) => {
-        if (value === "" || value === null || value === undefined) {
-            return 0;
-        }
-        const parsed = Number(value);
-        return Number.isNaN(parsed) ? 0 : parsed;
-    };
-
     const getPayload = (rowData, includeStockId = false) => {
+        // Payload matching the API structure exactly
         const payload = {
-            stock_item_id: rowData.stockItemId || rowData.name || "",
             stock_status: rowData.stockStatus || "",
-            client_id: rowData.client || "",
-            supplier_id: rowData.supplier || "",
-            vessel_id: rowData.vessel || "",
+            client_id: rowData.client ? String(rowData.client) : "",
+            supplier_id: rowData.supplier ? String(rowData.supplier) : "",
+            vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             po_text: rowData.poNumber || "",
-            pic_id: rowData.pic || "",
-            item_id: rowData.itemId || "",
-            item: rowData.item || 0,
-            currency_id: rowData.currency || "",
-            origin: rowData.origin || "",
-            ap_destination: rowData.apDestination || "",
-            destination: rowData.destination || "",
-            via_hub: rowData.viaHub || "",
+            pic_id: rowData.pic ? String(rowData.pic) : "",
+            item_id: rowData.itemId ? String(rowData.itemId) : "",
+            item: toNumber(rowData.item) || 1,
+            currency_id: rowData.currency ? String(rowData.currency) : "",
+            origin: rowData.origin ? String(rowData.origin) : "",
+            ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
+            via_hub: rowData.viaHub || "", // Free text field
             client_access: Boolean(rowData.clientAccess),
-            remarks: rowData.remarks || rowData.notes || "",
-            weight_kg: toNumber(rowData.weightKgs),
-            width_cm: toNumber(rowData.widthCm),
-            length_cm: toNumber(rowData.lengthCm),
-            height_cm: toNumber(rowData.heightCm),
-            volume_dim: toNumber(rowData.volumeNoDim),
-            volume_no_dim: toNumber(rowData.volumeNoDim),
-            volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim),
+            remarks: rowData.remarks || "",
+            weight_kg: toNumber(rowData.weightKgs) || 0,
+            width_cm: toNumber(rowData.widthCm) || 0,
+            length_cm: toNumber(rowData.lengthCm) || 0,
+            height_cm: toNumber(rowData.heightCm) || 0,
+            volume_dim: toNumber(rowData.volumeNoDim) || 0,
+            volume_no_dim: toNumber(rowData.volumeNoDim) || 0,
+            volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim) || 0,
             lwh_text: rowData.lwhText || "",
-            cw_freight: toNumber(rowData.cwFreight),
-            value: toNumber(rowData.value),
-            so_number_id: rowData.soNumber || "",
-            shipping_instruction_id: rowData.shippingInstruction || "",
-            shipment_type: rowData.shipmentType || "",
-            delivery_instruction_id: rowData.deliveryInstruction || "",
-            extra: rowData.extra || "",
-            warehouse_id: rowData.warehouseId || "",
+            cw_freight: 0,
+            value: toNumber(rowData.value) || 0,
+            sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            extra: "",
+            destination: rowData.destination ? String(rowData.destination) : "",
+            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
             shipping_doc: rowData.shippingDoc || "",
-            export_doc: rowData.exportDoc || "",
-            date_on_stock: rowData.dateOnStock || "",
-            exp_ready_in_stock: rowData.expReadyInStock ?? rowData.readyAsSupplier ?? false,
-            shipped_date: rowData.shippedDate || "",
-            delivered_date: rowData.deliveredDate || "",
+            export_doc: "",
+            exp_ready_in_stock: rowData.expReadyInStock || "",
+            shipped_date: null,
+            delivered_date: "",
             details: rowData.details || "",
-            vessel_destination: rowData.vesselDestination || "",
+            vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "",
             vessel_eta: rowData.vesselEta || "",
-            sl_create_datetime: rowData.createdDate || "",
-            sl_create_date: rowData.createdDate ? rowData.createdDate.split(" ")[0] : "",
         };
+
+        // Only include stock_item_id if it exists (for updates)
+        if (rowData.stockItemId) {
+            payload.stock_item_id = rowData.stockItemId;
+        }
 
         // Include stock_id for update/delete operations
         if (includeStockId && rowData.stockId) {
@@ -984,7 +965,6 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
@@ -1059,17 +1039,16 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         >
                                             <option value="">Select</option>
-                                            <option value="pending">PENDING</option>
-                                            <option value="stock">STOCK</option>
-                                            <option value="in_stock">IN STOCK</option>
-                                            <option value="on_a_shipping_instr">ON A SHIPPING INSTR</option>
-                                            <option value="on_a_delivery_instr">ON A DELIVERY INSTR</option>
-                                            <option value="in_transit">IN TRANSIT</option>
-                                            <option value="arrived_dest">ARRIVED DEST</option>
-                                            <option value="shipped">SHIPPED</option>
-                                            <option value="delivered">DELIVERED</option>
-                                            <option value="irregularities">IRREGULARITIES</option>
-                                            <option value="cancelled">CANCELLED</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="in_stock">In Stock</option>
+                                            <option value="on_shipping">On Shipping Instr</option>
+                                            <option value="on_delivery">On Delivery Instr</option>
+                                            <option value="in_transit">In Transit</option>
+                                            <option value="arrived">Arrived Dest</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="irregular">Irregularities</option>
+                                            <option value="cancelled">Cancelled</option>
                                         </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
@@ -1258,9 +1237,9 @@ export default function StockForm() {
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
-                                            value={row.viaHub}
+                                            value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter Via HUB"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1268,23 +1247,10 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Select
-                                            value={row.readyAsSupplier ? "true" : "false"}
-                                            onChange={(e) => handleInputChange(rowIndex, "readyAsSupplier", e.target.value === "true")}
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        >
-                                            <option value="false">No</option>
-                                            <option value="true">Yes</option>
-                                        </Select>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
                                             type="date"
-                                            value={row.dateOnStock}
-                                            onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
+                                            value={row.expReadyInStock || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}

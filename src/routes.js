@@ -52,6 +52,7 @@ import ShippingOrder from "views/admin/shipping-order";
 import StockList from "views/admin/stock-list";
 import StockForm from "views/admin/stock-list/StockForm";
 import Stocks from "views/admin/stock-list/Stocks";
+import StockDBMainEdit from "views/admin/stock-list/StockDBMainEdit";
 
 // Forms Imports
 import ShippingInstructions from "views/admin/forms/shipping-instructions";
@@ -156,7 +157,7 @@ const routes = [
     icon: <Icon as={MdInventory} width="20px" height="20px" color="inherit" />,
     submenu: [
       {
-        name: "Main DB",
+        name: "StockDB Main",
         path: "/stock-list/main-db",
         icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
         component: StockList,
@@ -365,6 +366,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/stock-list/form/:id?",
     component: StockForm,
+  },
+  {
+    name: "StockDB Main Edit",
+    layout: "/admin",
+    path: "/stock-list/main-db-edit",
+    component: StockDBMainEdit,
   },
 ];
 

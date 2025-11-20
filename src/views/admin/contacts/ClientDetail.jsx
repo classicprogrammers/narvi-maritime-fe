@@ -191,36 +191,51 @@ const ClientDetail = () => {
                 <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
                   Look up
                 </Text>
-                {clientInfoSections.map((section) => (
-                  <GridItem key={section.heading} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
-                    <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                      {section.items.map(({ label, key, formatter }, idx) => {
-                        const rawValue = formatter ? formatter(client[key], client) : client[key];
-                        const addRightBorder = idx % 2 === 0; // first column cells
-                        return (
-                          <GridItem
-                            key={key}
-                            px={4}
-                            py={2}
-                            borderColor={borderColor}
-                            borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
-                            display="flex"
-                            justifyContent="space-between"
-                            alignItems="center"
-                            gap={2}
-                          >
-                            <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                              {label}
-                            </Text>
-                            <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                              {prettyValue(rawValue)}
-                            </Text>
-                          </GridItem>
-                        );
-                      })}
-                    </Grid>
-                  </GridItem>
-                ))}
+                {clientInfoSections.map((section) => {
+                  // Filter items to only show fields with actual data
+                  const itemsWithData = section.items.filter(({ label, key, formatter }) => {
+                    const rawValue = formatter ? formatter(client[key], client) : client[key];
+                    const displayValue = prettyValue(rawValue);
+                    // Only include if value is not empty (not null, undefined, "", false, or "-")
+                    return displayValue && displayValue !== "-" && displayValue !== "";
+                  });
+
+                  // Don't render the section if no items have data
+                  if (itemsWithData.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <GridItem key={section.heading} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+                      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
+                        {itemsWithData.map(({ label, key, formatter }, idx) => {
+                          const rawValue = formatter ? formatter(client[key], client) : client[key];
+                          const addRightBorder = idx % 2 === 0; // first column cells
+                          return (
+                            <GridItem
+                              key={key}
+                              px={4}
+                              py={2}
+                              borderColor={borderColor}
+                              borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                              display="flex"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              gap={2}
+                            >
+                              <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
+                                {label}
+                              </Text>
+                              <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
+                                {prettyValue(rawValue)}
+                              </Text>
+                            </GridItem>
+                          );
+                        })}
+                      </Grid>
+                    </GridItem>
+                  );
+                })}
               </Grid>
 
               <Box>
