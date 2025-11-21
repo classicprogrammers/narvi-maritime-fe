@@ -202,10 +202,10 @@ export default function StockDBMainEdit() {
             clientAccess: Boolean(stock.client_access),
             pic: getFieldValue(stock.pic) || getFieldValue(stock.pic_id) || "", // PIC is a free text field (char), not an ID
             soStatus: getFieldValue(stock.so_status) || "",
-            vesselDest: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
+            vesselDest: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
             vesselEta: getFieldValue(stock.vessel_eta) || "",
             // Internal fields
-            vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
+            vesselDestination: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
             itemId: normalizeId(stock.item_id) || "",
             item: toNumber(stock.item) || 1,
         };
@@ -361,7 +361,7 @@ export default function StockDBMainEdit() {
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             po_text: rowData.poNumber || "",
             pic: rowData.pic || "", // PIC is a char field (free text), not an ID
-            item_id: rowData.itemId ? String(rowData.itemId) : "",
+            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Replaced item_id
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
             ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
@@ -380,8 +380,8 @@ export default function StockDBMainEdit() {
             sl_create_datetime: rowData.slCreateDateTime || new Date().toISOString().replace('T', ' ').slice(0, 19),
             // shipment_type: not in UI, omit from payload
             extra: rowData.extra2 || "",
-            destination: rowData.destination ? String(rowData.destination) : "",
-            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
+            stock_destination: rowData.destination ? String(rowData.destination) : "", // Replaced destination
+            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Replaced warehouse_id
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
             date_on_stock: rowData.dateOnStock || "",
@@ -390,11 +390,12 @@ export default function StockDBMainEdit() {
             delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
             item: toNumber(rowData.items || rowData.item) || 1,
-            vessel_destination: rowData.vesselDestination || rowData.vesselDest ? String(rowData.vesselDestination || rowData.vesselDest) : "",
+            vessel_destination: rowData.vesselDestination || rowData.vesselDest || "", // Free text field (replaced Many2one)
             vessel_eta: rowData.vesselEta || "",
-            // so_number_id: commented out in user's payload, not in UI
-            // shipping_instruction_id: commented out in user's payload, not in UI
-            // delivery_instruction_id: commented out in user's payload, not in UI
+            // Add fields if they exist in UI
+            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "", // Replaced so_number_id
+            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "", // Replaced shipping_instruction_id
+            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "", // Replaced delivery_instruction_id
         };
 
         // Only include stock_item_id if it exists (for updates)
@@ -1113,19 +1114,15 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.vesselDest || row.vesselDestination}
-                                            onChange={(value) => {
-                                                handleInputChange(rowIndex, "vesselDest", value);
-                                                handleInputChange(rowIndex, "vesselDestination", value);
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.vesselDest || row.vesselDestination || ""}
+                                            onChange={(e) => {
+                                                handleInputChange(rowIndex, "vesselDest", e.target.value);
+                                                handleInputChange(rowIndex, "vesselDestination", e.target.value);
                                             }}
-                                            options={[...locations, ...destinations]}
-                                            placeholder="Select Vessel Dest"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || option.code || `Vessel Dest ${option.id}`}
-                                            isLoading={isLoadingLocations || isLoadingDestinations}
+                                            placeholder="Enter Vessel Destination"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

@@ -536,7 +536,7 @@ export default function StockForm() {
             remarks: getFieldValue(stock.remarks),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
-            vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
+            vesselDestination: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
             vesselEta: getFieldValue(stock.vessel_eta),
             destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || "",
             apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
@@ -563,13 +563,17 @@ export default function StockForm() {
             if (field === "vessel" && value) {
                 const selectedVessel = vessels.find(v => String(v.id) === String(value));
                 if (selectedVessel) {
-                    // Auto-fill destination and vessel_destination from vessel
+                    // Auto-fill destination from vessel
                     const vesselDestinationId = selectedVessel.destination_id || selectedVessel.destination;
+                    const vesselDestinationName = selectedVessel.destination_name || selectedVessel.destination; // Try to get name
                     if (vesselDestinationId) {
                         const destId = String(vesselDestinationId);
-                        updatedRow.destination = destId; // For destination field
-                        updatedRow.vesselDestination = destId; // For vessel_destination field
-                        updatedRow.apDestination = destId; // For ap_destination field
+                        updatedRow.destination = destId; // For destination field (Many2one)
+                        updatedRow.apDestination = destId; // For ap_destination field (Many2one)
+                    }
+                    // vessel_destination is now free text - fill with name if available, or leave empty
+                    if (vesselDestinationName && typeof vesselDestinationName === 'string') {
+                        updatedRow.vesselDestination = vesselDestinationName; // Free text field
                     }
                     // Auto-fill vessel_eta from vessel
                     if (selectedVessel.eta || selectedVessel.eta_date) {
@@ -647,7 +651,7 @@ export default function StockForm() {
                 ? rowData.poNumbers.join(", ")
                 : "",
             pic: rowData.pic || "", // PIC is free text
-            item_id: rowData.itemId ? String(rowData.itemId) : "",
+            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Replaced item_id
             item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
@@ -666,8 +670,8 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "", // Not in UI, set to empty
-            destination: rowData.destination ? String(rowData.destination) : "",
-            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
+            stock_destination: rowData.destination ? String(rowData.destination) : "", // Replaced destination
+            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Replaced warehouse_id
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "", // Not in UI, set to empty
             // date_on_stock: not in UI, will be auto-generated on backend
@@ -675,7 +679,7 @@ export default function StockForm() {
             shipped_date: null, // Not in UI, set to null
             delivered_date: "", // Not in UI, set to empty
             details: rowData.details || "",
-            vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "",
+            vessel_destination: rowData.vesselDestination || "", // Free text field (replaced Many2one)
             vessel_eta: rowData.vesselEta || "",
             // shipment_type: not in UI, omit from payload
         };
