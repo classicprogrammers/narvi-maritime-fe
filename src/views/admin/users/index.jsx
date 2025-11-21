@@ -29,6 +29,7 @@ import {
     FormControl,
     FormLabel,
     Switch,
+    Select,
     AlertDialog,
     AlertDialogBody,
     AlertDialogFooter,
@@ -81,6 +82,7 @@ export default function Users() {
         email: "",
         active: true,
         password: "",
+        user_type: "user", // Default to 'user'
     });
     const [showPassword, setShowPassword] = useState(false);
 
@@ -114,6 +116,7 @@ export default function Users() {
                 name: u.name ?? u.full_name ?? "",
                 email: u.email ?? u.login ?? "",
                 active: typeof u.active === "boolean" ? u.active : (u.status ? String(u.status).toLowerCase() === "active" : true),
+                user_type: u.user_type || "user",
                 ...u,
             })));
         } catch (e) {
@@ -133,6 +136,7 @@ export default function Users() {
             email: "",
             active: true,
             password: "",
+            user_type: "user",
         });
         setEditingUser(null);
     };
@@ -149,6 +153,7 @@ export default function Users() {
             email: user.email,
             active: Boolean(user.active),
             password: "",
+            user_type: user.user_type || "user",
         });
         openModal();
     };
@@ -167,7 +172,7 @@ export default function Users() {
             try {
                 if (editingUser) {
                     // Do not allow updating email here
-                    const payload = { id: editingUser.id, name: formData.name, active: formData.active };
+                    const payload = { id: editingUser.id, name: formData.name, active: formData.active, user_type: formData.user_type };
                     const res = await updateUserApi(payload);
                     const successMsg = res?.result?.message || res?.message || "User updated successfully";
                     // refresh list from backend
@@ -181,7 +186,7 @@ export default function Users() {
                     });
                 } else {
                     // Do not persist password in local users list
-                    const payload = { name: formData.name, email: formData.email, active: formData.active, password: formData.password };
+                    const payload = { name: formData.name, email: formData.email, active: formData.active, password: formData.password, user_type: formData.user_type };
                     const res = await signupUserApi(payload);
                     // Try to resolve created id from backend response
                     // refresh list from backend
@@ -267,6 +272,7 @@ export default function Users() {
                             <Tr>
                                 <Th borderColor={borderColor}>Name</Th>
                                 <Th borderColor={borderColor}>Email</Th>
+                                <Th borderColor={borderColor}>User Type</Th>
                                 <Th borderColor={borderColor}>Status</Th>
                                 <Th borderColor={borderColor} textAlign="right">
                                     Actions
@@ -282,7 +288,7 @@ export default function Users() {
                                 </Tr>
                             ) : filteredUsers.length === 0 ? (
                                 <Tr>
-                                    <Td colSpan={4} borderColor={borderColor}>
+                                    <Td colSpan={5} borderColor={borderColor}>
                                         No users found.
                                     </Td>
                                 </Tr>
@@ -290,6 +296,7 @@ export default function Users() {
                                 <Tr key={user.id}>
                                     <Td borderColor={borderColor}>{user.name}</Td>
                                     <Td borderColor={borderColor}>{user.email}</Td>
+                                    <Td borderColor={borderColor}>{user.user_type === "admin" ? "Admin" : "User"}</Td>
                                     <Td borderColor={borderColor}>{user.active ? "Active" : "Inactive"}</Td>
                                     <Td borderColor={borderColor}>
                                         <Flex justify="flex-end" gap="8px">
@@ -387,6 +394,17 @@ export default function Users() {
                                 </InputGroup>
                             </FormControl>
                         )}
+                        <FormControl mb="12px" isRequired>
+                            <FormLabel>User Type</FormLabel>
+                            <Select
+                                value={formData.user_type}
+                                onChange={(e) => handleFormChange("user_type", e.target.value)}
+                                placeholder="Select user type"
+                            >
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </Select>
+                        </FormControl>
                         <FormControl display="flex" alignItems="center" mb="12px">
                             <FormLabel mb="0">Active</FormLabel>
                             <Switch

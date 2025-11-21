@@ -353,7 +353,7 @@ export default function StockDBMainEdit() {
 
     // Get payload for API
     const getPayload = (rowData, includeStockId = false) => {
-        // Payload matching the exact API structure - only use keys that exist in the UI
+        // Payload matching the exact API structure - match the lines array format
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
@@ -361,7 +361,8 @@ export default function StockDBMainEdit() {
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             po_text: rowData.poNumber || "",
             pic: rowData.pic || "", // PIC is a char field (free text), not an ID
-            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Replaced item_id
+            item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
+            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
             ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
@@ -377,11 +378,12 @@ export default function StockDBMainEdit() {
             lwh_text: rowData.lwhText || "",
             cw_freight: toNumber(rowData.cwAirfreight) || 0,
             value: toNumber(rowData.value) || 0,
-            sl_create_datetime: rowData.slCreateDateTime || new Date().toISOString().replace('T', ' ').slice(0, 19),
-            // shipment_type: not in UI, omit from payload
+            shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
-            stock_destination: rowData.destination ? String(rowData.destination) : "", // Replaced destination
-            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Replaced warehouse_id
+            destination: rowData.destination ? String(rowData.destination) : "", // Keep destination for lines format
+            stock_destination: rowData.destination ? String(rowData.destination) : "", // Also include stock_destination
+            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "", // Keep warehouse_id for lines format
+            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Also include stock_warehouse
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
             date_on_stock: rowData.dateOnStock || "",
@@ -390,12 +392,12 @@ export default function StockDBMainEdit() {
             delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
             item: toNumber(rowData.items || rowData.item) || 1,
-            vessel_destination: rowData.vesselDestination || rowData.vesselDest || "", // Free text field (replaced Many2one)
+            vessel_destination: rowData.vesselDestination || rowData.vesselDest || "", // Free text field
             vessel_eta: rowData.vesselEta || "",
-            // Add fields if they exist in UI
-            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "", // Replaced so_number_id
-            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "", // Replaced shipping_instruction_id
-            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "", // Replaced delivery_instruction_id
+            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "",
+            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "",
+            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "",
+            vessel_destination_text: rowData.vesselDestination || rowData.vesselDest || "", // Include vessel_destination_text
         };
 
         // Only include stock_item_id if it exists (for updates)
@@ -403,10 +405,10 @@ export default function StockDBMainEdit() {
             payload.stock_item_id = rowData.stockItemId;
         }
 
-        // Include stock_id for update operations
+        // Include stock_id for update operations ONLY (not id field)
         if (includeStockId && rowData.stockId) {
             payload.stock_id = rowData.stockId;
-            payload.id = rowData.stockId;
+            // DO NOT include id field - only stock_id is needed for update
         }
 
         return payload;
@@ -427,21 +429,22 @@ export default function StockDBMainEdit() {
 
         setIsLoading(true);
         try {
-            const savePromises = formRows.map(async (row) => {
+            // Build lines array from all form rows
+            const lines = formRows.map((row) => {
                 if (!row.stockId) {
                     throw new Error("Stock ID is required for update");
                 }
-                const payload = getPayload(row, true);
-                return await updateStockItemApi(row.stockId, payload);
+                return getPayload(row, true);
             });
 
-            const results = await Promise.all(savePromises);
-            const successCount = results.filter(r => r && r.result && r.result.status === 'success').length;
+            // Send all lines in a single payload
+            const payload = { lines };
+            const result = await updateStockItemApi(formRows[0]?.stockId, payload);
 
-            if (successCount > 0) {
+            if (result && result.result && result.result.status === 'success') {
                 toast({
                     title: 'Success',
-                    description: `${successCount} stock item(s) updated successfully`,
+                    description: `${lines.length} stock item(s) updated successfully`,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
@@ -450,7 +453,7 @@ export default function StockDBMainEdit() {
                 await getStockList();
                 history.push("/admin/stock-list/stocks");
             } else {
-                throw new Error("Failed to update stock items");
+                throw new Error(result?.result?.message || result?.message || "Failed to update stock items");
             }
         } catch (error) {
             console.error("Failed to save stock items:", error);

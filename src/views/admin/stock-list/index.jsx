@@ -28,7 +28,8 @@ import { MdRefresh, MdEdit, MdDelete, MdFilterList, MdClose } from "react-icons/
 import { useStock } from "../../../redux/hooks/useStock";
 import { deleteStockItemApi } from "../../../api/stock";
 import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Checkbox, Input, Select } from "@chakra-ui/react";
-import { useHistory } from "react-router-dom";
+import { useHistory, Redirect } from "react-router-dom";
+import { useUser } from "../../../redux/hooks/useUser";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect, getUsersForSelect } from "../../../api/entitySelects";
 import { getVendorsApi } from "../../../api/vendor";
 import currenciesAPI from "../../../api/currencies";
@@ -50,6 +51,16 @@ export default function StockList() {
         updateLoading,
         getStockList,
     } = useStock();
+
+    const { user } = useUser();
+
+    // Only admin users can access this page
+    const isAdmin = user?.user_type === "admin";
+
+    // Redirect non-admin users to dashboard
+    if (!isAdmin) {
+        return <Redirect to="/admin/default" />;
+    }
 
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);

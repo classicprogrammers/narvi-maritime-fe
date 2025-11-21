@@ -28,6 +28,8 @@ const userSlice = createSlice({
       state.token = action.payload.token;
       state.error = null;
       localStorage.setItem("token", action.payload.token);
+      // Also store user in localStorage to persist user_type
+      localStorage.setItem("user", JSON.stringify(action.payload.user));
     },
     loginFailure: (state, action) => {
       state.isLoading = false;
@@ -63,6 +65,8 @@ const userSlice = createSlice({
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        // Ensure user object in localStorage is updated
+        localStorage.setItem("user", JSON.stringify(action.payload.user));
       } else {
         state.isAuthenticated = false;
         state.user = null;

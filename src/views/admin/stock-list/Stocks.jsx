@@ -40,11 +40,11 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { deleteStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
-import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect, getUsersForSelect } from "../../../api/entitySelects";
-import { getVendorsApi } from "../../../api/vendor";
-import destinationsAPI from "../../../api/destinations";
+import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
+import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
+import destinationsAPI from "../../../api/destinations";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 // Status definitions matching backend status keys exactly
@@ -174,7 +174,7 @@ export default function Stocks() {
     const [destinations, setDestinations] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [users, setUsers] = useState([]);
+    // Users state removed - PIC is now a free text field, no need to fetch users
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -244,12 +244,13 @@ export default function Stocks() {
                 const promises = [
                     getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
                     getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
-                    getVendorsApi().catch(() => []).then(data => ({ type: 'vendors', data })),
-                    getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
+                    // Use supplier API instead of agents/vendors
+                    api.get("/api/suppliers").catch(() => ({ data: [] })).then(response => ({ type: 'vendors', data: Array.isArray(response.data) ? response.data : (response.data?.suppliers || response.data?.vendors || response.data?.result?.suppliers || []) })),
+                    // Use destinations API for destinations
+                    destinationsAPI.getDestinations().catch(() => ({ destinations: [] })).then(data => ({ type: 'destinations', data: Array.isArray(data) ? data : (data?.destinations || data?.result?.destinations || []) })),
                     currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    // Only fetch users if needed for PIC field - this is the main optimization
-                    getUsersForSelect().catch(() => []).then(data => ({ type: 'users', data }))
+                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data }))
+                    // Users API removed - PIC is now a free text field, no need to fetch users
                 ];
 
                 const results = await Promise.all(promises);
@@ -263,7 +264,8 @@ export default function Stocks() {
                             setVessels(data || []);
                             break;
                         case 'vendors':
-                            setVendors(Array.isArray(data) ? data : data?.vendors || data?.agents || []);
+                            // Data from supplier API
+                            setVendors(Array.isArray(data) ? data : []);
                             break;
                         case 'destinations':
                             setDestinations(data || []);
@@ -274,9 +276,7 @@ export default function Stocks() {
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
-                        case 'users':
-                            setUsers(data || []);
-                            break;
+                        // Users case removed - PIC is now free text, no need to fetch users
                     }
                 });
             } catch (error) {
@@ -298,6 +298,82 @@ export default function Stocks() {
             setIsRefreshing(false);
         }
     }, [isLoading, stockList.length]);
+
+    // Helper functions to get names from IDs - defined early so they can be used in filtering/sorting
+    const getClientName = (clientId) => {
+        if (!clientId) return "-";
+        const client = clients.find(c => String(c.id) === String(clientId));
+        return client ? client.name : `Client ${clientId}`;
+    };
+
+    const getVesselName = (vesselId) => {
+        if (!vesselId) return "-";
+        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        return vessel ? vessel.name : `Vessel ${vesselId}`;
+    };
+
+    const getSupplierName = (supplierId) => {
+        if (!supplierId) return "-";
+        const vendor = vendors.find(v => String(v.id) === String(supplierId));
+        return vendor ? vendor.name : `Supplier ${supplierId}`;
+    };
+
+    const getDestinationName = (destId) => {
+        if (!destId) return "-";
+        // Try to find by ID first
+        const destination = destinations.find(d => String(d.id) === String(destId));
+        if (destination) return destination.name || destination.code || `Dest ${destId}`;
+        // Try to find by code/name (for cases where it's stored as code)
+        const destByName = destinations.find(d =>
+            String(d.name || "").toLowerCase() === String(destId).toLowerCase() ||
+            String(d.code || "").toLowerCase() === String(destId).toLowerCase()
+        );
+        if (destByName) return destByName.name || destByName.code || `Dest ${destId}`;
+        return `Dest ${destId}`;
+    };
+
+    const getCurrencyName = (currencyId) => {
+        if (!currencyId) return "-";
+        const currency = currencies.find(c => String(c.id) === String(currencyId) || String(c.currency_id) === String(currencyId));
+        if (currency) return currency.name || currency.code || `Currency ${currencyId}`;
+        // If it's already a code/name, return as is
+        if (typeof currencyId === 'string' && currencyId.length <= 5) return currencyId;
+        return `Currency ${currencyId}`;
+    };
+
+    const getLocationName = (locationId) => {
+        if (!locationId) return "-";
+        const location = locations.find(l => String(l.id) === String(locationId) || String(l.location_id) === String(locationId));
+        if (location) return location.name || location.code || `Location ${locationId}`;
+        // If it's already a code/name, return as is
+        if (typeof locationId === 'string' && locationId.length <= 10) return locationId;
+        return `Location ${locationId}`;
+    };
+
+    // getUserName removed - PIC is now a free text field, display directly
+
+    // Helper to get name for origin/via_hub/ap_destination/destination (uses destinations and locations)
+    const getLocationOrDestinationName = (value) => {
+        if (!value) return "-";
+        // Try destination first
+        const dest = destinations.find(d =>
+            String(d.id) === String(value) ||
+            String(d.name || "").toLowerCase() === String(value).toLowerCase() ||
+            String(d.code || "").toLowerCase() === String(value).toLowerCase()
+        );
+        if (dest) return dest.name || dest.code || `Dest ${value}`;
+        // Try location
+        const loc = locations.find(l =>
+            String(l.id) === String(value) ||
+            String(l.location_id) === String(value) ||
+            String(l.name || "").toLowerCase() === String(value).toLowerCase() ||
+            String(l.code || "").toLowerCase() === String(value).toLowerCase()
+        );
+        if (loc) return loc.name || loc.code || `Loc ${value}`;
+        // If it's already a short string, might be a code or free text - return as is
+        if (typeof value === 'string' && value.length <= 50) return value;
+        return value;
+    };
 
     // Helper function to normalize status
     const normalizeStatus = (status) => {
@@ -321,59 +397,10 @@ export default function Stocks() {
         });
     };
 
-    // Filter stock list for By Vessel view
-    const getFilteredStockByVessel = () => {
-        let filtered = [...stockList];
-
-        // Apply vessel filter
-        if (vesselViewVessel) {
-            filtered = filtered.filter((item) => {
-                const vesselId = item.vessel_id || item.vessel;
-                return String(vesselId) === String(vesselViewVessel);
-            });
-        }
-
-        // Apply client filter
-        if (vesselViewClient) {
-            filtered = filtered.filter((item) => {
-                const clientId = item.client_id || item.client;
-                return String(clientId) === String(vesselViewClient);
-            });
-        }
-
-        // Apply status filter
-        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
-
-        // Group by vessel
-        const grouped = {};
-        filtered.forEach((item) => {
-            const vesselId = item.vessel_id || item.vessel || "no_vessel";
-            if (!grouped[vesselId]) {
-                grouped[vesselId] = [];
-            }
-            grouped[vesselId].push(item);
-        });
-
-        return grouped;
-    };
-
-    // Filter stock list for By Client view
-    const getFilteredStockByClient = () => {
-        let filtered = [...stockList];
-
-        // Apply client filter
-        if (clientViewClient) {
-            filtered = filtered.filter((item) => {
-                const clientId = item.client_id || item.client;
-                return String(clientId) === String(clientViewClient);
-            });
-        }
-
-        // Apply status filter
-        filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
-
-        // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
-        filtered.sort((a, b) => {
+    // Shared sorting function - used by both By Vessel and By Client tabs
+    // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
+    const sortStockItems = (items) => {
+        return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
             const apDestA = getLocationOrDestinationName(a.ap_destination_id || a.ap_destination) || "";
             const apDestB = getLocationOrDestinationName(b.ap_destination_id || b.ap_destination) || "";
@@ -400,6 +427,57 @@ export default function Stocks() {
             const dateB = new Date(b.date_on_stock || 0);
             return dateA - dateB;
         });
+    };
+
+    // Filter stock list for By Vessel view
+    const getFilteredStockByVessel = () => {
+        let filtered = [...stockList];
+
+        // Apply vessel filter
+        if (vesselViewVessel) {
+            filtered = filtered.filter((item) => {
+                const vesselId = item.vessel_id || item.vessel;
+                return String(vesselId) === String(vesselViewVessel);
+            });
+        }
+
+        // Apply client filter
+        if (vesselViewClient) {
+            filtered = filtered.filter((item) => {
+                const clientId = item.client_id || item.client;
+                return String(clientId) === String(vesselViewClient);
+            });
+        }
+
+        // Apply status filter
+        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
+
+        // Sort items using the shared sorting function
+        filtered = sortStockItems(filtered);
+
+        // For By Vessel tab, we need to group but maintain the sorted order
+        // Instead of grouping into an object, we'll return the sorted array directly
+        // The grouping is handled in the render function, but for pagination we need a flat array
+        return filtered; // Return sorted array directly instead of grouped object
+    };
+
+    // Filter stock list for By Client view
+    const getFilteredStockByClient = () => {
+        let filtered = [...stockList];
+
+        // Apply client filter
+        if (clientViewClient) {
+            filtered = filtered.filter((item) => {
+                const clientId = item.client_id || item.client;
+                return String(clientId) === String(clientViewClient);
+            });
+        }
+
+        // Apply status filter
+        filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
+
+        // Sort using the shared sorting function - same order as By Vessel tab
+        filtered = sortStockItems(filtered);
 
         return filtered;
     };
@@ -419,16 +497,9 @@ export default function Stocks() {
     // Flatten grouped data for pagination
     const getFlattenedStock = () => {
         const filtered = getFilteredStock();
-        // If it's already an array (By Client view), return it directly
-        if (Array.isArray(filtered)) {
-            return filtered;
-        }
-        // Otherwise, it's grouped data (By Vessel), flatten it
-        const flattened = [];
-        Object.values(filtered).forEach(group => {
-            flattened.push(...group);
-        });
-        return flattened;
+        // Both tabs now return sorted arrays directly
+        // Return the array as-is to maintain sort order
+        return Array.isArray(filtered) ? filtered : [];
     };
 
     const filteredAndSortedStock = getFlattenedStock();
@@ -468,87 +539,6 @@ export default function Stocks() {
             }
             return newSet;
         });
-    };
-
-
-    // Helper functions to get names from IDs
-    const getClientName = (clientId) => {
-        if (!clientId) return "-";
-        const client = clients.find(c => String(c.id) === String(clientId));
-        return client ? client.name : `Client ${clientId}`;
-    };
-
-    const getVesselName = (vesselId) => {
-        if (!vesselId) return "-";
-        const vessel = vessels.find(v => String(v.id) === String(vesselId));
-        return vessel ? vessel.name : `Vessel ${vesselId}`;
-    };
-
-    const getSupplierName = (supplierId) => {
-        if (!supplierId) return "-";
-        const vendor = vendors.find(v => String(v.id) === String(supplierId));
-        return vendor ? vendor.name : `Supplier ${supplierId}`;
-    };
-
-    const getDestinationName = (destId) => {
-        if (!destId) return "-";
-        // Try to find by ID first
-        const destination = destinations.find(d => String(d.id) === String(destId));
-        if (destination) return destination.name;
-        // Try to find by code/name (for cases where it's stored as code)
-        const destByName = destinations.find(d =>
-            String(d.name).toLowerCase() === String(destId).toLowerCase() ||
-            String(d.code || "").toLowerCase() === String(destId).toLowerCase()
-        );
-        if (destByName) return destByName.name;
-        return `Dest ${destId}`;
-    };
-
-    const getCurrencyName = (currencyId) => {
-        if (!currencyId) return "-";
-        const currency = currencies.find(c => String(c.id) === String(currencyId) || String(c.currency_id) === String(currencyId));
-        if (currency) return currency.name || currency.code || `Currency ${currencyId}`;
-        // If it's already a code/name, return as is
-        if (typeof currencyId === 'string' && currencyId.length <= 5) return currencyId;
-        return `Currency ${currencyId}`;
-    };
-
-    const getLocationName = (locationId) => {
-        if (!locationId) return "-";
-        const location = locations.find(l => String(l.id) === String(locationId) || String(l.location_id) === String(locationId));
-        if (location) return location.name || location.code || `Location ${locationId}`;
-        // If it's already a code/name, return as is
-        if (typeof locationId === 'string' && locationId.length <= 10) return locationId;
-        return `Location ${locationId}`;
-    };
-
-    const getUserName = (userId) => {
-        if (!userId) return "-";
-        const user = users.find(u => String(u.id) === String(userId));
-        return user ? (user.name || user.email || `User ${userId}`) : `User ${userId}`;
-    };
-
-    // Helper to get name for origin/via_hub/ap_destination/destination (could be destination or location)
-    const getLocationOrDestinationName = (value) => {
-        if (!value) return "-";
-        // Try destination first
-        const dest = destinations.find(d =>
-            String(d.id) === String(value) ||
-            String(d.name).toLowerCase() === String(value).toLowerCase() ||
-            String(d.code || "").toLowerCase() === String(value).toLowerCase()
-        );
-        if (dest) return dest.name;
-        // Try location
-        const loc = locations.find(l =>
-            String(l.id) === String(value) ||
-            String(l.location_id) === String(value) ||
-            String(l.name || "").toLowerCase() === String(value).toLowerCase() ||
-            String(l.code || "").toLowerCase() === String(value).toLowerCase()
-        );
-        if (loc) return loc.name || loc.code || `Loc ${value}`;
-        // If it's already a short string, might be a code - return as is
-        if (typeof value === 'string' && value.length <= 10) return value;
-        return value;
     };
 
 
@@ -631,9 +621,81 @@ export default function Stocks() {
     };
 
     // Handle inline edit start - for single row
+    // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
+    const extractId = (value, fallback = "") => {
+        // If value is false/null/undefined/empty string, return fallback
+        if (value === false || value === null || value === undefined || value === "") return fallback;
+        // If value is 0, it's valid, return it as string
+        if (value === 0) return "0";
+        // If it's an object with id property
+        if (typeof value === 'object' && value !== null && value.id !== undefined) return String(value.id);
+        // If it's a number or string, return as string
+        if (typeof value === 'number' || typeof value === 'string') return String(value);
+        return fallback;
+    };
+
+    // Normalize item data for editing - ensures all field names match what renderEditableCell expects
+    const normalizeItemForEditing = (item) => {
+        // Helper to get the actual ID value, handling false/null/undefined
+        // Checks primaryField first, then fallbackFields in order
+        const getFieldValue = (primaryField, ...fallbackFields) => {
+            // Check primary field first
+            const primaryValue = item[primaryField];
+            if (primaryValue !== undefined && primaryValue !== null && primaryValue !== false && primaryValue !== "") {
+                return extractId(primaryValue, "");
+            }
+            // Check fallback fields
+            for (const field of fallbackFields) {
+                const value = item[field];
+                if (value !== undefined && value !== null && value !== false && value !== "") {
+                    return extractId(value, "");
+                }
+            }
+            return "";
+        };
+
+        return {
+            ...item,
+            // Normalize field names to match what renderEditableCell uses - convert IDs to strings for Select compatibility
+            vessel_id: getFieldValue("vessel_id", "vessel"),
+            supplier_id: getFieldValue("supplier_id", "supplier"),
+            client_id: getFieldValue("client_id", "client"),
+            po_text: item.po_text || item.po_number || "",
+            so_number_id: getFieldValue("so_number_id", "so_number", "stock_so_number"),
+            shipping_instruction_id: getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction"),
+            delivery_instruction_id: getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction"),
+            origin_id: getFieldValue("origin_id", "origin"),
+            ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
+            destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
+            warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
+            currency_id: getFieldValue("currency_id", "currency"),
+            // Ensure numeric fields are preserved as strings for input compatibility
+            items: item.items || item.item_id || item.stock_items_quantity || "",
+            weight_kg: item.weight_kg !== undefined && item.weight_kg !== null ? String(item.weight_kg || item.weight_kgs || "") : "",
+            volume_cbm: item.volume_cbm !== undefined && item.volume_cbm !== null ? String(item.volume_cbm) : "",
+            value: item.value !== undefined && item.value !== null ? String(item.value) : "",
+            // Preserve date fields (handle false as empty string)
+            date_on_stock: item.date_on_stock && item.date_on_stock !== false ? item.date_on_stock : "",
+            exp_ready_in_stock: item.exp_ready_in_stock && item.exp_ready_in_stock !== false ? (item.exp_ready_in_stock || item.ready_ex_supplier || "") : "",
+            shipped_date: item.shipped_date && item.shipped_date !== false ? item.shipped_date : "",
+            delivered_date: item.delivered_date && item.delivered_date !== false ? item.delivered_date : "",
+            vessel_eta: item.vessel_eta && item.vessel_eta !== false ? item.vessel_eta : "",
+            // Text fields
+            si_combined: item.si_combined || "",
+            details: item.details || item.item_desc || "",
+            remarks: item.remarks || "",
+            via_hub: item.via_hub || "",
+            shipping_doc: item.shipping_doc || "",
+            export_doc: item.export_doc || "",
+            vessel_destination: item.vessel_destination || item.vessel_destination_text || "",
+            stock_status: item.stock_status || "",
+        };
+    };
+
     const handleEditStart = (item) => {
+        const normalizedItem = normalizeItemForEditing(item);
         setEditingRowIds(new Set([item.id]));
-        setEditingRowData({ [item.id]: { ...item } });
+        setEditingRowData({ [item.id]: normalizedItem });
     };
 
     // Handle bulk edit - make all selected rows editable
@@ -643,7 +705,7 @@ export default function Stocks() {
             const selectedItems = filteredAndSortedStock.filter(item => selectedIds.includes(item.id));
             const newEditingData = {};
             selectedItems.forEach(item => {
-                newEditingData[item.id] = { ...item };
+                newEditingData[item.id] = normalizeItemForEditing(item);
             });
             setEditingRowIds(new Set(selectedIds));
             setEditingRowData(newEditingData);
@@ -670,16 +732,152 @@ export default function Stocks() {
         });
     };
 
+    // Helper to normalize a value for comparison (handles different field name variations)
+    const getNormalizedValue = (item, fieldVariations) => {
+        for (const field of fieldVariations) {
+            if (item[field] !== undefined && item[field] !== null && item[field] !== false && item[field] !== "") {
+                return item[field];
+            }
+        }
+        return null;
+    };
+
+    // Helper to compare values (handles different data types)
+    const valuesAreEqual = (val1, val2) => {
+        // Handle null/undefined/empty
+        if ((!val1 || val1 === false || val1 === "") && (!val2 || val2 === false || val2 === "")) return true;
+        // Handle numbers - compare as numbers
+        if (typeof val1 === "number" && typeof val2 === "number") return val1 === val2;
+        // Convert both to strings for comparison
+        return String(val1 || "") === String(val2 || "");
+    };
+
+    // Map frontend editingRowData to backend API payload structure - only include changed fields
+    const buildPayload = (originalItem, editedData = null) => {
+        // If no editedData, return payload with only stock_id (not id)
+        if (!editedData) {
+            return {
+                stock_id: originalItem.id,
+            };
+        }
+
+        // Helper to convert value to appropriate type
+        const toValue = (val, defaultVal = false) => {
+            if (val === null || val === undefined || val === "") return defaultVal;
+            if (typeof val === "boolean") return val;
+            if (typeof val === "number") return val;
+            if (typeof val === "string" && val.trim() === "") return defaultVal;
+            return val;
+        };
+
+        // Helper to convert number
+        const toNumber = (val) => {
+            if (!val && val !== 0) return 0;
+            const num = typeof val === "string" ? parseFloat(val) : val;
+            return isNaN(num) ? 0 : num;
+        };
+
+        // Helper to convert ID (can be string or number)
+        const toId = (val) => {
+            if (!val && val !== 0) return false;
+            if (typeof val === "string" && val.trim() === "") return false;
+            return String(val);
+        };
+
+        // Helper to get original value (handles field variations)
+        const getOriginalValue = (fieldVariations) => {
+            for (const field of fieldVariations) {
+                const val = originalItem[field];
+                if (val !== undefined && val !== null) return val;
+            }
+            return null;
+        };
+
+        // Helper to get edited value (handles field variations)
+        const getEditedValue = (fieldVariations) => {
+            for (const field of fieldVariations) {
+                const val = editedData[field];
+                if (val !== undefined && val !== null) return val;
+            }
+            return null;
+        };
+
+        // Start with stock_id for update operations (DO NOT include id field)
+        const payload = {
+            stock_id: originalItem.id,
+        };
+
+        // Compare each field and only include changed ones
+        const fieldMappings = [
+            { backend: "stock_item_id", original: ["stock_item_id", "stock_id"], edited: ["stock_item_id"], transform: (v) => v || "" },
+            { backend: "stock_status", original: ["stock_status"], edited: ["stock_status"], transform: (v) => v || "" },
+            { backend: "client_id", original: ["client_id", "client"], edited: ["client_id"], transform: (v) => toValue(toId(v), false) },
+            { backend: "supplier_id", original: ["supplier_id", "supplier"], edited: ["supplier_id"], transform: (v) => toValue(toId(v), false) },
+            { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
+            { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
+            { backend: "pic", original: ["pic", "pic_id"], edited: ["pic"], transform: (v) => v || "" },
+            { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
+            { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
+            { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
+            { backend: "origin", original: ["origin_id", "origin"], edited: ["origin_id", "origin"], transform: (v) => toValue(toId(v), false) },
+            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => v || "" }, // Free text field, not ID
+            { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
+            { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
+            { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
+            { backend: "weight_kg", original: ["weight_kg", "weight_kgs"], edited: ["weight_kg"], transform: (v) => toNumber(v) },
+            { backend: "width_cm", original: ["width_cm"], edited: ["width_cm"], transform: (v) => toNumber(v) },
+            { backend: "length_cm", original: ["length_cm"], edited: ["length_cm"], transform: (v) => toNumber(v) },
+            { backend: "height_cm", original: ["height_cm"], edited: ["height_cm"], transform: (v) => toNumber(v) },
+            { backend: "volume_dim", original: ["volume_dim", "volume_no_dim"], edited: ["volume_dim"], transform: (v) => toNumber(v) },
+            { backend: "volume_cbm", original: ["volume_cbm"], edited: ["volume_cbm"], transform: (v) => toNumber(v) },
+            { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
+            { backend: "cw_freight", original: ["cw_freight", "cw_airfreight"], edited: ["cw_freight"], transform: (v) => toNumber(v) },
+            { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
+            { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
+            { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
+            { backend: "destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "destination", "stock_destination"], transform: (v) => toValue(toId(v), false) }, // Keep destination for lines format
+            { backend: "stock_destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "stock_destination"], transform: (v) => toValue(toId(v), false) },
+            { backend: "warehouse_id", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => toValue(toId(v), false) }, // Keep warehouse_id for lines format
+            { backend: "stock_warehouse", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => toValue(toId(v), false) },
+            { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
+            { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
+            { backend: "date_on_stock", original: ["date_on_stock"], edited: ["date_on_stock"], transform: (v) => toValue(v, false) },
+            { backend: "exp_ready_in_stock", original: ["exp_ready_in_stock", "ready_ex_supplier"], edited: ["exp_ready_in_stock"], transform: (v) => toValue(v, false) },
+            { backend: "shipped_date", original: ["shipped_date"], edited: ["shipped_date"], transform: (v) => toValue(v, false) },
+            { backend: "delivered_date", original: ["delivered_date"], edited: ["delivered_date"], transform: (v) => toValue(v, false) },
+            { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
+            { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => toNumber(v) || 1 },
+            { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
+            { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
+            { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => toValue(toId(v), false) },
+            { backend: "stock_shipping_instruction", original: ["shipping_instruction_id", "si_number", "stock_shipping_instruction"], edited: ["shipping_instruction_id", "stock_shipping_instruction"], transform: (v) => toValue(toId(v), false) },
+            { backend: "stock_delivery_instruction", original: ["delivery_instruction_id", "di_number", "stock_delivery_instruction"], edited: ["delivery_instruction_id", "stock_delivery_instruction"], transform: (v) => toValue(toId(v), false) },
+            { backend: "vessel_destination_text", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination", "vessel_destination_text"], transform: (v) => v || "" },
+            { backend: "si_combined", original: ["si_combined"], edited: ["si_combined"], transform: (v) => v || "" },
+        ];
+
+        // Check each field for changes
+        fieldMappings.forEach(({ backend, original, edited, transform }) => {
+            const originalVal = transform(getOriginalValue(original));
+            const editedVal = transform(getEditedValue(edited));
+
+            // Only include if the value has changed
+            if (!valuesAreEqual(originalVal, editedVal)) {
+                payload[backend] = editedVal;
+            }
+        });
+
+        return payload;
+    };
+
     // Handle inline edit save - for single row
     const handleEditSave = async (item) => {
         try {
-            const rowData = editingRowData[item.id] || item;
-            // Prepare payload - only send changed fields
-            const payload = {
-                stock_id: item.id,
-                id: item.id,
-                ...rowData
-            };
+            const editedData = editingRowData[item.id];
+            const linePayload = buildPayload(item, editedData);
+            
+            // Wrap in lines array format
+            const payload = { lines: [linePayload] };
 
             const result = await updateStockItemApi(item.id, payload);
             if (result && result.result && result.result.status === 'success') {
@@ -718,33 +916,30 @@ export default function Stocks() {
         }
     };
 
-    // Handle bulk save - save all rows being edited
+    // Handle bulk save - save all rows being edited in a single API call with lines array
     const handleBulkSave = async () => {
         const editingIds = Array.from(editingRowIds);
         if (editingIds.length === 0) return;
 
         try {
-            const savePromises = editingIds.map(async (itemId) => {
+            // Build lines array from all edited items
+            const lines = editingIds.map((itemId) => {
                 const item = filteredAndSortedStock.find(i => i.id === itemId);
-                if (!item) return null;
-
-                const rowData = editingRowData[itemId] || item;
-                const payload = {
-                    stock_id: item.id,
-                    id: item.id,
-                    ...rowData
-                };
-
-                return updateStockItemApi(item.id, payload);
+                if (!item) {
+                    throw new Error(`Item with id ${itemId} not found`);
+                }
+                const editedData = editingRowData[itemId];
+                return buildPayload(item, editedData);
             });
 
-            const results = await Promise.all(savePromises);
-            const successCount = results.filter(r => r && r.result && r.result.status === 'success').length;
+            // Send all lines in a single payload
+            const payload = { lines };
+            const result = await updateStockItemApi(editingIds[0], payload);
 
-            if (successCount > 0) {
+            if (result && result.result && result.result.status === 'success') {
                 toast({
                     title: 'Success',
-                    description: `${successCount} stock item(s) updated successfully`,
+                    description: `${lines.length} stock item(s) updated successfully`,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
@@ -753,7 +948,7 @@ export default function Stocks() {
                 setEditingRowData({});
                 getStockList();
             } else {
-                throw new Error('Failed to update stock items');
+                throw new Error(result?.result?.message || result?.message || 'Failed to update stock items');
             }
         } catch (error) {
             toast({
@@ -905,15 +1100,59 @@ export default function Stocks() {
         }
 
         const handleChange = (newValue) => {
-            setEditingRowData(prev => ({
-                ...prev,
-                [item.id]: {
-                    ...(prev[item.id] || {}),
-                    ...item,
-                    [field]: newValue
-                }
-            }));
+            setEditingRowData(prev => {
+                const currentRowData = prev[item.id] || normalizeItemForEditing(item);
+                return {
+                    ...prev,
+                    [item.id]: {
+                        ...currentRowData,
+                        [field]: newValue
+                    }
+                };
+            });
         };
+
+        // Handle searchable select for destination fields (but NOT ap_destination - that's free text)
+        if (type === "searchable" || (field.includes("destination") && !field.includes("ap_destination")) || (field === "origin_id" && field.includes("origin"))) {
+            // Use destinations for destination fields
+            const destinationOptions = destinations.map(d => ({
+                value: String(d.id),
+                label: d.name || d.code || `Dest ${d.id}`
+            }));
+
+            return (
+                <Box position="relative" zIndex={10}>
+                    <SimpleSearchableSelect
+                        value={currentValue ? String(currentValue) : ""}
+                        onChange={(val) => handleChange(val)}
+                        options={destinationOptions}
+                        placeholder="Select Destination..."
+                        displayKey="label"
+                        valueKey="value"
+                        formatOption={(option) => option.label || `Dest ${option.value}`}
+                        isLoading={false}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                    />
+                </Box>
+            );
+        }
+
+        // Handle AP destination as free text (not searchable select)
+        if (field.includes("ap_destination")) {
+            return (
+                <Input
+                    size="sm"
+                    value={currentValue || ""}
+                    onChange={(e) => handleChange(e.target.value)}
+                    bg={inputBg}
+                    color={inputText}
+                    borderColor={borderColor}
+                    placeholder="Enter AP Destination..."
+                />
+            );
+        }
 
         switch (type) {
             case "select":
@@ -1059,17 +1298,17 @@ export default function Stocks() {
                                 </Badge>
                             )}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin) : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{item.warehouse_id || item.stock_warehouse ? (item.stock_warehouse ? String(item.stock_warehouse) : getLocationName(item.warehouse_id)) : "-"}</Text>}
@@ -1198,17 +1437,17 @@ export default function Stocks() {
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin) : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc) : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
@@ -1334,7 +1573,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getUserName(item.pic_id || item.pic)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic || item.pic_id)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>

@@ -5,10 +5,11 @@ import Footer from "components/footer/FooterAdmin.js";
 import Navbar from "components/navbar/NavbarAdmin.js";
 import Sidebar from "components/sidebar/Sidebar.js";
 import { SidebarContext } from "contexts/SidebarContext";
-import React, { useState } from "react";
-import { Redirect, Route, Switch } from "react-router-dom";
-import routes, { hiddenRoutes } from "routes.js";
+import React, { useState, useEffect, useMemo } from "react";
+import { Redirect, Route, Switch, useHistory } from "react-router-dom";
+import routes, { hiddenRoutes, getFilteredRoutes } from "routes.js";
 // API Modal component
+import { useUser } from "redux/hooks/useUser";
 import ApiModal from "components/ApiModal";
 
 // Custom Chakra theme
@@ -18,6 +19,19 @@ export default function Dashboard(props) {
   const [fixed] = useState(false);
   const [toggleSidebar, setToggleSidebar] = useState(true);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const history = useHistory();
+  const { user, checkAuth } = useUser();
+  
+  // Check auth on mount to ensure user data is loaded from localStorage
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+  
+  // Filter routes based on user type - use useMemo to recalculate when user changes
+  const filteredRoutes = useMemo(() => {
+    const userType = user?.user_type || "user";
+    return getFilteredRoutes(userType);
+  }, [user?.user_type]);
   // functions for changing the states from components
   const getRoute = () => {
     return window.location.pathname !== "/admin/full-screen-maps";
@@ -168,7 +182,7 @@ export default function Dashboard(props) {
           }}
         >
           <Sidebar
-            routes={routes}
+            routes={filteredRoutes}
             display="none"
             onHoverChange={setIsSidebarHovered}
             {...rest}
@@ -233,7 +247,7 @@ export default function Dashboard(props) {
                 pb="40px"
               >
                 <Switch>
-                  {getRoutes(routes)}
+                  {getRoutes(filteredRoutes)}
                   {getRoutes(hiddenRoutes)}
                   <Redirect from="/" to="/admin/default" />
                 </Switch>

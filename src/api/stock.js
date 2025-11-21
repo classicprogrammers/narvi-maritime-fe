@@ -20,7 +20,7 @@ const handleApiError = (error, operation) => {
   // HTTP errors (4xx, 5xx) - Extract detailed error message from response
   if (error.response) {
     const responseData = error.response.data;
-    
+
     // Check for JSON-RPC error format
     if (responseData && responseData.result && responseData.result.status === 'error') {
       errorMessage = responseData.result.message || errorMessage;
@@ -49,12 +49,12 @@ const handleApiError = (error, operation) => {
 export const getStockListApi = async () => {
   try {
     const response = await api.get(getApiEndpoint("STOCK_LIST"));
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch stock list');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Get stock list error:", error);
@@ -62,23 +62,24 @@ export const getStockListApi = async () => {
   }
 };
 
-// Update stock item - payload must include the same fields as the list items
+// Update stock item(s) - accepts payload with lines array
+// stockId can be a single ID or array of IDs for bulk updates
 export const updateStockItemApi = async (stockId, stockData = {}) => {
   try {
+    // If stockData is already in lines format, use it directly
+    // Otherwise, wrap single item in lines array
+    const payload = stockData.lines ? stockData : { lines: [stockData] };
+
     const response = await api.post(
       getApiEndpoint("STOCK_UPDATE"),
-      {
-        stock_id: stockId,
-        id: stockId,
-        ...stockData,
-      }
+      payload
     );
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to update stock item');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Update stock item error:", error);
@@ -90,12 +91,12 @@ export const updateStockItemApi = async (stockId, stockData = {}) => {
 export const getStockItemByIdApi = async (stockId) => {
   try {
     const response = await api.get(`${getApiEndpoint("STOCK_LIST")}/${stockId}`);
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch stock item');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Get stock item error:", error);
@@ -103,16 +104,20 @@ export const getStockItemByIdApi = async (stockId) => {
   }
 };
 
-// Create stock item
+// Create stock item(s) - accepts payload with lines array
 export const createStockItemApi = async (stockData) => {
   try {
-    const response = await api.post(getApiEndpoint("STOCK_CREATE"), stockData);
-    
+    // If stockData is already in lines format, use it directly
+    // Otherwise, wrap single item in lines array
+    const payload = stockData.lines ? stockData : { lines: [stockData] };
+
+    const response = await api.post(getApiEndpoint("STOCK_CREATE"), payload);
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to create stock item');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Create stock item error:", error);
@@ -127,12 +132,12 @@ export const deleteStockItemApi = async (stockId) => {
       stock_id: stockId,
       id: stockId,
     });
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to delete stock item');
     }
-    
+
     return response.data;
   } catch (error) {
     console.error("Delete stock item error:", error);

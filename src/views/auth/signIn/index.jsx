@@ -88,6 +88,7 @@ function SignIn() {
             email: email,
             name: result.result.name || email,
             role: result.result.role || "user",
+            user_type: result.result.user_type || "user", // Include user_type from API response
             avatar: null,
             permissions: ["read"],
             createdAt: new Date().toISOString(),

@@ -38,7 +38,7 @@ import {
     MdDelete,
     MdClose,
 } from "react-icons/md";
-import { createStockItemApi } from "../../../api/stock";
+import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import currenciesAPI from "../../../api/currencies";
@@ -640,7 +640,7 @@ export default function StockForm() {
     };
 
     const getPayload = (rowData, includeStockId = false) => {
-        // Payload matching the API structure exactly - only use keys that exist in the UI
+        // Payload matching the API structure exactly - match the lines array format
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
@@ -651,7 +651,8 @@ export default function StockForm() {
                 ? rowData.poNumbers.join(", ")
                 : "",
             pic: rowData.pic || "", // PIC is free text
-            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Replaced item_id
+            item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
+            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
@@ -664,24 +665,29 @@ export default function StockForm() {
             length_cm: toNumber(rowData.lengthCm) || 0,
             height_cm: toNumber(rowData.heightCm) || 0,
             volume_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_cbm: toNumber(rowData.volumeCbm) || 0, // Calculate from dimensions or use provided value
+            volume_cbm: toNumber(rowData.volumeCbm) || 0,
             lwh_text: rowData.lwhText || "",
-            cw_freight: 0, // Not in UI, set to 0
+            cw_freight: toNumber(rowData.cwAirfreight) || 0,
             value: toNumber(rowData.value) || 0,
-            sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-            extra: "", // Not in UI, set to empty
-            stock_destination: rowData.destination ? String(rowData.destination) : "", // Replaced destination
-            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Replaced warehouse_id
+            shipment_type: "", // Include shipment_type as empty string
+            extra: rowData.extra2 || "",
+            destination: rowData.destination ? String(rowData.destination) : "", // Keep destination for lines format
+            stock_destination: rowData.destination ? String(rowData.destination) : "", // Also include stock_destination
+            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "", // Keep warehouse_id for lines format
+            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Also include stock_warehouse
             shipping_doc: rowData.shippingDoc || "",
-            export_doc: "", // Not in UI, set to empty
-            // date_on_stock: not in UI, will be auto-generated on backend
+            export_doc: rowData.exportDoc || "",
+            date_on_stock: rowData.dateOnStock || "",
             exp_ready_in_stock: rowData.expReadyInStock || "",
-            shipped_date: null, // Not in UI, set to null
-            delivered_date: "", // Not in UI, set to empty
+            shipped_date: rowData.shippedDate || null,
+            delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
-            vessel_destination: rowData.vesselDestination || "", // Free text field (replaced Many2one)
+            vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
-            // shipment_type: not in UI, omit from payload
+            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "",
+            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "",
+            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "",
+            vessel_destination_text: rowData.vesselDestination || "", // Include vessel_destination_text
         };
 
         // Only include stock_item_id if it exists (for updates)
@@ -689,10 +695,10 @@ export default function StockForm() {
             payload.stock_item_id = rowData.stockItemId;
         }
 
-        // Include stock_id for update/delete operations
+        // Include stock_id for update operations ONLY (not id field)
         if (includeStockId && rowData.stockId) {
             payload.stock_id = rowData.stockId;
-            payload.id = rowData.stockId;
+            // DO NOT include id field - only stock_id is needed for update
         }
 
         return payload;
@@ -701,41 +707,27 @@ export default function StockForm() {
     const handleSaveStockItem = async () => {
         try {
             if (isBulkEdit && selectedItems.length > 0) {
-                // Bulk update - update each row separately with its own data
-                let successCount = 0;
-                let errorCount = 0;
-
+                // Bulk update - send all rows in a single payload with lines array
                 if (formRows.length === 0) {
                     throw new Error('No data to save');
                 }
 
-                // Update each row with its own stock_id
-                for (const row of formRows) {
+                // Build lines array from all form rows
+                const lines = formRows.map((row) => {
                     if (!row.stockId) {
-                        console.warn('Row missing stockId, skipping:', row);
-                        errorCount++;
-                        continue;
+                        throw new Error(`Row missing stockId: ${JSON.stringify(row)}`);
                     }
+                    return getPayload(row, true); // Include stock_id
+                });
 
-                    try {
-                        const payload = getPayload(row, true); // Include stock_id
-                        const result = await updateStockItem(row.stockId, payload, {});
-                        if (result && result.success) {
-                            successCount++;
-                        } else {
-                            errorCount++;
-                            console.error(`Failed to update item ${row.stockId}:`, result?.error);
-                        }
-                    } catch (err) {
-                        errorCount++;
-                        console.error(`Failed to update item ${row.stockId}:`, err);
-                    }
-                }
-
-                if (successCount > 0) {
+                // Send all lines in a single payload
+                const payload = { lines };
+                const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
+                
+                if (result && result.result && result.result.status === 'success') {
                     toast({
                         title: 'Success',
-                        description: `${successCount} stock item(s) updated successfully${errorCount > 0 ? `. ${errorCount} failed.` : ''}`,
+                        description: `${lines.length} stock item(s) updated successfully`,
                         status: 'success',
                         duration: 3000,
                         isClosable: true,
@@ -743,16 +735,17 @@ export default function StockForm() {
                     getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
-                    throw new Error('Failed to update stock items');
+                    throw new Error(result?.result?.message || result?.message || 'Failed to update stock items');
                 }
             } else if (isEditing && id) {
-                // Update existing single item - use first row
+                // Update existing single item - use first row, wrap in lines array
                 if (formRows.length === 0) {
                     throw new Error('No data to save');
                 }
-                const payload = getPayload(formRows[0], true); // Include stock_id
-                const result = await updateStockItem(id, payload, {});
-                if (result && result.success) {
+                const linePayload = getPayload(formRows[0], true); // Include stock_id
+                const payload = { lines: [linePayload] };
+                const result = await updateStockItemApi(id, payload);
+                if (result && result.result && result.result.status === 'success') {
                     toast({
                         title: 'Success',
                         description: 'Stock item updated successfully',
@@ -763,7 +756,7 @@ export default function StockForm() {
                     getStockList();
                     history.push("/admin/stock-list/main-db");
                 } else {
-                    throw new Error(result?.error || 'Failed to update stock item');
+                    throw new Error(result?.result?.message || result?.message || 'Failed to update stock item');
                 }
             } else {
                 // Create new - save all rows (one record per row)
@@ -775,50 +768,37 @@ export default function StockForm() {
                 let errorCount = 0;
                 const errors = [];
 
-                // Create a record for each row in the form
-                for (let i = 0; i < formRows.length; i++) {
-                    const row = formRows[i];
-                    try {
-                        // Ensure row doesn't have stockId (should be new record)
-                        const rowData = {
-                            ...row,
-                            stockId: null, // Ensure it's a new record
-                            stockItemId: row.stockItemId || "", // Clear for new records
-                        };
-                        const payload = getPayload(rowData);
-                        const result = await createStockItemApi(payload);
+                // Build lines array from all form rows
+                const lines = formRows.map((row) => {
+                    // Ensure row doesn't have stockId (should be new record)
+                    const rowData = {
+                        ...row,
+                        stockId: null, // Ensure it's a new record
+                        stockItemId: row.stockItemId || "", // Clear for new records
+                    };
+                    return getPayload(rowData);
+                });
 
-                        if (result && result.result && result.result.status === 'success') {
-                            successCount++;
-                        } else {
-                            errorCount++;
-                            const errorMsg = result?.result?.message || result?.message || 'Unknown error';
-                            errors.push(`Row ${i + 1}: ${errorMsg}`);
-                            console.error(`Failed to create stock item for row ${i + 1}:`, result);
-                        }
-                    } catch (err) {
-                        errorCount++;
-                        const errorMsg = err?.response?.data?.result?.message || err?.response?.data?.message || err?.message || 'Unknown error';
-                        errors.push(`Row ${i + 1}: ${errorMsg}`);
-                        console.error(`Failed to create stock item for row ${i + 1}:`, err);
-                    }
-                }
+                // Send all lines in a single payload
+                const payload = { lines };
+                const result = await createStockItemApi(payload);
 
-                if (successCount > 0) {
+                if (result && result.result && result.result.status === 'success') {
+                    const successCount = lines.length;
                     toast({
                         title: 'Success',
-                        description: `${successCount} stock item(s) created successfully${errorCount > 0 ? `. ${errorCount} failed. ${errors.join('; ')}` : ''}`,
+                        description: `${successCount} stock item(s) created successfully`,
                         status: 'success',
-                        duration: 5000,
+                        duration: 3000,
                         isClosable: true,
                     });
                     getStockList();
                     history.push("/admin/stock-list/stocks");
                 } else {
-                    const errorMsg = errors.length > 0 ? errors.join('; ') : 'Failed to create stock items';
+                    const errorMsg = result?.result?.message || result?.message || 'Failed to create stock items';
                     toast({
                         title: 'Error',
-                        description: `Failed to create stock items: ${errorMsg}`,
+                        description: errorMsg,
                         status: 'error',
                         duration: 5000,
                         isClosable: true,
@@ -839,7 +819,7 @@ export default function StockForm() {
 
 
     if (isLoading) {
-        return (
+    return (
             <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
                 <Flex justify="center" align="center" h="200px">
                     <VStack spacing="4">
@@ -875,30 +855,30 @@ export default function StockForm() {
 
                 <HStack spacing="3">
                     {!isEditing && (
-                        <Button
+                    <Button
                             leftIcon={<Icon as={MdAdd} />}
                             bg="blue.500"
-                            color="white"
-                            size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={handleAddRow}
-                        >
-                            Add Row
-                        </Button>
-                    )}
-                    <Button
-                        leftIcon={<Icon as={MdSave} />}
-                        bg="green.500"
                         color="white"
                         size="sm"
                         px="6"
                         py="3"
                         borderRadius="md"
-                        _hover={{ bg: "green.600" }}
-                        onClick={handleSaveStockItem}
+                            _hover={{ bg: "blue.600" }}
+                            onClick={handleAddRow}
+                    >
+                            Add Row
+                    </Button>
+                    )}
+                <Button
+                    leftIcon={<Icon as={MdSave} />}
+                    bg="green.500"
+                    color="white"
+                    size="sm"
+                    px="6"
+                    py="3"
+                    borderRadius="md"
+                    _hover={{ bg: "green.600" }}
+                    onClick={handleSaveStockItem}
                         isLoading={updateLoading}
                         loadingText="Saving..."
                     >
@@ -907,7 +887,7 @@ export default function StockForm() {
                             : isEditing
                                 ? "Update Stock Item"
                                 : `Save ${formRows.length} Item(s)`}
-                    </Button>
+                </Button>
                 </HStack>
             </Flex>
 
@@ -922,7 +902,7 @@ export default function StockForm() {
                     borderBottom="1px"
                     borderColor={borderColor}
                 >
-                    <HStack spacing="2">
+                <HStack spacing="2">
                         <Button
                             size="xs"
                             onClick={() => {
@@ -938,7 +918,7 @@ export default function StockForm() {
                         </Button>
                         <Text fontSize="sm" color={textColor}>
                             Item {currentItemIndex + 1} of {selectedItems.length}
-                        </Text>
+                    </Text>
                         <Button
                             size="xs"
                             onClick={() => {
@@ -952,11 +932,11 @@ export default function StockForm() {
                         >
                             Next
                         </Button>
-                    </HStack>
+                </HStack>
                     <Text fontSize="xs" color="gray.500">
                         Changes will apply to all {selectedItems.length} selected items
                     </Text>
-                </Flex>
+            </Flex>
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
@@ -999,10 +979,10 @@ export default function StockForm() {
                                 <Tr key={row.id}>
                                     {isEditing && (
                                         <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
+                                <Input
                                                 value={row.stockItemId || ""}
                                                 isReadOnly
-                                                size="sm"
+                                    size="sm"
                                                 bg={useColorModeValue("gray.100", "gray.700")}
                                                 color={inputText}
                                             />
@@ -1039,21 +1019,21 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.pic || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
                                             placeholder="Enter PIC"
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Select
+                                <Select
                                             value={row.stockStatus}
                                             onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1069,7 +1049,7 @@ export default function StockForm() {
                                             <option value="delivered">Delivered</option>
                                             <option value="irregular">Irregularities</option>
                                             <option value="cancelled">Cancelled</option>
-                                        </Select>
+                                </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
@@ -1099,7 +1079,7 @@ export default function StockForm() {
                                                     handleInputChange(rowIndex, "poNumbers", parsed);
                                                 }}
                                                 placeholder="Enter PO numbers (comma or newline separated)"
-                                                size="sm"
+                                    size="sm"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1136,36 +1116,36 @@ export default function StockForm() {
                                                     ))}
                                                 </HStack>
                                             )}
-                                        </VStack>
+                        </VStack>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.warehouseId}
                                             onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.shippingDoc}
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.items}
                                             onChange={(e) => handleInputChange(rowIndex, "items", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1227,22 +1207,22 @@ export default function StockForm() {
                                         </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.lwhText}
                                             onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.details}
                                             onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1297,11 +1277,11 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                             placeholder="Enter Via HUB"
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1312,7 +1292,7 @@ export default function StockForm() {
                                             type="date"
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
-                                            size="sm"
+                                        size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1323,7 +1303,7 @@ export default function StockForm() {
                                             value={row.remarks}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                        size="sm"
                                             rows={2}
                                             bg={inputBg}
                                             color={inputText}
