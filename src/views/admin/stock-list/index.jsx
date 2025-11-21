@@ -133,40 +133,66 @@ export default function StockList() {
         }
     }, [isLoading, stockList.length]);
 
-    // Fetch all lookup data for IDs -> Names
+    // Track if lookup data has been fetched
+    const hasFetchedLookupData = useRef(false);
+
+    // Fetch all lookup data for IDs -> Names (only once per component mount)
     useEffect(() => {
+        // Only fetch if we haven't already fetched lookup data
+        if (hasFetchedLookupData.current) {
+            return;
+        }
+
         const fetchLookupData = async () => {
             try {
-                const [
-                    clientsData,
-                    vesselsData,
-                    vendorsData,
-                    destinationsData,
-                    currenciesData,
-                    locationsData,
-                    usersData
-                ] = await Promise.all([
-                    getCustomersForSelect().catch(() => []),
-                    getVesselsForSelect().catch(() => []),
-                    getVendorsApi().catch(() => []),
-                    getDestinationsForSelect().catch(() => []),
-                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })),
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })),
-                    getUsersForSelect().catch(() => [])
-                ]);
-                setClients(clientsData || []);
-                setVessels(vesselsData || []);
-                setVendors(Array.isArray(vendorsData) ? vendorsData : vendorsData?.vendors || vendorsData?.agents || []);
-                setDestinations(destinationsData || []);
-                setCurrencies(currenciesData?.currencies || currenciesData || []);
-                setLocations(locationsData?.locations || locationsData || []);
-                setUsers(usersData || []);
+                hasFetchedLookupData.current = true;
+
+                // Fetch all lookup data in parallel (users included for PIC field)
+                const promises = [
+                    getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
+                    getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
+                    getVendorsApi().catch(() => []).then(data => ({ type: 'vendors', data })),
+                    getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
+                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
+                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
+                    // Users are needed for PIC field display
+                    getUsersForSelect().catch(() => []).then(data => ({ type: 'users', data }))
+                ];
+
+                const results = await Promise.all(promises);
+
+                results.forEach(({ type, data }) => {
+                    switch (type) {
+                        case 'clients':
+                            setClients(data || []);
+                            break;
+                        case 'vessels':
+                            setVessels(data || []);
+                            break;
+                        case 'vendors':
+                            setVendors(Array.isArray(data) ? data : data?.vendors || data?.agents || []);
+                            break;
+                        case 'destinations':
+                            setDestinations(data || []);
+                            break;
+                        case 'currencies':
+                            setCurrencies(data?.currencies || data || []);
+                            break;
+                        case 'locations':
+                            setLocations(data?.locations || data || []);
+                            break;
+                        case 'users':
+                            setUsers(data || []);
+                            break;
+                    }
+                });
             } catch (error) {
                 console.error('Failed to fetch lookup data:', error);
+                hasFetchedLookupData.current = false; // Reset on error to allow retry
             }
         };
         fetchLookupData();
-    }, []);
+    }, []); // Empty dependency array - only fetch once on mount
 
     // Filter and sort stock list
     const filteredAndSortedStock = useMemo(() => {
@@ -174,32 +200,32 @@ export default function StockList() {
 
         // Apply filters
         if (selectedClient) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.client_id || item.client) === String(selectedClient)
             );
         }
         if (selectedVessel) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.vessel_id || item.vessel) === String(selectedVessel)
             );
         }
         if (selectedSupplier) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.supplier_id || item.supplier) === String(selectedSupplier)
             );
         }
         if (selectedStatus) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.stock_status) === String(selectedStatus)
             );
         }
         if (selectedWarehouse) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.warehouse_id) === String(selectedWarehouse)
             );
         }
         if (selectedCurrency) {
-            filtered = filtered.filter(item => 
+            filtered = filtered.filter(item =>
                 String(item.currency_id || item.currency) === String(selectedCurrency)
             );
         }

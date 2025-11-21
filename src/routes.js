@@ -170,7 +170,7 @@ const routes = [
         component: NewStockItem,
       },
       {
-        name: "Stocks",
+        name: "Stocklist View",
         path: "/stock-list/stocks",
         icon: <Icon as={MdList} width="20px" height="20px" color="inherit" />,
         component: Stocks,

@@ -29,18 +29,21 @@ import {
     Td,
     Card,
     IconButton,
+    Badge,
 } from "@chakra-ui/react";
 import {
     MdSave,
     MdAdd,
     MdContentCopy,
     MdDelete,
+    MdClose,
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
+import api from "../../../api/axios";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -58,8 +61,10 @@ export default function StockForm() {
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const [clients, setClients] = useState([]);
     const [vessels, setVessels] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
+    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
     const [currencies, setCurrencies] = useState([]);
     const [countries, setCountries] = useState([]);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
@@ -81,7 +86,7 @@ export default function StockForm() {
         pic: "",
         stockStatus: "",
         supplier: "",
-        poNumber: "",
+        poNumbers: [], // Array of PO numbers - one item can have multiple PO numbers
         warehouseId: "",
         shippingDoc: "",
         items: "",
@@ -235,6 +240,28 @@ export default function StockForm() {
                 });
             } finally {
                 setIsLoadingVessels(false);
+            }
+
+            try {
+                setIsLoadingSuppliers(true);
+                const suppliersResponse = await api.get('/api/suppliers');
+                const suppliersData = (suppliersResponse.data && Array.isArray(suppliersResponse.data.suppliers))
+                    ? suppliersResponse.data.suppliers
+                    : (suppliersResponse.data && Array.isArray(suppliersResponse.data))
+                        ? suppliersResponse.data
+                        : (Array.isArray(suppliersResponse) ? suppliersResponse : []);
+                setSuppliers(suppliersData || []);
+            } catch (error) {
+                console.error('Failed to fetch suppliers:', error);
+                toast({
+                    title: 'Warning',
+                    description: 'Failed to load suppliers',
+                    status: 'warning',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingSuppliers(false);
             }
 
             try {
@@ -421,9 +448,9 @@ export default function StockForm() {
         );
     }, [vessels]);
 
-    // Normalize supplier IDs when clients are loaded (suppliers use clients array)
+    // Normalize supplier IDs when suppliers are loaded
     useEffect(() => {
-        if (!clients.length) return;
+        if (!suppliers.length) return;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
                 if (!row.supplier || row.supplier === "" || row.supplier === false) {
@@ -431,53 +458,24 @@ export default function StockForm() {
                 }
                 const normalizedValue = String(row.supplier);
                 // Try exact ID match first
-                const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
+                const exactMatch = suppliers.find((supplier) => String(supplier.id) === normalizedValue);
                 if (exactMatch) {
                     console.log("Found supplier match:", exactMatch.id, "for value:", normalizedValue);
                     return { ...row, supplier: String(exactMatch.id) };
                 }
                 // Try fallback matching by name
-                const fallbackMatch = clients.find(
-                    (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
+                const fallbackMatch = suppliers.find(
+                    (supplier) => String(supplier.name)?.toLowerCase() === normalizedValue.toLowerCase()
                 );
                 if (fallbackMatch) {
                     console.log("Found supplier fallback match:", fallbackMatch.id, "for value:", normalizedValue);
                     return { ...row, supplier: String(fallbackMatch.id) };
                 }
-                console.log("No supplier match found for value:", normalizedValue, "Available clients:", clients.map(c => ({ id: c.id, name: c.name })));
+                console.log("No supplier match found for value:", normalizedValue, "Available suppliers:", suppliers.map(s => ({ id: s.id, name: s.name })));
                 return row;
             })
         );
-    }, [clients]);
-
-    // Normalize PIC IDs when clients are loaded (PIC uses clients array)
-    useEffect(() => {
-        if (!clients.length) return;
-        setFormRows((prevRows) =>
-            prevRows.map((row) => {
-                if (!row.pic || row.pic === "" || row.pic === false) {
-                    return row;
-                }
-                const normalizedValue = String(row.pic);
-                // Try exact ID match first
-                const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
-                if (exactMatch) {
-                    console.log("Found PIC match:", exactMatch.id, "for value:", normalizedValue);
-                    return { ...row, pic: String(exactMatch.id) };
-                }
-                // Try fallback matching by name
-                const fallbackMatch = clients.find(
-                    (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                if (fallbackMatch) {
-                    console.log("Found PIC fallback match:", fallbackMatch.id, "for value:", normalizedValue);
-                    return { ...row, pic: String(fallbackMatch.id) };
-                }
-                console.log("No PIC match found for value:", normalizedValue, "Available clients:", clients.map(c => ({ id: c.id, name: c.name })));
-                return row;
-            })
-        );
-    }, [clients]);
+    }, [suppliers]);
 
     const toNumber = (value) => {
         if (value === "" || value === null || value === undefined) {
@@ -507,10 +505,16 @@ export default function StockForm() {
             stockItemId: getFieldValue(stock.stock_item_id),
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            pic: normalizeId(stock.pic_id) || normalizeId(stock.pic) || "",
+            pic: getFieldValue(stock.pic_id) || getFieldValue(stock.pic) || "", // PIC is now free text
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
-            poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number),
+            // Parse PO numbers from comma-separated or newline-separated string
+            poNumbers: (() => {
+                const poValue = getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "";
+                if (!poValue) return [];
+                // Split by comma or newline, trim each, and filter out empty strings
+                return poValue.split(/[,\n]/).map(p => p.trim()).filter(p => p.length > 0);
+            })(),
             warehouseId: getFieldValue(stock.warehouse_id),
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
@@ -607,6 +611,8 @@ export default function StockForm() {
             const newRow = {
                 ...rowToCopy,
                 id: Date.now() + Math.random(), // New unique ID
+                stockId: null, // Clear stockId so it's treated as a new record
+                stockItemId: "", // Clear stockItemId for new record
             };
             const newRows = [...prev];
             newRows.splice(rowIndex + 1, 0, newRow); // Insert after current row
@@ -630,14 +636,17 @@ export default function StockForm() {
     };
 
     const getPayload = (rowData, includeStockId = false) => {
-        // Payload matching the API structure exactly
+        // Payload matching the API structure exactly - only use keys that exist in the UI
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
-            po_text: rowData.poNumber || "",
-            pic_id: rowData.pic ? String(rowData.pic) : "",
+            // Send PO numbers as comma-separated string
+            po_text: Array.isArray(rowData.poNumbers) && rowData.poNumbers.length > 0
+                ? rowData.poNumbers.join(", ")
+                : "",
+            pic: rowData.pic || "", // PIC is free text
             item_id: rowData.itemId ? String(rowData.itemId) : "",
             item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
@@ -651,23 +660,24 @@ export default function StockForm() {
             length_cm: toNumber(rowData.lengthCm) || 0,
             height_cm: toNumber(rowData.heightCm) || 0,
             volume_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_no_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim) || 0,
+            volume_cbm: toNumber(rowData.volumeCbm) || 0, // Calculate from dimensions or use provided value
             lwh_text: rowData.lwhText || "",
-            cw_freight: 0,
+            cw_freight: 0, // Not in UI, set to 0
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
-            extra: "",
+            extra: "", // Not in UI, set to empty
             destination: rowData.destination ? String(rowData.destination) : "",
             warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
             shipping_doc: rowData.shippingDoc || "",
-            export_doc: "",
+            export_doc: "", // Not in UI, set to empty
+            // date_on_stock: not in UI, will be auto-generated on backend
             exp_ready_in_stock: rowData.expReadyInStock || "",
-            shipped_date: null,
-            delivered_date: "",
+            shipped_date: null, // Not in UI, set to null
+            delivered_date: "", // Not in UI, set to empty
             details: rowData.details || "",
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "",
             vessel_eta: rowData.vesselEta || "",
+            // shipment_type: not in UI, omit from payload
         };
 
         // Only include stock_item_id if it exists (for updates)
@@ -752,37 +762,64 @@ export default function StockForm() {
                     throw new Error(result?.error || 'Failed to update stock item');
                 }
             } else {
-                // Create new - save all rows
+                // Create new - save all rows (one record per row)
+                if (formRows.length === 0) {
+                    throw new Error('No data to save');
+                }
+
                 let successCount = 0;
                 let errorCount = 0;
+                const errors = [];
 
-                for (const row of formRows) {
+                // Create a record for each row in the form
+                for (let i = 0; i < formRows.length; i++) {
+                    const row = formRows[i];
                     try {
-                        const payload = getPayload(row);
+                        // Ensure row doesn't have stockId (should be new record)
+                        const rowData = {
+                            ...row,
+                            stockId: null, // Ensure it's a new record
+                            stockItemId: row.stockItemId || "", // Clear for new records
+                        };
+                        const payload = getPayload(rowData);
                         const result = await createStockItemApi(payload);
+
                         if (result && result.result && result.result.status === 'success') {
                             successCount++;
                         } else {
                             errorCount++;
+                            const errorMsg = result?.result?.message || result?.message || 'Unknown error';
+                            errors.push(`Row ${i + 1}: ${errorMsg}`);
+                            console.error(`Failed to create stock item for row ${i + 1}:`, result);
                         }
                     } catch (err) {
                         errorCount++;
-                        console.error('Failed to create stock item:', err);
+                        const errorMsg = err?.response?.data?.result?.message || err?.response?.data?.message || err?.message || 'Unknown error';
+                        errors.push(`Row ${i + 1}: ${errorMsg}`);
+                        console.error(`Failed to create stock item for row ${i + 1}:`, err);
                     }
                 }
 
                 if (successCount > 0) {
                     toast({
                         title: 'Success',
-                        description: `${successCount} stock item(s) created successfully${errorCount > 0 ? `. ${errorCount} failed.` : ''}`,
+                        description: `${successCount} stock item(s) created successfully${errorCount > 0 ? `. ${errorCount} failed. ${errors.join('; ')}` : ''}`,
                         status: 'success',
-                        duration: 3000,
+                        duration: 5000,
                         isClosable: true,
                     });
                     getStockList();
                     history.push("/admin/stock-list/stocks");
                 } else {
-                    throw new Error(result?.result?.message || 'Failed to create stock item');
+                    const errorMsg = errors.length > 0 ? errors.join('; ') : 'Failed to create stock items';
+                    toast({
+                        title: 'Error',
+                        description: `Failed to create stock items: ${errorMsg}`,
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    throw new Error(errorMsg);
                 }
             }
         } catch (error) {
@@ -932,7 +969,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Numbers</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Items</Th>
@@ -997,16 +1034,12 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.pic}
-                                            onChange={(value) => handleInputChange(rowIndex, "pic", value)}
-                                            options={clients}
-                                            placeholder="Select PIC"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || `PIC ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.pic || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
+                                            placeholder="Enter PIC"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1038,27 +1071,68 @@ export default function StockForm() {
                                         <SimpleSearchableSelect
                                             value={row.supplier}
                                             onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
-                                            options={clients}
+                                            options={suppliers}
                                             placeholder="Select Supplier"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                            isLoading={isLoadingSuppliers}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.poNumber}
-                                            onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        <VStack spacing="2" align="stretch">
+                                            <Textarea
+                                                value={Array.isArray(row.poNumbers) ? row.poNumbers.join(", ") : row.poNumbers || ""}
+                                                onChange={(e) => {
+                                                    // Parse input: split by comma or newline, trim, filter empty
+                                                    const inputValue = e.target.value;
+                                                    const parsed = inputValue.split(/[,\n]/)
+                                                        .map(p => p.trim())
+                                                        .filter(p => p.length > 0);
+                                                    handleInputChange(rowIndex, "poNumbers", parsed);
+                                                }}
+                                                placeholder="Enter PO numbers (comma or newline separated)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                rows={Math.max(2, Math.min(Array.isArray(row.poNumbers) ? row.poNumbers.length + 1 : 2, 4))}
+                                                resize="vertical"
+                                            />
+                                            {Array.isArray(row.poNumbers) && row.poNumbers.length > 0 && (
+                                                <HStack spacing="1" flexWrap="wrap">
+                                                    {row.poNumbers.map((po, poIndex) => (
+                                                        <HStack
+                                                            key={poIndex}
+                                                            spacing="1"
+                                                            bg={useColorModeValue("blue.100", "blue.800")}
+                                                            px="2"
+                                                            py="1"
+                                                            borderRadius="md"
+                                                        >
+                                                            <Text fontSize="xs" color={useColorModeValue("blue.800", "blue.100")}>
+                                                                {po}
+                                                            </Text>
+                                                            <IconButton
+                                                                icon={<Icon as={MdClose} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                aria-label={`Remove PO ${po}`}
+                                                                onClick={() => {
+                                                                    const updated = [...row.poNumbers];
+                                                                    updated.splice(poIndex, 1);
+                                                                    handleInputChange(rowIndex, "poNumbers", updated);
+                                                                }}
+                                                                _hover={{ bg: useColorModeValue("blue.200", "blue.700") }}
+                                                            />
+                                                        </HStack>
+                                                    ))}
+                                                </HStack>
+                                            )}
+                                        </VStack>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
@@ -1296,4 +1370,4 @@ export default function StockForm() {
             </Box>
         </Box>
     );
-}
+} 

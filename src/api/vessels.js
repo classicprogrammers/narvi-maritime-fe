@@ -45,6 +45,7 @@ export const createVessel = async (vesselData) => {
       current_user: getCurrentUserId(),
       name: vesselData.name,
       client_id: vesselData.client_id,
+      imo: vesselData.imo || "",
     };
 
     // Add attachments if provided
@@ -80,6 +81,7 @@ export const updateVessel = async (idOrData, maybeData) => {
       current_user: getCurrentUserId(),
       name: vesselData.name,
       client_id: vesselData.client_id,
+      imo: vesselData.imo || "",
     };
 
     // Add attachments if provided

@@ -24,6 +24,11 @@ import {
     VStack,
     useToast,
     Checkbox,
+    Tabs,
+    TabList,
+    TabPanels,
+    Tab,
+    TabPanel,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdDelete, MdClose } from "react-icons/md";
@@ -128,6 +133,7 @@ export default function Stocks() {
     const [selectedRows, setSelectedRows] = useState(new Set());
     const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
     const cancelRef = React.useRef();
+    const [activeTab, setActiveTab] = useState(0); // 0: By Vessel, 1: By Client, 2: By Status
 
     const toast = useToast();
 
@@ -142,10 +148,17 @@ export default function Stocks() {
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Filters - status, client, and vessel filters (no auto-select)
-    const [selectedClient, setSelectedClient] = useState(null);
-    const [selectedVessel, setSelectedVessel] = useState(null);
-    const [selectedStatuses, setSelectedStatuses] = useState(new Set()); // No default selected statuses
+    // Filters - separate for each view
+    // By Vessel view filters
+    const [vesselViewClient, setVesselViewClient] = useState(null);
+    const [vesselViewStatuses, setVesselViewStatuses] = useState(new Set());
+
+    // By Client view filters
+    const [clientViewVessel, setClientViewVessel] = useState(null);
+    const [clientViewStatuses, setClientViewStatuses] = useState(new Set());
+
+    // By Status view filters
+    const [statusViewStatuses, setStatusViewStatuses] = useState(new Set());
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
@@ -198,6 +211,7 @@ export default function Stocks() {
 
     // Ensure we only auto-fetch once (avoids double calls in StrictMode)
     const hasFetchedInitialData = useRef(false);
+    const hasFetchedLookupData = useRef(false);
 
     // Fetch stock list on component mount
     useEffect(() => {
@@ -207,45 +221,69 @@ export default function Stocks() {
         }
     }, [getStockList, stockList.length, isLoading]);
 
-    // Fetch all lookup data for IDs -> Names
+    // Fetch all lookup data for IDs -> Names (only once per component mount)
     useEffect(() => {
+        // Only fetch if we haven't already fetched lookup data
+        if (hasFetchedLookupData.current) {
+            return;
+        }
+
         const fetchLookupData = async () => {
             try {
+                hasFetchedLookupData.current = true;
                 setIsLoadingClients(true);
                 setIsLoadingVessels(true);
-                const [
-                    clientsData,
-                    vesselsData,
-                    vendorsData,
-                    destinationsData,
-                    currenciesData,
-                    locationsData,
-                    usersData
-                ] = await Promise.all([
-                    getCustomersForSelect().catch(() => []),
-                    getVesselsForSelect().catch(() => []),
-                    getVendorsApi().catch(() => []),
-                    getDestinationsForSelect().catch(() => []),
-                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })),
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })),
-                    getUsersForSelect().catch(() => [])
-                ]);
-                setClients(clientsData || []);
-                setVessels(vesselsData || []);
-                setVendors(Array.isArray(vendorsData) ? vendorsData : vendorsData?.vendors || vendorsData?.agents || []);
-                setDestinations(destinationsData || []);
-                setCurrencies(currenciesData?.currencies || currenciesData || []);
-                setLocations(locationsData?.locations || locationsData || []);
-                setUsers(usersData || []);
+
+                // Fetch all lookup data in parallel (excluding users if not needed)
+                // Users are only needed for PIC field display
+                const promises = [
+                    getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
+                    getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
+                    getVendorsApi().catch(() => []).then(data => ({ type: 'vendors', data })),
+                    getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
+                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
+                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
+                    // Only fetch users if needed for PIC field - this is the main optimization
+                    getUsersForSelect().catch(() => []).then(data => ({ type: 'users', data }))
+                ];
+
+                const results = await Promise.all(promises);
+
+                results.forEach(({ type, data }) => {
+                    switch (type) {
+                        case 'clients':
+                            setClients(data || []);
+                            break;
+                        case 'vessels':
+                            setVessels(data || []);
+                            break;
+                        case 'vendors':
+                            setVendors(Array.isArray(data) ? data : data?.vendors || data?.agents || []);
+                            break;
+                        case 'destinations':
+                            setDestinations(data || []);
+                            break;
+                        case 'currencies':
+                            setCurrencies(data?.currencies || data || []);
+                            break;
+                        case 'locations':
+                            setLocations(data?.locations || data || []);
+                            break;
+                        case 'users':
+                            setUsers(data || []);
+                            break;
+                    }
+                });
             } catch (error) {
                 console.error('Failed to fetch lookup data:', error);
+                hasFetchedLookupData.current = false; // Reset on error to allow retry
             } finally {
                 setIsLoadingClients(false);
                 setIsLoadingVessels(false);
             }
         };
         fetchLookupData();
-    }, []);
+    }, []); // Empty dependency array - only fetch once on mount
 
     // Track refresh state after updates
     useEffect(() => {
@@ -256,48 +294,131 @@ export default function Stocks() {
         }
     }, [isLoading, stockList.length]);
 
-    // Filter stock list
-    const getFilteredStock = () => {
+    // Helper function to normalize status
+    const normalizeStatus = (status) => {
+        if (!status) return "";
+        let normalized = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+        if (STATUS_VARIATIONS[normalized]) {
+            normalized = STATUS_VARIATIONS[normalized];
+        }
+        return normalized;
+    };
+
+    // Helper function to check if status matches selected statuses
+    const matchesStatus = (itemStatus, selectedStatusesSet) => {
+        if (selectedStatusesSet.size === 0) return true;
+        const normalized = normalizeStatus(itemStatus);
+        return Array.from(selectedStatusesSet).some(selectedStatus => {
+            const normalizedSelected = selectedStatus.toLowerCase();
+            return normalized === normalizedSelected ||
+                normalized.includes(normalizedSelected) ||
+                normalizedSelected.includes(normalized);
+        });
+    };
+
+    // Filter stock list for By Vessel view
+    const getFilteredStockByVessel = () => {
         let filtered = [...stockList];
 
         // Apply client filter
-        if (selectedClient) {
+        if (vesselViewClient) {
             filtered = filtered.filter((item) => {
                 const clientId = item.client_id || item.client;
-                return String(clientId) === String(selectedClient);
+                return String(clientId) === String(vesselViewClient);
             });
         }
 
-        // Apply vessel filter
-        if (selectedVessel) {
-            filtered = filtered.filter((item) => {
-                const vesselId = item.vessel_id || item.vessel;
-                return String(vesselId) === String(selectedVessel);
-            });
-        }
+        // Apply status filter
+        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
 
-        // Apply status filter only if statuses are selected
-        if (selectedStatuses.size > 0) {
-            filtered = filtered.filter((item) => {
-                let status = (item.stock_status || "").toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
-                // Map variations to filter keys (e.g., "in_stock" -> "stock", "shipping_instr" -> "on_a_shipping_instr")
-                if (STATUS_VARIATIONS[status]) {
-                    status = STATUS_VARIATIONS[status];
-                }
-                // Check if status matches any selected status (handle variations)
-                return Array.from(selectedStatuses).some(selectedStatus => {
-                    const normalizedSelected = selectedStatus.toLowerCase();
-                    return status === normalizedSelected ||
-                        status.includes(normalizedSelected) ||
-                        normalizedSelected.includes(status);
-                });
-            });
-        }
+        // Group by vessel
+        const grouped = {};
+        filtered.forEach((item) => {
+            const vesselId = item.vessel_id || item.vessel || "no_vessel";
+            if (!grouped[vesselId]) {
+                grouped[vesselId] = [];
+            }
+            grouped[vesselId].push(item);
+        });
 
-        return filtered;
+        return grouped;
     };
 
-    const filteredAndSortedStock = getFilteredStock();
+    // Filter stock list for By Client view
+    const getFilteredStockByClient = () => {
+        let filtered = [...stockList];
+
+        // Apply vessel filter
+        if (clientViewVessel) {
+            filtered = filtered.filter((item) => {
+                const vesselId = item.vessel_id || item.vessel;
+                return String(vesselId) === String(clientViewVessel);
+            });
+        }
+
+        // Apply status filter
+        filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
+
+        // Group by client
+        const grouped = {};
+        filtered.forEach((item) => {
+            const clientId = item.client_id || item.client || "no_client";
+            if (!grouped[clientId]) {
+                grouped[clientId] = [];
+            }
+            grouped[clientId].push(item);
+        });
+
+        return grouped;
+    };
+
+    // Filter stock list for By Status view - filter by selected statuses
+    const getFilteredStockByStatus = () => {
+        let filtered = [...stockList];
+
+        // Apply status filter if any statuses are selected
+        if (statusViewStatuses.size > 0) {
+            filtered = filtered.filter((item) => matchesStatus(item.stock_status, statusViewStatuses));
+        }
+
+        // Group by status
+        const grouped = {};
+        filtered.forEach((item) => {
+            const status = normalizeStatus(item.stock_status) || "no_status";
+            if (!grouped[status]) {
+                grouped[status] = [];
+            }
+            grouped[status].push(item);
+        });
+
+        return grouped;
+    };
+
+    // Get filtered and grouped stock based on active tab
+    const getFilteredStock = () => {
+        if (activeTab === 0) {
+            // By Vessel
+            return getFilteredStockByVessel();
+        } else if (activeTab === 1) {
+            // By Client
+            return getFilteredStockByClient();
+        } else {
+            // By Status
+            return getFilteredStockByStatus();
+        }
+    };
+
+    // Flatten grouped data for pagination
+    const getFlattenedStock = () => {
+        const grouped = getFilteredStock();
+        const flattened = [];
+        Object.values(grouped).forEach(group => {
+            flattened.push(...group);
+        });
+        return flattened;
+    };
+
+    const filteredAndSortedStock = getFlattenedStock();
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredAndSortedStock.length / itemsPerPage);
@@ -308,11 +429,37 @@ export default function Stocks() {
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedClient, selectedVessel, selectedStatuses.size]);
+    }, [vesselViewClient, vesselViewStatuses.size, clientViewVessel, clientViewStatuses.size, statusViewStatuses.size, activeTab]);
 
-    // Handle status checkbox toggle
-    const handleStatusToggle = (status) => {
-        setSelectedStatuses(prev => {
+    // Handle status checkbox toggle for By Vessel view
+    const handleVesselViewStatusToggle = (status) => {
+        setVesselViewStatuses(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(status)) {
+                newSet.delete(status);
+            } else {
+                newSet.add(status);
+            }
+            return newSet;
+        });
+    };
+
+    // Handle status checkbox toggle for By Client view
+    const handleClientViewStatusToggle = (status) => {
+        setClientViewStatuses(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(status)) {
+                newSet.delete(status);
+            } else {
+                newSet.add(status);
+            }
+            return newSet;
+        });
+    };
+
+    // Handle status checkbox toggle for By Status view
+    const handleStatusViewStatusToggle = (status) => {
+        setStatusViewStatuses(prev => {
             const newSet = new Set(prev);
             if (newSet.has(status)) {
                 newSet.delete(status);
@@ -403,11 +550,15 @@ export default function Stocks() {
         return value;
     };
 
-    // Handle bulk edit - navigate to form page with selected IDs
+    // Handle bulk edit - navigate to edit page with selected items
     const handleBulkEdit = () => {
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
-            history.push(`/admin/stock-list/form?ids=${selectedIds.join(',')}`);
+            const selectedItems = filteredAndSortedStock.filter(item => selectedIds.includes(item.id));
+            history.push({
+                pathname: '/admin/stock-list/main-db-edit',
+                state: { selectedItems, isBulkEdit: selectedItems.length > 1 }
+            });
         }
     };
 
@@ -612,8 +763,120 @@ export default function Stocks() {
         );
     }
 
-    const selectedClientData = selectedClient ? clients.find(c => String(c.id) === String(selectedClient)) : null;
-    const selectedVesselData = selectedVessel ? vessels.find(v => String(v.id) === String(selectedVessel)) : null;
+    // Get selected data for each view
+    const vesselViewClientData = vesselViewClient ? clients.find(c => String(c.id) === String(vesselViewClient)) : null;
+    const clientViewVesselData = clientViewVessel ? vessels.find(v => String(v.id) === String(clientViewVessel)) : null;
+
+    // Render table rows for a given stock list
+    const renderTableRows = (stockItems) => {
+        return stockItems.map((item, index) => {
+            const statusStyle = getStatusStyle(item.stock_status);
+            const rowBg = statusStyle.bgColor || tableRowBg;
+
+            return (
+                <Tr
+                    key={item.id}
+                    bg={rowBg}
+                    borderBottom="1px"
+                    borderColor={tableBorderColor}
+                    _hover={{ opacity: 0.9 }}
+                >
+                    <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
+                        <Checkbox
+                            isChecked={selectedRows.has(item.id)}
+                            onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                            size="sm"
+                            borderColor="gray.600"
+                            sx={{
+                                "& .chakra-checkbox__control": {
+                                    borderColor: "gray.600",
+                                    _checked: {
+                                        borderColor: "blue.500",
+                                    },
+                                },
+                            }}
+                        />
+                    </Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id || item.so_number)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
+                    <Td {...cellProps}>
+                        <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
+                            {getStatusLabel(item.stock_status)}
+                        </Badge>
+                    </Td>
+                    <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.items || item.item_id)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight || item.cw_airfreight)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getUserName(item.pic_id || item.pic)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
+                    <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
+                    <Td {...cellProps}>
+                        <HStack spacing="2">
+                            <IconButton
+                                icon={<Icon as={MdEdit} />}
+                                size="sm"
+                                colorScheme="blue"
+                                variant="ghost"
+                                aria-label="Edit"
+                                onClick={() => {
+                                    const selectedItems = [item];
+                                    history.push({
+                                        pathname: '/admin/stock-list/main-db-edit',
+                                        state: { selectedItems, isBulkEdit: false }
+                                    });
+                                }}
+                            />
+                            <IconButton
+                                icon={<Icon as={MdDelete} />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                aria-label="Delete"
+                                onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
+                                        handleDeleteItem(item.id, item.stock_item_id);
+                                    }
+                                }}
+                            />
+                        </HStack>
+                    </Td>
+                </Tr>
+            );
+        });
+    };
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -632,7 +895,7 @@ export default function Stocks() {
                             fontWeight="700"
                             lineHeight="100%"
                         >
-                            StockDB Main
+                            Stocklist View
                         </Text>
                         {isRefreshing && (
                             <HStack spacing="2">
@@ -655,140 +918,253 @@ export default function Stocks() {
                     </HStack>
                 </Flex>
 
-                {/* Filters Section */}
+                {/* Tabs Section */}
                 <Box px="25px" mb="20px">
-                    {/* Client and Vessel Filters - Side by Side */}
-                    <Flex gap="4" mb="20px" direction={{ base: "column", md: "row" }}>
-                        {/* Client Filter */}
-                        <Box flex="1" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                            <Flex justify="space-between" align="center" mb="12px">
-                                <Text fontSize="sm" fontWeight="600" color={textColor}>
-                                    Filter by Client
-                                </Text>
-                                {selectedClient && (
-                                    <Button
-                                        size="xs"
-                                        leftIcon={<Icon as={MdClose} />}
-                                        colorScheme="red"
-                                        variant="ghost"
-                                        onClick={() => setSelectedClient(null)}
-                                    >
-                                        Clear Filter
-                                    </Button>
-                                )}
-                            </Flex>
-                            <SimpleSearchableSelect
-                                value={selectedClient}
-                                onChange={(value) => setSelectedClient(value)}
-                                options={clients}
-                                placeholder="Select Client"
-                                displayKey="name"
-                                valueKey="id"
-                                formatOption={(option) => option.name || `Client ${option.id}`}
-                                isLoading={isLoadingClients}
-                                bg={inputBg}
-                                color={inputText}
-                                borderColor={borderColor}
-                            />
-                            {selectedClientData && (
-                                <Box mt="12px" p="3" bg={useColorModeValue("orange.50", "orange.900")} borderRadius="md">
-                                    <Text fontSize="xs" fontWeight="600" color={useColorModeValue("orange.700", "orange.200")} mb="4px">
-                                        Client ID: {selectedClientData.id || selectedClientData.name}
-                                    </Text>
-                                    <Text fontSize="xs" color={useColorModeValue("orange.600", "orange.300")}>
-                                        Client Name: {selectedClientData.name}
-                                    </Text>
-                                </Box>
-                            )}
-                        </Box>
+                    <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
+                        <TabList>
+                            <Tab>Stocklist By Vessel</Tab>
+                            <Tab>Stocklist By Client</Tab>
+                            <Tab>Stocklist By Status</Tab>
+                        </TabList>
 
-                        {/* Vessel Filter */}
-                        <Box flex="1" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                            <Flex justify="space-between" align="center" mb="12px">
-                                <Text fontSize="sm" fontWeight="600" color={textColor}>
-                                    Filter by Vessel
-                                </Text>
-                                {selectedVessel && (
-                                    <Button
-                                        size="xs"
-                                        leftIcon={<Icon as={MdClose} />}
-                                        colorScheme="red"
-                                        variant="ghost"
-                                        onClick={() => setSelectedVessel(null)}
-                                    >
-                                        Clear Filter
-                                    </Button>
-                                )}
-                            </Flex>
-                            <SimpleSearchableSelect
-                                value={selectedVessel}
-                                onChange={(value) => setSelectedVessel(value)}
-                                options={vessels}
-                                placeholder="Select Vessel"
-                                displayKey="name"
-                                valueKey="id"
-                                formatOption={(option) => option.name || `Vessel ${option.id}`}
-                                isLoading={isLoadingVessels}
-                                bg={inputBg}
-                                color={inputText}
-                                borderColor={borderColor}
-                            />
-                            {selectedVesselData && (
-                                <Box mt="12px" p="3" bg={useColorModeValue("orange.50", "orange.900")} borderRadius="md">
-                                    <Text fontSize="xs" fontWeight="600" color={useColorModeValue("orange.700", "orange.200")} mb="4px">
-                                        Vessel ID: {selectedVesselData.id || selectedVesselData.name}
-                                    </Text>
-                                    <Text fontSize="xs" color={useColorModeValue("orange.600", "orange.300")}>
-                                        Vessel Name: {selectedVesselData.name}
-                                    </Text>
-                                </Box>
-                            )}
-                        </Box>
-                    </Flex>
+                        <TabPanels>
+                            {/* Tab 1: Stocklist By Vessel */}
+                            <TabPanel px="0" pt="20px">
+                                {/* Filters for By Vessel View */}
+                                <Box mb="20px">
+                                    {/* Client Filter - Orange Bar Style */}
+                                    {vesselViewClientData ? (
+                                        <Box mb="20px" p="4" bg={useColorModeValue("orange.400", "orange.600")} borderRadius="md">
+                                            <Flex justify="space-between" align="center">
+                                                <HStack spacing="4">
+                                                    <Text fontSize="sm" fontWeight="700" color="white">
+                                                        Client ID: {vesselViewClientData.id || vesselViewClientData.name}
+                                                    </Text>
+                                                    <Text fontSize="sm" fontWeight="700" color="white">
+                                                        Client Name: {vesselViewClientData.name}
+                                                    </Text>
+                                                </HStack>
+                                                <Button
+                                                    size="xs"
+                                                    leftIcon={<Icon as={MdClose} />}
+                                                    colorScheme="whiteAlpha"
+                                                    variant="solid"
+                                                    onClick={() => setVesselViewClient(null)}
+                                                >
+                                                    Clear Filter
+                                                </Button>
+                                            </Flex>
+                                        </Box>
+                                    ) : (
+                                        <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                            <Flex justify="space-between" align="center" mb="12px">
+                                                <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                    Filter by Client
+                                                </Text>
+                                            </Flex>
+                                            <SimpleSearchableSelect
+                                                value={vesselViewClient}
+                                                onChange={(value) => setVesselViewClient(value)}
+                                                options={clients}
+                                                placeholder="Select Client"
+                                                displayKey="name"
+                                                valueKey="id"
+                                                formatOption={(option) => option.name || `Client ${option.id}`}
+                                                isLoading={isLoadingClients}
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </Box>
+                                    )}
 
-                    {/* Status Filter */}
-                    <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                        <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                            CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                        </Text>
-                        <Flex wrap="wrap" gap="3">
-                            {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                <Box
-                                    key={statusKey}
-                                    p="4"
-                                    minW="150px"
-                                    bg={config.bgColor}
-                                    borderRadius="md"
-                                    border="1px"
-                                    borderColor={borderColor}
-                                >
-                                    <Text
-                                        fontSize="xs"
-                                        fontWeight="600"
-                                        color={config.textColor}
-                                        mb="8px"
-                                    >
-                                        {config.label}
-                                    </Text>
-                                    <Checkbox
-                                        isChecked={selectedStatuses.has(statusKey)}
-                                        onChange={() => handleStatusToggle(statusKey)}
-                                        size="md"
-                                        colorScheme={config.color}
-                                        borderColor="gray.600"
-                                        sx={{
-                                            "& .chakra-checkbox__control": {
-                                                borderColor: "gray.600",
-                                                _checked: {
-                                                    borderColor: `${config.color}.500`,
-                                                },
-                                            },
-                                        }}
-                                    />
+                                    {/* Status Filter */}
+                                    <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                        <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                            CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                        </Text>
+                                        <Flex wrap="wrap" gap="3">
+                                            {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                                <Box
+                                                    key={statusKey}
+                                                    p="4"
+                                                    minW="150px"
+                                                    bg={config.bgColor}
+                                                    borderRadius="md"
+                                                    border="1px"
+                                                    borderColor={borderColor}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        color={config.textColor}
+                                                        mb="8px"
+                                                    >
+                                                        {config.label}
+                                                    </Text>
+                                                    <Checkbox
+                                                        isChecked={vesselViewStatuses.has(statusKey)}
+                                                        onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                        size="md"
+                                                        colorScheme={config.color}
+                                                        borderColor="gray.600"
+                                                        sx={{
+                                                            "& .chakra-checkbox__control": {
+                                                                borderColor: "gray.600",
+                                                                _checked: {
+                                                                    borderColor: `${config.color}.500`,
+                                                                },
+                                                            },
+                                                        }}
+                                                    />
+                                                </Box>
+                                            ))}
+                                        </Flex>
+                                    </Box>
                                 </Box>
-                            ))}
-                        </Flex>
-                    </Box>
+                            </TabPanel>
+
+                            {/* Tab 2: Stocklist By Client */}
+                            <TabPanel px="0" pt="20px">
+                                {/* Filters for By Client View */}
+                                <Box mb="20px">
+                                    {/* Vessel Filter */}
+                                    <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                        <Flex justify="space-between" align="center" mb="12px">
+                                            <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                Filter by Vessel
+                                            </Text>
+                                            {clientViewVessel && (
+                                                <Button
+                                                    size="xs"
+                                                    leftIcon={<Icon as={MdClose} />}
+                                                    colorScheme="red"
+                                                    variant="ghost"
+                                                    onClick={() => setClientViewVessel(null)}
+                                                >
+                                                    Clear Filter
+                                                </Button>
+                                            )}
+                                        </Flex>
+                                        <SimpleSearchableSelect
+                                            value={clientViewVessel}
+                                            onChange={(value) => setClientViewVessel(value)}
+                                            options={vessels}
+                                            placeholder="Select Vessel"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                            isLoading={isLoadingVessels}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                        {clientViewVesselData && (
+                                            <Box mt="12px" p="3" bg={useColorModeValue("orange.50", "orange.900")} borderRadius="md">
+                                                <Text fontSize="xs" fontWeight="600" color={useColorModeValue("orange.700", "orange.200")} mb="4px">
+                                                    Vessel ID: {clientViewVesselData.id || clientViewVesselData.name}
+                                                </Text>
+                                                <Text fontSize="xs" color={useColorModeValue("orange.600", "orange.300")}>
+                                                    Vessel Name: {clientViewVesselData.name}
+                                                </Text>
+                                            </Box>
+                                        )}
+                                    </Box>
+
+                                    {/* Status Filter */}
+                                    <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                        <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                            CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                        </Text>
+                                        <Flex wrap="wrap" gap="3">
+                                            {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                                <Box
+                                                    key={statusKey}
+                                                    p="4"
+                                                    minW="150px"
+                                                    bg={config.bgColor}
+                                                    borderRadius="md"
+                                                    border="1px"
+                                                    borderColor={borderColor}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        color={config.textColor}
+                                                        mb="8px"
+                                                    >
+                                                        {config.label}
+                                                    </Text>
+                                                    <Checkbox
+                                                        isChecked={clientViewStatuses.has(statusKey)}
+                                                        onChange={() => handleClientViewStatusToggle(statusKey)}
+                                                        size="md"
+                                                        colorScheme={config.color}
+                                                        borderColor="gray.600"
+                                                        sx={{
+                                                            "& .chakra-checkbox__control": {
+                                                                borderColor: "gray.600",
+                                                                _checked: {
+                                                                    borderColor: `${config.color}.500`,
+                                                                },
+                                                            },
+                                                        }}
+                                                    />
+                                                </Box>
+                                            ))}
+                                        </Flex>
+                                    </Box>
+                                </Box>
+                            </TabPanel>
+
+                            {/* Tab 3: Stocklist By Status */}
+                            <TabPanel px="0" pt="20px">
+                                {/* Status Filter */}
+                                <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                    <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                        CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                    </Text>
+                                    <Flex wrap="wrap" gap="3">
+                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                            <Box
+                                                key={statusKey}
+                                                p="4"
+                                                minW="150px"
+                                                bg={config.bgColor}
+                                                borderRadius="md"
+                                                border="1px"
+                                                borderColor={borderColor}
+                                            >
+                                                <Text
+                                                    fontSize="xs"
+                                                    fontWeight="600"
+                                                    color={config.textColor}
+                                                    mb="8px"
+                                                >
+                                                    {config.label}
+                                                </Text>
+                                                <Checkbox
+                                                    isChecked={statusViewStatuses.has(statusKey)}
+                                                    onChange={() => handleStatusViewStatusToggle(statusKey)}
+                                                    size="md"
+                                                    colorScheme={config.color}
+                                                    borderColor="gray.600"
+                                                    sx={{
+                                                        "& .chakra-checkbox__control": {
+                                                            borderColor: "gray.600",
+                                                            _checked: {
+                                                                borderColor: `${config.color}.500`,
+                                                            },
+                                                        },
+                                                    }}
+                                                />
+                                            </Box>
+                                        ))}
+                                    </Flex>
+                                </Box>
+                            </TabPanel>
+                        </TabPanels>
+                    </Tabs>
                 </Box>
 
                 {/* Bulk Action Buttons */}
@@ -897,108 +1273,7 @@ export default function Stocks() {
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {paginatedStock.map((item, index) => {
-                                    const statusStyle = getStatusStyle(item.stock_status);
-                                    // Use the same bgColor as the filter boxes for consistent row coloring
-                                    const rowBg = statusStyle.bgColor || tableRowBg;
-
-                                    return (
-                                        <Tr
-                                            key={item.id}
-                                            bg={rowBg}
-                                            borderBottom="1px"
-                                            borderColor={tableBorderColor}
-                                            _hover={{ opacity: 0.9 }}
-                                        >
-                                            <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
-                                                <Checkbox
-                                                    isChecked={selectedRows.has(item.id)}
-                                                    onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                                    size="sm"
-                                                    borderColor="gray.600"
-                                                    sx={{
-                                                        "& .chakra-checkbox__control": {
-                                                            borderColor: "gray.600",
-                                                            _checked: {
-                                                                borderColor: "blue.500",
-                                                            },
-                                                        },
-                                                    }}
-                                                />
-                                            </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id || item.so_number)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
-                                            <Td {...cellProps}>
-                                                <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
-                                                    {getStatusLabel(item.stock_status)}
-                                                </Badge>
-                                            </Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.items || item.item_id)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight || item.cw_airfreight)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getUserName(item.pic_id || item.pic)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
-                                            <Td {...cellProps}>
-                                                <HStack spacing="2">
-                                                    <IconButton
-                                                        icon={<Icon as={MdEdit} />}
-                                                        size="sm"
-                                                        colorScheme="blue"
-                                                        variant="ghost"
-                                                        aria-label="Edit"
-                                                        onClick={() => history.push(`/admin/stock-list/form?id=${item.id}`)}
-                                                    />
-                                                    <IconButton
-                                                        icon={<Icon as={MdDelete} />}
-                                                        size="sm"
-                                                        colorScheme="red"
-                                                        variant="ghost"
-                                                        aria-label="Delete"
-                                                        onClick={() => {
-                                                            if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
-                                                                handleDeleteItem(item.id, item.stock_item_id);
-                                                            }
-                                                        }}
-                                                    />
-                                                </HStack>
-                                            </Td>
-                                        </Tr>
-                                    );
-                                })}
+                                {renderTableRows(paginatedStock)}
                             </Tbody>
                         </Table>
                     )}
@@ -1010,9 +1285,21 @@ export default function Stocks() {
                                     No stock items found
                                 </Text>
                                 <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
-                                    {(selectedClient || selectedVessel || selectedStatuses.size > 0)
-                                        ? "Try adjusting your filters to see more results."
-                                        : "No stock items found."}
+                                    {(() => {
+                                        if (activeTab === 0) {
+                                            return (vesselViewClient || vesselViewStatuses.size > 0)
+                                                ? "Try adjusting your filters to see more results."
+                                                : "No stock items found.";
+                                        } else if (activeTab === 1) {
+                                            return (clientViewVessel || clientViewStatuses.size > 0)
+                                                ? "Try adjusting your filters to see more results."
+                                                : "No stock items found.";
+                                        } else {
+                                            return (statusViewStatuses.size > 0)
+                                                ? "Try adjusting your filters to see more results."
+                                                : "No stock items found.";
+                                        }
+                                    })()}
                                 </Text>
                             </VStack>
                         </Box>
@@ -1024,7 +1311,15 @@ export default function Stocks() {
                     <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
                         <Text fontSize="sm" color={tableTextColorSecondary}>
                             Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
-                            {(selectedClient || selectedVessel || selectedStatuses.size > 0) && " (filtered)"}
+                            {(() => {
+                                if (activeTab === 0) {
+                                    return (vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
+                                } else if (activeTab === 1) {
+                                    return (clientViewVessel || clientViewStatuses.size > 0) ? " (filtered)" : "";
+                                } else {
+                                    return (statusViewStatuses.size > 0) ? " (filtered)" : "";
+                                }
+                            })()}
                             {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
                         </Text>
 

@@ -86,6 +86,7 @@ export default function Vessels() {
     name: "",
     client_id: "",
     status: "pending",
+    imo: "",
     attachments: []
   });
 
@@ -214,8 +215,11 @@ export default function Vessels() {
       name: "",
       client_id: "",
       status: "pending",
+      imo: "",
       attachments: []
     });
+    setEditingVessel(null);
+    setPreviewFile(null);
   };
 
 
@@ -231,6 +235,7 @@ export default function Vessels() {
       name: vessel.name || "",
       client_id: vessel.client_id || "",
       status: vessel.status || "pending",
+      imo: vessel.imo || "",
       attachments: vessel.attachments || []
     });
     setEditingVessel(vessel);
@@ -487,6 +492,9 @@ export default function Vessels() {
                     Client (Customer)
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                    IMO
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Status
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
@@ -525,6 +533,11 @@ export default function Vessels() {
                               const customer = customers.find(c => c.id === vessel.client_id);
                               return customer ? (customer.name || customer.company_name || `Customer ${customer.id}`) : (vessel.client_id || "-");
                             })()}
+                          </Text>
+                        </Td>
+                        <Td py="12px" px="16px">
+                          <Text color={textColor} fontSize="sm" fontWeight="500">
+                            {vessel.imo || "-"}
                           </Text>
                         </Td>
                         <Td py="12px" px="16px">
@@ -732,6 +745,19 @@ export default function Vessels() {
                   formatOption={(customer) => `${customer.name || customer.company_name || `Customer ${customer.id}`} (ID: ${customer.id})`}
                   isLoading={isLoadingApiData}
                   isRequired
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  IMO
+                </FormLabel>
+                <Input
+                  size="md"
+                  value={formData.imo}
+                  onChange={(e) => handleInputChange("imo", e.target.value)}
+                  placeholder="Enter IMO number"
+                  borderRadius="md"
                 />
               </FormControl>
 

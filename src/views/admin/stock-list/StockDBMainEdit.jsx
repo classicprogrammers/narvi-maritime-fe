@@ -200,7 +200,7 @@ export default function StockDBMainEdit() {
             value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             clientAccess: Boolean(stock.client_access),
-            pic: normalizeId(stock.pic_id) || normalizeId(stock.pic) || "",
+            pic: getFieldValue(stock.pic) || getFieldValue(stock.pic_id) || "", // PIC is a free text field (char), not an ID
             soStatus: getFieldValue(stock.so_status) || "",
             vesselDest: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta) || "",
@@ -296,14 +296,17 @@ export default function StockDBMainEdit() {
                 setIsLoadingLocations(false);
             }
 
-            try {
-                setIsLoadingUsers(true);
-                const usersData = await getUsersForSelect();
-                setUsers(usersData || []);
-            } catch (error) {
-                console.error('Failed to fetch users:', error);
-            } finally {
-                setIsLoadingUsers(false);
+            // Only fetch users if not already loaded (for PIC field)
+            if (users.length === 0) {
+                try {
+                    setIsLoadingUsers(true);
+                    const usersData = await getUsersForSelect();
+                    setUsers(usersData || []);
+                } catch (error) {
+                    console.error('Failed to fetch users:', error);
+                } finally {
+                    setIsLoadingUsers(false);
+                }
             }
 
             try {
@@ -350,15 +353,15 @@ export default function StockDBMainEdit() {
 
     // Get payload for API
     const getPayload = (rowData, includeStockId = false) => {
+        // Payload matching the exact API structure - only use keys that exist in the UI
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             po_text: rowData.poNumber || "",
-            pic_id: rowData.pic ? String(rowData.pic) : "",
+            pic: rowData.pic || "", // PIC is a char field (free text), not an ID
             item_id: rowData.itemId ? String(rowData.itemId) : "",
-            item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
             ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
@@ -370,40 +373,36 @@ export default function StockDBMainEdit() {
             length_cm: toNumber(rowData.lengthCm) || 0,
             height_cm: toNumber(rowData.heightCm) || 0,
             volume_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_no_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim) || 0,
+            volume_cbm: toNumber(rowData.volumeCbm) || 0,
             lwh_text: rowData.lwhText || "",
             cw_freight: toNumber(rowData.cwAirfreight) || 0,
-            cw_airfreight: toNumber(rowData.cwAirfreight) || 0,
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: rowData.slCreateDateTime || new Date().toISOString().replace('T', ' ').slice(0, 19),
+            // shipment_type: not in UI, omit from payload
             extra: rowData.extra2 || "",
-            extra_2: rowData.extra2 || "",
             destination: rowData.destination ? String(rowData.destination) : "",
             warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
+            date_on_stock: rowData.dateOnStock || "",
             exp_ready_in_stock: rowData.expReadyInStock || "",
             shipped_date: rowData.shippedDate || null,
             delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
+            item: toNumber(rowData.items || rowData.item) || 1,
             vessel_destination: rowData.vesselDestination || rowData.vesselDest ? String(rowData.vesselDestination || rowData.vesselDest) : "",
             vessel_eta: rowData.vesselEta || "",
-            so_number: rowData.soNumber || "",
-            so_number_id: rowData.soNumber || "",
-            si_number: rowData.siNumber || "",
-            si_number_id: rowData.siNumber || "",
-            si_combined: rowData.siCombined || "",
-            di_number: rowData.diNumber || "",
-            di_number_id: rowData.diNumber || "",
-            so_status: rowData.soStatus || "",
-            date_on_stock: rowData.dateOnStock || "",
+            // so_number_id: commented out in user's payload, not in UI
+            // shipping_instruction_id: commented out in user's payload, not in UI
+            // delivery_instruction_id: commented out in user's payload, not in UI
         };
 
+        // Only include stock_item_id if it exists (for updates)
         if (rowData.stockItemId) {
             payload.stock_item_id = rowData.stockItemId;
         }
 
+        // Include stock_id for update operations
         if (includeStockId && rowData.stockId) {
             payload.stock_id = rowData.stockId;
             payload.id = rowData.stockId;
@@ -1092,16 +1091,12 @@ export default function StockDBMainEdit() {
                                             size="sm"
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.pic}
-                                            onChange={(value) => handleInputChange(rowIndex, "pic", value)}
-                                            options={users}
-                                            placeholder="Select PIC"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || `PIC ${option.id}`}
-                                            isLoading={isLoadingUsers}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.pic || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
+                                            placeholder="Enter PIC"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
