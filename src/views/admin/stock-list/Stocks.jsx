@@ -24,6 +24,7 @@ import {
     VStack,
     useToast,
     Checkbox,
+    Center,
     Tabs,
     TabList,
     TabPanels,
@@ -32,13 +33,19 @@ import {
     Input,
     FormControl,
     FormLabel,
-    Select,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdDelete, MdClose, MdCheck, MdCancel } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { deleteStockItemApi, updateStockItemApi } from "../../../api/stock";
-import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay } from "@chakra-ui/react";
+import {
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogContent,
+    AlertDialogOverlay
+} from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -875,7 +882,7 @@ export default function Stocks() {
         try {
             const editedData = editingRowData[item.id];
             const linePayload = buildPayload(item, editedData);
-            
+
             // Wrap in lines array format
             const payload = { lines: [linePayload] };
 
@@ -1052,19 +1059,7 @@ export default function Stocks() {
         return style.label || status || "-";
     };
 
-    // Show loading state
-    if (isLoading && stockList.length === 0) {
-        return (
-            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
-                <Flex justify="center" align="center" h="200px">
-                    <HStack spacing="4">
-                        <Spinner size="xl" color="#1c4a95" />
-                        <Text>Loading stock list...</Text>
-                    </HStack>
-                </Flex>
-            </Box>
-        );
-    }
+    const isInitialLoading = isLoading && stockList.length === 0;
 
     // Show error state
     if (error && stockList.length === 0) {
@@ -1934,232 +1929,237 @@ export default function Stocks() {
                     </Tabs>
                 </Box>
 
-                {/* Bulk Action Buttons - Show one set at a time */}
-                {(selectedRows.size > 0 || editingRowIds.size > 0) && (
-                    <Flex px="25px" mb="20px" align="center" gap="3">
-                        {editingRowIds.size > 0 ? (
-                            // When editing: Show Save All and Cancel All buttons only
-                            <>
-                                <Text fontSize="sm" color={textColor} fontWeight="600">
-                                    {editingRowIds.size} item(s) being edited
-                                </Text>
-                                <Button
-                                    leftIcon={<Icon as={MdCheck} />}
-                                    colorScheme="green"
-                                    size="sm"
-                                    onClick={handleBulkSave}
-                                >
-                                    Save All ({editingRowIds.size})
-                                </Button>
-                                <Button
-                                    leftIcon={<Icon as={MdCancel} />}
-                                    colorScheme="red"
-                                    size="sm"
-                                    onClick={handleEditCancel}
-                                >
-                                    Cancel All
-                                </Button>
-                            </>
-                        ) : (
-                            // When NOT editing: Show Edit/Delete/Clear buttons
-                            <>
-                                <Text fontSize="sm" color={textColor} fontWeight="600">
-                                    {selectedRows.size} item(s) selected
-                                </Text>
-                                <Button
-                                    leftIcon={<Icon as={MdEdit} />}
-                                    colorScheme="blue"
-                                    size="sm"
-                                    onClick={handleBulkEdit}
-                                >
-                                    Edit Selected
-                                </Button>
-                                <Button
-                                    leftIcon={<Icon as={MdDelete} />}
-                                    colorScheme="red"
-                                    size="sm"
-                                    onClick={handleBulkDeleteClick}
-                                >
-                                    Delete Selected
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => setSelectedRows(new Set())}
-                                >
-                                    Clear Selection
-                                </Button>
-                            </>
-                        )}
-                    </Flex>
-                )}
-
-
-                {/* Table Container */}
-                <Box pr="25px" overflowX="auto">
-                    {!isLoading && paginatedStock.length > 0 && (
-                        <Table
-                            variant="unstyled"
-                            size="sm"
-                            ml="25px"
-                        >
-                            <Thead bg={tableHeaderBg}>
-                                <Tr>
-                                    <Th
-                                        borderRight="1px"
-                                        borderColor={tableBorderColor}
-                                        py="12px"
-                                        px="8px"
-                                        fontSize="12px"
-                                        fontWeight="600"
-                                        textTransform="uppercase"
-                                        width="40px"
-                                        minW="40px"
-                                        maxW="40px"
-                                        bg={undefined}
-                                        color={tableTextColor}
-                                    >
-                                        <Checkbox
-                                            isChecked={allPageItemsSelected}
-                                            isIndeterminate={somePageItemsSelected && !allPageItemsSelected}
-                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                {(
+                    <>
+                        {/* Bulk Action Buttons - Show one set at a time */}
+                        {(selectedRows.size > 0 || editingRowIds.size > 0) && (
+                            <Flex px="25px" mb="20px" align="center" gap="3">
+                                {editingRowIds.size > 0 ? (
+                                    <>
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            {editingRowIds.size} item(s) being edited
+                                        </Text>
+                                        <Button
+                                            leftIcon={<Icon as={MdCheck} />}
+                                            colorScheme="green"
                                             size="sm"
-                                            borderColor="gray.600"
+                                            onClick={handleBulkSave}
+                                        >
+                                            Save All ({editingRowIds.size})
+                                        </Button>
+                                        <Button
+                                            leftIcon={<Icon as={MdCancel} />}
+                                            colorScheme="red"
+                                            size="sm"
+                                            onClick={handleEditCancel}
+                                        >
+                                            Cancel All
+                                        </Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            {selectedRows.size} item(s) selected
+                                        </Text>
+                                        <Button
+                                            leftIcon={<Icon as={MdEdit} />}
                                             colorScheme="blue"
-                                            sx={{
-                                                "& .chakra-checkbox__control": {
-                                                    borderColor: "gray.600",
-                                                    _checked: {
-                                                        borderColor: "blue.500",
-                                                        bg: "blue.500",
-                                                    },
-                                                },
-                                            }}
-                                        />
-                                    </Th>
-                                    {activeTab === 0 ? (
-                                        // By Vessel view columns - match the image exactly
-                                        <>
-                                            <Th {...headerProps}>VESSEL</Th>
-                                            <Th {...headerProps}>STOCKITEMID</Th>
-                                            <Th {...headerProps}>SUPPLIER</Th>
-                                            <Th {...headerProps}>PO NUMBER</Th>
-                                            <Th {...headerProps}>SO NUMBER</Th>
-                                            <Th {...headerProps}>SI NUMBER</Th>
-                                            <Th {...headerProps}>SI COMBINED</Th>
-                                            <Th {...headerProps}>DI NUMBER</Th>
-                                            <Th {...headerProps}>STOCK STATUS</Th>
-                                            <Th {...headerProps}>ORIGIN</Th>
-                                            <Th {...headerProps}>VIA HUB</Th>
-                                            <Th {...headerProps}>AP DESTINATION</Th>
-                                            <Th {...headerProps}>DESTINATION</Th>
-                                            <Th {...headerProps}>WAREHOUSE ID</Th>
-                                            <Th {...headerProps}>READY EX SUPPLIER</Th>
-                                            <Th {...headerProps}>ACTIONS</Th>
-                                        </>
-                                    ) : (
-                                        // By Client view columns - match the exact order from user requirements
-                                        <>
-                                            <Th {...headerProps}>STOCK_ID</Th>
-                                            <Th {...headerProps}>STOCK STATUS</Th>
-                                            <Th {...headerProps}>EXPECTED READY</Th>
-                                            <Th {...headerProps}>DATE ON STOCK</Th>
-                                            <Th {...headerProps}>SHIPPED DATE</Th>
-                                            <Th {...headerProps}>DELIVERED DATE</Th>
-                                            <Th {...headerProps}>WAREHOUSE ID</Th>
-                                            <Th {...headerProps}>SUPPLIER</Th>
-                                            <Th {...headerProps}>PO#</Th>
-                                            <Th {...headerProps}>DETAILS</Th>
-                                            <Th {...headerProps}>BOXES</Th>
-                                            <Th {...headerProps}>KG</Th>
-                                            <Th {...headerProps}>CBM</Th>
-                                            <Th {...headerProps}>CUR</Th>
-                                            <Th {...headerProps}>VALUE</Th>
-                                            <Th {...headerProps}>ORIGIN</Th>
-                                            <Th {...headerProps}>VIA HUB</Th>
-                                            <Th {...headerProps}>AP DEST</Th>
-                                            <Th {...headerProps}>DESTINATION</Th>
-                                            <Th {...headerProps}>SHIPPING DOC</Th>
-                                            <Th {...headerProps}>EXPORT DOC</Th>
-                                            <Th {...headerProps}>REMARKS</Th>
-                                            <Th {...headerProps}>VESSEL</Th>
-                                            <Th {...headerProps}>SO NUMBER</Th>
-                                            <Th {...headerProps}>SI NUMBER</Th>
-                                            <Th {...headerProps}>SIC NUMBER</Th>
-                                            <Th {...headerProps}>DI NUMBER</Th>
-                                            <Th {...headerProps}>ACTIONS</Th>
-                                        </>
-                                    )}
-                                </Tr>
-                            </Thead>
-                            <Tbody>
-                                {renderTableRows(paginatedStock)}
-                            </Tbody>
-                        </Table>
-                    )}
+                                            size="sm"
+                                            onClick={handleBulkEdit}
+                                        >
+                                            Edit Selected
+                                        </Button>
+                                        <Button
+                                            leftIcon={<Icon as={MdDelete} />}
+                                            colorScheme="red"
+                                            size="sm"
+                                            onClick={handleBulkDeleteClick}
+                                        >
+                                            Delete Selected
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setSelectedRows(new Set())}
+                                        >
+                                            Clear Selection
+                                        </Button>
+                                    </>
+                                )}
+                            </Flex>
+                        )}
 
-                    {!isLoading && filteredAndSortedStock.length === 0 && (
-                        <Box textAlign="center" py="16" px="25px">
-                            <VStack spacing="4">
-                                <Text color={tableTextColor} fontSize="lg" fontWeight="600">
-                                    No stock items found
-                                </Text>
-                                <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
+                        {/* Table Container */}
+                        <Box pr="25px" overflowX="auto">
+                            {(paginatedStock.length > 0 || isInitialLoading) && (
+                                <Table variant="unstyled" size="sm" ml="25px">
+                                    <Thead bg={tableHeaderBg}>
+                                        <Tr>
+                                            <Th
+                                                borderRight="1px"
+                                                borderColor={tableBorderColor}
+                                                py="12px"
+                                                px="8px"
+                                                fontSize="12px"
+                                                fontWeight="600"
+                                                textTransform="uppercase"
+                                                width="40px"
+                                                minW="40px"
+                                                maxW="40px"
+                                                color={tableTextColor}
+                                            >
+                                                <Checkbox
+                                                    isChecked={allPageItemsSelected}
+                                                    isIndeterminate={somePageItemsSelected && !allPageItemsSelected}
+                                                    onChange={(e) => handleSelectAll(e.target.checked)}
+                                                    size="sm"
+                                                    borderColor="gray.600"
+                                                    colorScheme="blue"
+                                                    sx={{
+                                                        "& .chakra-checkbox__control": {
+                                                            borderColor: "gray.600",
+                                                            _checked: {
+                                                                borderColor: "blue.500",
+                                                                bg: "blue.500",
+                                                            },
+                                                        },
+                                                    }}
+                                                />
+                                            </Th>
+                                            {activeTab === 0 ? (
+                                                <>
+                                                    <Th {...headerProps}>VESSEL</Th>
+                                                    <Th {...headerProps}>STOCKITEMID</Th>
+                                                    <Th {...headerProps}>SUPPLIER</Th>
+                                                    <Th {...headerProps}>PO NUMBER</Th>
+                                                    <Th {...headerProps}>SO NUMBER</Th>
+                                                    <Th {...headerProps}>SI NUMBER</Th>
+                                                    <Th {...headerProps}>SI COMBINED</Th>
+                                                    <Th {...headerProps}>DI NUMBER</Th>
+                                                    <Th {...headerProps}>STOCK STATUS</Th>
+                                                    <Th {...headerProps}>ORIGIN</Th>
+                                                    <Th {...headerProps}>VIA HUB</Th>
+                                                    <Th {...headerProps}>AP DESTINATION</Th>
+                                                    <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                    <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Th {...headerProps}>STOCK_ID</Th>
+                                                    <Th {...headerProps}>STOCK STATUS</Th>
+                                                    <Th {...headerProps}>EXPECTED READY</Th>
+                                                    <Th {...headerProps}>DATE ON STOCK</Th>
+                                                    <Th {...headerProps}>SHIPPED DATE</Th>
+                                                    <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                    <Th {...headerProps}>SUPPLIER</Th>
+                                                    <Th {...headerProps}>PO#</Th>
+                                                    <Th {...headerProps}>DETAILS</Th>
+                                                    <Th {...headerProps}>BOXES</Th>
+                                                    <Th {...headerProps}>KG</Th>
+                                                    <Th {...headerProps}>CBM</Th>
+                                                    <Th {...headerProps}>CUR</Th>
+                                                    <Th {...headerProps}>VALUE</Th>
+                                                    <Th {...headerProps}>ORIGIN</Th>
+                                                    <Th {...headerProps}>VIA HUB</Th>
+                                                    <Th {...headerProps}>AP DEST</Th>
+                                                    <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>SHIPPING DOC</Th>
+                                                    <Th {...headerProps}>EXPORT DOC</Th>
+                                                    <Th {...headerProps}>REMARKS</Th>
+                                                    <Th {...headerProps}>VESSEL</Th>
+                                                    <Th {...headerProps}>SO NUMBER</Th>
+                                                    <Th {...headerProps}>SI NUMBER</Th>
+                                                    <Th {...headerProps}>SIC NUMBER</Th>
+                                                    <Th {...headerProps}>DI NUMBER</Th>
+                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                </>
+                                            )}
+                                        </Tr>
+                                    </Thead>
+                                    <Tbody>
+                                        {isInitialLoading ? (
+                                            <Tr>
+                                                <Td colSpan={activeTab === 0 ? 16 : 29}>
+                                                    <Center py="10">
+                                                        <HStack spacing="4">
+                                                            <Spinner size="lg" color="#1c4a95" />
+                                                            <Text color={tableTextColor}>Loading stock list...</Text>
+                                                        </HStack>
+                                                    </Center>
+                                                </Td>
+                                            </Tr>
+                                        ) : (
+                                            renderTableRows(paginatedStock)
+                                        )}
+                                    </Tbody>
+                                </Table>
+                            )}
+
+                            {!isLoading && filteredAndSortedStock.length === 0 && (
+                                <Box textAlign="center" py="16" px="25px">
+                                    <VStack spacing="4">
+                                        <Text color={tableTextColor} fontSize="lg" fontWeight="600">
+                                            No stock items found
+                                        </Text>
+                                        <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
+                                            {(() => {
+                                                if (activeTab === 0) {
+                                                    return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0)
+                                                        ? "Try adjusting your filters to see more results."
+                                                        : "No stock items found.";
+                                                } else {
+                                                    return (clientViewClient || clientViewStatuses.size > 0)
+                                                        ? "Try adjusting your filters to see more results."
+                                                        : "No stock items found.";
+                                                }
+                                            })()}
+                                        </Text>
+                                    </VStack>
+                                </Box>
+                            )}
+                        </Box>
+
+                        {/* Results Summary and Pagination */}
+                        {filteredAndSortedStock.length > 0 && (
+                            <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
+                                <Text fontSize="sm" color={tableTextColorSecondary}>
+                                    Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
                                     {(() => {
                                         if (activeTab === 0) {
-                                            return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0)
-                                                ? "Try adjusting your filters to see more results."
-                                                : "No stock items found.";
+                                            return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
                                         } else {
-                                            return (clientViewClient || clientViewStatuses.size > 0)
-                                                ? "Try adjusting your filters to see more results."
-                                                : "No stock items found.";
+                                            return (clientViewClient || clientViewStatuses.size > 0) ? " (filtered)" : "";
                                         }
                                     })()}
+                                    {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
                                 </Text>
-                            </VStack>
-                        </Box>
-                    )}
-                </Box>
-
-                {/* Results Summary and Pagination */}
-                {filteredAndSortedStock.length > 0 && (
-                    <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
-                        <Text fontSize="sm" color={tableTextColorSecondary}>
-                            Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
-                            {(() => {
-                                if (activeTab === 0) {
-                                    return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
-                                } else {
-                                    return (clientViewClient || clientViewStatuses.size > 0) ? " (filtered)" : "";
-                                }
-                            })()}
-                            {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
-                        </Text>
-
-                        {/* Pagination Controls */}
-                        <HStack spacing="2">
-                            <IconButton
-                                icon={<ChevronLeftIcon />}
-                                aria-label="Previous page"
-                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                isDisabled={currentPage === 1}
-                                size="sm"
-                                variant="outline"
-                            />
-                            <Text fontSize="sm" color={tableTextColor} px="2">
-                                Page {currentPage} of {totalPages || 1}
-                            </Text>
-                            <IconButton
-                                icon={<ChevronRightIcon />}
-                                aria-label="Next page"
-                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                isDisabled={currentPage >= totalPages}
-                                size="sm"
-                                variant="outline"
-                            />
-                        </HStack>
-                    </Flex>
+                                <HStack spacing="2">
+                                    <IconButton
+                                        icon={<ChevronLeftIcon />}
+                                        aria-label="Previous page"
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        isDisabled={currentPage === 1}
+                                        size="sm"
+                                        variant="outline"
+                                    />
+                                    <Text fontSize="sm" color={tableTextColor} px="2">
+                                        Page {currentPage} of {totalPages || 1}
+                                    </Text>
+                                    <IconButton
+                                        icon={<ChevronRightIcon />}
+                                        aria-label="Next page"
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                        isDisabled={currentPage >= totalPages}
+                                        size="sm"
+                                        variant="outline"
+                                    />
+                                </HStack>
+                            </Flex>
+                        )}
+                    </>
                 )}
             </Card>
             {/* Bulk Delete Confirmation Dialog */}

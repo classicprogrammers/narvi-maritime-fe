@@ -69,7 +69,7 @@ api.interceptors.response.use(
         localStorage.removeItem("user");
 
         // Redirect to login page
-        window.location.href = '/auth/sign-in';
+        // window.location.href = '/auth/sign-in';
         return Promise.reject(error);
       } else {
         // Log the error but don't logout for other types of errors
