@@ -430,6 +430,46 @@ export default function Quotations() {
         try {
             setIsLoading(true);
 
+            // Frontend validation for required fields
+            if (!editingQuotation) {
+                // For create, validate required fields
+                if (!newQuotation.oc_number || !newQuotation.oc_number.trim()) {
+                    toast({
+                        title: "Validation Error",
+                        description: "SO number (OC Number) is required",
+                        status: "error",
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+
+                if (!newQuotation.partner_id) {
+                    toast({
+                        title: "Validation Error",
+                        description: "Client is required",
+                        status: "error",
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+
+                if (!newQuotation.vessel_id) {
+                    toast({
+                        title: "Validation Error",
+                        description: "Vessel is required",
+                        status: "error",
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
             let response;
             if (editingQuotation) {
                 // Update existing quotation - only send changed fields
@@ -446,17 +486,27 @@ export default function Quotations() {
                     }));
                 }
 
-                // Only send changed fields + quotation_id
+                // Only send changed fields + quotation_id, mapping destination_id -> destination for API
                 const updateData = {
                     quotation_id: editingQuotation.id,
-                    ...changedFields
+                    ...changedFields,
                 };
+
+                if (updateData.destination_id !== undefined) {
+                    updateData.destination = updateData.destination_id;
+                    delete updateData.destination_id;
+                }
 
                 response = await quotationsAPI.updateQuotation(updateData);
             } else {
                 // Create new quotation - send all data but ensure only vendor_id
+                // Build payload with required fields and optional fields
                 const quotationData = {
-                    ...newQuotation,
+                    partner_id: newQuotation.partner_id,
+                    client_id: newQuotation.partner_id, // Also send as client_id in case backend expects this
+                    vessel_id: newQuotation.vessel_id,
+                    oc_number: newQuotation.oc_number.trim(),
+                    done: newQuotation.done || "active",
                     quotation_lines: (newQuotation.quotation_lines || []).map(line => ({
                         ...line,
                         // Ensure only vendor_id is sent, remove any vendor_name if it exists
@@ -465,6 +515,26 @@ export default function Quotations() {
                         vendor_name: undefined
                     }))
                 };
+
+                // Add optional fields only if they have values
+                if (newQuotation.est_to_usd) quotationData.est_to_usd = newQuotation.est_to_usd;
+                if (newQuotation.est_profit_usd) quotationData.est_profit_usd = newQuotation.est_profit_usd;
+                if (newQuotation.eta) quotationData.eta = newQuotation.eta;
+                if (newQuotation.eta_date) quotationData.eta_date = newQuotation.eta_date;
+                if (newQuotation.deadline_date) quotationData.deadline_date = newQuotation.deadline_date;
+                if (newQuotation.deadline_info) quotationData.deadline_info = newQuotation.deadline_info;
+                if (newQuotation.estimated_to) quotationData.estimated_to = newQuotation.estimated_to;
+                if (newQuotation.estimated_profit) quotationData.estimated_profit = newQuotation.estimated_profit;
+                if (newQuotation.client_remark) quotationData.client_remark = newQuotation.client_remark;
+                if (newQuotation.internal_remark) quotationData.internal_remark = newQuotation.internal_remark;
+                if (newQuotation.delivery_note) quotationData.delivery_note = newQuotation.delivery_note;
+                if (newQuotation.destination_id) quotationData.destination = newQuotation.destination_id;
+                if (newQuotation.usd_roe) quotationData.usd_roe = newQuotation.usd_roe;
+                if (newQuotation.general_mu) quotationData.general_mu = newQuotation.general_mu;
+                if (newQuotation.caf) quotationData.caf = newQuotation.caf;
+
+                // Log payload for debugging
+                console.log("Creating quotation with payload:", quotationData);
 
                 response = await quotationsAPI.createQuotation(quotationData);
             }
@@ -1076,8 +1146,8 @@ export default function Quotations() {
                                     />
                                 </FormControl>
 
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>OC Number</FormLabel>
+                                <FormControl isRequired>
+                                    <FormLabel fontSize="sm" color={textColor}>OC Number (SO Number)</FormLabel>
                                     <Input
                                         size="sm"
                                         value={newQuotation.oc_number}

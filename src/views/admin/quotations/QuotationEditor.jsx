@@ -12,6 +12,7 @@ import { getCustomersApi } from "../../../api/customer";
 import vesselsAPI from "../../../api/vessels";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
+import quotationsAPI from "../../../api/quotations";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
 
@@ -331,21 +332,178 @@ export default function QuotationEditor() {
         try {
             setIsSaving(true);
 
-            toast({
-                title: isEdit ? "Quotation Updated" : "Quotation Created",
-                status: "success",
-                description: "Quotation saved successfully."
+            // Frontend validation for required fields
+            if (!form.oc_number || !form.oc_number.trim()) {
+                toast({
+                    title: "Validation Error",
+                    description: "SO number (OC Number) is required",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                setIsSaving(false);
+                return;
+            }
+
+            if (!form.partner_id) {
+                toast({
+                    title: "Validation Error",
+                    description: "Client is required",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                setIsSaving(false);
+                return;
+            }
+
+            if (!form.vessel_id) {
+                toast({
+                    title: "Validation Error",
+                    description: "Vessel is required",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                setIsSaving(false);
+                return;
+            }
+
+            // Build quotation_lines payload - map form fields to API fields
+            const quotationLines = form.quotation_lines.map(line => {
+                const linePayload = {};
+                
+                // Map fields that exist in both form and API
+                if (line.name) linePayload.name = line.name;
+                if (line.vendor_id) linePayload.vendor_id = line.vendor_id;
+                if (line.vendor_rate !== undefined && line.vendor_rate !== "") linePayload.vendor_rate = parseFloat(line.vendor_rate) || 0;
+                if (line.item_name) linePayload.item_name = parseInt(line.item_name) || null;
+                if (line.rate !== undefined && line.rate !== "") linePayload.rate = parseFloat(line.rate) || 0;
+                if (line.rate_remark) linePayload.rate_remark = line.rate_remark;
+                if (line.free_text) linePayload.free_text = line.free_text;
+                if (line.remark) linePayload.remark = line.remark;
+                if (line.pre_text !== undefined) linePayload.pre_text = line.pre_text;
+                if (line.currency_override) linePayload.currency_override = parseInt(line.currency_override) || null;
+                if (line.quantity !== undefined) linePayload.quantity = parseFloat(line.quantity) || 0;
+                if (line.buy_rate_calculation !== undefined && line.buy_rate_calculation !== "") linePayload.buy_rate_calculation = parseFloat(line.buy_rate_calculation) || 0;
+                if (line.uom_id) linePayload.uom = parseInt(line.uom_id) || null;
+                if (line.cost_actual !== undefined && line.cost_actual !== "") linePayload.cost_actual = parseFloat(line.cost_actual) || 0;
+                if (line.fixed !== undefined) linePayload.fixed = line.fixed;
+                if (line.sale_currency) linePayload.sale_currency = parseInt(line.sale_currency) || null;
+                if (line.cost_sum !== undefined && line.cost_sum !== "") linePayload.cost_sum = parseFloat(line.cost_sum) || 0;
+                if (line.roe !== undefined && line.roe !== "") linePayload.roe = parseFloat(line.roe) || 0;
+                if (line.cost_usd !== undefined && line.cost_usd !== "") linePayload.cost_usd = parseFloat(line.cost_usd) || 0;
+                if (line.mu_percent !== undefined && line.mu_percent !== "") linePayload.mu_percent = parseFloat(line.mu_percent) || 0;
+                if (line.mu_amount !== undefined && line.mu_amount !== "") linePayload.mu_amount = parseFloat(line.mu_amount) || 0;
+                if (line.qt_rate !== undefined && line.qt_rate !== "") linePayload.qt_rate = parseFloat(line.qt_rate) || 0;
+                if (line.amended_rate !== undefined && line.amended_rate !== "") linePayload.amended_rate = parseFloat(line.amended_rate) || 0;
+                if (line.rate_to_client !== undefined && line.rate_to_client !== "") linePayload.rate_to_client = parseFloat(line.rate_to_client) || 0;
+                if (line.group_free_text) linePayload.group_free_text = line.group_free_text;
+                if (line.status) linePayload.status = line.status;
+                if (line.location) linePayload.location_id = parseInt(line.location) || null;
+
+                // Include id if editing existing line
+                if (line.id) linePayload.id = line.id;
+
+                return linePayload;
             });
 
-            // Simulate delay
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Build main payload
+            const payload = {
+                partner_id: form.partner_id,
+                client_id: form.partner_id, // Also send as client_id in case backend expects this
+                vessel_id: form.vessel_id,
+                oc_number: form.oc_number.trim(),
+                done: form.done || "active",
+                quotation_lines: quotationLines
+            };
 
-        } catch (e) {
+            // Add optional fields only if they have values
+            if (form.est_to_usd) payload.est_to_usd = form.est_to_usd;
+            if (form.est_profit_usd) payload.est_profit_usd = form.est_profit_usd;
+            if (form.eta) payload.eta = form.eta;
+            if (form.eta_date) payload.eta_date = form.eta_date;
+            if (form.deadline_date) payload.deadline_date = form.deadline_date;
+            if (form.deadline_info) payload.deadline_info = form.deadline_info;
+            if (form.estimated_to) payload.estimated_to = form.estimated_to;
+            if (form.estimated_profit) payload.estimated_profit = form.estimated_profit;
+            if (form.client_remark) payload.client_remark = form.client_remark;
+            if (form.internal_remark) payload.internal_remark = form.internal_remark;
+            if (form.delivery_note) payload.delivery_note = form.delivery_note;
+            if (form.destination_id) payload.destination = form.destination_id;
+            if (form.usd_roe) payload.usd_roe = form.usd_roe;
+            if (form.general_mu) payload.general_mu = form.general_mu;
+            if (form.caf) payload.caf = form.caf;
+
+            let response;
+            if (isEdit) {
+                // Update existing quotation
+                payload.quotation_id = parseInt(id);
+                response = await quotationsAPI.updateQuotation(payload);
+            } else {
+                // Create new quotation
+                response = await quotationsAPI.createQuotation(payload);
+            }
+
+            // Extract message from API response
+            let message = isEdit ? "Quotation updated successfully" : "Quotation created successfully";
+            let status = "success";
+
+            if (response && response.result) {
+                if (response.result && response.result.message) {
+                    message = response.result.message;
+                    status = response.result.status;
+                } else if (response.result.message) {
+                    message = response.result.message;
+                    status = response.result.status;
+                }
+            }
+
+            // Check if the response indicates an error
+            if (status === "error") {
+                toast({
+                    title: "Error",
+                    description: message,
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                setIsSaving(false);
+                return;
+            }
+
+            // Success case
             toast({
-                title: "Save failed",
+                title: "Success",
+                description: message,
+                status: "success",
+                duration: 3000,
+                isClosable: true,
+            });
+
+            // Navigate back to quotations list
+            history.push('/admin/quotations');
+
+        } catch (error) {
+            // Extract error message from API response
+            let errorMessage = `Failed to ${isEdit ? 'update' : 'create'} quotation`;
+
+            if (error.response && error.response.data) {
+                if (error.response.data.result && error.response.data.result.message) {
+                    errorMessage = error.response.data.result.message;
+                } else if (error.response.data.message) {
+                    errorMessage = error.response.data.message;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast({
+                title: "Error",
+                description: errorMessage,
                 status: "error",
-                duration: 8000,
-                isClosable: true
+                duration: 5000,
+                isClosable: true,
             });
         } finally {
             setIsSaving(false);
