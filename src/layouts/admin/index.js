@@ -23,9 +23,11 @@ export default function Dashboard(props) {
   const { user, checkAuth } = useUser();
   
   // Check auth on mount to ensure user data is loaded from localStorage
+  // Run this ONLY once on mount to avoid update loops
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Filter routes based on user type - use useMemo to recalculate when user changes
   const filteredRoutes = useMemo(() => {

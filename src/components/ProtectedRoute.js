@@ -30,13 +30,13 @@ const ProtectedRoute = ({ component: Component, ...rest }) => {
     }
   }, [checkAuthentication, hasChecked]);
 
-  // useEffect(() => {
-  //   // If not authenticated and no token, redirect to login
-  //   // Only run this after the initial check is complete
-  //   if (!isChecking && !isAuthenticated && !token) {
-  //     history.push("/auth/sign-in");
-  //   }
-  // }, [isAuthenticated, token, history, isChecking]);
+  useEffect(() => {
+    // If not authenticated and no token, redirect to login
+    // Only run this after the initial check is complete
+    if (!isChecking && !isAuthenticated && !token) {
+      history.push("/auth/sign-in");
+    }
+  }, [isAuthenticated, token, history, isChecking]);
 
   // Show loading spinner while checking authentication
   if (isChecking) {
@@ -48,9 +48,9 @@ const ProtectedRoute = ({ component: Component, ...rest }) => {
   }
 
   // // Show loading or redirect if not authenticated
-  // if (!isAuthenticated || !token) {
-  //   return null; // This will trigger the redirect in useEffect
-  // }
+  if (!isAuthenticated || !token) {
+    return null; // This will trigger the redirect in useEffect
+  }
 
   return <Route {...rest} render={(props) => <Component {...props} />} />;
 };

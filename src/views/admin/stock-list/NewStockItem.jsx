@@ -86,7 +86,8 @@ export default function StockForm() {
         pic: "",
         stockStatus: "",
         supplier: "",
-        poNumbers: [], // Array of PO numbers - one item can have multiple PO numbers
+        // Single PO number field (multiple PO Numbers removed)
+        poNumber: "",
         warehouseId: "",
         shippingDoc: "",
         items: "",
@@ -508,13 +509,8 @@ export default function StockForm() {
             pic: getFieldValue(stock.pic_id) || getFieldValue(stock.pic) || "", // PIC is now free text
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
-            // Parse PO numbers from comma-separated or newline-separated string
-            poNumbers: (() => {
-                const poValue = getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "";
-                if (!poValue) return [];
-                // Split by comma or newline, trim each, and filter out empty strings
-                return poValue.split(/[,\n]/).map(p => p.trim()).filter(p => p.length > 0);
-            })(),
+            // Single PO number - keep the raw value from backend
+            poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             warehouseId: getFieldValue(stock.warehouse_id),
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
@@ -646,10 +642,8 @@ export default function StockForm() {
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
-            // Send PO numbers as comma-separated string
-            po_text: Array.isArray(rowData.poNumbers) && rowData.poNumbers.length > 0
-                ? rowData.poNumbers.join(", ")
-                : "",
+            // Single PO number (multiple PO Numbers removed)
+            po_text: rowData.poNumber || "",
             pic: rowData.pic || "", // PIC is free text
             item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
@@ -723,7 +717,7 @@ export default function StockForm() {
                 // Send all lines in a single payload
                 const payload = { lines };
                 const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
-                
+
                 if (result && result.result && result.result.status === 'success') {
                     toast({
                         title: 'Success',
@@ -819,7 +813,7 @@ export default function StockForm() {
 
 
     if (isLoading) {
-    return (
+        return (
             <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
                 <Flex justify="center" align="center" h="200px">
                     <VStack spacing="4">
@@ -855,30 +849,30 @@ export default function StockForm() {
 
                 <HStack spacing="3">
                     {!isEditing && (
-                    <Button
+                        <Button
                             leftIcon={<Icon as={MdAdd} />}
                             bg="blue.500"
+                            color="white"
+                            size="sm"
+                            px="6"
+                            py="3"
+                            borderRadius="md"
+                            _hover={{ bg: "blue.600" }}
+                            onClick={handleAddRow}
+                        >
+                            Add Row
+                        </Button>
+                    )}
+                    <Button
+                        leftIcon={<Icon as={MdSave} />}
+                        bg="green.500"
                         color="white"
                         size="sm"
                         px="6"
                         py="3"
                         borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={handleAddRow}
-                    >
-                            Add Row
-                    </Button>
-                    )}
-                <Button
-                    leftIcon={<Icon as={MdSave} />}
-                    bg="green.500"
-                    color="white"
-                    size="sm"
-                    px="6"
-                    py="3"
-                    borderRadius="md"
-                    _hover={{ bg: "green.600" }}
-                    onClick={handleSaveStockItem}
+                        _hover={{ bg: "green.600" }}
+                        onClick={handleSaveStockItem}
                         isLoading={updateLoading}
                         loadingText="Saving..."
                     >
@@ -887,7 +881,7 @@ export default function StockForm() {
                             : isEditing
                                 ? "Update Stock Item"
                                 : `Save ${formRows.length} Item(s)`}
-                </Button>
+                    </Button>
                 </HStack>
             </Flex>
 
@@ -902,7 +896,7 @@ export default function StockForm() {
                     borderBottom="1px"
                     borderColor={borderColor}
                 >
-                <HStack spacing="2">
+                    <HStack spacing="2">
                         <Button
                             size="xs"
                             onClick={() => {
@@ -918,7 +912,7 @@ export default function StockForm() {
                         </Button>
                         <Text fontSize="sm" color={textColor}>
                             Item {currentItemIndex + 1} of {selectedItems.length}
-                    </Text>
+                        </Text>
                         <Button
                             size="xs"
                             onClick={() => {
@@ -932,11 +926,11 @@ export default function StockForm() {
                         >
                             Next
                         </Button>
-                </HStack>
+                    </HStack>
                     <Text fontSize="xs" color="gray.500">
                         Changes will apply to all {selectedItems.length} selected items
                     </Text>
-            </Flex>
+                </Flex>
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
@@ -953,7 +947,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Numbers</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Items</Th>
@@ -979,10 +973,10 @@ export default function StockForm() {
                                 <Tr key={row.id}>
                                     {isEditing && (
                                         <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                            <Input
                                                 value={row.stockItemId || ""}
                                                 isReadOnly
-                                    size="sm"
+                                                size="sm"
                                                 bg={useColorModeValue("gray.100", "gray.700")}
                                                 color={inputText}
                                             />
@@ -1019,21 +1013,21 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.pic || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
                                             placeholder="Enter PIC"
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Select
+                                        <Select
                                             value={row.stockStatus}
                                             onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1049,7 +1043,7 @@ export default function StockForm() {
                                             <option value="delivered">Delivered</option>
                                             <option value="irregular">Irregularities</option>
                                             <option value="cancelled">Cancelled</option>
-                                </Select>
+                                        </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
@@ -1066,86 +1060,46 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
+                                    {/* Single PO Number input (multiple PO Numbers functionality removed) */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <VStack spacing="2" align="stretch">
-                                            <Textarea
-                                                value={Array.isArray(row.poNumbers) ? row.poNumbers.join(", ") : row.poNumbers || ""}
-                                                onChange={(e) => {
-                                                    // Parse input: split by comma or newline, trim, filter empty
-                                                    const inputValue = e.target.value;
-                                                    const parsed = inputValue.split(/[,\n]/)
-                                                        .map(p => p.trim())
-                                                        .filter(p => p.length > 0);
-                                                    handleInputChange(rowIndex, "poNumbers", parsed);
-                                                }}
-                                                placeholder="Enter PO numbers (comma or newline separated)"
-                                    size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                rows={Math.max(2, Math.min(Array.isArray(row.poNumbers) ? row.poNumbers.length + 1 : 2, 4))}
-                                                resize="vertical"
-                                            />
-                                            {Array.isArray(row.poNumbers) && row.poNumbers.length > 0 && (
-                                                <HStack spacing="1" flexWrap="wrap">
-                                                    {row.poNumbers.map((po, poIndex) => (
-                                                        <HStack
-                                                            key={poIndex}
-                                                            spacing="1"
-                                                            bg={useColorModeValue("blue.100", "blue.800")}
-                                                            px="2"
-                                                            py="1"
-                                                            borderRadius="md"
-                                                        >
-                                                            <Text fontSize="xs" color={useColorModeValue("blue.800", "blue.100")}>
-                                                                {po}
-                                                            </Text>
-                                                            <IconButton
-                                                                icon={<Icon as={MdClose} />}
-                                                                size="xs"
-                                                                variant="ghost"
-                                                                aria-label={`Remove PO ${po}`}
-                                                                onClick={() => {
-                                                                    const updated = [...row.poNumbers];
-                                                                    updated.splice(poIndex, 1);
-                                                                    handleInputChange(rowIndex, "poNumbers", updated);
-                                                                }}
-                                                                _hover={{ bg: useColorModeValue("blue.200", "blue.700") }}
-                                                            />
-                                                        </HStack>
-                                                    ))}
-                                                </HStack>
-                                            )}
-                        </VStack>
+                                        <Input
+                                            value={row.poNumber || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
+                                            placeholder="Enter PO Number"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.warehouseId}
                                             onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.shippingDoc}
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.items}
                                             onChange={(e) => handleInputChange(rowIndex, "items", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1207,22 +1161,22 @@ export default function StockForm() {
                                         </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.lwhText}
                                             onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.details}
                                             onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1277,11 +1231,11 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                             placeholder="Enter Via HUB"
-                                    size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1292,7 +1246,7 @@ export default function StockForm() {
                                             type="date"
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
-                                        size="sm"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1303,7 +1257,7 @@ export default function StockForm() {
                                             value={row.remarks}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
                                             placeholder=""
-                                        size="sm"
+                                            size="sm"
                                             rows={2}
                                             bg={inputBg}
                                             color={inputText}

@@ -390,6 +390,7 @@ const SoNumberTab = () => {
           />
           <Button
             size="sm"
+            sx={{padding: "0 10px"}}
             leftIcon={<Icon as={MdAdd} />}
             colorScheme="blue"
             onClick={handleCreate}
