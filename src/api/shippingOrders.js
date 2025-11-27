@@ -19,7 +19,8 @@ export const getShippingOrders = async () => {
 // Get shipping order by ID
 export const getShippingOrderById = async (id) => {
   try {
-    const response = await api.get(`/api/shipping/orders/${id}`);
+    // Backend expects POST /api/shipping/order with { id }
+    const response = await api.post('/api/shipping/order', { id });
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
@@ -48,7 +49,7 @@ export const createShippingOrder = async (orderData) => {
   }
 };
 
-// Update shipping order - only send changed parameters
+// Update shipping order - only send changed parameters (matching backend spec)
 export const updateShippingOrder = async (id, orderData, originalData = {}) => {
   try {
     // Helper function to check if a value has actually changed
@@ -80,12 +81,22 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       return newValue !== oldValue;
     };
 
-    // Build payload with only changed fields
+    // Build payload with only changed fields (backend fields)
     const payload = { id };
     const fieldsToCheck = [
-      'name', 'user_id', 'partner_id', 'vessel_id', 'destination_id',
-      'quotation_id', 'date_order', 'eta_date', 'est_to_usd', 'est_profit_usd',
-      'deadline_info', 'internal_remark', 'client_remark', 'done'
+      'done',
+      'pic',
+      'client_id',
+      'vessel_id',
+      'destination_id',
+      'quotation_id',
+      'eta_date',
+      'date_order',
+      'deadline_info',
+      'est_to_usd',
+      'est_profit_usd',
+      'internal_remark',
+      'client_remark',
     ];
 
     fieldsToCheck.forEach(field => {

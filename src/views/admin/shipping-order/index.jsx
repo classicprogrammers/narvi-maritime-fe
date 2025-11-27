@@ -1,6 +1,6 @@
 import React from "react";
 import { Box } from "@chakra-ui/react";
-import SoNumberTab from "../stock-list/SoNumberTab";
+import SoNumberTab from "./SoNumberTab";
 
 export default function ShippingOrder() {
     return (

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   AlertDialog,
   AlertDialogBody,
@@ -40,6 +40,7 @@ import {
   useColorModeValue,
   useDisclosure,
   useToast,
+  Select,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -48,6 +49,18 @@ import {
   MdRefresh,
   MdSearch,
 } from "react-icons/md";
+import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import {
+  getCustomersForSelect,
+  getVesselsForSelect,
+  getDestinationsForSelect,
+} from "../../../api/entitySelects";
+import {
+  getShippingOrders,
+  createShippingOrder,
+  updateShippingOrder,
+  deleteShippingOrder,
+} from "../../../api/shippingOrders";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -77,47 +90,6 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
-const DUMMY_ORDERS = [
-  {
-    id: 1,
-    so_number: "SO 2835",
-    date_created: "2025-06-13",
-    done: false,
-    pic: "Igor",
-    client: "INNOSPEC",
-    vessel_name: "INVOICE MAY",
-    destination: "INVOICE MAY DEST",
-    next_action: "Pending PO to finalise invoice",
-    eta_date: "2025-04-30",
-    deadline_info: "30/04/2025",
-    est_to_usd: 120000,
-    est_profit_usd: 45000,
-    internal_remark: "Accumulate SO for invoice purpose ex May deliveries",
-    client_remark: "",
-    quotation: "Q-2025-044",
-    timestamp: "13/06/2025 12:44:22",
-  },
-  {
-    id: 2,
-    so_number: "SO 2840",
-    date_created: "2025-06-18",
-    done: true,
-    pic: "Ainun",
-    client: "ESSO",
-    vessel_name: "MV LUMINOUS",
-    destination: "SINGAPORE",
-    next_action: "Finalize docs",
-    eta_date: "2025-05-02",
-    deadline_info: "02/05/2025",
-    est_to_usd: 95000,
-    est_profit_usd: 30000,
-    internal_remark: "SO closed, awaiting payment",
-    client_remark: "Thanks team!",
-    quotation: "Q-2025-052",
-    timestamp: "18/06/2025 09:12:05",
-  },
-];
-
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -129,17 +101,32 @@ const SoNumberTab = () => {
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
   const toast = useToast();
-  const [orders, setOrders] = useState(DUMMY_ORDERS);
+  const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [vessels, setVessels] = useState([]);
+  const [destinations, setDestinations] = useState([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [isLoadingVessels, setIsLoadingVessels] = useState(false);
+  const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
 
   const resetForm = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const localTimestamp = `${pad(now.getDate())}/${pad(
+      now.getMonth() + 1
+    )}/${now.getFullYear()} ${pad(now.getHours())}:${pad(
+      now.getMinutes()
+    )}:${pad(now.getSeconds())}`;
+
     setFormData({
       id: null,
       so_number: "",
@@ -147,8 +134,11 @@ const SoNumberTab = () => {
       done: false,
       pic: "",
       client: "",
+      client_id: null,
       vessel_name: "",
+      vessel_id: null,
       destination: "",
+      destination_id: null,
       next_action: "",
       eta_date: "",
       deadline_info: "",
@@ -157,9 +147,112 @@ const SoNumberTab = () => {
       internal_remark: "",
       client_remark: "",
       quotation: "",
-      timestamp: "",
+      timestamp: localTimestamp,
     });
   };
+
+  // Normalize backend data into the shape the table expects
+  const normalizeOrder = (order) => {
+    if (!order) return null;
+    return {
+      id: order.id,
+      so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
+      date_created: order.date_created || order.date_order,
+      done: order.done === "done" || order.done === true,
+      pic: order.pic || order.pic_name || "",
+      client: order.client || order.client_name || "",
+      client_id: order.client_id || order.partner_id || null,
+      vessel_name: order.vessel_name || order.vessel || "",
+      vessel_id: order.vessel_id || null,
+      destination: order.destination || order.destination_name || "",
+      destination_id: order.destination_id || null,
+      next_action: order.next_action || "",
+      eta_date: order.eta_date,
+      deadline_info: order.deadline_info,
+      est_to_usd: order.est_to_usd,
+      est_profit_usd: order.est_profit_usd,
+      internal_remark: order.internal_remark,
+      client_remark: order.client_remark,
+      quotation: order.quotation || order.quotation_name || "",
+      timestamp: order.timestamp || order.so_create_date || order.date_order,
+      _raw: order,
+    };
+  };
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await getShippingOrders();
+
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.orders)
+          ? data.orders
+          : Array.isArray(data?.result)
+            ? data.result
+            : Array.isArray(data?.data)
+              ? data.data
+              : [];
+
+      const normalized = list
+        .map(normalizeOrder)
+        .filter(Boolean)
+        .sort((a, b) => (b.id || 0) - (a.id || 0));
+
+      setOrders(normalized);
+    } catch (error) {
+      console.error("Failed to fetch shipping orders", error);
+      toast({
+        title: "Failed to load shipping orders",
+        description: error.message || "Please try again",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Fetch lookup data for client, vessel, destination selects
+  useEffect(() => {
+    const fetchLookups = async () => {
+      try {
+        setIsLoadingClients(true);
+        setIsLoadingVessels(true);
+        setIsLoadingDestinations(true);
+
+        const [clientsData, vesselsData, destinationsData] = await Promise.all([
+          getCustomersForSelect().catch(() => []),
+          getVesselsForSelect().catch(() => []),
+          getDestinationsForSelect().catch(() => []),
+        ]);
+
+        setClients(clientsData || []);
+        setVessels(vesselsData || []);
+        setDestinations(destinationsData || []);
+      } catch (error) {
+        console.error("Failed to fetch SO lookups", error);
+        toast({
+          title: "Lookup load failed",
+          description: "Unable to load clients / vessels / destinations",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingClients(false);
+        setIsLoadingVessels(false);
+        setIsLoadingDestinations(false);
+      }
+    };
+
+    fetchLookups();
+  }, [toast]);
 
   const filteredOrders = useMemo(() => {
     if (!searchValue) return orders;
@@ -210,7 +303,7 @@ const SoNumberTab = () => {
     if (!orderToDelete) return;
 
     try {
-      setOrders((prev) => prev.filter((order) => order.id !== orderToDelete.id));
+      await deleteShippingOrder(orderToDelete.id);
       toast({
         title: "Order deleted",
         description: `${orderToDelete.so_number || "SO"} has been removed`,
@@ -218,6 +311,7 @@ const SoNumberTab = () => {
         duration: 3000,
         isClosable: true,
       });
+      await fetchOrders();
     } catch (err) {
       toast({
         title: "Delete failed",
@@ -233,11 +327,41 @@ const SoNumberTab = () => {
   };
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 600);
+    fetchOrders();
   };
 
-  const handleFormSubmit = () => {
+  const buildPayloadFromForm = (data) => {
+    const toNumber = (v) => {
+      if (v === null || v === undefined || v === "") return null;
+      const num = Number(v);
+      return Number.isNaN(num) ? null : num;
+    };
+
+    const toDateTime = (dateStr) => {
+      if (!dateStr) return null;
+      // Backend expects "YYYY-MM-DD 00:00:00" format
+      return `${dateStr} 00:00:00`;
+    };
+
+    return {
+      done: data.done ? "done" : "draft",
+      pic: data.pic || "",
+      // These are left null for now; can be wired to lookup dropdowns later
+      client_id: data.client_id || null,
+      vessel_id: data.vessel_id || null,
+      destination_id: data.destination_id || null,
+      quotation_id: data.quotation_id || null,
+      eta_date: toDateTime(data.eta_date),
+      date_order: toDateTime(data.date_created || data.date_order),
+      deadline_info: data.deadline_info || "",
+      est_to_usd: toNumber(data.est_to_usd),
+      est_profit_usd: toNumber(data.est_profit_usd),
+      internal_remark: data.internal_remark || "",
+      client_remark: data.client_remark || "",
+    };
+  };
+
+  const handleFormSubmit = async () => {
     if (!formData || !formData.so_number || !formData.client || !formData.vessel_name) {
       toast({
         title: "Missing details",
@@ -249,28 +373,43 @@ const SoNumberTab = () => {
       return;
     }
 
-    if (editingOrder) {
-      setOrders((prev) =>
-        prev.map((order) =>
-          order.id === editingOrder.id ? { ...formData, id: editingOrder.id } : order
-        )
-      );
+    try {
+      setIsSaving(true);
+
+      if (editingOrder) {
+        const payload = buildPayloadFromForm(formData);
+        await updateShippingOrder(editingOrder.id, payload, editingOrder._raw || {});
+        toast({
+          title: "SO updated",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        const payload = buildPayloadFromForm(formData);
+        await createShippingOrder(payload);
+        toast({
+          title: "SO created",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+
+      await fetchOrders();
+      handleFormClose();
+    } catch (error) {
+      console.error("Failed to save shipping order", error);
       toast({
-        title: "SO updated",
-        status: "success",
-        duration: 3000,
+        title: "Save failed",
+        description: error.message || "Unable to save shipping order",
+        status: "error",
+        duration: 5000,
         isClosable: true,
       });
-    } else {
-      setOrders((prev) => [{ ...formData, id: Date.now() }, ...prev]);
-      toast({
-        title: "SO created",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+    } finally {
+      setIsSaving(false);
     }
-    handleFormClose();
   };
 
   const getSoNumber = (order) => {
@@ -318,7 +457,7 @@ const SoNumberTab = () => {
         <Td>{formatDate(order.date_order || order.create_date)}</Td>
         <Td>
           <Badge colorScheme={order.done ? "green" : "orange"}>
-            {order.done ? "Done" : "Active"}
+            {order.done ? "Active" : "Pending POD"}
           </Badge>
         </Td>
         <Td>{order.pic || "-"}</Td>
@@ -387,13 +526,14 @@ const SoNumberTab = () => {
             aria-label="Refresh SO data"
             onClick={handleRefresh}
             isLoading={isLoading}
+            variant="outline"
           />
           <Button
             size="sm"
-            sx={{padding: "0 10px"}}
             leftIcon={<Icon as={MdAdd} />}
             colorScheme="blue"
             onClick={handleCreate}
+            px={6}
           >
             New SO
           </Button>
@@ -476,14 +616,24 @@ const SoNumberTab = () => {
                       }
                     />
                   </FormControl>
-                  <FormControl display="flex" alignItems="center" flex="1">
-                    <FormLabel mb="0">Done</FormLabel>
-                    <Switch
-                      isChecked={formData.done}
+                  <FormControl flex="1">
+                    <FormLabel>Done</FormLabel>
+                    <Select
+                      size="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      value={formData.done ? "active" : "pending_pod"}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, done: e.target.checked }))
+                        setFormData((prev) => ({
+                          ...prev,
+                          done: e.target.value === "active",
+                        }))
                       }
-                    />
+                    >
+                      <option value="active">Active</option>
+                      <option value="pending_pod">Pending POD</option>
+                    </Select>
                   </FormControl>
                 </Flex>
 
@@ -499,20 +649,38 @@ const SoNumberTab = () => {
                   </FormControl>
                   <FormControl flex="1" isRequired>
                     <FormLabel>Client</FormLabel>
-                    <Input
-                      value={formData.client}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, client: e.target.value }))
+                    <SimpleSearchableSelect
+                      value={formData.client_id}
+                      onChange={(value) =>
+                        setFormData((prev) => ({ ...prev, client_id: value }))
                       }
+                      options={clients}
+                      placeholder="Select client"
+                      displayKey="name"
+                      valueKey="id"
+                      isLoading={isLoadingClients}
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      size="sm"
                     />
                   </FormControl>
                   <FormControl flex="1" isRequired>
                     <FormLabel>Vessel</FormLabel>
-                    <Input
-                      value={formData.vessel_name}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, vessel_name: e.target.value }))
+                    <SimpleSearchableSelect
+                      value={formData.vessel_id}
+                      onChange={(value) =>
+                        setFormData((prev) => ({ ...prev, vessel_id: value }))
                       }
+                      options={vessels}
+                      placeholder="Select vessel"
+                      displayKey="name"
+                      valueKey="id"
+                      isLoading={isLoadingVessels}
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      size="sm"
                     />
                   </FormControl>
                 </Flex>
@@ -520,11 +688,20 @@ const SoNumberTab = () => {
                 <Flex gap="4" flexWrap="wrap">
                   <FormControl flex="1">
                     <FormLabel>Destination</FormLabel>
-                    <Input
-                      value={formData.destination}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, destination: e.target.value }))
+                    <SimpleSearchableSelect
+                      value={formData.destination_id}
+                      onChange={(value) =>
+                        setFormData((prev) => ({ ...prev, destination_id: value }))
                       }
+                      options={destinations}
+                      placeholder="Select destination"
+                      displayKey="name"
+                      valueKey="id"
+                      isLoading={isLoadingDestinations}
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      size="sm"
                     />
                   </FormControl>
                   <FormControl flex="1">
@@ -627,7 +804,7 @@ const SoNumberTab = () => {
             <Button variant="ghost" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>
-            <Button colorScheme="blue" onClick={handleFormSubmit}>
+            <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
               {editingOrder ? "Save Changes" : "Create SO"}
             </Button>
           </ModalFooter>

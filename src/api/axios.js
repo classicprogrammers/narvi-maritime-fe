@@ -15,6 +15,7 @@ api.interceptors.request.use(
     if (token) {
       // Validate token format before sending
       if (token && token.trim() !== '') {
+        // Standard Bearer header
         config.headers.Authorization = `Bearer ${token}`;
       } else {
         console.warn("Empty or invalid token found, not adding to request:", config.url);
