@@ -42,7 +42,7 @@ export default function QuotationDetail() {
                 vesselsAPI.getVessels(),
                 currenciesAPI.getCurrencies(),
                 locationsAPI.getLocations(),
-                api.get('/api/vendor/list').then(r => r.data).catch(() => ({ vendors: [] })),
+                api.get('/api/agents').then(r => r.data).catch(() => ({ vendors: [] })),
                 api.get('/api/products').then(r => r.data).catch(() => ({ products: [] })),
             ]);
             setCustomers(cust.customers || []);

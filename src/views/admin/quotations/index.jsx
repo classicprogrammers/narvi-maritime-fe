@@ -333,13 +333,17 @@ export default function Quotations() {
         }
     }, []);
 
-    // Fetch agents
+    // Fetch agents (from /api/agents instead of /api/vendor/list)
     const fetchAgents = useCallback(async () => {
         try {
-            const response = await api.get("/api/vendor/list");
+            const response = await api.get("/api/agents");
             const result = response.data;
             if (result.vendors && Array.isArray(result.vendors)) {
                 setAgents(result.vendors);
+            } else if (result.agents && Array.isArray(result.agents)) {
+                setAgents(result.agents);
+            } else if (Array.isArray(result)) {
+                setAgents(result);
             } else {
                 setAgents([]);
             }

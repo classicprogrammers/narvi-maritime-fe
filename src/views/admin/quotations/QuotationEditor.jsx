@@ -298,8 +298,12 @@ export default function QuotationEditor() {
         }
 
         try {
-            const vendorData = await api.get('/api/vendor/list');
-            const vendorsList = vendorData.data.vendors || [];
+            const vendorData = await api.get('/api/agents');
+            const result = vendorData.data;
+            const vendorsList =
+                (result && Array.isArray(result.vendors) && result.vendors) ||
+                (result && Array.isArray(result.agents) && result.agents) ||
+                (Array.isArray(result) ? result : []);
             setAgents(vendorsList);
         } catch (error) {
             setAgents([]);

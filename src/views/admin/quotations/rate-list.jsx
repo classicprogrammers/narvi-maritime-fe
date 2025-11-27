@@ -244,19 +244,23 @@ export default function RateList() {
     const inputText = useColorModeValue("gray.700", "white");
     const borderColor = useColorModeValue("gray.200", "gray.600");
 
-    // Fetch vendors for seller dropdown
+    // Fetch vendors/agents for seller dropdown (agents API)
     const fetchVendors = async () => {
         try {
-            const response = await api.get("/api/vendor/list");
+            const response = await api.get("/api/agents");
             const result = response.data;
 
             if (result.vendors && Array.isArray(result.vendors)) {
                 setVendors(result.vendors);
+            } else if (result.agents && Array.isArray(result.agents)) {
+                setVendors(result.agents);
+            } else if (Array.isArray(result)) {
+                setVendors(result);
             } else {
                 setVendors([]);
             }
         } catch (error) {
-            console.error("Failed to fetch vendors:", error);
+            console.error("Failed to fetch vendors/agents:", error);
             setVendors([]);
         }
     };
