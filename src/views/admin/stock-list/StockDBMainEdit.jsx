@@ -38,11 +38,12 @@ import {
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
-import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect, getUsersForSelect } from "../../../api/entitySelects";
+import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import { getVendorsApi } from "../../../api/vendor";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
 import locationsAPI from "../../../api/locations";
+import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockDBMainEdit() {
@@ -63,17 +64,17 @@ export default function StockDBMainEdit() {
     const [vendors, setVendors] = useState([]);
     const [destinations, setDestinations] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [users, setUsers] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingVendors, setIsLoadingVendors] = useState(false);
     const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
     const [currencies, setCurrencies] = useState([]);
     const [countries, setCountries] = useState([]);
+    const [shippingOrders, setShippingOrders] = useState([]);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
     const [isLoadingCountries, setIsLoadingCountries] = useState(false);
+    const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -144,6 +145,48 @@ export default function StockDBMainEdit() {
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
+    // Store original data for comparison
+    const [originalRows, setOriginalRows] = useState([]);
+
+    // Helper to get SO status from shipping order
+    const getSoStatusFromShippingOrder = useCallback((stock) => {
+        // Try to find shipping order by so_number_id
+        if (stock.so_number_id) {
+            const so = shippingOrders.find(s => String(s.id) === String(stock.so_number_id));
+            if (so && so.done) {
+                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
+            }
+        }
+        // Try to find by stock_so_number
+        if (stock.stock_so_number) {
+            const so = shippingOrders.find(s => 
+                String(s.so_number || s.name || "") === String(stock.stock_so_number) ||
+                String(s.id) === String(stock.stock_so_number)
+            );
+            if (so && so.done) {
+                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
+            }
+        }
+        return stock.so_status || "";
+    }, [shippingOrders]);
+
+    // Helper to get vessel destination and ETA from vessel
+    const getVesselData = useCallback((stock) => {
+        const vesselId = stock.vessel_id || stock.vessel;
+        if (vesselId) {
+            const vessel = vessels.find(v => String(v.id) === String(vesselId));
+            if (vessel) {
+                return {
+                    destination: vessel.destination || stock.vessel_destination || stock.vessel_destination_text || stock.destination || "",
+                    eta: vessel.eta || stock.vessel_eta || ""
+                };
+            }
+        }
+        return {
+            destination: stock.vessel_destination || stock.vessel_destination_text || stock.destination || "",
+            eta: stock.vessel_eta || ""
+        };
+    }, [vessels]);
 
     // Load form data from stock item
     const loadFormDataFromStock = useCallback((stock, returnData = false) => {
@@ -157,6 +200,11 @@ export default function StockDBMainEdit() {
             return value || fallback;
         };
 
+        // Get vessel data
+        const vesselData = getVesselData(stock);
+        // Get SO status
+        const soStatusValue = getSoStatusFromShippingOrder(stock);
+
         const rowData = {
             id: stock.id || Date.now() + Math.random(),
             stockId: stock.id || null,
@@ -167,10 +215,10 @@ export default function StockDBMainEdit() {
             // Editable fields - all from main DB table
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            soNumber: getFieldValue(stock.so_number_id) || getFieldValue(stock.so_number) || "",
-            siNumber: getFieldValue(stock.shipping_instruction_id) || getFieldValue(stock.si_number) || "",
+            soNumber: normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || "",
+            siNumber: normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || "",
             siCombined: getFieldValue(stock.si_combined) || "",
-            diNumber: getFieldValue(stock.delivery_instruction_id) || getFieldValue(stock.di_number) || "",
+            diNumber: normalizeId(stock.delivery_instruction_id) || normalizeId(stock.di_number) || normalizeId(stock.stock_delivery_instruction) || "",
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
@@ -178,8 +226,8 @@ export default function StockDBMainEdit() {
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
             viaHub: getFieldValue(stock.via_hub, ""),
             apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
-            destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || "",
-            warehouseId: getFieldValue(stock.warehouse_id) || "",
+            destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || normalizeId(stock.stock_destination) || "",
+            warehouseId: normalizeId(stock.warehouse_id) || normalizeId(stock.stock_warehouse) || "",
             shippingDoc: getFieldValue(stock.shipping_doc) || "",
             exportDoc: getFieldValue(stock.export_doc) || "",
             remarks: getFieldValue(stock.remarks) || "",
@@ -188,7 +236,8 @@ export default function StockDBMainEdit() {
             shippedDate: getFieldValue(stock.shipped_date) || "",
             deliveredDate: getFieldValue(stock.delivered_date) || "",
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc) || "",
-            items: getFieldValue(stock.items) || getFieldValue(stock.item_id) || "",
+            items: getFieldValue(stock.items) || getFieldValue(stock.item_id) || getFieldValue(stock.stock_items_quantity) || "",
+            item: toNumber(stock.item) || toNumber(stock.items) || toNumber(stock.item_id) || toNumber(stock.stock_items_quantity) || 1,
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
@@ -201,20 +250,19 @@ export default function StockDBMainEdit() {
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             clientAccess: Boolean(stock.client_access),
             pic: getFieldValue(stock.pic) || getFieldValue(stock.pic_id) || "", // PIC is a free text field (char), not an ID
-            soStatus: getFieldValue(stock.so_status) || "",
-            vesselDest: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
-            vesselEta: getFieldValue(stock.vessel_eta) || "",
+            soStatus: soStatusValue,
+            vesselDest: vesselData.destination,
+            vesselEta: vesselData.eta,
             // Internal fields
-            vesselDestination: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
+            vesselDestination: vesselData.destination,
             itemId: normalizeId(stock.item_id) || "",
-            item: toNumber(stock.item) || 1,
         };
 
         if (returnData) {
             return rowData;
         }
         setFormRows([rowData]);
-    }, []);
+    }, [getVesselData, getSoStatusFromShippingOrder]);
 
     // Load selected items into form
     useEffect(() => {
@@ -224,6 +272,8 @@ export default function StockDBMainEdit() {
                 return loadFormDataFromStock(item, true);
             });
             setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
+            // Store original data for comparison
+            setOriginalRows(rows.length > 0 ? rows.map(row => ({ ...row })) : [getEmptyRow()]);
         } else {
             // If no items, redirect back
             toast({
@@ -296,18 +346,6 @@ export default function StockDBMainEdit() {
                 setIsLoadingLocations(false);
             }
 
-            // Only fetch users if not already loaded (for PIC field)
-            if (users.length === 0) {
-                try {
-                    setIsLoadingUsers(true);
-                    const usersData = await getUsersForSelect();
-                    setUsers(usersData || []);
-                } catch (error) {
-                    console.error('Failed to fetch users:', error);
-                } finally {
-                    setIsLoadingUsers(false);
-                }
-            }
 
             try {
                 setIsLoadingCurrencies(true);
@@ -334,6 +372,19 @@ export default function StockDBMainEdit() {
             } finally {
                 setIsLoadingCountries(false);
             }
+
+            try {
+                setIsLoadingShippingOrders(true);
+                const shippingOrdersResponse = await getShippingOrders();
+                const shippingOrdersData = (shippingOrdersResponse && Array.isArray(shippingOrdersResponse.orders))
+                    ? shippingOrdersResponse.orders
+                    : (Array.isArray(shippingOrdersResponse) ? shippingOrdersResponse : []);
+                setShippingOrders(shippingOrdersData || []);
+            } catch (error) {
+                console.error('Failed to fetch shipping orders:', error);
+            } finally {
+                setIsLoadingShippingOrders(false);
+            }
         };
 
         fetchLookupData();
@@ -351,64 +402,101 @@ export default function StockDBMainEdit() {
         });
     };
 
-    // Get payload for API
-    const getPayload = (rowData, includeStockId = false) => {
-        // Payload matching the exact API structure - match the lines array format
-        const payload = {
-            stock_status: rowData.stockStatus || "",
-            client_id: rowData.client ? String(rowData.client) : "",
-            supplier_id: rowData.supplier ? String(rowData.supplier) : "",
-            vessel_id: rowData.vessel ? String(rowData.vessel) : "",
-            po_text: rowData.poNumber || "",
-            pic: rowData.pic || "", // PIC is a char field (free text), not an ID
-            item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
-            stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
-            currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin: rowData.origin ? String(rowData.origin) : "",
-            ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
-            via_hub: rowData.viaHub || "",
-            client_access: Boolean(rowData.clientAccess),
-            remarks: rowData.remarks || "",
-            weight_kg: toNumber(rowData.weightKgs) || 0,
-            width_cm: toNumber(rowData.widthCm) || 0,
-            length_cm: toNumber(rowData.lengthCm) || 0,
-            height_cm: toNumber(rowData.heightCm) || 0,
-            volume_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_cbm: toNumber(rowData.volumeCbm) || 0,
-            lwh_text: rowData.lwhText || "",
-            cw_freight: toNumber(rowData.cwAirfreight) || 0,
-            value: toNumber(rowData.value) || 0,
-            shipment_type: "", // Include shipment_type as empty string
-            extra: rowData.extra2 || "",
-            destination: rowData.destination ? String(rowData.destination) : "", // Keep destination for lines format
-            stock_destination: rowData.destination ? String(rowData.destination) : "", // Also include stock_destination
-            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "", // Keep warehouse_id for lines format
-            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Also include stock_warehouse
-            shipping_doc: rowData.shippingDoc || "",
-            export_doc: rowData.exportDoc || "",
-            date_on_stock: rowData.dateOnStock || "",
-            exp_ready_in_stock: rowData.expReadyInStock || "",
-            shipped_date: rowData.shippedDate || null,
-            delivered_date: rowData.deliveredDate || "",
-            details: rowData.details || "",
-            item: toNumber(rowData.items || rowData.item) || 1,
-            vessel_destination: rowData.vesselDestination || rowData.vesselDest || "", // Free text field
-            vessel_eta: rowData.vesselEta || "",
-            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "",
-            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "",
-            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "",
-            vessel_destination_text: rowData.vesselDestination || rowData.vesselDest || "", // Include vessel_destination_text
-        };
+    // Helper to compare values (handles different data types)
+    const valuesAreEqual = (val1, val2) => {
+        // Handle null/undefined/empty
+        if ((!val1 || val1 === false || val1 === "") && (!val2 || val2 === false || val2 === "")) return true;
+        // Handle numbers - compare as numbers
+        if (typeof val1 === "number" && typeof val2 === "number") return val1 === val2;
+        // Handle booleans
+        if (typeof val1 === "boolean" && typeof val2 === "boolean") return val1 === val2;
+        // Convert both to strings for comparison
+        return String(val1 || "") === String(val2 || "");
+    };
 
-        // Only include stock_item_id if it exists (for updates)
+    // Get payload for API - only include changed fields
+    const getPayload = (rowData, originalData, includeStockId = false) => {
+        // Start with required fields for update
+        const payload = {};
+        
+        // Always include stock_id and stock_item_id for updates
+        if (includeStockId && rowData.stockId) {
+            payload.stock_id = rowData.stockId;
+        }
         if (rowData.stockItemId) {
             payload.stock_item_id = rowData.stockItemId;
         }
 
-        // Include stock_id for update operations ONLY (not id field)
-        if (includeStockId && rowData.stockId) {
-            payload.stock_id = rowData.stockId;
-            // DO NOT include id field - only stock_id is needed for update
+        // Field mappings: [frontendField, backendField, transformFunction]
+        const fieldMappings = [
+            ["stockStatus", "stock_status", (v) => v || ""],
+            ["client", "client_id", (v) => v ? String(v) : ""],
+            ["supplier", "supplier_id", (v) => v ? String(v) : ""],
+            ["vessel", "vessel_id", (v) => v ? String(v) : ""],
+            ["poNumber", "po_text", (v) => v || ""],
+            ["pic", "pic", (v) => v || ""],
+            ["itemId", "item_id", (v) => v ? String(v) : ""],
+            ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
+            ["currency", "currency_id", (v) => v ? String(v) : ""],
+            ["origin", "origin", (v) => v ? String(v) : ""],
+            ["apDestination", "ap_destination", (v) => {
+                if (!v && v !== 0) return false;
+                const num = typeof v === "string" ? parseInt(v, 10) : Number(v);
+                return isNaN(num) ? false : num;
+            }],
+            ["viaHub", "via_hub", (v) => v || ""],
+            ["clientAccess", "client_access", (v) => Boolean(v)],
+            ["remarks", "remarks", (v) => v || ""],
+            ["weightKgs", "weight_kg", (v) => toNumber(v) || 0],
+            ["widthCm", "width_cm", (v) => toNumber(v) || 0],
+            ["lengthCm", "length_cm", (v) => toNumber(v) || 0],
+            ["heightCm", "height_cm", (v) => toNumber(v) || 0],
+            ["volumeNoDim", "volume_dim", (v) => toNumber(v) || 0],
+            ["volumeCbm", "volume_cbm", (v) => toNumber(v) || 0],
+            ["lwhText", "lwh_text", (v) => v || ""],
+            ["cwAirfreight", "cw_freight", (v) => toNumber(v) || 0],
+            ["value", "value", (v) => toNumber(v) || 0],
+            ["extra2", "extra", (v) => v || ""],
+            ["destination", "destination", (v) => v ? String(v) : ""],
+            ["destination", "stock_destination", (v) => v ? String(v) : ""],
+            ["warehouseId", "warehouse_id", (v) => v ? String(v) : ""],
+            ["warehouseId", "stock_warehouse", (v) => v ? String(v) : ""],
+            ["shippingDoc", "shipping_doc", (v) => v || ""],
+            ["exportDoc", "export_doc", (v) => v || ""],
+            ["dateOnStock", "date_on_stock", (v) => v || ""],
+            ["expReadyInStock", "exp_ready_in_stock", (v) => v || ""],
+            ["shippedDate", "shipped_date", (v) => v || null],
+            ["deliveredDate", "delivered_date", (v) => v || ""],
+            ["details", "details", (v) => v || ""],
+            ["item", "item", (v) => toNumber(v) || 1],
+            ["vesselDestination", "vessel_destination", (v) => v || ""],
+            ["vesselEta", "vessel_eta", (v) => v || ""],
+            ["soNumber", "stock_so_number", (v) => v ? String(v) : ""],
+            ["siNumber", "stock_shipping_instruction", (v) => v ? String(v) : ""],
+            ["diNumber", "stock_delivery_instruction", (v) => v ? String(v) : ""],
+            ["vesselDestination", "vessel_destination_text", (v) => v || ""],
+        ];
+
+        // Only include changed fields
+        fieldMappings.forEach(([frontendField, backendField, transform]) => {
+            const currentValue = rowData[frontendField];
+            const originalValue = originalData ? originalData[frontendField] : undefined;
+            
+            // Check if value has changed
+            if (!valuesAreEqual(currentValue, originalValue)) {
+                const transformedValue = transform(currentValue);
+                // Only add if the transformed value is different from original transformed value
+                const originalTransformed = originalData ? transform(originalValue) : undefined;
+                if (!valuesAreEqual(transformedValue, originalTransformed)) {
+                    payload[backendField] = transformedValue;
+                }
+            }
+        });
+
+        // Always include shipment_type as empty string if it's in the original payload structure
+        // (This might be needed by the API, but only if other fields changed)
+        if (Object.keys(payload).length > (payload.stock_id ? 1 : 0) + (payload.stock_item_id ? 1 : 0)) {
+            payload.shipment_type = "";
         }
 
         return payload;
@@ -429,13 +517,31 @@ export default function StockDBMainEdit() {
 
         setIsLoading(true);
         try {
-            // Build lines array from all form rows
-            const lines = formRows.map((row) => {
+            // Build lines array from all form rows - only include changed fields
+            const lines = formRows.map((row, index) => {
                 if (!row.stockId) {
                     throw new Error("Stock ID is required for update");
                 }
-                return getPayload(row, true);
-            });
+                const originalRow = originalRows[index] || {};
+                const payload = getPayload(row, originalRow, true);
+                // Only include if there are changes (besides stock_id and stock_item_id)
+                const hasChanges = Object.keys(payload).filter(key => 
+                    key !== 'stock_id' && key !== 'stock_item_id'
+                ).length > 0;
+                return hasChanges ? payload : null;
+            }).filter(line => line !== null); // Remove unchanged rows
+
+            if (lines.length === 0) {
+                toast({
+                    title: "No Changes",
+                    description: "No fields have been modified",
+                    status: "info",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                setIsLoading(false);
+                return;
+            }
 
             // Send all lines in a single payload
             const payload = { lines };
@@ -444,7 +550,7 @@ export default function StockDBMainEdit() {
             if (result && result.result && result.result.status === 'success') {
                 toast({
                     title: 'Success',
-                    description: `${lines.length} stock item(s) updated successfully`,
+                    description: `${lines.length} stock item(s) updated successfully (${formRows.length - lines.length} item(s) had no changes)`,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
@@ -798,12 +904,18 @@ export default function StockDBMainEdit() {
                                         <SimpleSearchableSelect
                                             value={row.origin}
                                             onChange={(value) => handleInputChange(rowIndex, "origin", value)}
-                                            options={[...locations, ...destinations]}
+                                            options={countries.filter(c => c && (c.id || c.country_id)).map(c => {
+                                                const countryId = c.id || c.country_id;
+                                                return {
+                                                    id: String(countryId),
+                                                    name: c.name || c.code || `Country ${countryId}`
+                                                };
+                                            })}
                                             placeholder="Select Origin"
                                             displayKey="name"
                                             valueKey="id"
-                                            formatOption={(option) => option.name || option.code || `Origin ${option.id}`}
-                                            isLoading={isLoadingLocations || isLoadingDestinations}
+                                            formatOption={(option) => option.name || `Country ${option.id}`}
+                                            isLoading={isLoadingCountries}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -824,12 +936,12 @@ export default function StockDBMainEdit() {
                                         <SimpleSearchableSelect
                                             value={row.apDestination}
                                             onChange={(value) => handleInputChange(rowIndex, "apDestination", value)}
-                                            options={[...locations, ...destinations]}
+                                            options={destinations}
                                             placeholder="Select AP Destination"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || option.code || `AP Dest ${option.id}`}
-                                            isLoading={isLoadingLocations || isLoadingDestinations}
+                                            isLoading={isLoadingDestinations}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -839,12 +951,12 @@ export default function StockDBMainEdit() {
                                         <SimpleSearchableSelect
                                             value={row.destination}
                                             onChange={(value) => handleInputChange(rowIndex, "destination", value)}
-                                            options={[...locations, ...destinations]}
+                                            options={destinations}
                                             placeholder="Select Destination"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || option.code || `Dest ${option.id}`}
-                                            isLoading={isLoadingLocations || isLoadingDestinations}
+                                            isLoading={isLoadingDestinations}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

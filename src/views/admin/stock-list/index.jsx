@@ -270,8 +270,8 @@ export default function StockList() {
                     aVal = getCountryName(a.origin_id || a.origin);
                     bVal = getCountryName(b.origin_id || b.origin);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = getCountryName(a.ap_destination_id || a.ap_destination);
-                    bVal = getCountryName(b.ap_destination_id || b.ap_destination);
+                    aVal = getDestinationName(a.ap_destination_id || a.ap_destination);
+                    bVal = getDestinationName(b.ap_destination_id || b.ap_destination);
                 }
 
                 // Convert to strings for comparison
@@ -358,21 +358,35 @@ export default function StockList() {
         return vessel ? vessel.name : `Vessel ${vesselId}`;
     };
 
-    const getVesselDestination = (vesselId) => {
-        if (!vesselId) return "-";
+    const getVesselDestination = (vesselId, item) => {
+        if (!vesselId) {
+            // If no vessel_id, check item's vessel_destination field
+            return item.vessel_destination ? getDestinationName(item.vessel_destination) : "-";
+        }
         const vessel = vessels.find(v => String(v.id) === String(vesselId));
         if (vessel && vessel.destination) {
             // If vessel has destination, try to get its name
             return getDestinationName(vessel.destination);
         }
+        // Fall back to item's vessel_destination field
+        if (item.vessel_destination) {
+            return getDestinationName(item.vessel_destination);
+        }
         return "-";
     };
 
-    const getVesselEta = (vesselId) => {
-        if (!vesselId) return "-";
+    const getVesselEta = (vesselId, item) => {
+        if (!vesselId) {
+            // If no vessel_id, check item's vessel_eta field
+            return item.vessel_eta ? formatDate(item.vessel_eta) : "-";
+        }
         const vessel = vessels.find(v => String(v.id) === String(vesselId));
         if (vessel && vessel.eta) {
             return formatDate(vessel.eta);
+        }
+        // Fall back to item's vessel_eta field
+        if (item.vessel_eta) {
+            return formatDate(item.vessel_eta);
         }
         return "-";
     };
@@ -417,13 +431,45 @@ export default function StockList() {
         return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
     };
 
+    const getSoNumberNameFromNumber = (soNumber) => {
+        if (!soNumber) return "-";
+        // Try to find by so_number field
+        const so = shippingOrders.find(s =>
+            String(s.so_number || s.name || "") === String(soNumber) ||
+            String(s.id) === String(soNumber)
+        );
+        return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soNumber}`;
+    };
+
+    const getSoStatus = (item) => {
+        // First try to get from shipping order if we have so_number_id
+        if (item.so_number_id) {
+            const so = shippingOrders.find(s => String(s.id) === String(item.so_number_id));
+            if (so && so.done) {
+                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
+            }
+        }
+        // Try to get from stock_so_number
+        if (item.stock_so_number) {
+            const so = shippingOrders.find(s =>
+                String(s.so_number || s.name || "") === String(item.stock_so_number) ||
+                String(s.id) === String(item.stock_so_number)
+            );
+            if (so && so.done) {
+                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
+            }
+        }
+        // Fall back to item's so_status field
+        return item.so_status || "-";
+    };
+
     const getCountryName = (countryId) => {
         if (!countryId) return "-";
-        
+
         // Convert to string and number for comparison
         const countryIdStr = String(countryId);
         const countryIdNum = Number(countryId);
-        
+
         // Try to find by ID (handle different field names)
         const country = countries.find(c => {
             if (!c) return false;
@@ -434,11 +480,11 @@ export default function StockList() {
                 Number(cId) === countryIdNum
             );
         });
-        
+
         if (country) {
             return country.name || country.code || `Country ${countryId}`;
         }
-        
+
         return `Country ${countryId}`;
     };
 
@@ -1007,7 +1053,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text></Td>
@@ -1021,8 +1067,8 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
@@ -1045,9 +1091,9 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.vessel_id ? getVesselDestination(item.vessel_id || item.vessel) : getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.vessel_id ? getVesselEta(item.vessel_id || item.vessel) : formatDate(item.vessel_eta)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getSoStatus(item)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
                                     </Tr>
                                 ))}

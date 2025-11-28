@@ -90,7 +90,6 @@ export default function StockForm() {
         poNumber: "",
         warehouseId: "",
         shippingDoc: "",
-        items: "",
         weightKgs: "",
         lengthCm: "",
         widthCm: "",
@@ -513,7 +512,6 @@ export default function StockForm() {
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             warehouseId: getFieldValue(stock.warehouse_id),
             shippingDoc: getFieldValue(stock.shipping_doc),
-            items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
@@ -779,16 +777,16 @@ export default function StockForm() {
 
                 if (result && result.result) {
                     const resultData = result.result;
-                    
+
                     // Check for errors even if status is "success"
-                    if ((resultData.error_count && resultData.error_count > 0) || 
+                    if ((resultData.error_count && resultData.error_count > 0) ||
                         (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
-                        
+
                         // Extract error messages from errors array
                         const errorMessages = resultData.errors
                             ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
                             : resultData.message || 'Failed to create stock items';
-                        
+
                         toast({
                             title: 'Error',
                             description: errorMessages,
@@ -798,7 +796,7 @@ export default function StockForm() {
                         });
                         throw new Error(errorMessages);
                     }
-                    
+
                     // Success case - no errors
                     if (resultData.status === 'success') {
                         const successCount = resultData.created_count || lines.length;
@@ -984,7 +982,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Items</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Quantity</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
@@ -1129,15 +1127,19 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.items}
-                                            onChange={(e) => handleInputChange(rowIndex, "items", e.target.value)}
-                                            placeholder=""
+                                        <NumberInput
+                                            value={row.item || 1}
+                                            onChange={(value) => handleInputChange(rowIndex, "item", value)}
+                                            min={1}
+                                            precision={0}
                                             size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            <NumberInputStepper>
+                                                <NumberIncrementStepper />
+                                                <NumberDecrementStepper />
+                                            </NumberInputStepper>
+                                        </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <NumberInput
