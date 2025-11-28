@@ -55,6 +55,7 @@ import {
   getVesselsForSelect,
   getDestinationsForSelect,
 } from "../../../api/entitySelects";
+import quotationsAPI from "../../../api/quotations";
 import {
   getShippingOrders,
   createShippingOrder,
@@ -111,9 +112,11 @@ const SoNumberTab = () => {
   const [clients, setClients] = useState([]);
   const [vessels, setVessels] = useState([]);
   const [destinations, setDestinations] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [isLoadingVessels, setIsLoadingVessels] = useState(false);
   const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
+  const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -147,6 +150,7 @@ const SoNumberTab = () => {
       internal_remark: "",
       client_remark: "",
       quotation: "",
+      quotation_id: null,
       timestamp: localTimestamp,
     });
   };
@@ -173,7 +177,8 @@ const SoNumberTab = () => {
       est_profit_usd: order.est_profit_usd,
       internal_remark: order.internal_remark,
       client_remark: order.client_remark,
-      quotation: order.quotation || order.quotation_name || "",
+      quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
+      quotation_id: order.quotation_id || order.quotation?.id || null,
       timestamp: order.timestamp || order.so_create_date || order.date_order,
       _raw: order,
     };
@@ -202,9 +207,13 @@ const SoNumberTab = () => {
       setOrders(normalized);
     } catch (error) {
       console.error("Failed to fetch shipping orders", error);
+      const apiMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.result?.message ||
+        error.message;
       toast({
-        title: "Failed to load shipping orders",
-        description: error.message || "Please try again",
+        title: "Error",
+        description: apiMessage || "Please try again",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -253,6 +262,37 @@ const SoNumberTab = () => {
 
     fetchLookups();
   }, [toast]);
+
+  // Fetch quotations for searchable quotation field
+  useEffect(() => {
+    const fetchQuotations = async () => {
+      try {
+        setIsLoadingQuotations(true);
+        const response = await quotationsAPI.getQuotations();
+        const data = response || {};
+
+        const list =
+          (Array.isArray(data.quotations) && data.quotations) ||
+          (Array.isArray(data.result?.quotations) && data.result.quotations) ||
+          [];
+
+        // Normalize to { id, name } for SimpleSearchableSelect
+        const normalized = list.map((q) => ({
+          id: q.id,
+          name: q.oc_number || q.name || `Q-${q.id}`,
+        }));
+
+        setQuotations(normalized);
+      } catch (error) {
+        console.error("Failed to fetch quotations for SO", error);
+        setQuotations([]);
+      } finally {
+        setIsLoadingQuotations(false);
+      }
+    };
+
+    fetchQuotations();
+  }, []);
 
   const filteredOrders = useMemo(() => {
     if (!searchValue) return orders;
@@ -344,13 +384,20 @@ const SoNumberTab = () => {
     };
 
     return {
-      done: data.done ? "done" : "draft",
-      pic: data.pic || "",
-      // These are left null for now; can be wired to lookup dropdowns later
+      // Core identifiers / required data
+      name: data.so_number || "",
+      so_number: data.so_number || "",
       client_id: data.client_id || null,
       vessel_id: data.vessel_id || null,
       destination_id: data.destination_id || null,
-      quotation_id: data.quotation_id || null,
+      // Status and meta
+      done: data.done ? "done" : "draft",
+      pic: data.pic || "",
+      // Backend expects empty string when no quotation is linked
+      quotation_id:
+        data.quotation_id === null || data.quotation_id === undefined
+          ? ""
+          : data.quotation_id,
       eta_date: toDateTime(data.eta_date),
       date_order: toDateTime(data.date_created || data.date_order),
       deadline_info: data.deadline_info || "",
@@ -362,7 +409,11 @@ const SoNumberTab = () => {
   };
 
   const handleFormSubmit = async () => {
-    if (!formData || !formData.so_number || !formData.client || !formData.vessel_name) {
+    const hasSoNumber = formData?.so_number && formData.so_number.trim() !== "";
+    const hasClient = !!formData?.client_id;
+    const hasVessel = !!formData?.vessel_id;
+
+    if (!formData || !hasSoNumber || !hasClient || !hasVessel) {
       toast({
         title: "Missing details",
         description: "SO number, client, and vessel are required.",
@@ -779,11 +830,27 @@ const SoNumberTab = () => {
                 <Flex gap="4" flexWrap="wrap">
                   <FormControl flex="1">
                     <FormLabel>Quotation</FormLabel>
-                    <Input
-                      value={formData.quotation}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, quotation: e.target.value }))
+                    <SimpleSearchableSelect
+                      value={formData.quotation_id}
+                      onChange={(value) =>
+                        setFormData((prev) => {
+                          const selected = quotations.find((q) => q.id === value);
+                          return {
+                            ...prev,
+                            quotation_id: value,
+                            quotation: selected ? selected.name : "",
+                          };
+                        })
                       }
+                      options={quotations}
+                      placeholder="Select quotation"
+                      displayKey="name"
+                      valueKey="id"
+                      isLoading={isLoadingQuotations}
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      size="sm"
                     />
                   </FormControl>
                   <FormControl flex="1">

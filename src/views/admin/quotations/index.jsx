@@ -274,9 +274,15 @@ export default function Quotations() {
         } catch (error) {
             console.error("Failed to fetch quotations:", error);
             setQuotations([]);
+
+            const apiMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.result?.message ||
+                error.message;
+
             toast({
-                title: "Failed to load quotations",
-                description: error.message || "Please try again later.",
+                title: "Error",
+                description: apiMessage || "Please try again later.",
                 status: "error",
                 duration: 5000,
                 isClosable: true,

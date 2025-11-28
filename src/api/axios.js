@@ -45,7 +45,7 @@ api.interceptors.response.use(
       const status = error.response.status;
 
       // Only logout for specific authentication errors, not all 401/403 errors
-      const shouldLogout = 
+      const shouldLogout =
         // Check for JSON-RPC format with specific auth error messages
         (responseData.result && responseData.result.message === "Invalid token") ||
         (responseData.result && responseData.result.message === "Token expired") ||
@@ -81,11 +81,11 @@ api.interceptors.response.use(
           url: error.config?.url,
           method: error.config?.method
         });
-        
+
         // Special handling for quotation and rate list APIs
-        if (error.config?.url?.includes('/api/quotations') || 
-            error.config?.url?.includes('/api/products') || 
-            error.config?.url?.includes('/api/agents')) {
+        if (error.config?.url?.includes('/api/quotations') ||
+          error.config?.url?.includes('/api/products') ||
+          error.config?.url?.includes('/api/agents')) {
           console.log("Quotation/Rate List API error - this should not cause logout:", {
             url: error.config.url,
             status,
