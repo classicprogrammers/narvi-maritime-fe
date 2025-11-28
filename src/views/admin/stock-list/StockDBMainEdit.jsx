@@ -159,7 +159,7 @@ export default function StockDBMainEdit() {
         }
         // Try to find by stock_so_number
         if (stock.stock_so_number) {
-            const so = shippingOrders.find(s => 
+            const so = shippingOrders.find(s =>
                 String(s.so_number || s.name || "") === String(stock.stock_so_number) ||
                 String(s.id) === String(stock.stock_so_number)
             );
@@ -418,7 +418,7 @@ export default function StockDBMainEdit() {
     const getPayload = (rowData, originalData, includeStockId = false) => {
         // Start with required fields for update
         const payload = {};
-        
+
         // Always include stock_id and stock_item_id for updates
         if (includeStockId && rowData.stockId) {
             payload.stock_id = rowData.stockId;
@@ -481,7 +481,7 @@ export default function StockDBMainEdit() {
         fieldMappings.forEach(([frontendField, backendField, transform]) => {
             const currentValue = rowData[frontendField];
             const originalValue = originalData ? originalData[frontendField] : undefined;
-            
+
             // Check if value has changed
             if (!valuesAreEqual(currentValue, originalValue)) {
                 const transformedValue = transform(currentValue);
@@ -525,7 +525,7 @@ export default function StockDBMainEdit() {
                 const originalRow = originalRows[index] || {};
                 const payload = getPayload(row, originalRow, true);
                 // Only include if there are changes (besides stock_id and stock_item_id)
-                const hasChanges = Object.keys(payload).filter(key => 
+                const hasChanges = Object.keys(payload).filter(key =>
                     key !== 'stock_id' && key !== 'stock_item_id'
                 ).length > 0;
                 return hasChanges ? payload : null;

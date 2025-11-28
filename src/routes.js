@@ -73,6 +73,7 @@ import Vessels from "views/admin/configurations/vessels";
 import UOM from "views/admin/configurations/uom";
 import Destinations from "views/admin/configurations/destinations";
 import Suppliers from "views/admin/configurations/suppliers";
+import Warehouses from "views/admin/configurations/warehouses";
 
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
@@ -297,6 +298,12 @@ const routes = [
         path: "/configurations/suppliers",
         icon: <Icon as={MdBusiness} width="20px" height="20px" color="inherit" />,
         component: Suppliers,
+      },
+      {
+        name: "Warehouses",
+        path: "/configurations/warehouses",
+        icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
+        component: Warehouses,
       },
     ],
   },
