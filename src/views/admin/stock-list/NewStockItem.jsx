@@ -777,17 +777,51 @@ export default function StockForm() {
                 const payload = { lines };
                 const result = await createStockItemApi(payload);
 
-                if (result && result.result && result.result.status === 'success') {
-                    const successCount = lines.length;
-                    toast({
-                        title: 'Success',
-                        description: `${successCount} stock item(s) created successfully`,
-                        status: 'success',
-                        duration: 3000,
-                        isClosable: true,
-                    });
-                    getStockList();
-                    history.push("/admin/stock-list/stocks");
+                if (result && result.result) {
+                    const resultData = result.result;
+                    
+                    // Check for errors even if status is "success"
+                    if ((resultData.error_count && resultData.error_count > 0) || 
+                        (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
+                        
+                        // Extract error messages from errors array
+                        const errorMessages = resultData.errors
+                            ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
+                            : resultData.message || 'Failed to create stock items';
+                        
+                        toast({
+                            title: 'Error',
+                            description: errorMessages,
+                            status: 'error',
+                            duration: 8000,
+                            isClosable: true,
+                        });
+                        throw new Error(errorMessages);
+                    }
+                    
+                    // Success case - no errors
+                    if (resultData.status === 'success') {
+                        const successCount = resultData.created_count || lines.length;
+                        toast({
+                            title: 'Success',
+                            description: `${successCount} stock item(s) created successfully`,
+                            status: 'success',
+                            duration: 3000,
+                            isClosable: true,
+                        });
+                        getStockList();
+                        history.push("/admin/stock-list/stocks");
+                    } else {
+                        const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
+                        toast({
+                            title: 'Error',
+                            description: errorMsg,
+                            status: 'error',
+                            duration: 5000,
+                            isClosable: true,
+                        });
+                        throw new Error(errorMsg);
+                    }
                 } else {
                     const errorMsg = result?.result?.message || result?.message || 'Failed to create stock items';
                     toast({

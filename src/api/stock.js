@@ -118,6 +118,24 @@ export const createStockItemApi = async (stockData) => {
       throw new Error(response.data.result.message || 'Failed to create stock item');
     }
 
+    // Check for errors in the result even if status is "success"
+    // API can return status: "success" but still have errors in errors array
+    if (response.data.result) {
+      const result = response.data.result;
+      
+      // Check if there are errors (error_count > 0 or errors array has items)
+      if ((result.error_count && result.error_count > 0) || 
+          (result.errors && Array.isArray(result.errors) && result.errors.length > 0)) {
+        
+        // Extract error messages from errors array
+        const errorMessages = result.errors
+          ? result.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
+          : result.message || 'Failed to create stock item';
+        
+        throw new Error(errorMessages);
+      }
+    }
+
     return response.data;
   } catch (error) {
     console.error("Create stock item error:", error);

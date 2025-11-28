@@ -761,14 +761,31 @@ export default function StockForm() {
                     try {
                         const payload = getPayload(row);
                         const result = await createStockItemApi(payload);
-                        if (result && result.result && result.result.status === 'success') {
-                            successCount++;
+                        if (result && result.result) {
+                            const resultData = result.result;
+                            
+                            // Check for errors even if status is "success"
+                            if ((resultData.error_count && resultData.error_count > 0) || 
+                                (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
+                                errorCount++;
+                                // Extract error messages for logging
+                                const errorMessages = resultData.errors
+                                    ? resultData.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
+                                    : resultData.message || 'Failed to create stock item';
+                                console.error('Failed to create stock item:', errorMessages);
+                            } else if (resultData.status === 'success') {
+                                successCount++;
+                            } else {
+                                errorCount++;
+                                console.error('Failed to create stock item:', resultData.message || 'Unknown error');
+                            }
                         } else {
                             errorCount++;
+                            console.error('Failed to create stock item: Invalid response');
                         }
                     } catch (err) {
                         errorCount++;
-                        console.error('Failed to create stock item:', err);
+                        console.error('Failed to create stock item:', err.message || err);
                     }
                 }
 
