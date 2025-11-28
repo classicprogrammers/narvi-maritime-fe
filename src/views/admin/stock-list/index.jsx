@@ -30,10 +30,12 @@ import { deleteStockItemApi } from "../../../api/stock";
 import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Checkbox, Input, Select } from "@chakra-ui/react";
 import { useHistory, Redirect } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
-import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect, getUsersForSelect } from "../../../api/entitySelects";
+import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import { getVendorsApi } from "../../../api/vendor";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
+import countriesAPI from "../../../api/countries";
+import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockList() {
@@ -72,7 +74,8 @@ export default function StockList() {
     const [destinations, setDestinations] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [users, setUsers] = useState([]);
+    const [countries, setCountries] = useState([]);
+    const [shippingOrders, setShippingOrders] = useState([]);
 
     // Filters state
     const [selectedClient, setSelectedClient] = useState(null);
@@ -124,16 +127,10 @@ export default function StockList() {
         fontSize: "sm",
     };
 
-    // Ensure we only auto-fetch once (avoids double calls in StrictMode)
-    const hasFetchedInitialData = useRef(false);
-
     // Fetch stock list on component mount
     useEffect(() => {
-        if (!hasFetchedInitialData.current && stockList.length === 0 && !isLoading) {
-            hasFetchedInitialData.current = true;
-            getStockList();
-        }
-    }, [getStockList, stockList.length, isLoading]);
+        getStockList();
+    }, [getStockList]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -158,7 +155,7 @@ export default function StockList() {
             try {
                 hasFetchedLookupData.current = true;
 
-                // Fetch all lookup data in parallel (users included for PIC field)
+                // Fetch all lookup data in parallel
                 const promises = [
                     getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
                     getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
@@ -166,8 +163,8 @@ export default function StockList() {
                     getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
                     currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
                     locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    // Users are needed for PIC field display
-                    getUsersForSelect().catch(() => []).then(data => ({ type: 'users', data }))
+                    countriesAPI.getCountries().catch(() => ({ countries: [] })).then(data => ({ type: 'countries', data })),
+                    getShippingOrders().catch(() => ({ orders: [] })).then(data => ({ type: 'shippingOrders', data }))
                 ];
 
                 const results = await Promise.all(promises);
@@ -192,8 +189,11 @@ export default function StockList() {
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
-                        case 'users':
-                            setUsers(data || []);
+                        case 'countries':
+                            setCountries(data?.countries || data || []);
+                            break;
+                        case 'shippingOrders':
+                            setShippingOrders(data?.orders || data || []);
                             break;
                     }
                 });
@@ -263,6 +263,15 @@ export default function StockList() {
                 } else if (sortField === 'currency_id' || sortField === 'currency') {
                     aVal = getCurrencyName(a.currency_id || a.currency);
                     bVal = getCurrencyName(b.currency_id || b.currency);
+                } else if (sortField === 'so_number_id' || sortField === 'so_number') {
+                    aVal = a.so_number_id ? getSoNumberName(a.so_number_id) : (a.so_number || a.stock_so_number || "");
+                    bVal = b.so_number_id ? getSoNumberName(b.so_number_id) : (b.so_number || b.stock_so_number || "");
+                } else if (sortField === 'origin_id' || sortField === 'origin') {
+                    aVal = getCountryName(a.origin_id || a.origin);
+                    bVal = getCountryName(b.origin_id || b.origin);
+                } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
+                    aVal = getCountryName(a.ap_destination_id || a.ap_destination);
+                    bVal = getCountryName(b.ap_destination_id || b.ap_destination);
                 }
 
                 // Convert to strings for comparison
@@ -278,7 +287,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, sortField, sortDirection, clients, vessels, vendors, locations, currencies, users, destinations]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, sortField, sortDirection, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations]);
 
     // Handle column sorting
     const handleSort = (field) => {
@@ -349,6 +358,25 @@ export default function StockList() {
         return vessel ? vessel.name : `Vessel ${vesselId}`;
     };
 
+    const getVesselDestination = (vesselId) => {
+        if (!vesselId) return "-";
+        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        if (vessel && vessel.destination) {
+            // If vessel has destination, try to get its name
+            return getDestinationName(vessel.destination);
+        }
+        return "-";
+    };
+
+    const getVesselEta = (vesselId) => {
+        if (!vesselId) return "-";
+        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        if (vessel && vessel.eta) {
+            return formatDate(vessel.eta);
+        }
+        return "-";
+    };
+
     const getSupplierName = (supplierId) => {
         if (!supplierId) return "-";
         const vendor = vendors.find(v => String(v.id) === String(supplierId));
@@ -383,10 +411,35 @@ export default function StockList() {
         return `Location ${locationId}`;
     };
 
-    const getUserName = (userId) => {
-        if (!userId) return "-";
-        const user = users.find(u => String(u.id) === String(userId));
-        return user ? (user.name || user.email || `User ${userId}`) : `User ${userId}`;
+    const getSoNumberName = (soId) => {
+        if (!soId) return "-";
+        const so = shippingOrders.find(s => String(s.id) === String(soId));
+        return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
+    };
+
+    const getCountryName = (countryId) => {
+        if (!countryId) return "-";
+        
+        // Convert to string and number for comparison
+        const countryIdStr = String(countryId);
+        const countryIdNum = Number(countryId);
+        
+        // Try to find by ID (handle different field names)
+        const country = countries.find(c => {
+            if (!c) return false;
+            // Check various ID field names
+            const cId = c.id || c.country_id;
+            return (
+                String(cId) === countryIdStr ||
+                Number(cId) === countryIdNum
+            );
+        });
+        
+        if (country) {
+            return country.name || country.code || `Country ${countryId}`;
+        }
+        
+        return `Country ${countryId}`;
     };
 
     const getLocationOrDestinationName = (value) => {
@@ -954,10 +1007,10 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id || item.so_number)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text></Td>
                                         <Td {...cellProps}>
                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
                                                 {renderText(item.stock_status)}
@@ -966,9 +1019,9 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
@@ -979,7 +1032,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.items || item.item_id)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
@@ -991,10 +1044,10 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getUserName(item.pic_id || item.pic)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.vessel_id ? getVesselDestination(item.vessel_id || item.vessel) : getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.vessel_id ? getVesselEta(item.vessel_id || item.vessel) : formatDate(item.vessel_eta)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
                                     </Tr>
                                 ))}

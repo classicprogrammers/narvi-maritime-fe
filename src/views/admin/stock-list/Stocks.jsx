@@ -33,6 +33,7 @@ import {
     Input,
     FormControl,
     FormLabel,
+    Select,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdDelete, MdClose, MdCheck, MdCancel } from "react-icons/md";
@@ -52,6 +53,8 @@ import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
 import destinationsAPI from "../../../api/destinations";
+import countriesAPI from "../../../api/countries";
+import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 // Status definitions matching backend status keys exactly
@@ -181,6 +184,9 @@ export default function Stocks() {
     const [destinations, setDestinations] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
+    const [countries, setCountries] = useState([]);
+    const [shippingOrders, setShippingOrders] = useState([]);
+    const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
     // Users state removed - PIC is now a free text field, no need to fetch users
 
     // Pagination state
@@ -248,6 +254,7 @@ export default function Stocks() {
 
                 // Fetch all lookup data in parallel (excluding users if not needed)
                 // Users are only needed for PIC field display
+                setIsLoadingShippingOrders(true);
                 const promises = [
                     getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
                     getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
@@ -256,7 +263,24 @@ export default function Stocks() {
                     // Use destinations API for destinations
                     destinationsAPI.getDestinations().catch(() => ({ destinations: [] })).then(data => ({ type: 'destinations', data: Array.isArray(data) ? data : (data?.destinations || data?.result?.destinations || []) })),
                     currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data }))
+                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
+                    // Fetch countries for origin field
+                    countriesAPI.getCountries().catch(() => ({ countries: [] })).then(data => ({ type: 'countries', data: Array.isArray(data) ? data : (data?.countries || data?.result?.countries || []) })),
+                    // Fetch shipping orders for SO number dropdown
+                    getShippingOrders().catch(() => ({ orders: [] })).then(data => {
+                        // Handle different response structures
+                        let orders = [];
+                        if (Array.isArray(data)) {
+                            orders = data;
+                        } else if (data?.orders && Array.isArray(data.orders)) {
+                            orders = data.orders;
+                        } else if (data?.result?.orders && Array.isArray(data.result.orders)) {
+                            orders = data.result.orders;
+                        } else if (data?.data?.orders && Array.isArray(data.data.orders)) {
+                            orders = data.data.orders;
+                        }
+                        return { type: 'shippingOrders', data: orders };
+                    })
                     // Users API removed - PIC is now a free text field, no need to fetch users
                 ];
 
@@ -283,6 +307,14 @@ export default function Stocks() {
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
+                        case 'countries':
+                            console.log('Countries fetched:', data);
+                            setCountries(data || []);
+                            break;
+                        case 'shippingOrders':
+                            console.log('Shipping orders fetched:', data);
+                            setShippingOrders(data || []);
+                            break;
                         // Users case removed - PIC is now free text, no need to fetch users
                     }
                 });
@@ -292,6 +324,7 @@ export default function Stocks() {
             } finally {
                 setIsLoadingClients(false);
                 setIsLoadingVessels(false);
+                setIsLoadingShippingOrders(false);
             }
         };
         fetchLookupData();
@@ -357,9 +390,46 @@ export default function Stocks() {
         return `Location ${locationId}`;
     };
 
+    const getSoNumberName = (soId) => {
+        if (!soId) return "-";
+        const so = shippingOrders.find(s => String(s.id) === String(soId));
+        return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
+    };
+
     // getUserName removed - PIC is now a free text field, display directly
 
-    // Helper to get name for origin/via_hub/ap_destination/destination (uses destinations and locations)
+    // Helper to get country name for origin field
+    const getCountryName = (countryId) => {
+        if (!countryId) return "-";
+        
+        // Convert to string and number for comparison
+        const countryIdStr = String(countryId);
+        const countryIdNum = Number(countryId);
+        
+        // Try to find by ID (handle different field names)
+        const country = countries.find(c => {
+            if (!c) return false;
+            // Check various ID field names
+            const cId = c.id || c.country_id;
+            return (
+                String(cId) === countryIdStr ||
+                Number(cId) === countryIdNum
+            );
+        });
+        
+        if (country) {
+            return country.name || country.code || `Country ${countryId}`;
+        }
+        
+        // Debug logging if country not found
+        if (countries.length > 0) {
+            console.log(`Country ${countryId} not found. Available countries sample:`, countries.slice(0, 5).map(c => ({ id: c.id, country_id: c.country_id, name: c.name })));
+        }
+        
+        return `Country ${countryId}`;
+    };
+
+    // Helper to get name for via_hub/ap_destination/destination (uses destinations and locations)
     const getLocationOrDestinationName = (value) => {
         if (!value) return "-";
         // Try destination first
@@ -404,13 +474,58 @@ export default function Stocks() {
         });
     };
 
+    // Get status style configuration
+    const getStatusStyle = (status) => {
+        if (!status) {
+            return {
+                bgColor: tableRowBg,
+                textColor: tableTextColor,
+                color: "gray",
+                label: "-"
+            };
+        }
+
+        let statusKey = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+
+        // Map variations to filter keys (old keys -> new keys)
+        if (STATUS_VARIATIONS[statusKey]) {
+            statusKey = STATUS_VARIATIONS[statusKey];
+        }
+
+        // Try exact match first
+        let config = STATUS_CONFIG[statusKey];
+        // If no exact match, try to find a partial match
+        if (!config) {
+            const matchingKey = Object.keys(STATUS_CONFIG).find(key => {
+                const normalizedKey = key.toLowerCase();
+                const normalizedStatus = statusKey.toLowerCase();
+                return normalizedStatus.includes(normalizedKey) ||
+                    normalizedKey.includes(normalizedStatus) ||
+                    normalizedStatus === normalizedKey;
+            });
+            config = matchingKey ? STATUS_CONFIG[matchingKey] : null;
+        }
+        return config || {
+            bgColor: tableRowBg,
+            textColor: tableTextColor,
+            color: "gray",
+            label: status || "-"
+        };
+    };
+
+    // Get status label
+    const getStatusLabel = (status) => {
+        const style = getStatusStyle(status);
+        return style.label || status || "-";
+    };
+
     // Shared sorting function - used by both By Vessel and By Client tabs
     // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
     const sortStockItems = (items) => {
         return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
-            const apDestA = getLocationOrDestinationName(a.ap_destination_id || a.ap_destination) || "";
-            const apDestB = getLocationOrDestinationName(b.ap_destination_id || b.ap_destination) || "";
+            const apDestA = getCountryName(a.ap_destination_id || a.ap_destination) || "";
+            const apDestB = getCountryName(b.ap_destination_id || b.ap_destination) || "";
             if (apDestA !== apDestB) {
                 return apDestA.localeCompare(apDestB);
             }
@@ -677,6 +792,7 @@ export default function Stocks() {
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
             currency_id: getFieldValue("currency_id", "currency"),
             // Ensure numeric fields are preserved as strings for input compatibility
+            item: item.item || item.items || item.item_id || item.stock_items_quantity || 1, // BOXES field
             items: item.items || item.item_id || item.stock_items_quantity || "",
             weight_kg: item.weight_kg !== undefined && item.weight_kg !== null ? String(item.weight_kg || item.weight_kgs || "") : "",
             volume_cbm: item.volume_cbm !== undefined && item.volume_cbm !== null ? String(item.volume_cbm) : "",
@@ -823,11 +939,16 @@ export default function Stocks() {
             { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
             { backend: "pic", original: ["pic", "pic_id"], edited: ["pic"], transform: (v) => v || "" },
+            { backend: "item", original: ["item"], edited: ["item"], transform: (v) => toNumber(v) || 1 }, // BOXES field - item count
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "origin", original: ["origin_id", "origin"], edited: ["origin_id", "origin"], transform: (v) => toValue(toId(v), false) },
-            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => v || "" }, // Free text field, not ID
+            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => {
+                if (!v && v !== 0) return false;
+                const num = typeof v === "string" ? parseInt(v, 10) : Number(v);
+                return isNaN(num) ? false : num;
+            } }, // ID field as number
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
@@ -1015,50 +1136,6 @@ export default function Stocks() {
         return value;
     };
 
-    // Get status color and background
-    const getStatusStyle = (status) => {
-        if (!status) {
-            return {
-                bgColor: tableRowBg,
-                textColor: tableTextColor,
-                color: "gray",
-                label: "-"
-            };
-        }
-        let statusKey = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
-
-        // Map variations to filter keys (old keys -> new keys)
-        if (STATUS_VARIATIONS[statusKey]) {
-            statusKey = STATUS_VARIATIONS[statusKey];
-        }
-
-        // Try exact match first
-        let config = STATUS_CONFIG[statusKey];
-        // If no exact match, try to find a partial match
-        if (!config) {
-            const matchingKey = Object.keys(STATUS_CONFIG).find(key => {
-                const normalizedKey = key.toLowerCase();
-                const normalizedStatus = statusKey.toLowerCase();
-                return normalizedStatus.includes(normalizedKey) ||
-                    normalizedKey.includes(normalizedStatus) ||
-                    normalizedStatus === normalizedKey;
-            });
-            config = matchingKey ? STATUS_CONFIG[matchingKey] : null;
-        }
-        return config || {
-            bgColor: tableRowBg,
-            textColor: tableTextColor,
-            color: "gray",
-            label: status || "-"
-        };
-    };
-
-    // Get status label
-    const getStatusLabel = (status) => {
-        const style = getStatusStyle(status);
-        return style.label || status || "-";
-    };
-
     const isInitialLoading = isLoading && stockList.length === 0;
 
     // Show error state
@@ -1107,8 +1184,77 @@ export default function Stocks() {
             });
         };
 
+        // Handle searchable select for SO number field
+        if (type === "so_number" || field.includes("so_number")) {
+            const soOptions = shippingOrders
+                .filter(so => so && so.id) // Filter out invalid entries
+                .map(so => ({
+                    value: String(so.id),
+                    label: so.so_number || so.name || `SO-${so.id}`
+                }));
+
+            // Debug logging
+            if (soOptions.length === 0 && !isLoadingShippingOrders) {
+                console.log('No SO options found. Shipping orders:', shippingOrders);
+            }
+
+            return (
+                <Box position="relative" zIndex={10}>
+                    <SimpleSearchableSelect
+                        value={currentValue ? String(currentValue) : ""}
+                        onChange={(val) => handleChange(val)}
+                        options={soOptions}
+                        placeholder={isLoadingShippingOrders ? "Loading SO numbers..." : (soOptions.length === 0 ? "No SO numbers available" : "Select SO Number...")}
+                        displayKey="label"
+                        valueKey="value"
+                        formatOption={(option) => option.label || `SO-${option.value}`}
+                        isLoading={isLoadingShippingOrders}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                    />
+                </Box>
+            );
+        }
+
+        // Handle searchable select for origin field - use countries
+        if (field.includes("origin_id") || field === "origin") {
+            const countryOptions = countries
+                .filter(c => c && (c.id || c.country_id)) // Filter out invalid entries
+                .map(c => {
+                    const countryId = c.id || c.country_id;
+                    return {
+                        value: String(countryId),
+                        label: c.name || c.code || `Country ${countryId}`
+                    };
+                });
+
+            // Debug logging
+            if (countryOptions.length === 0 && countries.length > 0) {
+                console.log('No country options found. Countries data:', countries.slice(0, 3));
+            }
+
+            return (
+                <Box position="relative" zIndex={10}>
+                    <SimpleSearchableSelect
+                        value={currentValue ? String(currentValue) : ""}
+                        onChange={(val) => handleChange(val)}
+                        options={countryOptions}
+                        placeholder={countryOptions.length === 0 ? "No countries available" : "Select Country..."}
+                        displayKey="label"
+                        valueKey="value"
+                        formatOption={(option) => option.label || `Country ${option.value}`}
+                        isLoading={false}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                    />
+                </Box>
+            );
+        }
+
         // Handle searchable select for destination fields (but NOT ap_destination - that's free text)
-        if (type === "searchable" || (field.includes("destination") && !field.includes("ap_destination")) || (field === "origin_id" && field.includes("origin"))) {
+        if (type === "searchable" || (field.includes("destination") && !field.includes("ap_destination"))) {
             // Use destinations for destination fields
             const destinationOptions = destinations.map(d => ({
                 value: String(d.id),
@@ -1134,18 +1280,33 @@ export default function Stocks() {
             );
         }
 
-        // Handle AP destination as free text (not searchable select)
+        // Handle AP destination as country searchable select
         if (field.includes("ap_destination")) {
+            const countryOptions = countries
+                .filter(c => c && (c.id || c.country_id)) // Filter out invalid entries
+                .map(c => {
+                    const countryId = c.id || c.country_id;
+                    return {
+                        value: String(countryId),
+                        label: c.name || c.code || `Country ${countryId}`
+                    };
+                });
+
             return (
-                <Input
-                    size="sm"
-                    value={currentValue || ""}
-                    onChange={(e) => handleChange(e.target.value)}
-                    bg={inputBg}
-                    color={inputText}
-                    borderColor={borderColor}
-                    placeholder="Enter AP Destination..."
-                />
+                <Box position="relative" zIndex={10}>
+                    <SimpleSearchableSelect
+                        value={currentValue ? String(currentValue) : ""}
+                        onChange={(val) => handleChange(val)}
+                        options={countryOptions}
+                        placeholder={countryOptions.length === 0 ? "No countries available" : "Select Country..."}
+                        displayKey="label"
+                        valueKey="value"
+                        formatOption={(option) => option.label || `Country ${option.value}`}
+                        isLoading={false}
+                        bg={inputBg}
+                        color={inputText}
+                    />
+                </Box>
             );
         }
 
@@ -1262,7 +1423,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "po_text", item.po_text || item.po_number) : <Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number) : <Text {...cellText}>{renderText(item.so_number_id || item.so_number || item.stock_so_number)}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text>}
@@ -1294,13 +1455,13 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination, "searchable") : <Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
@@ -1332,14 +1493,28 @@ export default function Stocks() {
                                     />
                                 </HStack>
                             ) : (
-                                <IconButton
-                                    icon={<Icon as={MdEdit} />}
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="ghost"
-                                    aria-label="Edit"
-                                    onClick={() => handleEditStart(item)}
-                                />
+                                <HStack spacing="2">
+                                    <IconButton
+                                        icon={<Icon as={MdEdit} />}
+                                        size="sm"
+                                        colorScheme="blue"
+                                        variant="ghost"
+                                        aria-label="Edit"
+                                        onClick={() => handleEditStart(item)}
+                                    />
+                                    <IconButton
+                                        icon={<Icon as={MdDelete} />}
+                                        size="sm"
+                                        colorScheme="red"
+                                        variant="ghost"
+                                        aria-label="Delete"
+                                        onClick={() => {
+                                            if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
+                                                handleDeleteItem(item.id, item.stock_item_id);
+                                            }
+                                        }}
+                                    />
+                                </HStack>
                             )}
                         </Td>
                     </Tr>
@@ -1418,7 +1593,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "items", item.items || item.item_id || item.stock_items_quantity, "number") : <Text {...cellText}>{renderText(item.items || item.item_id || item.stock_items_quantity)}</Text>}
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || 1, "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
@@ -1433,13 +1608,13 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination, "searchable") : <Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
@@ -1457,7 +1632,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number) : <Text {...cellText}>{renderText(item.so_number_id || item.so_number || item.stock_so_number)}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text>}
@@ -1489,14 +1664,28 @@ export default function Stocks() {
                                     />
                                 </HStack>
                             ) : (
-                                <IconButton
-                                    icon={<Icon as={MdEdit} />}
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="ghost"
-                                    aria-label="Edit"
-                                    onClick={() => handleEditStart(item)}
-                                />
+                                <HStack spacing="2">
+                                    <IconButton
+                                        icon={<Icon as={MdEdit} />}
+                                        size="sm"
+                                        colorScheme="blue"
+                                        variant="ghost"
+                                        aria-label="Edit"
+                                        onClick={() => handleEditStart(item)}
+                                    />
+                                    <IconButton
+                                        icon={<Icon as={MdDelete} />}
+                                        size="sm"
+                                        colorScheme="red"
+                                        variant="ghost"
+                                        aria-label="Delete"
+                                        onClick={() => {
+                                            if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
+                                                handleDeleteItem(item.id, item.stock_item_id);
+                                            }
+                                        }}
+                                    />
+                                </HStack>
                             )}
                         </Td>
                     </Tr>
@@ -1531,7 +1720,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_number_id || item.so_number)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
@@ -1545,7 +1734,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
@@ -1556,7 +1745,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.items || item.item_id)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || "-")}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
