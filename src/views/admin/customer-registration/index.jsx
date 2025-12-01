@@ -28,6 +28,9 @@ import {
     AlertDialogContent,
     AlertDialogOverlay,
     useDisclosure,
+    Textarea,
+    Tooltip,
+    Checkbox,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 // Custom components
@@ -66,7 +69,8 @@ function CustomerRegistration() {
         { key: "tel_direct", label: "Tel direct" },
         { key: "phone", label: "Mobile" },
         { key: "tel_other", label: "Tel other" },
-        { key: "linked_in", label: "LinkedIn" },
+        // Replace LinkedIn with WhatsApp (checkbox)
+        { key: "whatsapp", label: "WhatsApp" },
         { key: "remarks", label: "Remark" },
     ];
 
@@ -80,7 +84,7 @@ function CustomerRegistration() {
         tel_direct: "Tel direct",
         phone: "Mobile",
         tel_other: "Tel other",
-        linked_in: "LinkedIn",
+        whatsapp: "",
         remarks: "Notes...",
     };
 
@@ -94,7 +98,7 @@ function CustomerRegistration() {
         tel_direct: "",
         phone: "",
         tel_other: "",
-        linked_in: "",
+        whatsapp: false,
         remarks: "",
     };
 
@@ -144,22 +148,47 @@ function CustomerRegistration() {
         street2: "",
         street3: "",
         street4: "",
+        street5: "",
+        street6: "",
+        street7: "",
         city: "",
         zip: "",
         country_id: "",
         reg_no: "",
         website: "",
+        payment_terms: "",
+        clients_type: "",
+        vessel_type: "",
         remarks: "",
         prefix: "",
         job_title: "",
     });
 
-    // Address fields visibility state (default: 2, max: 4)
+    // Address fields visibility state (default: 2, max: 7)
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
     const addMoreAddress = () => {
-        if (visibleAddressFields < 4) {
+        if (visibleAddressFields < 7) {
             setVisibleAddressFields(prev => prev + 1);
+        }
+    };
+
+    const removeAddressField = (level) => {
+        if (level === 7 && visibleAddressFields >= 7) {
+            setFormData((prev) => ({ ...prev, street7: "" }));
+            setVisibleAddressFields(6);
+        } else if (level === 6 && visibleAddressFields >= 6) {
+            setFormData((prev) => ({ ...prev, street6: "", street7: "" }));
+            setVisibleAddressFields(5);
+        } else if (level === 5 && visibleAddressFields >= 5) {
+            setFormData((prev) => ({ ...prev, street5: "", street6: "", street7: "" }));
+            setVisibleAddressFields(4);
+        } else if (level === 4 && visibleAddressFields >= 4) {
+            setFormData((prev) => ({ ...prev, street4: "", street5: "", street6: "", street7: "" }));
+            setVisibleAddressFields(3);
+        } else if (level === 3 && visibleAddressFields >= 3) {
+            setFormData((prev) => ({ ...prev, street3: "", street4: "", street5: "", street6: "", street7: "" }));
+            setVisibleAddressFields(2);
         }
     };
 
@@ -178,11 +207,17 @@ function CustomerRegistration() {
                 street2: editingClient.street2 || "",
                 street3: editingClient.street3 || "",
                 street4: editingClient.street4 || "",
+                street5: editingClient.street5 || "",
+                street6: editingClient.street6 || "",
+                street7: editingClient.street7 || "",
                 city: editingClient.city || "",
                 zip: editingClient.zip || "",
                 country_id: editingClient.country_id || "",
                 reg_no: editingClient.reg_no || "",
                 website: editingClient.website || "",
+                payment_terms: editingClient.payment_terms || "",
+                clients_type: editingClient.clients_type || "",
+                vessel_type: editingClient.vessel_type || editingClient.vessel_types || "",
                 remarks: editingClient.remarks || "",
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
@@ -192,6 +227,9 @@ function CustomerRegistration() {
             let maxAddressIndex = 2;
             if (editingClient.street3) maxAddressIndex = 3;
             if (editingClient.street4) maxAddressIndex = 4;
+            if (editingClient.street5) maxAddressIndex = 5;
+            if (editingClient.street6) maxAddressIndex = 6;
+            if (editingClient.street7) maxAddressIndex = 7;
             setVisibleAddressFields(maxAddressIndex);
 
             // Populate peopleRows from children array if it exists
@@ -215,7 +253,7 @@ function CustomerRegistration() {
                         tel_direct: getValue(child.tel_direct),
                         phone: getValue(child.phone),
                         tel_other: getValue(child.tel_other),
-                        linked_in: getValue(child.linked_in),
+                            whatsapp: !!child.whatsapp,
                         remarks: getValue(child.remarks),
                     };
                 });
@@ -329,7 +367,7 @@ function CustomerRegistration() {
                             job_title: row.job_title || undefined,
                             tel_direct: row.tel_direct || undefined,
                             tel_other: row.tel_other || undefined,
-                            linked_in: row.linked_in || undefined,
+                            whatsapp: row.whatsapp ? true : false,
                             remarks: row.remarks || undefined,
                         };
                         // Remove undefined values
@@ -355,7 +393,7 @@ function CustomerRegistration() {
                             job_title: row.job_title || undefined,
                             tel_direct: row.tel_direct || undefined,
                             tel_other: row.tel_other || undefined,
-                            linked_in: row.linked_in || undefined,
+                            whatsapp: row.whatsapp ? true : false,
                             remarks: row.remarks || undefined,
                         };
                         // Remove undefined values
@@ -384,7 +422,7 @@ function CustomerRegistration() {
                         job_title: row.job_title || undefined,
                         tel_direct: row.tel_direct || undefined,
                         tel_other: row.tel_other || undefined,
-                        linked_in: row.linked_in || undefined,
+                        whatsapp: row.whatsapp ? true : false,
                         remarks: row.remarks || undefined,
                     };
                     // Remove undefined values
@@ -409,11 +447,17 @@ function CustomerRegistration() {
                 street2: formData.street2,
                 street3: formData.street3 || undefined,
                 street4: formData.street4 || undefined,
+                street5: formData.street5 || undefined,
+                street6: formData.street6 || undefined,
+                street7: formData.street7 || undefined,
                 city: formData.city,
                 zip: formData.zip,
                 country_id: parseInt(formData.country_id) || null,
                 reg_no: formData.reg_no,
                 website: formData.website,
+                payment_terms: formData.payment_terms || undefined,
+                clients_type: formData.clients_type || undefined,
+                vessel_type: formData.vessel_type || undefined,
                 remarks: formData.remarks,
                 company_type: "company",
                 children: children.length ? children : undefined,
@@ -447,6 +491,9 @@ function CustomerRegistration() {
                     country_id: parseInt(formData.country_id) || null,
                     reg_no: formData.reg_no,
                     website: formData.website,
+                    payment_terms: formData.payment_terms,
+                    clients_type: formData.clients_type,
+                    vessel_type: formData.vessel_type,
                     remarks: formData.remarks,
                     status: "Active",
                     joinDate: new Date().toLocaleDateString("en-US", {
@@ -474,11 +521,17 @@ function CustomerRegistration() {
                     street2: "",
                     street3: "",
                     street4: "",
+                    street5: "",
+                    street6: "",
+                    street7: "",
                     city: "",
                     zip: "",
                     country_id: "",
                     reg_no: "",
                     website: "",
+                    payment_terms: "",
+                    clients_type: "",
+                    vessel_type: "",
                     remarks: "",
                     prefix: "",
                     job_title: "",
@@ -646,11 +699,74 @@ function CustomerRegistration() {
                                                         <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                             <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
                                                             <InputGroup w={gridInputWidth}>
-                                                                <Input name="street3" value={formData.street3} onChange={handleInputChange} placeholder="Additional address line" size="sm" pr={visibleAddressFields < 4 ? "32px" : "0"} />
+                                                                <Input
+                                                                    name="street3"
+                                                                    value={formData.street3}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder="Additional address line"
+                                                                    size="sm"
+                                                                    pr="64px"
+                                                                />
+                                                                <InputRightElement
+                                                                    width="64px"
+                                                                    height="100%"
+                                                                    display="flex"
+                                                                    alignItems="center"
+                                                                    justifyContent="flex-end"
+                                                                    pr={1}
+                                                                >
                                                                 {visibleAddressFields < 4 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
                                                                         <IconButton
                                                                             aria-label="Add Address4"
+                                                                            icon={<Icon as={MdAdd} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={addMoreAddress}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                            mr={1}
+                                                                        />
+                                                                    )}
+                                                                    <IconButton
+                                                                        aria-label="Remove Address3"
+                                                                        icon={<Icon as={DeleteIcon} />}
+                                                                        size="xs"
+                                                                        variant="ghost"
+                                                                        colorScheme="red"
+                                                                        onClick={() => removeAddressField(3)}
+                                                                        h="24px"
+                                                                        w="24px"
+                                                                        minW="24px"
+                                                                    />
+                                                                </InputRightElement>
+                                                            </InputGroup>
+                                                        </Box>
+                                                    )}
+                                                    {/* Address4 - conditionally shown */}
+                                                    {visibleAddressFields >= 4 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: visibleAddressFields >= 3 ? `1px solid ${borderColor}` : "none" }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                                            <InputGroup w={gridInputWidth}>
+                                                                <Input
+                                                                    name="street4"
+                                                                    value={formData.street4}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder="Additional address line"
+                                                                    size="sm"
+                                                                    pr={visibleAddressFields < 5 ? "32px" : "0"}
+                                                                />
+                                                                {visibleAddressFields < 5 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Add Address5"
                                                                             icon={<Icon as={MdAdd} />}
                                                                             size="xs"
                                                                             variant="ghost"
@@ -662,14 +778,179 @@ function CustomerRegistration() {
                                                                         />
                                                                     </InputRightElement>
                                                                 )}
+                                                                {visibleAddressFields >= 5 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Remove Address4"
+                                                                            icon={<Icon as={DeleteIcon} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="red"
+                                                                            onClick={() => removeAddressField(4)}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
                                                             </InputGroup>
                                                         </Box>
                                                     )}
-                                                    {/* Address4 - conditionally shown */}
-                                                    {visibleAddressFields >= 4 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: visibleAddressFields >= 3 ? `1px solid ${borderColor}` : "none" }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
-                                                            <Input name="street4" value={formData.street4} onChange={handleInputChange} placeholder="Additional address line" size="sm" w={gridInputWidth} />
+                                                    {/* Address5 - conditionally shown */}
+                                                    {visibleAddressFields >= 5 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
+                                                            <InputGroup w={gridInputWidth}>
+                                                                <Input
+                                                                    name="street5"
+                                                                    value={formData.street5}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder="Additional address line"
+                                                                    size="sm"
+                                                                    pr={visibleAddressFields < 6 ? "32px" : "0"}
+                                                                />
+                                                                {visibleAddressFields < 6 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Add Address6"
+                                                                            icon={<Icon as={MdAdd} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={addMoreAddress}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
+                                                                {visibleAddressFields >= 6 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Remove Address5"
+                                                                            icon={<Icon as={DeleteIcon} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="red"
+                                                                            onClick={() => removeAddressField(5)}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
+                                                            </InputGroup>
+                                                        </Box>
+                                                    )}
+                                                    {/* Address6 - conditionally shown */}
+                                                    {visibleAddressFields >= 6 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
+                                                            <InputGroup w={gridInputWidth}>
+                                                                <Input
+                                                                    name="street6"
+                                                                    value={formData.street6}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder="Additional address line"
+                                                                    size="sm"
+                                                                    pr={visibleAddressFields < 7 ? "32px" : "0"}
+                                                                />
+                                                                {visibleAddressFields < 7 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Add Address7"
+                                                                            icon={<Icon as={MdAdd} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={addMoreAddress}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
+                                                                {visibleAddressFields >= 7 && (
+                                                                    <InputRightElement
+                                                                        width="32px"
+                                                                        height="100%"
+                                                                        display="flex"
+                                                                        alignItems="center"
+                                                                        justifyContent="center"
+                                                                    >
+                                                                        <IconButton
+                                                                            aria-label="Remove Address6"
+                                                                            icon={<Icon as={DeleteIcon} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="red"
+                                                                            onClick={() => removeAddressField(6)}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    </InputRightElement>
+                                                                )}
+                                                            </InputGroup>
+                                                        </Box>
+                                                    )}
+                                                    {/* Address7 - conditionally shown */}
+                                                    {visibleAddressFields >= 7 && (
+                                                        <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
+                                                            <InputGroup w={gridInputWidth}>
+                                                                <Input
+                                                                    name="street7"
+                                                                    value={formData.street7}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder="Additional address line"
+                                                                    size="sm"
+                                                                    pr="32px"
+                                                                />
+                                                                <InputRightElement
+                                                                    width="32px"
+                                                                    height="100%"
+                                                                    display="flex"
+                                                                    alignItems="center"
+                                                                    justifyContent="center"
+                                                                >
+                                                                    <IconButton
+                                                                        aria-label="Remove Address7"
+                                                                        icon={<Icon as={DeleteIcon} />}
+                                                                        size="xs"
+                                                                        variant="ghost"
+                                                                        colorScheme="red"
+                                                                        onClick={() => removeAddressField(7)}
+                                                                        h="24px"
+                                                                        w="24px"
+                                                                        minW="24px"
+                                                                    />
+                                                                </InputRightElement>
+                                                            </InputGroup>
                                                         </Box>
                                                     )}
                                                     {/* 6. Postcode */}
@@ -702,35 +983,65 @@ function CustomerRegistration() {
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
                                                         <Input name="reg_no" value={formData.reg_no} onChange={handleInputChange} placeholder="Registration" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 10. Email1 */}
+                                                    {/* 10. Payment Terms */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
+                                                        <Input name="payment_terms" value={formData.payment_terms} onChange={handleInputChange} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 11. Clients Type */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Clients Type</Text>
+                                                        <Input name="clients_type" value={formData.clients_type} onChange={handleInputChange} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    {/* 12. Vessel Types */}
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Types</Text>
+                                                        <Input
+                                                            name="vessel_type"
+                                                            value={formData.vessel_type}
+                                                            onChange={handleInputChange}
+                                                            placeholder="e.g. Oil / LNG Gas Tankers, Bulk carriers"
+                                                            size="sm"
+                                                            w={gridInputWidth}
+                                                        />
+                                                    </Box>
+                                                    {/* 13. Email1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
                                                         <Input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="name@company.com" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 11. Email2 */}
+                                                    {/* 13. Email2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
                                                         <Input type="email" name="email2" value={formData.email2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 12. Phone1 */}
+                                                    {/* 14. Phone1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
                                                         <Input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+65..." size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 13. Phone2 */}
+                                                    {/* 15. Phone2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
                                                         <Input name="phone2" value={formData.phone2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 14. Website */}
+                                                    {/* 16. Website */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
                                                         <Input name="website" value={formData.website} onChange={handleInputChange} placeholder="https://..." size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    {/* 15. Remarks */}
-                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Remarks</Text>
-                                                        <Input name="remarks" value={formData.remarks} onChange={handleInputChange} placeholder="Notes..." size="sm" w={gridInputWidth} />
+                                                    {/* 17. Remarks (textarea) */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
+                                                        <Textarea
+                                                            name="remarks"
+                                                            value={formData.remarks}
+                                                            onChange={handleInputChange}
+                                                            placeholder="Notes..."
+                                                            size="sm"
+                                                            w={gridInputWidth}
+                                                            rows={3}
+                                                        />
                                                     </Box>
                                                 </Box>
                                             </Box>
@@ -813,7 +1124,28 @@ function CustomerRegistration() {
                                                                             <option value="dr">Dr.</option>
                                                                             <option value="prof">Prof.</option>
                                                                         </Select>
+                                                                    ) : column.key === "whatsapp" ? (
+                                                                        <Checkbox
+                                                                            isChecked={!!row.whatsapp}
+                                                                            onChange={(e) => {
+                                                                                const checked = e.target.checked;
+                                                                                setPeopleRows((prev) => {
+                                                                                    const updated = [...prev];
+                                                                                    updated[rowIndex] = { ...updated[rowIndex], whatsapp: checked };
+                                                                                    return updated;
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            Works via WhatsApp
+                                                                        </Checkbox>
                                                                     ) : (
+                                                                        <Tooltip
+                                                                            label={row[column.key]}
+                                                                            isDisabled={!row[column.key]}
+                                                                            hasArrow
+                                                                            placement="top"
+                                                                            openDelay={200}
+                                                                        >
                                                                         <Input
                                                                             value={row[column.key]}
                                                                             onChange={(e) => {
@@ -838,6 +1170,7 @@ function CustomerRegistration() {
                                                                             }}
                                                                             placeholder={peoplePlaceholders[column.key] || undefined}
                                                                         />
+                                                                        </Tooltip>
                                                                     )}
                                                                 </Td>
                                                             ))}

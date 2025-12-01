@@ -209,8 +209,48 @@ export default function CustomerTable(props) {
         .filter(Boolean)
         .join(", ");
 
-      // Count children
-      const childrenCount = Array.isArray(item.children) ? item.children.length : 0;
+      // Normalize children (client people) for tooltip display
+      const childrenArray = Array.isArray(item.children) ? item.children : [];
+      const childrenCount = childrenArray.length;
+
+      const normalizedChildren = childrenArray.map((child, index) => {
+        const fullName =
+          child?.name ||
+          [child?.first_name, child?.last_name].filter(Boolean).join(" ");
+
+        const jobTitle =
+          child?.jobTitle ||
+          child?.job_title ||
+          child?.position ||
+          child?.title ||
+          "";
+
+        const email =
+          child?.email ||
+          child?.email1 ||
+          child?.email2 ||
+          child?.primary_email ||
+          "";
+
+        const phone =
+          child?.tel_direct ||
+          child?.phone ||
+          child?.tel_other ||
+          child?.mobile ||
+          "";
+
+        return {
+          id:
+            child?.id ||
+            child?.person_id ||
+            child?.contact_id ||
+            `${fullName || email || phone || index}-${index}`,
+          name: fullName || email || phone || "Unnamed Contact",
+          jobTitle,
+          email,
+          phone,
+        };
+      });
 
       return {
         ...item,
@@ -219,6 +259,7 @@ export default function CustomerTable(props) {
           .join(", "),
         emails: emails || "-",
         children_count: childrenCount,
+        children_display: normalizedChildren,
       };
     });
   }, [tableData, searchValue, filters]);
@@ -921,30 +962,66 @@ export default function CustomerTable(props) {
                             </Text>
                           );
                         } else if (cell.column.Header === "CLIENT PEOPLE") {
-                          const childrenCount = value || 0;
+                          const rawCount = Number(row.original.children_count ?? 0);
+                          const childrenCount = Number.isNaN(rawCount) ? 0 : rawCount;
+                          const hasPeople = childrenCount > 0;
+
+                          // Quick lookup tooltip content with Job Title / Email
+                          const peopleList = Array.isArray(row.original.children_display)
+                            ? row.original.children_display
+                            : [];
+
+                          const tooltipContent = hasPeople
+                            ? peopleList
+                                .slice(0, 5)
+                                .map((person) => {
+                                  const pieces = [
+                                    person.name,
+                                    // Prefer jobTitle but gracefully fall back to job_title
+                                    person.jobTitle || person.job_title,
+                                    person.email || person.phone,
+                                  ].filter(Boolean);
+                                  return pieces.join(" · ");
+                                })
+                                .join("\n") +
+                              (peopleList.length > 5
+                                ? `\n+${peopleList.length - 5} more`
+                                : "")
+                            : "";
+
                           data = (
-                            <HStack spacing={2} align="center">
-                              <Icon
-                                as={MdPeople}
-                                color={childrenCount > 0 ? "blue.500" : "gray.400"}
-                                boxSize={4}
-                              />
-                              <Box
-                                as="span"
-                                px={2}
-                                py={1}
-                                borderRadius="md"
-                                bg={childrenCount > 0 ? "blue.50" : "gray.100"}
-                                color={childrenCount > 0 ? "blue.700" : "gray.600"}
-                                fontWeight="600"
-                                fontSize="sm"
-                                minW="32px"
-                                textAlign="center"
-                                display="inline-block"
-                              >
-                                {childrenCount}
-                              </Box>
-                            </HStack>
+                            <Tooltip
+                              label={tooltipContent}
+                              placement="top"
+                              hasArrow
+                              isDisabled={!hasPeople}
+                              maxW="260px"
+                              whiteSpace="pre-wrap"
+                              openDelay={150}
+                            >
+                              <HStack spacing={2} align="center">
+                                <Icon
+                                  as={MdPeople}
+                                  color={childrenCount > 0 ? "blue.500" : "gray.400"}
+                                  boxSize={4}
+                                />
+                                <Box
+                                  as="span"
+                                  px={2}
+                                  py={1}
+                                  borderRadius="md"
+                                  bg={childrenCount > 0 ? "blue.50" : "gray.100"}
+                                  color={childrenCount > 0 ? "blue.700" : "gray.600"}
+                                  fontWeight="600"
+                                  fontSize="sm"
+                                  minW="32px"
+                                  textAlign="center"
+                                  display="inline-block"
+                                >
+                                  {childrenCount}
+                                </Box>
+                              </HStack>
+                            </Tooltip>
                           );
                         } else if (cell.column.Header === "ACTIONS") {
                           data = (

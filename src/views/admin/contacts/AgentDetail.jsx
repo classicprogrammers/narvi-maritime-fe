@@ -16,8 +16,11 @@ import {
   Tr,
   Th,
   Td,
+  Tooltip,
+  IconButton,
+  useToast,
 } from "@chakra-ui/react";
-import { MdPrint } from "react-icons/md";
+import { MdPrint, MdContentCopy } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -52,6 +55,8 @@ const agentInfoSections = [
       { label: "Country", key: "country_name" },
       { label: "Agent ID", key: "agentsdb_id" },
       { label: "Reg No", key: "reg_no" },
+      { label: "Payment Terms", key: "payment_terms" },
+      { label: "Agents Type", key: "agents_type" },
       { label: "Email1", key: "email" },
       { label: "Email2", key: "email2" },
       { label: "Phone1", key: "phone" },
@@ -109,7 +114,7 @@ const peopleTableColumns = [
   { key: "tel_direct", label: "Tel direct" },
   { key: "phone", label: "Mobile" },
   { key: "tel_other", label: "Tel other" },
-  { key: "linked_in", label: "LinkedIn" },
+  { key: "whatsapp", label: "WhatsApp" },
   { key: "remarks", label: "Remark" },
 ];
 
@@ -129,6 +134,7 @@ const AgentDetail = () => {
   const valueColor = useColorModeValue("gray.800", "white");
   const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
+  const toast = useToast();
 
   // Load agent data
   useEffect(() => {
@@ -312,7 +318,8 @@ const AgentDetail = () => {
     }
 
     // Helper function to convert false/null/undefined to empty string
-    const getValue = (val) => (val !== false && val !== null && val !== undefined) ? String(val) : "";
+    const getValue = (val) =>
+      val !== false && val !== null && val !== undefined ? String(val) : "";
 
     return agent.children.map((child) => ({
       first_name: getValue(child.first_name),
@@ -323,7 +330,7 @@ const AgentDetail = () => {
       tel_direct: getValue(child.tel_direct),
       phone: getValue(child.phone),
       tel_other: getValue(child.tel_other),
-      linked_in: getValue(child.linked_in),
+      whatsapp: child.whatsapp ? "Yes" : "No",
       remarks: getValue(child.remarks),
     }));
   }, [agent]);
@@ -332,6 +339,70 @@ const AgentDetail = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCopyLookupData = () => {
+    if (!agent) return;
+
+    // Copy LOOK UP section
+    const lookupItems = agentInfoSections[0].items
+      .filter(({ label, key, formatter }) => {
+        let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
+        // Compute country_name if not present
+        if (key === "country_name" && !rawValue && agent.country_id) {
+          const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
+          rawValue = getCountryName(agent.country_id, countryList);
+        }
+        const displayValue = prettyValue(rawValue);
+        return displayValue && displayValue !== "-" && displayValue !== "";
+      })
+      .map(({ label, key, formatter }) => {
+        let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
+        // Compute country_name if not present
+        if (key === "country_name" && !rawValue && agent.country_id) {
+          const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
+          rawValue = getCountryName(agent.country_id, countryList);
+        }
+        return `${label}: ${prettyValue(rawValue)}`;
+      })
+      .join("\n");
+
+    // Copy Agent People section
+    let peopleSection = "";
+    if (agentPeople.length > 0) {
+      peopleSection = "\n\nAGENT PEOPLE:\n";
+      agentPeople.forEach((person, index) => {
+        peopleSection += `\nPerson ${index + 1}:\n`;
+        peopleTableColumns.forEach((column) => {
+          const value = prettyValue(person[column.key]);
+          if (value && value !== "-") {
+            peopleSection += `  ${column.label}: ${value}\n`;
+          }
+        });
+      });
+    }
+
+    const allData = lookupItems + peopleSection;
+
+    if (allData) {
+      navigator.clipboard.writeText(allData).then(() => {
+        toast({
+          title: "Copied to clipboard",
+          description: "Agent information and people details have been copied to your clipboard.",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      }).catch(() => {
+        toast({
+          title: "Copy failed",
+          description: "Failed to copy information. Please try again.",
+          status: "error",
+          duration: 2000,
+          isClosable: true,
+        });
+      });
+    }
   };
 
   return (
@@ -419,9 +490,21 @@ const AgentDetail = () => {
           ) : agent ? (
             <Stack spacing={10}>
               <Grid templateColumns={{ base: "1fr", lg: "1fr" }} gap={6}>
-                <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
-                  Look up
-                </Text>
+                <Flex justify="space-between" align="center">
+                  <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
+                    Look up
+                  </Text>
+                  <Tooltip label="Copy all lookup information to clipboard">
+                    <IconButton
+                      aria-label="Copy lookup data"
+                      icon={<Icon as={MdContentCopy} />}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="blue"
+                      onClick={handleCopyLookupData}
+                    />
+                  </Tooltip>
+                </Flex>
                 {agentInfoSections.map((section) => {
                   // Filter items to only show fields with actual data
                   const itemsWithData = section.items.filter(({ label, key, formatter }) => {
@@ -467,9 +550,22 @@ const AgentDetail = () => {
                               <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
                                 {label}
                               </Text>
-                              <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                {prettyValue(rawValue)}
-                              </Text>
+                              <Tooltip
+                                label={prettyValue(rawValue)}
+                                hasArrow
+                                isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
+                              >
+                                <Text
+                                  fontSize="sm"
+                                  color={valueColor}
+                                  whiteSpace="nowrap"
+                                  overflow="hidden"
+                                  textOverflow="ellipsis"
+                                  maxW="220px"
+                                >
+                                  {prettyValue(rawValue)}
+                                </Text>
+                              </Tooltip>
                             </GridItem>
                           );
                         })}
@@ -550,9 +646,22 @@ const AgentDetail = () => {
                           <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
                             {peopleTableColumns.map((column) => (
                               <Td key={column.key} minW="170px" px={3} py={2}>
-                                <Text fontSize="sm" color={valueColor}>
-                                  {prettyValue(person[column.key])}
-                                </Text>
+                                <Tooltip
+                                  label={prettyValue(person[column.key])}
+                                  hasArrow
+                                  isDisabled={!prettyValue(person[column.key])}
+                                >
+                                  <Text
+                                    fontSize="sm"
+                                    color={valueColor}
+                                    whiteSpace="nowrap"
+                                    overflow="hidden"
+                                    textOverflow="ellipsis"
+                                    maxW="220px"
+                                  >
+                                    {prettyValue(person[column.key])}
+                                  </Text>
+                                </Tooltip>
                               </Td>
                             ))}
                           </Tr>

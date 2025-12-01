@@ -715,7 +715,7 @@ export default function StockForm() {
                 // Send all lines in a single payload
                 const payload = { lines };
                 const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
-
+                
                 if (result && result.result && result.result.status === 'success') {
                     toast({
                         title: 'Success',
@@ -800,15 +800,15 @@ export default function StockForm() {
                     // Success case - no errors
                     if (resultData.status === 'success') {
                         const successCount = resultData.created_count || lines.length;
-                        toast({
-                            title: 'Success',
-                            description: `${successCount} stock item(s) created successfully`,
-                            status: 'success',
-                            duration: 3000,
-                            isClosable: true,
-                        });
-                        getStockList();
-                        history.push("/admin/stock-list/stocks");
+                    toast({
+                        title: 'Success',
+                        description: `${successCount} stock item(s) created successfully`,
+                        status: 'success',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    getStockList();
+                    history.push("/admin/stock-list/stocks");
                     } else {
                         const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
                         toast({
@@ -845,7 +845,7 @@ export default function StockForm() {
 
 
     if (isLoading) {
-        return (
+    return (
             <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
                 <Flex justify="center" align="center" h="200px">
                     <VStack spacing="4">
@@ -881,30 +881,30 @@ export default function StockForm() {
 
                 <HStack spacing="3">
                     {!isEditing && (
-                        <Button
+                    <Button
                             leftIcon={<Icon as={MdAdd} />}
                             bg="blue.500"
-                            color="white"
-                            size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={handleAddRow}
-                        >
-                            Add Row
-                        </Button>
-                    )}
-                    <Button
-                        leftIcon={<Icon as={MdSave} />}
-                        bg="green.500"
                         color="white"
                         size="sm"
                         px="6"
                         py="3"
                         borderRadius="md"
-                        _hover={{ bg: "green.600" }}
-                        onClick={handleSaveStockItem}
+                            _hover={{ bg: "blue.600" }}
+                            onClick={handleAddRow}
+                    >
+                            Add Row
+                    </Button>
+                    )}
+                <Button
+                    leftIcon={<Icon as={MdSave} />}
+                    bg="green.500"
+                    color="white"
+                    size="sm"
+                    px="6"
+                    py="3"
+                    borderRadius="md"
+                    _hover={{ bg: "green.600" }}
+                    onClick={handleSaveStockItem}
                         isLoading={updateLoading}
                         loadingText="Saving..."
                     >
@@ -913,7 +913,7 @@ export default function StockForm() {
                             : isEditing
                                 ? "Update Stock Item"
                                 : `Save ${formRows.length} Item(s)`}
-                    </Button>
+                </Button>
                 </HStack>
             </Flex>
 
@@ -928,7 +928,7 @@ export default function StockForm() {
                     borderBottom="1px"
                     borderColor={borderColor}
                 >
-                    <HStack spacing="2">
+                <HStack spacing="2">
                         <Button
                             size="xs"
                             onClick={() => {
@@ -944,7 +944,7 @@ export default function StockForm() {
                         </Button>
                         <Text fontSize="sm" color={textColor}>
                             Item {currentItemIndex + 1} of {selectedItems.length}
-                        </Text>
+                    </Text>
                         <Button
                             size="xs"
                             onClick={() => {
@@ -958,11 +958,11 @@ export default function StockForm() {
                         >
                             Next
                         </Button>
-                    </HStack>
+                </HStack>
                     <Text fontSize="xs" color="gray.500">
                         Changes will apply to all {selectedItems.length} selected items
                     </Text>
-                </Flex>
+            </Flex>
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
@@ -1005,10 +1005,10 @@ export default function StockForm() {
                                 <Tr key={row.id}>
                                     {isEditing && (
                                         <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
+                                <Input
                                                 value={row.stockItemId || ""}
                                                 isReadOnly
-                                                size="sm"
+                                    size="sm"
                                                 bg={useColorModeValue("gray.100", "gray.700")}
                                                 color={inputText}
                                             />
@@ -1045,21 +1045,21 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.pic || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
                                             placeholder="Enter PIC"
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Select
+                                <Select
                                             value={row.stockStatus}
                                             onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1075,7 +1075,7 @@ export default function StockForm() {
                                             <option value="delivered">Delivered</option>
                                             <option value="irregular">Irregularities</option>
                                             <option value="cancelled">Cancelled</option>
-                                        </Select>
+                                </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
@@ -1098,29 +1098,29 @@ export default function StockForm() {
                                             value={row.poNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
                                             placeholder="Enter PO Number"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
+                                    size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.warehouseId}
                                             onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.shippingDoc}
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1132,7 +1132,7 @@ export default function StockForm() {
                                             onChange={(value) => handleInputChange(rowIndex, "item", value)}
                                             min={1}
                                             precision={0}
-                                            size="sm"
+                                    size="sm"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             <NumberInputStepper>
@@ -1197,22 +1197,22 @@ export default function StockForm() {
                                         </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.lwhText}
                                             onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.details}
                                             onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1267,11 +1267,11 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                <Input
                                             value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                             placeholder="Enter Via HUB"
-                                            size="sm"
+                                    size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1282,7 +1282,7 @@ export default function StockForm() {
                                             type="date"
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
-                                            size="sm"
+                                        size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1293,7 +1293,7 @@ export default function StockForm() {
                                             value={row.remarks}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
                                             placeholder=""
-                                            size="sm"
+                                        size="sm"
                                             rows={2}
                                             bg={inputBg}
                                             color={inputText}

@@ -16,8 +16,11 @@ import {
   Tr,
   Th,
   Td,
+  Tooltip,
+  IconButton,
+  useToast,
 } from "@chakra-ui/react";
-import { MdPrint } from "react-icons/md";
+import { MdPrint, MdContentCopy } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -40,6 +43,9 @@ const clientInfoSections = [
       { label: "Postcode + City", key: "city", formatter: (value, client) => `${client.zip || "-"} ${value || ""}`.trim() || "-" },
       { label: "Country", key: "country_name" },
       { label: "Reg No", key: "reg_no" },
+      { label: "Payment Terms", key: "payment_terms" },
+      { label: "Clients Type", key: "clients_type" },
+      { label: "Vessel Types", key: "vessel_type" },
       { label: "Category", key: "client_category" },
       { label: "Email1", key: "email" },
       { label: "Email2", key: "email2" },
@@ -60,7 +66,7 @@ const peopleTableColumns = [
   { key: "tel_direct", label: "Tel direct" },
   { key: "phone", label: "Mobile" },
   { key: "tel_other", label: "Tel other" },
-  { key: "linked_in", label: "LinkedIn" },
+  { key: "whatsapp", label: "WhatsApp" },
   { key: "remarks", label: "Remark" },
 ];
 
@@ -77,6 +83,7 @@ const ClientDetail = () => {
   const valueColor = useColorModeValue("gray.800", "white");
   const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
+  const toast = useToast();
 
   const client = useMemo(() => {
     if (location.state?.client) {
@@ -110,7 +117,7 @@ const ClientDetail = () => {
       tel_direct: getValue(child.tel_direct),
       phone: getValue(child.phone),
       tel_other: getValue(child.tel_other),
-      linked_in: getValue(child.linked_in),
+      whatsapp: child.whatsapp ? "Yes" : "No",
       remarks: getValue(child.remarks),
     }));
   }, [client]);
@@ -119,6 +126,60 @@ const ClientDetail = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCopyLookupData = () => {
+    if (!client) return;
+
+    // Copy LOOK UP section
+    const lookupItems = clientInfoSections[0].items
+      .filter(({ label, key, formatter }) => {
+        const rawValue = formatter ? formatter(client[key], client) : client[key];
+        const displayValue = prettyValue(rawValue);
+        return displayValue && displayValue !== "-" && displayValue !== "";
+      })
+      .map(({ label, key, formatter }) => {
+        const rawValue = formatter ? formatter(client[key], client) : client[key];
+        return `${label}: ${prettyValue(rawValue)}`;
+      })
+      .join("\n");
+
+    // Copy Client People section
+    let peopleSection = "";
+    if (clientPeople.length > 0) {
+      peopleSection = "\n\nCLIENT PEOPLE:\n";
+      clientPeople.forEach((person, index) => {
+        peopleSection += `\nPerson ${index + 1}:\n`;
+        peopleTableColumns.forEach((column) => {
+          const value = prettyValue(person[column.key]);
+          if (value && value !== "-") {
+            peopleSection += `  ${column.label}: ${value}\n`;
+          }
+        });
+      });
+    }
+
+    const allData = lookupItems + peopleSection;
+
+    if (allData) {
+      navigator.clipboard.writeText(allData).then(() => {
+        toast({
+          title: "Copied to clipboard",
+          description: "Client information and people details have been copied to your clipboard.",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      }).catch(() => {
+        toast({
+          title: "Copy failed",
+          description: "Failed to copy information. Please try again.",
+          status: "error",
+          duration: 2000,
+          isClosable: true,
+        });
+      });
+    }
   };
 
   return (
@@ -188,9 +249,21 @@ const ClientDetail = () => {
           ) : (
             <Stack spacing={10}>
               <Grid templateColumns={{ base: "1fr", lg: "1fr" }} gap={6}>
-                <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
-                  Look up
-                </Text>
+                <Flex justify="space-between" align="center">
+                  <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
+                    Look up
+                  </Text>
+                  <Tooltip label="Copy all lookup information to clipboard">
+                    <IconButton
+                      aria-label="Copy lookup data"
+                      icon={<Icon as={MdContentCopy} />}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="blue"
+                      onClick={handleCopyLookupData}
+                    />
+                  </Tooltip>
+                </Flex>
                 {clientInfoSections.map((section) => {
                   // Filter items to only show fields with actual data
                   const itemsWithData = section.items.filter(({ label, key, formatter }) => {
@@ -226,9 +299,22 @@ const ClientDetail = () => {
                               <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
                                 {label}
                               </Text>
-                              <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                {prettyValue(rawValue)}
-                              </Text>
+                              <Tooltip
+                                label={prettyValue(rawValue)}
+                                hasArrow
+                                isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
+                              >
+                                <Text
+                                  fontSize="sm"
+                                  color={valueColor}
+                                  whiteSpace="nowrap"
+                                  overflow="hidden"
+                                  textOverflow="ellipsis"
+                                  maxW="220px"
+                                >
+                                  {prettyValue(rawValue)}
+                                </Text>
+                              </Tooltip>
                             </GridItem>
                           );
                         })}
@@ -267,9 +353,22 @@ const ClientDetail = () => {
                           <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
                             {peopleTableColumns.map((column) => (
                               <Td key={column.key} minW="170px" px={3} py={2}>
-                                <Text fontSize="sm" color={valueColor}>
-                                  {prettyValue(person[column.key])}
-                                </Text>
+                                <Tooltip
+                                  label={prettyValue(person[column.key])}
+                                  hasArrow
+                                  isDisabled={!prettyValue(person[column.key])}
+                                >
+                                  <Text
+                                    fontSize="sm"
+                                    color={valueColor}
+                                    whiteSpace="nowrap"
+                                    overflow="hidden"
+                                    textOverflow="ellipsis"
+                                    maxW="220px"
+                                  >
+                                    {prettyValue(person[column.key])}
+                                  </Text>
+                                </Tooltip>
                               </Td>
                             ))}
                           </Tr>
