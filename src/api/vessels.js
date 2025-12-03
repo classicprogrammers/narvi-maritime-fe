@@ -31,6 +31,42 @@ export const getVessels = async () => {
 };
 
 /**
+ * Get a single vessel by ID
+ * @param {number} vesselId - The vessel ID
+ * @returns {Promise<Object>} - The vessel data
+ */
+export const getVessel = async (vesselId) => {
+  try {
+    const response = await axios.post('/api/vessel', {
+      vessel_id: vesselId,
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get vessel types for dropdowns
+ * @returns {Promise<Array>} - List of vessel types
+ */
+export const getVesselTypes = async () => {
+  try {
+    const response = await axios.get('/api/vessels/type');
+
+    // Be flexible with possible response shapes
+    const data = response.data;
+    const types =
+      data.vessel_types ||
+      data;
+
+    return Array.isArray(types) ? types : [];
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
  * Create a new vessel
  * @param {Object} vesselData - The vessel data
  * @param {number} vesselData.current_user - The current user ID
@@ -46,6 +82,9 @@ export const createVessel = async (vesselData) => {
       name: vesselData.name,
       client_id: vesselData.client_id,
       imo: vesselData.imo || "",
+      vessel_type: vesselData.vessel_type || "",
+      // Ensure status is always sent; default to "active" if missing
+      status: vesselData.status || "active",
     };
 
     // Add attachments if provided
@@ -82,11 +121,19 @@ export const updateVessel = async (idOrData, maybeData) => {
       name: vesselData.name,
       client_id: vesselData.client_id,
       imo: vesselData.imo || "",
+      vessel_type: vesselData.vessel_type || "",
+      // Ensure status is always sent; default to "active" if missing
+      status: vesselData.status || "active",
     };
 
     // Add attachments if provided
     if (vesselData.attachments && vesselData.attachments.length > 0) {
       payload.attachments = vesselData.attachments;
+    }
+
+    // Add attachments_to_delete if provided (array of IDs)
+    if (vesselData.attachments_to_delete && vesselData.attachments_to_delete.length > 0) {
+      payload.attachments_to_delete = vesselData.attachments_to_delete;
     }
 
     const response = await axios.post(`/api/vessel/update`, payload);
@@ -116,6 +163,8 @@ export const deleteVessel = async (id) => {
 
 const vessels = {
   getVessels,
+  getVessel,
+  getVesselTypes,
   createVessel,
   updateVessel,
   deleteVessel,

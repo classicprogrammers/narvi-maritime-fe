@@ -569,17 +569,32 @@ export default function StockList() {
         return value;
     };
 
-    // Get status color
+    // Get status color for small badges in this summary view
     const getStatusColor = (status) => {
         switch (status) {
-            case "delivered":
-                return "green";
-            case "in_transit":
-                return "blue";
             case "pending":
-                return "orange";
+                return "blue";      // Cornflower-style blue
+            case "in_stock":
+            case "stock":
+                return "gray";      // Stock = Grey
+            case "on_shipping":
+                return "orange";    // On a Shipping Instr = Orange
+            case "on_delivery":
+                return "blue";      // On a Delivery Instr = theme blue
+            case "in_transit":
+                return "green";     // In Transit = Light Green
+            case "arrived":
+            case "arrived_dest":
+                return "gray";      // Arrived Destination = Dark Grey
+            case "shipped":
+                return "orange";    // Shipped = Light Orange
+            case "delivered":
+                return "red";       // Delivered = Light Red
+            case "irregular":
+            case "irregularities":
+                return "red";       // Irregularities = Red
             case "cancelled":
-                return "red";
+                return "purple";    // Cancelled = Light Purple
             default:
                 return "gray";
         }

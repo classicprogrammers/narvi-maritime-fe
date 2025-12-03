@@ -116,6 +116,12 @@ const buildAgentPayload = (agentData = {}, userId) => {
     ),
     street: normalizeString(agentData.street),
     street2: normalizeString(agentData.street2),
+    // Extra address lines (3–7) so full address is sent for both create & update
+    street3: normalizeString(agentData.street3),
+    street4: normalizeString(agentData.street4),
+    street5: normalizeString(agentData.street5),
+    street6: normalizeString(agentData.street6),
+    street7: normalizeString(agentData.street7),
     zip: normalizeString(agentData.zip),
     city: normalizeString(agentData.city),
     country_id: normalizeNumber(agentData.country_id),
@@ -142,6 +148,9 @@ const buildAgentPayload = (agentData = {}, userId) => {
     warnings: normalizeString(agentData.warnings),
     narvi_maritime_approved_agent: normalizeBoolean(approvalValue, false),
     remarks: normalizeString(agentData.remarks),
+    // Commercial fields aligned with customer side
+    payment_term: normalizeString(agentData.payment_term),
+    type_client: normalizeString(agentData.type_client),
     is_agent: agentData.is_agent ?? true,
     children,
   };

@@ -38,6 +38,7 @@ import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi } from "api/vendor";
 import SearchableSelect from "components/forms/SearchableSelect";
+import { useEntitySelects } from "hooks/useEntitySelects";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
@@ -81,8 +82,8 @@ const INITIAL_FORM_DATA = {
     warnings: "",
     narvi_approved: false,
     remarks: "",
-    payment_terms: "",
-    agents_type: "",
+    payment_term: "",
+    type_client: "",
 };
 
 // Helper functions
@@ -279,6 +280,12 @@ function VendorRegistration() {
     const idInputBg = useColorModeValue("gray.100", "gray.700");
 
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
+    // Entity selects (users for PIC field)
+    const {
+        users,
+        isLoadingUsers,
+        searchUsers,
+    } = useEntitySelects();
 
     const peopleTableColumns = [
         { key: "company_name", label: "Agent company" },
@@ -438,8 +445,8 @@ function VendorRegistration() {
                 warnings: vendorData.warnings || "",
                 narvi_approved: convertApprovalValueToBoolean(vendorData.narvi_maritime_approved_agent ?? vendorData.narvi_approved),
                 remarks: vendorData.remarks || "",
-                payment_terms: vendorData.payment_terms || "",
-                agents_type: vendorData.agents_type || "",
+                payment_term: vendorData.payment_term || "",
+                type_client: vendorData.type_client || "",
             });
 
             // Determine how many address fields to show based on existing data
@@ -1116,7 +1123,7 @@ function VendorRegistration() {
                                     {/* Payment Terms */}
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
-                                        <Input name="payment_terms" value={formData.payment_terms} onChange={(e) => handleInputChange('payment_terms', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
+                                        <Input name="payment_term" value={formData.payment_term} onChange={(e) => handleInputChange('payment_term', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
                                     </Box>
                                     {/* Agent Code */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
@@ -1126,7 +1133,7 @@ function VendorRegistration() {
                                     {/* Agents Type */}
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agents Type</Text>
-                                        <Input name="agents_type" value={formData.agents_type} onChange={(e) => handleInputChange('agents_type', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
+                                        <Input name="type_client" value={formData.type_client} onChange={(e) => handleInputChange('type_client', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
                                     </Box>
                                     {/* Email1 */}
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
@@ -1174,7 +1181,19 @@ function VendorRegistration() {
                                     {/* PIC */}
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
-                                        <Input name="pic" value={formData.pic} onChange={(e) => handleInputChange('pic', e.target.value)} placeholder="Person in charge" size="sm" w={gridInputWidth} />
+                                        <Box w={gridInputWidth}>
+                                            <SearchableSelect
+                                                value={formData.pic}
+                                                onChange={(val) => handleInputChange("pic", val)}
+                                                options={users || []}
+                                                placeholder={isLoadingUsers ? "Loading users..." : "Select PIC user"}
+                                                displayKey="name"
+                                                valueKey="name"
+                                                isLoading={isLoadingUsers}
+                                                // Load users on first open / search
+                                                onSearch={searchUsers}
+                                            />
+                                        </Box>
                                     </Box>
                                 </Box>
                             </Box>

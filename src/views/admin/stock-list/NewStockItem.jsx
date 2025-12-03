@@ -44,6 +44,7 @@ import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entityS
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
 import api from "../../../api/axios";
+import { listUsersApi } from "../../../api/users";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -62,9 +63,11 @@ export default function StockForm() {
     const [clients, setClients] = useState([]);
     const [vessels, setVessels] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
+    const [users, setUsers] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
     const [currencies, setCurrencies] = useState([]);
     const [countries, setCountries] = useState([]);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
@@ -87,14 +90,17 @@ export default function StockForm() {
         stockStatus: "",
         supplier: "",
         // Single PO number field (multiple PO Numbers removed)
+        // Allow multiple PO numbers via multi-line text (one per line)
         poNumber: "",
         warehouseId: "",
         shippingDoc: "",
+        exportDoc: "",
         weightKgs: "",
         lengthCm: "",
         widthCm: "",
         heightCm: "",
         volumeNoDim: "",
+        // Allow multiple LWH entries via multi-line text (one per line)
         lwhText: "",
         details: "",
         value: "",
@@ -102,6 +108,7 @@ export default function StockForm() {
         origin: "",
         viaHub: "", // Free text field
         expReadyInStock: "", // Date field
+        dateOnStock: "", // Date field
         remarks: "",
         clientAccess: false,
         // Internal fields for API payload (auto-filled or calculated)
@@ -303,6 +310,40 @@ export default function StockForm() {
             } finally {
                 setIsLoadingCountries(false);
             }
+
+            // Fetch users for PIC field
+            try {
+                setIsLoadingUsers(true);
+                const data = await listUsersApi();
+                // Normalize possible response shapes similar to users admin page
+                const list =
+                    Array.isArray(data) ? data :
+                        Array.isArray(data?.users) ? data.users :
+                            Array.isArray(data?.result) ? data.result :
+                                Array.isArray(data?.data) ? data.data :
+                                    [];
+                const normalizedUsers = list.map((u, idx) => ({
+                    id: u.id ?? u.user_id ?? idx + 1,
+                    name: u.name ?? u.full_name ?? "",
+                    email: u.email ?? u.login ?? "",
+                    active: typeof u.active === "boolean"
+                        ? u.active
+                        : (u.status ? String(u.status).toLowerCase() === "active" : true),
+                    ...u,
+                })).filter(u => u.active);
+                setUsers(normalizedUsers);
+            } catch (error) {
+                console.error('Failed to fetch users for PIC:', error);
+                toast({
+                    title: 'Warning',
+                    description: 'Failed to load users for PIC field',
+                    status: 'warning',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingUsers(false);
+            }
         };
 
         fetchClientsAndVessels();
@@ -357,6 +398,34 @@ export default function StockForm() {
             })
         );
     }, [countries]);
+
+    // Normalize PIC (user) IDs when users are loaded
+    useEffect(() => {
+        if (!users.length) return;
+        setFormRows((prevRows) =>
+            prevRows.map((row) => {
+                if (!row.pic || row.pic === "" || row.pic === false) {
+                    return row;
+                }
+                const normalizedValue = String(row.pic);
+                // Try exact ID match first
+                const exactMatch = users.find((user) => String(user.id) === normalizedValue);
+                if (exactMatch) {
+                    return { ...row, pic: String(exactMatch.id) };
+                }
+                // Try fallback matching by name or email
+                const fallbackMatch = users.find(
+                    (user) =>
+                        String(user.name || "").toLowerCase() === normalizedValue.toLowerCase() ||
+                        String(user.email || "").toLowerCase() === normalizedValue.toLowerCase()
+                );
+                if (fallbackMatch) {
+                    return { ...row, pic: String(fallbackMatch.id) };
+                }
+                return row;
+            })
+        );
+    }, [users]);
 
     // Normalize client IDs when clients are loaded
     useEffect(() => {
@@ -505,13 +574,14 @@ export default function StockForm() {
             stockItemId: getFieldValue(stock.stock_item_id),
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            pic: getFieldValue(stock.pic_id) || getFieldValue(stock.pic) || "", // PIC is now free text
+            pic: normalizeId(stock.pic_id) || getFieldValue(stock.pic) || "",
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             // Single PO number - keep the raw value from backend
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             warehouseId: getFieldValue(stock.warehouse_id),
             shippingDoc: getFieldValue(stock.shipping_doc),
+            exportDoc: getFieldValue(stock.export_doc),
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
@@ -527,6 +597,7 @@ export default function StockForm() {
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
             viaHub: getFieldValue(stock.via_hub, ""), // Free text field
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
+            dateOnStock: getFieldValue(stock.date_on_stock) || "",
             remarks: getFieldValue(stock.remarks),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
@@ -634,15 +705,24 @@ export default function StockForm() {
     };
 
     const getPayload = (rowData, includeStockId = false) => {
+        const splitLines = (val) =>
+            (val || "")
+                .split(/\r?\n/)
+                .map((v) => v.trim())
+                .filter(Boolean);
+
+        const poArray = splitLines(rowData.poNumber);
+        const lwhArray = splitLines(rowData.lwhText);
+
         // Payload matching the API structure exactly - match the lines array format
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
-            // Single PO number (multiple PO Numbers removed)
+            // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
-            pic: rowData.pic || "", // PIC is free text
+            pic: rowData.pic ? String(rowData.pic) : "",
             item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             item: toNumber(rowData.item) || 1,
@@ -658,6 +738,7 @@ export default function StockForm() {
             height_cm: toNumber(rowData.heightCm) || 0,
             volume_dim: toNumber(rowData.volumeNoDim) || 0,
             volume_cbm: toNumber(rowData.volumeCbm) || 0,
+            // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
             cw_freight: toNumber(rowData.cwAirfreight) || 0,
             value: toNumber(rowData.value) || 0,
@@ -681,6 +762,10 @@ export default function StockForm() {
             stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "",
             vessel_destination_text: rowData.vesselDestination || "", // Include vessel_destination_text
         };
+
+        // Also send parsed arrays so backend can use them as needed
+        payload.po_text_array = poArray;
+        payload.lwh_text_array = lwhArray;
 
         // Only include stock_item_id if it exists (for updates)
         if (rowData.stockItemId) {
@@ -982,7 +1067,8 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Quantity</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Item</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
@@ -994,7 +1080,9 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
@@ -1044,12 +1132,20 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
-                                            value={row.pic || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
-                                            placeholder="Enter PIC"
-                                    size="sm"
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.pic}
+                                            onChange={(value) => handleInputChange(rowIndex, "pic", value)}
+                                            options={users}
+                                            placeholder="Select PIC (User)"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => {
+                                                const name = option.name || `User ${option.id}`;
+                                                const email = option.email || "";
+                                                return email ? `${name} (${email})` : name;
+                                            }}
+                                            isLoading={isLoadingUsers}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1065,6 +1161,7 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         >
                                             <option value="">Select</option>
+                                            <option value="blank">Blank</option>
                                             <option value="pending">Pending</option>
                                             <option value="in_stock">In Stock</option>
                                             <option value="on_shipping">On Shipping Instr</option>
@@ -1092,16 +1189,17 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    {/* Single PO Number input (multiple PO Numbers functionality removed) */}
+                                    {/* Single PO Number field, but allow multiple lines for clarity */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
+                                        <Textarea
                                             value={row.poNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                            placeholder="Enter PO Number"
-                                    size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
+                                            placeholder="Enter PO Number(s) - one per line"
+                                            size="sm"
+                                            rows={3}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
@@ -1116,11 +1214,22 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.shippingDoc}
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
-                                    size="sm"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.exportDoc || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1197,11 +1306,12 @@ export default function StockForm() {
                                         </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Textarea
                                             value={row.lwhText}
                                             onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
-                                            placeholder=""
-                                    size="sm"
+                                            placeholder="LWH Text (one set per line)"
+                                            size="sm"
+                                            rows={3}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1267,11 +1377,22 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
+                                        <Input
                                             value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                             placeholder="Enter Via HUB"
-                                    size="sm"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.apDestination || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
+                                            placeholder="AP Destination"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1282,7 +1403,18 @@ export default function StockForm() {
                                             type="date"
                                             value={row.expReadyInStock || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
-                                        size="sm"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            type="date"
+                                            value={row.dateOnStock || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1292,9 +1424,9 @@ export default function StockForm() {
                                         <Textarea
                                             value={row.remarks}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
-                                            placeholder=""
-                                        size="sm"
-                                            rows={2}
+                                            placeholder="Remarks (multiple lines supported)"
+                                            size="sm"
+                                            rows={4}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

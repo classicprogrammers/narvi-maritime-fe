@@ -34,6 +34,7 @@ import {
     FormControl,
     FormLabel,
     Select,
+    Textarea,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdDelete, MdClose, MdCheck, MdCancel } from "react-icons/md";
@@ -58,14 +59,21 @@ import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 // Status definitions matching backend status keys exactly
+// Colors tuned per business requirements
 const STATUS_CONFIG = {
+    //blank
+    blank: {
+        label: "Blank",
+    },
+    // Pending = Cornflower Blue (approximated with Chakra blue scale)
     pending: {
         label: "Pending",
         color: "blue",
-        bgColor: "blue.100",
-        textColor: "blue.800",
+        bgColor: "blue.200",
+        textColor: "blue.900",
         lightBg: "blue.50"
     },
+    // Stock = Grey
     in_stock: {
         label: "In Stock",
         color: "gray",
@@ -73,48 +81,56 @@ const STATUS_CONFIG = {
         textColor: "gray.800",
         lightBg: "gray.100"
     },
+    // On a Shipping Instr = Orange
     on_shipping: {
         label: "On Shipping Instr",
-        color: "green",
-        bgColor: "yellow.200",
-        textColor: "yellow.900",
-        lightBg: "yellow.100"
+        color: "orange",
+        bgColor: "orange.200",
+        textColor: "orange.800",
+        lightBg: "orange.50"
     },
+    // On a Delivery Instr = Theme color (closer to blue 11)
+    // Using blue scheme to stay aligned with app theme
     on_delivery: {
         label: "On Delivery Instr",
+        color: "blue",
+        bgColor: "blue.300",
+        textColor: "blue.900",
+        lightBg: "blue.100"
+    },
+    // In Transit = Light Green 1
+    in_transit: {
+        label: "In Transit",
         color: "green",
         bgColor: "green.100",
         textColor: "green.800",
         lightBg: "green.50"
     },
-    in_transit: {
-        label: "In Transit",
-        color: "green",
-        bgColor: "yellow.200",
-        textColor: "yellow.900",
-        lightBg: "yellow.100"
-    },
+    // Arrived Destination = Dark Grey 2
     arrived: {
         label: "Arrived Dest",
         color: "gray",
-        bgColor: "gray.400",
-        textColor: "gray.900",
+        bgColor: "gray.500",
+        textColor: "white",
         lightBg: "gray.300"
     },
+    // Shipped = Light Orange 3
     shipped: {
         label: "Shipped",
         color: "orange",
-        bgColor: "orange.200",
+        bgColor: "orange.100",
         textColor: "orange.800",
-        lightBg: "orange.100"
+        lightBg: "orange.50"
     },
+    // Delivered = Light Red 3
     delivered: {
         label: "Delivered",
         color: "red",
-        bgColor: "red.100",
+        bgColor: "red.200",
         textColor: "red.800",
-        lightBg: "pink.50"
+        lightBg: "red.50"
     },
+    // Irregularities = Red
     irregular: {
         label: "Irregularities",
         color: "red",
@@ -122,12 +138,13 @@ const STATUS_CONFIG = {
         textColor: "red.900",
         lightBg: "red.300"
     },
+    // Cancelled = Light Purple 2
     cancelled: {
         label: "Cancelled",
         color: "purple",
-        bgColor: "purple.300",
+        bgColor: "purple.200",
         textColor: "purple.900",
-        lightBg: "purple.200"
+        lightBg: "purple.100"
     },
 };
 
@@ -782,6 +799,7 @@ export default function Stocks() {
             vessel_id: getFieldValue("vessel_id", "vessel"),
             supplier_id: getFieldValue("supplier_id", "supplier"),
             client_id: getFieldValue("client_id", "client"),
+            // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || item.po_number || "",
             so_number_id: getFieldValue("so_number_id", "so_number", "stock_so_number"),
             shipping_instruction_id: getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction"),
@@ -937,7 +955,6 @@ export default function Stocks() {
             { backend: "client_id", original: ["client_id", "client"], edited: ["client_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "supplier_id", original: ["supplier_id", "supplier"], edited: ["supplier_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
             { backend: "pic", original: ["pic", "pic_id"], edited: ["pic"], transform: (v) => v || "" },
             { backend: "item", original: ["item"], edited: ["item"], transform: (v) => toNumber(v) || 1 }, // BOXES field - item count
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
@@ -958,7 +975,12 @@ export default function Stocks() {
             { backend: "height_cm", original: ["height_cm"], edited: ["height_cm"], transform: (v) => toNumber(v) },
             { backend: "volume_dim", original: ["volume_dim", "volume_no_dim"], edited: ["volume_dim"], transform: (v) => toNumber(v) },
             { backend: "volume_cbm", original: ["volume_cbm"], edited: ["volume_cbm"], transform: (v) => toNumber(v) },
-            { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
+            { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
+            // Arrays of PO numbers and LWH lines (derived from text, one per line)
+            { backend: "po_text_array", original: ["po_text_array"], edited: ["po_text"], transform: (v) => {
+                const val = Array.isArray(v) ? v.join("\n") : (v || "");
+                return splitLines(val);
+            } },
             { backend: "cw_freight", original: ["cw_freight", "cw_airfreight"], edited: ["cw_freight"], transform: (v) => toNumber(v) },
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
@@ -975,6 +997,11 @@ export default function Stocks() {
             { backend: "delivered_date", original: ["delivered_date"], edited: ["delivered_date"], transform: (v) => toValue(v, false) },
             { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
             { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => toNumber(v) || 1 },
+            { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
+            { backend: "lwh_text_array", original: ["lwh_text_array"], edited: ["lwh_text"], transform: (v) => {
+                const val = Array.isArray(v) ? v.join("\n") : (v || "");
+                return splitLines(val);
+            } },
             { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
             { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
             { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => toValue(toId(v), false) },
@@ -1161,6 +1188,28 @@ export default function Stocks() {
     const vesselViewVesselData = vesselViewVessel ? vessels.find(v => String(v.id) === String(vesselViewVessel)) : null;
     const clientViewClientData = clientViewClient ? clients.find(c => String(c.id) === String(clientViewClient)) : null;
 
+    const splitLines = (val) =>
+        (val || "")
+            .split(/\r?\n/)
+            .map((v) => v.trim())
+            .filter(Boolean);
+
+    const renderMultiLineLabels = (value) => {
+        const lines = splitLines(value);
+        if (!lines.length) {
+            return <Text {...cellText}>-</Text>;
+        }
+        return (
+            <VStack align="start" spacing={1}>
+                {lines.map((line, idx) => (
+                    <Badge key={idx} colorScheme="blue" variant="subtle">
+                        {line}
+                    </Badge>
+                ))}
+            </VStack>
+        );
+    };
+
     // Helper function to render editable cell
     const renderEditableCell = (item, field, value, type = "text", options = null) => {
         const isEditing = editingRowIds.has(item.id);
@@ -1214,6 +1263,20 @@ export default function Stocks() {
                         borderColor={borderColor}
                     />
                 </Box>
+            );
+        }
+
+        if (type === "textarea") {
+            return (
+                <Textarea
+                    value={currentValue || ""}
+                    onChange={(e) => handleChange(e.target.value)}
+                    size="sm"
+                    rows={3}
+                    bg={inputBg}
+                    color={inputText}
+                    borderColor={borderColor}
+                />
             );
         }
 
@@ -1420,7 +1483,9 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "po_text", item.po_text || item.po_number) : <Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text>}
+                            {isEditing
+                                ? renderEditableCell(item, "po_text", item.po_text || item.po_number, "textarea")
+                                : renderMultiLineLabels(item.po_text || item.po_number)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text>}
@@ -1587,7 +1652,9 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "po_text", item.po_text || item.po_number) : <Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text>}
+                            {isEditing
+                                ? renderEditableCell(item, "po_text", item.po_text || item.po_number, "textarea")
+                                : renderMultiLineLabels(item.po_text || item.po_number)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
@@ -1730,7 +1797,7 @@ export default function Stocks() {
                             </Badge>
                         </Td>
                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
@@ -1752,7 +1819,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                        <Td {...cellProps}>{renderMultiLineLabels(item.lwh_text)}</Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight || item.cw_airfreight)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>

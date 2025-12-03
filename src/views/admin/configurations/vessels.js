@@ -85,9 +85,12 @@ export default function Vessels() {
   const [formData, setFormData] = useState({
     name: "",
     client_id: "",
-    status: "pending",
+    status: "active",
     imo: "",
-    attachments: []
+    vessel_type: "",
+    attachments: [],
+    // For updates: IDs of existing attachments the user removed
+    attachments_to_delete: [],
   });
 
   const [previewFile, setPreviewFile] = useState(null);
@@ -214,9 +217,11 @@ export default function Vessels() {
     setFormData({
       name: "",
       client_id: "",
-      status: "pending",
+      status: "active",
       imo: "",
-      attachments: []
+      vessel_type: "",
+      attachments: [],
+      attachments_to_delete: [],
     });
     setEditingVessel(null);
     setPreviewFile(null);
@@ -230,16 +235,39 @@ export default function Vessels() {
   };
 
   // // Open modal for editing vessel
-  const handleEditVessel = (vessel) => {
-    setFormData({
-      name: vessel.name || "",
-      client_id: vessel.client_id || "",
-      status: vessel.status || "pending",
-      imo: vessel.imo || "",
-      attachments: vessel.attachments || []
-    });
-    setEditingVessel(vessel);
-    onModalOpen();
+  const handleEditVessel = async (vessel) => {
+    try {
+      setIsLoading(true);
+      onModalOpen();
+      // Fetch vessel data from the singular vessel API
+      const vesselData = await vesselsAPI.getVessel(vessel.id);
+
+      // Extract vessel data from response (handle different response structures)
+      const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
+
+      setFormData({
+        name: vesselInfo.name || "",
+        client_id: vesselInfo.client_id || "",
+        status: vesselInfo.status || "active",
+        imo: vesselInfo.imo || "",
+        vessel_type: vesselInfo.vessel_type || "",
+        attachments: vesselInfo.attachments || [],
+        // Start with nothing marked for deletion
+        attachments_to_delete: [],
+      });
+      setEditingVessel({ ...vessel, ...vesselInfo });
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to load vessel data: ${error.message}`,
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // // Handle form submission (create or update)
@@ -492,14 +520,17 @@ export default function Vessels() {
                     Client (Customer)
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                    Vessel Type
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     IMO
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Status
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  {/* <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Attachments
-                  </Th>
+                  </Th> */}
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Actions
                   </Th>
@@ -537,22 +568,21 @@ export default function Vessels() {
                         </Td>
                         <Td py="12px" px="16px">
                           <Text color={textColor} fontSize="sm" fontWeight="500">
+                            {vessel.vessel_type || "-"}
+                          </Text>
+                        </Td>
+                        <Td py="12px" px="16px">
+                          <Text color={textColor} fontSize="sm" fontWeight="500">
                             {vessel.imo || "-"}
                           </Text>
                         </Td>
                         <Td py="12px" px="16px">
                           <Badge
                             colorScheme={
-                              vessel.status === "pending" ? "yellow" :
-                                vessel.status === "stock" ? "green" :
-                                  vessel.status === "shipping_instr" ? "blue" :
-                                    vessel.status === "delivery_instr" ? "purple" :
-                                      vessel.status === "in_transit" ? "orange" :
-                                        vessel.status === "arrived_dest" ? "teal" :
-                                          vessel.status === "shipped" ? "cyan" :
-                                            vessel.status === "delivered" ? "green" :
-                                              vessel.status === "irregularities" ? "red" :
-                                                vessel.status === "cancelled" ? "gray" : "gray"
+                              vessel.status === "active" ? "green" :
+                                vessel.status === "inactive" ? "red" :
+                                  vessel.status === "tbn" ? "yellow" :
+                                    vessel.status === "new_building" ? "green" : "gray"
                             }
                             size="sm"
                             textTransform="capitalize"
@@ -560,11 +590,11 @@ export default function Vessels() {
                             {vessel.status || "-"}
                           </Badge>
                         </Td>
-                        <Td py="12px" px="16px">
+                        {/* <Td py="12px" px="16px">
                           <Text color={textColor} fontSize="sm" fontWeight="500">
                             {attachments.length || 0} files
                           </Text>
-                        </Td>
+                        </Td> */}
                         {/* Removed extra columns that referenced undefined variables */}
                         <Td py="12px" px="16px">
                           <HStack spacing={2}>
@@ -761,6 +791,19 @@ export default function Vessels() {
                 />
               </FormControl>
 
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Vessel Type
+                </FormLabel>
+                <Input
+                  size="md"
+                  value={formData.vessel_type}
+                  onChange={(e) => handleInputChange("vessel_type", e.target.value)}
+                  placeholder="Enter Vessel Type"
+                  borderRadius="md"
+                />
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
                   Status
@@ -771,16 +814,10 @@ export default function Vessels() {
                   onChange={(e) => handleInputChange("status", e.target.value)}
                   borderRadius="md"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="stock">Stock</option>
-                  <option value="shipping_instr">On a Shipping Instr</option>
-                  <option value="delivery_instr">On a Delivery Instr</option>
-                  <option value="in_transit">In Transit</option>
-                  <option value="arrived_dest">Arrived Dest</option>
-                  <option value="shipped">Shipped</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="irregularities">Irregularities</option>
-                  <option value="cancelled">Cancelled</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="tbn">TBN</option>
+                  <option value="new_building">New Building</option>
                 </Select>
               </FormControl>
 
@@ -843,10 +880,26 @@ export default function Vessels() {
                               icon={<CloseIcon />}
                               aria-label="Remove attachment"
                               onClick={() => {
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  attachments: prev.attachments.filter((_, i) => i !== index),
-                                }));
+                                setFormData((prev) => {
+                                  const attachmentToRemove = prev.attachments[index];
+                                  const updatedAttachments = prev.attachments.filter((_, i) => i !== index);
+
+                                  // If this attachment came from the backend and has an id,
+                                  // track it so the API can delete it.
+                                  const updatedAttachmentsToDelete = [
+                                    ...(prev.attachments_to_delete || []),
+                                  ];
+
+                                  if (attachmentToRemove && attachmentToRemove.id) {
+                                    updatedAttachmentsToDelete.push(attachmentToRemove.id);
+                                  }
+
+                                  return {
+                                    ...prev,
+                                    attachments: updatedAttachments,
+                                    attachments_to_delete: updatedAttachmentsToDelete,
+                                  };
+                                });
                               }}
                             />
                           </Box>

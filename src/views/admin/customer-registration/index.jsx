@@ -40,6 +40,7 @@ import { SuccessModal, FailureModal } from "components/modals";
 import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
+import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
 // Redux
 import { useCustomer } from "redux/hooks/useCustomer";
@@ -156,13 +157,17 @@ function CustomerRegistration() {
         country_id: "",
         reg_no: "",
         website: "",
-        payment_terms: "",
-        clients_type: "",
+        payment_term: "",
+        type_client: "",
         vessel_type: "",
         remarks: "",
         prefix: "",
         job_title: "",
     });
+
+    // Vessel types for dropdown
+    const [vesselTypes, setVesselTypes] = React.useState([]);
+    const [isLoadingVesselTypes, setIsLoadingVesselTypes] = React.useState(false);
 
     // Address fields visibility state (default: 2, max: 7)
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
@@ -215,8 +220,8 @@ function CustomerRegistration() {
                 country_id: editingClient.country_id || "",
                 reg_no: editingClient.reg_no || "",
                 website: editingClient.website || "",
-                payment_terms: editingClient.payment_terms || "",
-                clients_type: editingClient.clients_type || "",
+                payment_term: editingClient.payment_term || "",
+                type_client: editingClient.type_client || "",
                 vessel_type: editingClient.vessel_type || editingClient.vessel_types || "",
                 remarks: editingClient.remarks || "",
                 prefix: editingClient.prefix || "",
@@ -253,7 +258,7 @@ function CustomerRegistration() {
                         tel_direct: getValue(child.tel_direct),
                         phone: getValue(child.phone),
                         tel_other: getValue(child.tel_other),
-                            whatsapp: !!child.whatsapp,
+                        whatsapp: !!child.whatsapp,
                         remarks: getValue(child.remarks),
                     };
                 });
@@ -293,6 +298,30 @@ function CustomerRegistration() {
         };
         // Intentionally run once on mount; getCountries identity may change
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Load vessel types on mount
+    React.useEffect(() => {
+        let isMounted = true;
+
+        const loadVesselTypes = async () => {
+            try {
+                setIsLoadingVesselTypes(true);
+                const types = await getVesselTypes();
+                if (!isMounted) return;
+                setVesselTypes(types);
+            } catch (error) {
+                console.error("Failed to load vessel types:", error);
+            } finally {
+                if (isMounted) setIsLoadingVesselTypes(false);
+            }
+        };
+
+        loadVesselTypes();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     const handleInputChange = (e) => {
@@ -455,8 +484,8 @@ function CustomerRegistration() {
                 country_id: parseInt(formData.country_id) || null,
                 reg_no: formData.reg_no,
                 website: formData.website,
-                payment_terms: formData.payment_terms || undefined,
-                clients_type: formData.clients_type || undefined,
+                payment_term: formData.payment_term || undefined,
+                type_client: formData.type_client || undefined,
                 vessel_type: formData.vessel_type || undefined,
                 remarks: formData.remarks,
                 company_type: "company",
@@ -491,8 +520,8 @@ function CustomerRegistration() {
                     country_id: parseInt(formData.country_id) || null,
                     reg_no: formData.reg_no,
                     website: formData.website,
-                    payment_terms: formData.payment_terms,
-                    clients_type: formData.clients_type,
+                    payment_term: formData.payment_term,
+                    type_client: formData.type_client,
                     vessel_type: formData.vessel_type,
                     remarks: formData.remarks,
                     status: "Active",
@@ -529,8 +558,8 @@ function CustomerRegistration() {
                     country_id: "",
                     reg_no: "",
                     website: "",
-                    payment_terms: "",
-                    clients_type: "",
+                    payment_term: "",
+                    type_client: "",
                     vessel_type: "",
                     remarks: "",
                     prefix: "",
@@ -715,7 +744,7 @@ function CustomerRegistration() {
                                                                     justifyContent="flex-end"
                                                                     pr={1}
                                                                 >
-                                                                {visibleAddressFields < 4 && (
+                                                                    {visibleAddressFields < 4 && (
                                                                         <IconButton
                                                                             aria-label="Add Address4"
                                                                             icon={<Icon as={MdAdd} />}
@@ -986,24 +1015,28 @@ function CustomerRegistration() {
                                                     {/* 10. Payment Terms */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
-                                                        <Input name="payment_terms" value={formData.payment_terms} onChange={handleInputChange} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
+                                                        <Input name="payment_term" value={formData.payment_term} onChange={handleInputChange} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     {/* 11. Clients Type */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Clients Type</Text>
-                                                        <Input name="clients_type" value={formData.clients_type} onChange={handleInputChange} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
+                                                        <Input name="type_client" value={formData.type_client} onChange={handleInputChange} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     {/* 12. Vessel Types */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Types</Text>
-                                                        <Input
-                                                            name="vessel_type"
-                                                            value={formData.vessel_type}
-                                                            onChange={handleInputChange}
-                                                            placeholder="e.g. Oil / LNG Gas Tankers, Bulk carriers"
-                                                            size="sm"
-                                                            w={gridInputWidth}
-                                                        />
+                                                        <Box w={gridInputWidth}>
+                                                            <SearchableSelect
+                                                                value={formData.vessel_type}
+                                                                onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type: val }))}
+                                                                options={vesselTypes || []}
+                                                                placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
+                                                                displayKey="vessel_type"
+                                                                valueKey="vessel_type"
+                                                                formatOption={(option) => option?.vessel_type || ""}
+                                                                isLoading={isLoadingVesselTypes}
+                                                            />
+                                                        </Box>
                                                     </Box>
                                                     {/* 13. Email1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
@@ -1146,30 +1179,30 @@ function CustomerRegistration() {
                                                                             placement="top"
                                                                             openDelay={200}
                                                                         >
-                                                                        <Input
-                                                                            value={row[column.key]}
-                                                                            onChange={(e) => {
-                                                                                const value = e.target.value;
-                                                                                setPeopleRows((prev) => {
-                                                                                    const updated = [...prev];
-                                                                                    updated[rowIndex] = { ...updated[rowIndex], [column.key]: value };
-                                                                                    return updated;
-                                                                                });
-                                                                            }}
-                                                                            size="sm"
-                                                                            isRequired={["first_name", "email"].includes(column.key)}
-                                                                            isReadOnly={column.key === "company_name"}
-                                                                            isDisabled={column.key === "company_name"}
-                                                                            style={{ backgroundColor: "#f7f7f77a" }}
-                                                                            border="1px solid"
-                                                                            borderColor={borderColor}
-                                                                            borderRadius="md"
-                                                                            _focus={{
-                                                                                borderColor: "blue.500",
-                                                                                boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
-                                                                            }}
-                                                                            placeholder={peoplePlaceholders[column.key] || undefined}
-                                                                        />
+                                                                            <Input
+                                                                                value={row[column.key]}
+                                                                                onChange={(e) => {
+                                                                                    const value = e.target.value;
+                                                                                    setPeopleRows((prev) => {
+                                                                                        const updated = [...prev];
+                                                                                        updated[rowIndex] = { ...updated[rowIndex], [column.key]: value };
+                                                                                        return updated;
+                                                                                    });
+                                                                                }}
+                                                                                size="sm"
+                                                                                isRequired={["first_name", "email"].includes(column.key)}
+                                                                                isReadOnly={column.key === "company_name"}
+                                                                                isDisabled={column.key === "company_name"}
+                                                                                style={{ backgroundColor: "#f7f7f77a" }}
+                                                                                border="1px solid"
+                                                                                borderColor={borderColor}
+                                                                                borderRadius="md"
+                                                                                _focus={{
+                                                                                    borderColor: "blue.500",
+                                                                                    boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
+                                                                                }}
+                                                                                placeholder={peoplePlaceholders[column.key] || undefined}
+                                                                            />
                                                                         </Tooltip>
                                                                     )}
                                                                 </Td>

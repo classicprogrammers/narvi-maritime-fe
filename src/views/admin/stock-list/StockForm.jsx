@@ -82,6 +82,7 @@ export default function StockForm() {
         pic: "",
         stockStatus: "",
         supplier: "",
+        // Allow multiple PO numbers via multi-line text (one per line)
         poNumber: "",
         warehouseId: "",
         shippingDoc: "",
@@ -91,6 +92,7 @@ export default function StockForm() {
         widthCm: "",
         heightCm: "",
         volumeNoDim: "",
+        // Allow multiple LWH entries via multi-line text (one per line)
         lwhText: "",
         details: "",
         value: "",
@@ -631,12 +633,23 @@ export default function StockForm() {
     };
 
     const getPayload = (rowData, includeStockId = false) => {
+        const splitLines = (val) =>
+            (val || "")
+                .split(/\r?\n/)
+                .map((v) => v.trim())
+                .filter(Boolean);
+
+        const poArray = splitLines(rowData.poNumber);
+        const lwhArray = splitLines(rowData.lwhText);
+
         // Payload matching the API structure exactly
         const payload = {
             stock_status: rowData.stockStatus || "",
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
+            // Send raw text plus parsed array of PO numbers (one per line)
+            // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
             pic_id: rowData.pic ? String(rowData.pic) : "",
             item_id: rowData.itemId ? String(rowData.itemId) : "",
@@ -654,6 +667,8 @@ export default function StockForm() {
             volume_dim: toNumber(rowData.volumeNoDim) || 0,
             volume_no_dim: toNumber(rowData.volumeNoDim) || 0,
             volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim) || 0,
+            // Send raw text plus parsed array of LWH entries (one per line)
+            // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
             cw_freight: 0,
             value: toNumber(rowData.value) || 0,
@@ -670,6 +685,10 @@ export default function StockForm() {
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "",
             vessel_eta: rowData.vesselEta || "",
         };
+
+        // Also send parsed arrays so backend can use them as needed
+        payload.po_text_array = poArray;
+        payload.lwh_text_array = lwhArray;
 
         // Only include stock_item_id if it exists (for updates)
         if (rowData.stockItemId) {
@@ -763,9 +782,9 @@ export default function StockForm() {
                         const result = await createStockItemApi(payload);
                         if (result && result.result) {
                             const resultData = result.result;
-                            
+
                             // Check for errors even if status is "success"
-                            if ((resultData.error_count && resultData.error_count > 0) || 
+                            if ((resultData.error_count && resultData.error_count > 0) ||
                                 (resultData.errors && Array.isArray(resultData.errors) && resultData.errors.length > 0)) {
                                 errorCount++;
                                 // Extract error messages for logging
@@ -1056,6 +1075,7 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         >
                                             <option value="">Select</option>
+                                            <option value="blank">Blank</option>
                                             <option value="pending">Pending</option>
                                             <option value="in_stock">In Stock</option>
                                             <option value="on_shipping">On Shipping Instr</option>

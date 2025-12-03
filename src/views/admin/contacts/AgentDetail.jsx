@@ -51,6 +51,12 @@ const agentInfoSections = [
       { label: "Company name", key: "name" },
       { label: "Address1", key: "street" },
       { label: "Address2", key: "street2" },
+      // Extra address lines (shown only when they have data)
+      { label: "Address3", key: "street3" },
+      { label: "Address4", key: "street4" },
+      { label: "Address5", key: "street5" },
+      { label: "Address6", key: "street6" },
+      { label: "Address7", key: "street7" },
       { label: "Postcode + City", key: "city", formatter: (value, agent) => `${agent.zip || "-"} ${value || ""}`.trim() || "-" },
       { label: "Country", key: "country_name" },
       { label: "Agent ID", key: "agentsdb_id" },

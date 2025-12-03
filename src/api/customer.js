@@ -155,6 +155,11 @@ export const updateCustomerApi = async (customerId, data) => {
       client_category: data.client_category,
       street: data.street,
       street2: data.street2,
+      street3: data.street3,
+      street4: data.street4,
+      street5: data.street5,
+      street6: data.street6,
+      street7: data.street7,
       zip: data.zip,
       city: data.city,
       country_id: data.country_id,
@@ -166,6 +171,9 @@ export const updateCustomerApi = async (customerId, data) => {
       website: data.website,
       prefix: data.prefix,
       remarks: data.remarks,
+      payment_term: data.payment_term,
+      type_client: data.type_client,
+      vessel_type: data.vessel_type,
       // Include children array if provided (with operations: update, delete, create)
       children: Array.isArray(data.children) && data.children.length > 0
         ? data.children.map((child) => removeUndefined(child))
