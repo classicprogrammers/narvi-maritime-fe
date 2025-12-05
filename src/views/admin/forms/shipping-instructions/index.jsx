@@ -39,6 +39,11 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   Tooltip,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
 } from "@chakra-ui/react";
 import {
   MdSearch,
@@ -64,6 +69,7 @@ export default function ShippingInstructions() {
   const [editingItem, setEditingItem] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState(0);
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -91,6 +97,38 @@ export default function ShippingInstructions() {
     postcode: "",
     city: "",
   });
+
+  // Cargo table data for SI Instructions
+  const [cargoItems, setCargoItems] = useState([
+    {
+      id: 1,
+      origin: "PVG",
+      warehouseId: "PVG-45778",
+      supplier: "ATLANTIC ENG",
+      poNumber: "07/1U",
+      details: "",
+      boxes: 1,
+      kg: 1.00,
+      cbm: 0.00,
+      lwh: "20x13x16",
+      ww: 0.69,
+      stockItemId: "SL218224",
+    },
+    {
+      id: 2,
+      origin: "PVG",
+      warehouseId: "PVG-45779",
+      supplier: "ATLANTIC ENG",
+      poNumber: "02/1U",
+      details: "",
+      boxes: 1,
+      kg: 138.00,
+      cbm: 0.16,
+      lwh: "66x65x37",
+      ww: 26.92,
+      stockItemId: "SL218223",
+    },
+  ]);
 
   // Load shipping instructions from localStorage
   const loadShippingInstructions = () => {
@@ -209,14 +247,11 @@ export default function ShippingInstructions() {
 
   // Button handlers
   const handleNewButton = () => {
-    resetForm();
-    setIsModalOpen(true);
+    history.push("/admin/forms/shipping-instructions/create");
   };
 
   const handleEditItem = (item) => {
-    setFormData(item);
-    setEditingItem(item);
-    setIsModalOpen(true);
+    history.push(`/admin/forms/shipping-instructions/edit/${item.id}`);
   };
 
   const handleViewItem = (item) => {
@@ -228,12 +263,23 @@ export default function ShippingInstructions() {
     setIsDeleteDialogOpen(true);
   };
 
+  const handleDeleteCargoItem = (item) => {
+    setCargoItems(cargoItems.filter(cargo => cargo.id !== item.id));
+    toast({
+      title: "Cargo Item Deleted",
+      description: "The cargo item has been deleted successfully.",
+      status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
   const handleSaveShippingInstruction = () => {
     setIsLoading(true);
-    
+
     setTimeout(() => {
       const newInstructions = [...shippingInstructions];
-      
+
       if (editingItem) {
         // Update existing item
         const index = newInstructions.findIndex(item => item.id === editingItem.id);
@@ -261,7 +307,7 @@ export default function ShippingInstructions() {
           isClosable: true,
         });
       }
-      
+
       setShippingInstructions(newInstructions);
       localStorage.setItem('shippingInstructions', JSON.stringify(newInstructions));
       setIsModalOpen(false);
@@ -272,12 +318,12 @@ export default function ShippingInstructions() {
 
   const handleConfirmDelete = () => {
     setIsLoading(true);
-    
+
     setTimeout(() => {
       const newInstructions = shippingInstructions.filter(item => item.id !== editingItem.id);
       setShippingInstructions(newInstructions);
       localStorage.setItem('shippingInstructions', JSON.stringify(newInstructions));
-      
+
       toast({
         title: "Shipping Instruction Deleted",
         description: "The shipping instruction has been deleted successfully.",
@@ -285,7 +331,7 @@ export default function ShippingInstructions() {
         duration: 3000,
         isClosable: true,
       });
-      
+
       setIsDeleteDialogOpen(false);
       setEditingItem(null);
       setIsLoading(false);
@@ -300,228 +346,168 @@ export default function ShippingInstructions() {
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <VStack spacing={6} align="stretch">
-        {/* Header Section */}
-        <Flex justify="space-between" align="center" px="25px">
-          <HStack spacing={4}>
-            <Button
-              leftIcon={<Icon as={MdAdd} />}
-              colorScheme="blue"
-              size="sm"
-              onClick={handleNewButton}
-            >
-              New Shipping Instruction
-            </Button>
-            <VStack align="start" spacing={1}>
-              <Text fontSize="xl" fontWeight="bold" color="blue.600">
-                Shipping Instructions
-              </Text>
-              <Text fontSize="sm" color="gray.500">
-                Manage shipping instructions and logistics
-              </Text>
-            </VStack>
-          </HStack>
-          
-          <HStack spacing={4}>
-            <HStack spacing={2}>
-              <Text fontSize="sm" color="gray.600">
-                {shippingInstructions.length} items
-              </Text>
-              <IconButton
-                icon={<Icon as={MdChevronLeft} />}
-                size="sm"
-                variant="ghost"
-                aria-label="Previous"
-                isDisabled={currentPage === 1}
-              />
-              <IconButton
-                icon={<Icon as={MdChevronRight} />}
-                size="sm"
-                variant="ghost"
-                aria-label="Next"
-                isDisabled={currentPage === Math.ceil(shippingInstructions.length / 10)}
-              />
-            </HStack>
-            <HStack spacing={2}>
-              <Tooltip label="Export">
-                <IconButton
-                  icon={<Icon as={MdDownload} />}
-                  size="sm"
-                  variant="ghost"
-                  aria-label="Export"
-                />
-              </Tooltip>
-              <Tooltip label="Print">
-                <IconButton
-                  icon={<Icon as={MdPrint} />}
-                  size="sm"
-                  variant="ghost"
-                  aria-label="Print"
-                />
-              </Tooltip>
-            </HStack>
-          </HStack>
-        </Flex>
 
-        {/* Filter Section */}
-        <Box px='25px' mb='20px'>
-          <HStack spacing={4} flexWrap="wrap">
-            <InputGroup w={{ base: "100%", md: "300px" }}>
-              <InputLeftElement>
-                <Icon as={MdSearch} color={searchIconColor} w='15px' h='15px' />
-              </InputLeftElement>
-              <Input
-                variant='outline'
-                fontSize='sm'
-                bg={inputBg}
-                color={inputText}
-                fontWeight='500'
-                _placeholder={{ color: "gray.400", fontSize: "14px" }}
-                borderRadius="8px"
-                placeholder="Search shipping instructions..."
-                value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
-              />
-            </InputGroup>
-
-            <Select
-              w={{ base: "100%", md: "200px" }}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              bg={inputBg}
-              color={inputText}
-              borderRadius="8px"
-              fontSize="sm"
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="in-transit">In Transit</option>
-              <option value="done">Done</option>
-            </Select>
-
-            <Button
-              leftIcon={<Icon as={MdFilterList} />}
-              variant="outline"
-              size="sm"
-              borderRadius="8px"
-            >
-              Filters
-            </Button>
-          </HStack>
-        </Box>
-
-        {/* Shipping Instructions Table */}
+        {/* Tabs Section */}
         <Box px="25px">
-          <Table variant="unstyled" size="sm" minW="100%">
-            <Thead bg="gray.100">
-              <Tr>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                  <Checkbox
-                    isChecked={selectedItems.length === shippingInstructions.length}
-                    isIndeterminate={selectedItems.length > 0 && selectedItems.length < shippingInstructions.length}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Instruction Reference</Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Sales Order</Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Client</Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Mode of Transport</Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Status</Th>
-                <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {shippingInstructions.map((item, index) => (
-                <Tr
-                  key={item.id}
-                  bg={index % 2 === 0 ? "white" : "gray.50"}
-                  _hover={{ bg: hoverBg }}
-                  borderBottom="1px"
-                  borderColor="gray.200">
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <Checkbox
-                      isChecked={selectedItems.includes(item.id)}
-                      onChange={(e) => handleSelectItem(item.id, e.target.checked)}
-                    />
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px" cursor="pointer" onClick={() => handleViewItem(item)}>
-                    <Text color="blue.600" fontSize='sm' fontWeight='600'>
-                      {item.instructionRef}
-                    </Text>
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <Text color={textColor} fontSize='sm'>
-                      {item.salesOrder}
-                    </Text>
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <Text color={textColor} fontSize='sm'>
-                      {item.client}
-                    </Text>
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <Text color={textColor} fontSize='sm'>
-                      {item.modeOfTransport}
-                    </Text>
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <Badge
-                      colorScheme={getStatusColor(item.status)}
-                      variant="subtle"
-                      fontSize="xs"
-                      px="8px"
-                      py="4px"
-                      borderRadius="full">
-                      {item.status}
-                    </Badge>
-                  </Td>
-                  <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
-                    <HStack spacing={2}>
-                      <Tooltip label="View Shipping Instruction">
-                        <IconButton
-                          icon={<Icon as={MdVisibility} />}
-                          size="sm"
-                          colorScheme="blue"
-                          variant="ghost"
-                          aria-label="View shipping instruction"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewItem(item);
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip label="Edit Shipping Instruction">
-                        <IconButton
-                          icon={<Icon as={MdEdit} />}
-                          size="sm"
-                          colorScheme="blue"
-                          variant="ghost"
-                          aria-label="Edit shipping instruction"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditItem(item);
-                          }}
-                        />
-                      </Tooltip>
-                      <Tooltip label="Delete Shipping Instruction">
-                        <IconButton
-                          icon={<Icon as={MdDelete} />}
-                          size="sm"
-                          colorScheme="red"
-                          variant="ghost"
-                          aria-label="Delete shipping instruction"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteItem(item);
-                          }}
-                        />
-                      </Tooltip>
-                    </HStack>
-                  </Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </Table>
+          <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
+            <TabList>
+              <Tab>SI Instructions</Tab>
+              <Tab>SIC Instructions (combined)</Tab>
+            </TabList>
+
+            <TabPanels>
+              {/* SI Instructions Tab */}
+              <TabPanel px="0" pt="20px">
+                <VStack spacing={4} align="stretch">
+                  {/* Action Buttons */}
+                  <Flex justify="flex-end" gap={2}>
+                    <Button
+                      leftIcon={<Icon as={MdAdd} />}
+                      colorScheme="blue"
+                      size="sm"
+                      onClick={handleNewButton}
+                    >
+                      Create New
+                    </Button>
+                  </Flex>
+
+                  {/* Cargo Table */}
+                  <Box overflowX="auto">
+                    <Table variant="unstyled" size="sm" minW="100%">
+                      <Thead bg="gray.100">
+                        <Tr>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">ORIGIN</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">WAREHOUSE ID</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">SUPPLIER</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">PO NUMBER</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">DETAILS</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">BOXES</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">KG</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">CBM</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">LWH</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase" bg="yellow.100">WW</Th>
+                          <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">StockItemID</Th>
+                          <Th py="12px" px="16px" fontSize="12px" fontWeight="600" color="gray.600" textTransform="uppercase">Actions</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {cargoItems.map((item, index) => (
+                          <Tr
+                            key={item.id}
+                            bg={index % 2 === 0 ? "white" : "gray.50"}
+                            _hover={{ bg: hoverBg }}
+                            borderBottom="1px"
+                            borderColor="gray.200">
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.origin}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.warehouseId}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.supplier}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.poNumber}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.details || "-"}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.boxes}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.kg.toFixed(2)}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.cbm.toFixed(2)}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.lwh}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px" bg="yellow.50">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.ww.toFixed(2)}
+                              </Text>
+                            </Td>
+                            <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
+                              <Text color={textColor} fontSize='sm'>
+                                {item.stockItemId}
+                              </Text>
+                            </Td>
+                            <Td py="12px" px="16px">
+                              <HStack spacing={2}>
+                                <Tooltip label="View">
+                                  <IconButton
+                                    icon={<Icon as={MdVisibility} />}
+                                    size="sm"
+                                    colorScheme="blue"
+                                    variant="ghost"
+                                    aria-label="View"
+                                    onClick={() => handleViewItem({ id: item.id })}
+                                  />
+                                </Tooltip>
+                                <Tooltip label="Edit">
+                                  <IconButton
+                                    icon={<Icon as={MdEdit} />}
+                                    size="sm"
+                                    colorScheme="blue"
+                                    variant="ghost"
+                                    aria-label="Edit"
+                                    onClick={() => handleEditItem({ id: item.id })}
+                                  />
+                                </Tooltip>
+                                <Tooltip label="Delete">
+                                  <IconButton
+                                    icon={<Icon as={MdDelete} />}
+                                    size="sm"
+                                    colorScheme="red"
+                                    variant="ghost"
+                                    aria-label="Delete"
+                                    onClick={() => handleDeleteCargoItem(item)}
+                                  />
+                                </Tooltip>
+                              </HStack>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                </VStack>
+              </TabPanel>
+
+              {/* SIC Instructions (combined) Tab */}
+              <TabPanel px="0" pt="20px">
+                <VStack spacing={4} align="stretch">
+                  <Text fontSize="lg" fontWeight="bold" color={textColor}>
+                    SIC Instructions (combined)
+                  </Text>
+                  <Text color="gray.500">
+                    This section will contain combined SIC instructions.
+                  </Text>
+                </VStack>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </Box>
 
         {/* Pagination */}

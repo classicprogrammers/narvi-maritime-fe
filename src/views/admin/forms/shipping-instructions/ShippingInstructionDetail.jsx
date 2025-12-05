@@ -8,11 +8,23 @@ import {
   VStack,
   HStack,
   Grid,
+  GridItem,
   Badge,
   Progress,
   IconButton,
   useColorModeValue,
   Icon,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  Input,
+  FormControl,
+  FormLabel,
+  Select,
+  Textarea,
 } from "@chakra-ui/react";
 import {
   MdPrint,
@@ -31,52 +43,90 @@ export default function ShippingInstructionDetail() {
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
+  const bgColor = useColorModeValue("white", "gray.800");
 
-  // Load shipping instruction data
-  useEffect(() => {
-    const loadShippingInstruction = () => {
-      const savedInstructions = JSON.parse(localStorage.getItem('shippingInstructions') || '[]');
-      const instruction = savedInstructions.find(item => item.id === parseInt(id));
-      
-      if (instruction) {
-        setShippingInstruction(instruction);
-        // Set current step based on status
-        const statusSteps = ["Draft", "Confirmed", "In Transit", "Done"];
-        const currentStepIndex = statusSteps.indexOf(instruction.status);
-        setCurrentStep(Math.max(0, currentStepIndex));
-      } else {
-        // Fallback to mock data if not found
-        setShippingInstruction({
-          id: "SIS/0001",
-          status: "Draft",
-          salesOrder: "S00025",
-          shipmentType: "Single",
-          jobNo: "",
-          vessel: "",
-          modeOfTransport: "Sea",
-          from: "",
-          to: "",
-          consigneeType: "",
-          client: "Deco Addict",
-          company: "",
-          addressLine1: "",
-          addressLine2: "",
-          postcode: "",
-          city: "",
-        });
-      }
-      setIsLoading(false);
-    };
+  // Form state
+  const [formData, setFormData] = useState({
+    vessel: "M/V ANTHOS",
+    consignTo: "M/V ANTHOS",
+    careOf: "Narvi Maritime Pte. Ltd.",
+    address1: "119 Airport Cargo Road #01-03/04",
+    address2: "Changi Cargo Megaplex 1",
+    postcode: "819454",
+    city: "Singapore",
+    att: "Zhi Lin GOH",
+    phone: "(+65) 6542 0626",
+    email: "spares@narvimaritime.com",
+    siNo: "SI 2849 1.2",
+    jobNo: "SO 2849",
+    shippedBy: "AIR",
+    from: "ROTTERDAM (RTM)",
+    to: "SINGAPORE (SIN)",
+    deadline: "27/04/25",
+    pic: "IPN",
+    date: "24/04/2025",
+    selectConsignee: "Narvi SIN (A/F, C/F, O/F)",
+    company: "C/o Narvi Maritime Pte. Ltd.",
+    consigneeAddress1: "119 Airport Cargo Road #01-03/04",
+    consigneeAddress2: "Changi Cargo Megaplex 1",
+    consigneePostcode: "819454",
+    consigneeCity: "Singapore",
+    consigneeCountry: "Singapore",
+    regNo: "2020082582",
+    consigneeEmail: "spares@narvimaritime.com",
+    consigneePhone: "(+65) 6542 0626",
+    consigneePhone2: "",
+    web: "www.narvimaritime.com",
+    cneeText: "Ships Spares in transit for:",
+    agentsPIC: "Zhi Lin GOH",
+    warnings: "",
+  });
 
-    loadShippingInstruction();
-  }, [id]);
+  // Cargo items
+  const [cargoItems, setCargoItems] = useState([
+    {
+      id: 1,
+      origin: "PVG",
+      warehouseId: "PVG-45778",
+      supplier: "ATLANTIC ENG",
+      poNumber: "07/1U",
+      details: "",
+      boxes: 1,
+      kg: 1.00,
+      cbm: 0.00,
+      lwh: "20x13x16",
+      ww: 0.69,
+      stockItemId: "SL218224",
+    },
+    {
+      id: 2,
+      origin: "PVG",
+      warehouseId: "PVG-45779",
+      supplier: "ATLANTIC ENG",
+      poNumber: "02/1U",
+      details: "",
+      boxes: 1,
+      kg: 138.00,
+      cbm: 0.16,
+      lwh: "66x65x37",
+      ww: 26.92,
+      stockItemId: "SL218223",
+    },
+  ]);
 
-  const steps = ["Draft", "Confirmed", "In Transit", "Done"];
+  // Calculate totals
+  const totals = {
+    boxes: cargoItems.reduce((sum, item) => sum + item.boxes, 0),
+    kg: cargoItems.reduce((sum, item) => sum + item.kg, 0),
+    cbm: cargoItems.reduce((sum, item) => sum + item.cbm, 0),
+    ww: cargoItems.reduce((sum, item) => sum + item.ww, 0),
+  };
 
-  const getStepColor = (stepIndex) => {
-    if (stepIndex === currentStep) return "teal";
-    if (stepIndex < currentStep) return "green";
-    return "gray";
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   // Button handlers
@@ -85,103 +135,32 @@ export default function ShippingInstructionDetail() {
   };
 
   const handleSaveShippingInstruction = () => {
-    // Update the shipping instruction status
-    if (shippingInstruction) {
-      const savedInstructions = JSON.parse(localStorage.getItem('shippingInstructions') || '[]');
-      const updatedInstructions = savedInstructions.map(item => 
-        item.id === shippingInstruction.id 
-          ? { ...item, status: steps[currentStep] }
-          : item
-      );
-      localStorage.setItem('shippingInstructions', JSON.stringify(updatedInstructions));
-      
-      // Show success message
-      alert("Shipping instruction status updated successfully!");
-    }
+    // Save logic here
+    alert("Shipping instruction saved successfully!");
   };
 
   const handlePrintShippingInstruction = () => {
-    alert("Printing shipping instruction...");
+    window.print();
   };
 
-  if (isLoading) {
-    return (
-      <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
-        <Box bg="white" p={{ base: "4", md: "6" }}>
-          <Text>Loading shipping instruction...</Text>
-        </Box>
-      </Box>
-    );
-  }
-
-  if (!shippingInstruction) {
-    return (
-      <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
-        <Box bg="white" p={{ base: "4", md: "6" }}>
-          <Text>Shipping instruction not found.</Text>
-        </Box>
-      </Box>
-    );
-  }
-
   return (
-    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} overflow="hidden" position="relative" zIndex="122222">
-      {/* Main Content Area */}
-      <Box bg="white" p={{ base: "4", md: "6" }}>
-        {/* Top Section with Back Button, Title, and Action Buttons */}
-        <Flex
-          justify="space-between"
-          align="center"
-          mb="6"
-          flexDir={{ base: "column", lg: "row" }}
-          gap={{ base: "4", lg: "0" }}
-        >
-          <HStack spacing="4">
-            <Button
-              leftIcon={<Icon as={MdChevronLeft} />}
-              variant="ghost"
-              size="sm"
-              onClick={handleBackToShippingInstructions}
-              _hover={{ bg: "gray.100" }}
-            >
-              Back to Shipping Instructions
-            </Button>
-            <HStack spacing="2">
-              <Text fontSize={{ base: "sm", md: "md" }} fontWeight="bold" color={textColor}>
-                Shipping Instruction Detail
-              </Text>
-              <IconButton
-                size="xs"
-                icon={<Icon as={MdSettings} color={textColor} />}
-                variant="ghost"
-                aria-label="Settings"
-                _hover={{ bg: "gray.100" }}
-              />
-            </HStack>
-          </HStack>
-
-          {/* Action Buttons */}
-          <HStack spacing="3">
-            <Button
-              leftIcon={<Icon as={MdSave} />}
-              bg="#1c4a95"
-              color="white"
-              size="sm"
-              px="6"
-              py="3"
-              borderRadius="md"
-              _hover={{ bg: "#173f7c" }}
-              onClick={handleSaveShippingInstruction}
-            >
-              Save
-            </Button>
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={bgColor} minH="100vh">
+      <Box p={{ base: "4", md: "6", lg: "8" }} mx="auto">
+        {/* Header with Back Button and Actions */}
+        <Flex justify="space-between" align="center" mb={6}>
+          <Button
+            leftIcon={<Icon as={MdChevronLeft} />}
+            variant="ghost"
+            size="sm"
+            onClick={handleBackToShippingInstructions}
+          >
+            Back
+          </Button>
+          <HStack spacing={3}>
             <Button
               leftIcon={<Icon as={MdPrint} />}
               variant="outline"
               size="sm"
-              px="6"
-              py="3"
-              borderRadius="md"
               onClick={handlePrintShippingInstruction}
             >
               Print
@@ -189,243 +168,224 @@ export default function ShippingInstructionDetail() {
           </HStack>
         </Flex>
 
-        {/* Content Area */}
-        <Box>
-          {/* Status Progress */}
-          <Box mb={6}>
-            <HStack spacing={4} mb={4}>
-              {steps.map((step, index) => (
-                <Badge
-                  key={step}
-                  colorScheme={getStepColor(index)}
-                  px={4}
-                  py={2}
-                  borderRadius="full"
-                  fontSize="sm"
-                >
-                  {step}
-                </Badge>
-              ))}
-            </HStack>
-            <Progress
-              value={(currentStep / (steps.length - 1)) * 100}
-              colorScheme="teal"
-              size="sm"
-              borderRadius="full"
-            />
+        {/* Document Title */}
+        <Text fontSize="2xl" fontWeight="bold" mb={6}>
+          INSTRUCTION / CARGO MANIFEST FOR {formData.vessel}
+        </Text>
+
+        {/* Main Section: Two Columns (Left and Right) */}
+        <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={4} mb={6}>
+          {/* Left Section */}
+          <Box>
+            {/* Two Columns: CONSIGN TO and SI NO */}
+            <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
+              {/* Left Column: CONSIGN TO */}
+              <Box>
+                <Text fontSize="sm" fontWeight="bold" mb={2}>CONSIGN TO:</Text>
+                <VStack align="stretch" spacing={1} fontSize="sm">
+                  <Text fontWeight="semibold">{formData.consignTo}</Text>
+                  <Text>C/o {formData.careOf}</Text>
+                  <Text>{formData.address1}</Text>
+                  <Text>{formData.address2}</Text>
+                  <Text>{formData.postcode} {formData.city}</Text>
+                  <Text mt={2}>Att.: {formData.att}</Text>
+                  <Text>Phone: {formData.phone}</Text>
+                  <Text>E-mail: {formData.email}</Text>
+                </VStack>
+              </Box>
+
+              {/* Right Column: SI NO Section */}
+              <Box bg="orange.400" p={3} borderRadius="md">
+                <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    SI NO:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.siNo}
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    JOB NO:
+                  </Text>
+                  <Box bg="orange.200" px={2} py={1} borderRadius="sm">
+                    <Text color="gray.800" fontWeight="medium">
+                      {formData.jobNo}
+                    </Text>
+                  </Box>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    TO BE SHIPPED BY:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.shippedBy}
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    FROM:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.from}
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    TO:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.to}
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    DEADLINE:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.deadline} !!!!
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    PIC:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.pic}
+                  </Text>
+
+                  <Text fontWeight="bold" textTransform="uppercase" >
+                    DATE:
+                  </Text>
+                  <Text color="white" fontWeight="medium">
+                    {formData.date}
+                  </Text>
+                </Grid>
+              </Box>
+            </Grid>
+
+            {/* Cargo Table Section - Full Width */}
+            <Box>
+              <Text fontSize="sm" fontWeight="bold" mb={2}>
+                CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:
+              </Text>
+              <Box overflowX="auto">
+                <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
+                  <Thead bg="gray.100">
+                    <Tr>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">ORIGIN</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DETAILS</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">WW</Th>
+                      <Th py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {cargoItems.map((item, index) => (
+                      <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.details || ""}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.ww.toFixed(2)}</Td>
+                        <Td py={2} px={2} fontSize="xs">{item.stockItemId}</Td>
+                      </Tr>
+                    ))}
+                    {/* Summary Row */}
+                    <Tr bg="gray.100" fontWeight="bold">
+                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                        CARGO TO BE SHIPPED:
+                      </Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                      <Td py={2} px={2} fontSize="xs"></Td>
+                    </Tr>
+                  </Tbody>
+                </Table>
+              </Box>
+            </Box>
           </Box>
 
-          {/* Instruction Reference */}
-          <Box mb={6}>
-            <HStack spacing={2} mb={2}>
-              <Text fontSize="lg" fontWeight="bold">
-                Instruction Reference?
-              </Text>
-              <Icon as={MdHelpOutline} color="gray.400" />
-            </HStack>
-            <Text fontSize="2xl" fontWeight="bold" color="#1c4a95">
-              {shippingInstruction.id}
-            </Text>
+          {/* Right Section: Select Consignee */}
+          <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
+            <Text fontSize="sm" fontWeight="bold" mb={3}>Select Consignee:</Text>
+            <Grid templateColumns="1fr 2fr" gap={2} fontSize="xs">
+              <Box fontWeight="bold">Select Consignee:</Box>
+              <Box>{formData.selectConsignee}</Box>
+
+              <Box fontWeight="bold">Company:</Box>
+              <Box>{formData.company}</Box>
+
+              <Box fontWeight="bold">Address 1:</Box>
+              <Box>{formData.consigneeAddress1}</Box>
+
+              <Box fontWeight="bold">Address 2:</Box>
+              <Box>{formData.consigneeAddress2}</Box>
+
+              <Box fontWeight="bold">Post code:</Box>
+              <Box>{formData.consigneePostcode}</Box>
+
+              <Box fontWeight="bold">City:</Box>
+              <Box>{formData.consigneeCity}</Box>
+
+              <Box fontWeight="bold">Country:</Box>
+              <Box>{formData.consigneeCountry}</Box>
+
+              <Box fontWeight="bold">RegNo:</Box>
+              <Box>{formData.regNo}</Box>
+
+              <Box fontWeight="bold">E-mail 1:</Box>
+              <Box>{formData.consigneeEmail}</Box>
+
+              <Box fontWeight="bold">Phone 1:</Box>
+              <Box>{formData.consigneePhone}</Box>
+
+              <Box fontWeight="bold">Phone 2:</Box>
+              <Box>{formData.consigneePhone2 || ""}</Box>
+
+              <Box fontWeight="bold">Web:</Box>
+              <Box>{formData.web}</Box>
+
+              <Box fontWeight="bold">CNEE Text:</Box>
+              <Box>{formData.cneeText}</Box>
+
+              <Box fontWeight="bold">Agents PIC:</Box>
+              <Box>{formData.agentsPIC}</Box>
+
+              <Box fontWeight="bold">Warnings:</Box>
+              <Box>{formData.warnings || ""}</Box>
+            </Grid>
           </Box>
+        </Grid>
 
-          <Grid templateColumns={{ base: "1fr", lg: "repeat(2, 1fr)" }} gap={6}>
-            {/* SHIPMENT INFO */}
-            <Box
-              bg="gray.50"
-              p={6}
-              borderRadius="lg"
-              border="1px solid"
-              borderColor="gray.200"
-            >
-              <Text fontSize="lg" fontWeight="bold" mb={4}>
-                SHIPMENT INFO
-              </Text>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Sales Order?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.salesOrder}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Shipment Type?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.shipmentType}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Job No ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.jobNo || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Vessel ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.vessel || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Mode of Transport?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.modeOfTransport}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      From ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.from || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      To ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.to || "-"}
-                  </Text>
-                </HStack>
-              </VStack>
+        {/* Bottom Section */}
+        <Flex justify="space-between" align="flex-start">
+          <HStack spacing={2}>
+            <Box bg="orange.200" px={3} py={2} fontSize="xs" fontWeight="bold">
+              Change total value to:
             </Box>
-
-            {/* CONSIGNEE INFO */}
-            <Box
-              bg="gray.50"
-              p={6}
-              borderRadius="lg"
-              border="1px solid"
-              borderColor="gray.200"
-            >
-              <Text fontSize="lg" fontWeight="bold" mb={4}>
-                CONSIGNEE INFO
-              </Text>
-              <VStack spacing={4} align="stretch">
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Consignee Type ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.consigneeType || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Client ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.client}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Company ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.company || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Address Line 1 ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.addressLine1 || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Address Line 2 ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.addressLine2 || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      Postcode ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.postcode || "-"}
-                  </Text>
-                </HStack>
-
-                <HStack justify="space-between">
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.600">
-                      City ?
-                    </Text>
-                    <Icon as={MdHelpOutline} color="gray.400" />
-                  </HStack>
-                  <Text fontSize="sm" fontWeight="medium">
-                    {shippingInstruction.city || "-"}
-                  </Text>
-                </HStack>
-              </VStack>
+            <Box bg="orange.200" px={3} py={2} fontSize="xs" fontWeight="bold">
+              Remember to reset!
             </Box>
-          </Grid>
-        </Box>
+          </HStack>
+
+          {/* Instructions Box */}
+          <Box bg="blue.600" color="white" p={4} maxW="300px" borderRadius="md">
+            <Text fontSize="sm" fontWeight="bold" mb={2}>INSTRUCTIONS:</Text>
+            <VStack align="stretch" spacing={1} fontSize="xs">
+              <Text>All fields with white text must be filled in manually.</Text>
+              <Text>If using the totals override remember to delete after use.</Text>
+            </VStack>
+          </Box>
+        </Flex>
       </Box>
     </Box>
   );
