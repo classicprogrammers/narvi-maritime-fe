@@ -24,10 +24,9 @@ import {
     VStack,
     useToast,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdDelete, MdFilterList, MdClose } from "react-icons/md";
+import { MdRefresh, MdEdit, MdFilterList, MdClose } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { deleteStockItemApi } from "../../../api/stock";
-import { AlertDialog, AlertDialogBody, AlertDialogFooter, AlertDialogHeader, AlertDialogContent, AlertDialogOverlay, Checkbox, Input, Select } from "@chakra-ui/react";
+import { Checkbox, Input, Select } from "@chakra-ui/react";
 import { useHistory, Redirect } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
@@ -41,8 +40,6 @@ import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSe
 export default function StockList() {
     const history = useHistory();
     const [selectedRows, setSelectedRows] = useState(new Set());
-    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-    const cancelRef = React.useRef();
 
     const toast = useToast();
 
@@ -258,8 +255,8 @@ export default function StockList() {
                     aVal = getSupplierName(a.supplier_id || a.supplier);
                     bVal = getSupplierName(b.supplier_id || b.supplier);
                 } else if (sortField === 'warehouse_id') {
-                    aVal = getLocationName(a.warehouse_id);
-                    bVal = getLocationName(b.warehouse_id);
+                    aVal = String(a.warehouse_id || a.stock_warehouse || "");
+                    bVal = String(b.warehouse_id || b.stock_warehouse || "");
                 } else if (sortField === 'currency_id' || sortField === 'currency') {
                     aVal = getCurrencyName(a.currency_id || a.currency);
                     bVal = getCurrencyName(b.currency_id || b.currency);
@@ -270,8 +267,8 @@ export default function StockList() {
                     aVal = getCountryName(a.origin_id || a.origin);
                     bVal = getCountryName(b.origin_id || b.origin);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = getDestinationName(a.ap_destination_id || a.ap_destination);
-                    bVal = getDestinationName(b.ap_destination_id || b.ap_destination);
+                    aVal = String(a.ap_destination_id || a.ap_destination || "");
+                    bVal = String(b.ap_destination_id || b.ap_destination || "");
                 }
 
                 // Convert to strings for comparison
@@ -508,46 +505,6 @@ export default function StockList() {
     };
 
 
-    // Handle bulk delete
-    const handleBulkDelete = async () => {
-        if (selectedRows.size === 0) return;
-
-        try {
-            const deletePromises = Array.from(selectedRows).map(id => deleteStockItemApi(id));
-            const results = await Promise.all(deletePromises);
-
-            const successCount = results.filter(r => r && r.result && r.result.status === 'success').length;
-
-            if (successCount > 0) {
-                toast({
-                    title: 'Success',
-                    description: `${successCount} stock item(s) deleted successfully`,
-                    status: 'success',
-                    duration: 3000,
-                    isClosable: true,
-                });
-                setBulkDeleteDialogOpen(false);
-                setSelectedRows(new Set());
-                getStockList();
-            } else {
-                throw new Error('Failed to delete stock items');
-            }
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to delete stock items',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
-
-    const handleBulkDeleteClick = () => {
-        if (selectedRows.size > 0) {
-            setBulkDeleteDialogOpen(true);
-        }
-    };
 
     // Format date for display
     const formatDate = (dateString) => {
@@ -915,14 +872,6 @@ export default function StockList() {
                             Edit Selected
                         </Button>
                         <Button
-                            leftIcon={<Icon as={MdDelete} />}
-                            colorScheme="red"
-                            size="sm"
-                            onClick={handleBulkDeleteClick}
-                        >
-                            Delete Selected
-                        </Button>
-                        <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => setSelectedRows(new Set())}
@@ -988,7 +937,8 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         ORIGIN {sortField === "origin_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps}>VIA HUB</Th>
+                                    <Th {...headerProps}>HUB 1</Th>
+                                    <Th {...headerProps}>HUB 2</Th>
                                     <Th {...headerProps}>AP DESTINATION</Th>
                                     <Th {...headerProps}>DESTINATION</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("warehouse_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -1009,7 +959,7 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("delivered_date")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         DELIVERED DATE {sortField === "delivered_date" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps}>DETAILS</Th>
+                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                     <Th {...headerProps}>ITEMS</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -1047,6 +997,7 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("sl_create_datetime")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SL CREATE DATE TIMESTAMP {sortField === "sl_create_datetime" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
+                                    <Th {...headerProps}></Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
@@ -1082,9 +1033,10 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
@@ -1110,6 +1062,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.blank)}</Text></Td>
                                     </Tr>
                                 ))}
                             </Tbody>
@@ -1139,31 +1092,6 @@ export default function StockList() {
                     </Flex>
                 )}
             </Card>
-            {/* Bulk Delete Confirmation Dialog */}
-            <AlertDialog
-                isOpen={bulkDeleteDialogOpen}
-                leastDestructiveRef={cancelRef}
-                onClose={() => setBulkDeleteDialogOpen(false)}
-            >
-                <AlertDialogOverlay>
-                    <AlertDialogContent>
-                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                            Delete Selected Stock Items
-                        </AlertDialogHeader>
-                        <AlertDialogBody>
-                            Are you sure you want to delete {selectedRows.size} selected stock item(s)? This action cannot be undone.
-                        </AlertDialogBody>
-                        <AlertDialogFooter>
-                            <Button ref={cancelRef} onClick={() => setBulkDeleteDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button colorScheme="red" onClick={handleBulkDelete} ml={3}>
-                                Delete All
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialogOverlay>
-            </AlertDialog>
         </Box>
     );
 } 

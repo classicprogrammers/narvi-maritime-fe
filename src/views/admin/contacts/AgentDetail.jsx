@@ -59,10 +59,14 @@ const agentInfoSections = [
       { label: "Address7", key: "street7" },
       { label: "Postcode + City", key: "city", formatter: (value, agent) => `${agent.zip || "-"} ${value || ""}`.trim() || "-" },
       { label: "Country", key: "country_name" },
-      { label: "Agent ID", key: "agentsdb_id" },
+      { label: "Agent Code", key: "agentsdb_id" },
       { label: "Reg No", key: "reg_no" },
-      { label: "Payment Terms", key: "payment_terms" },
-      { label: "Agents Type", key: "agents_type" },
+      { label: "Payment Terms", key: "payment_term" },
+      { label: "Agents Type", key: "type_client" },
+      { label: "Address Type", key: "address_type" },
+      { label: "Warnings", key: "warnings" },
+      { label: "PIC", key: "pic", formatter: (value, agent) => agent.pic || agent.agents_pic || value || "-" },
+      { label: "DB ID", key: "id" },
       { label: "Email1", key: "email" },
       { label: "Email2", key: "email2" },
       { label: "Phone1", key: "phone" },
@@ -350,9 +354,27 @@ const AgentDetail = () => {
   const handleCopyLookupData = () => {
     if (!agent) return;
 
-    // Copy LOOK UP section
+    // Right-hand side fields only (Company details - excluding left side fields)
+    // Right side fields: Company name, Address1-7, Postcode + City, Country, Reg No, Phone1, Phone2, Email1, Email2, PIC
+    // Excluded left side fields: Address Type, Agent Code, Agent Type, Payment Terms, Remarks, Website, Warnings, DB ID
+    const excludedKeys = [
+      "address_type",     // Address Type (left side)
+      "agentsdb_id",      // Agent Code (left side)
+      "type_client",      // Agents Type (left side)
+      "payment_term",     // Payment Terms (left side)
+      "remarks",          // Remarks (left side)
+      "website",          // Website (left side)
+      "warnings",         // Warnings (left side)
+      "id",               // DB ID (left side)
+    ];
+
+    // Filter and map only right-hand side fields (exclude left side fields)
     const lookupItems = agentInfoSections[0].items
       .filter(({ label, key, formatter }) => {
+        // Exclude left-hand side fields
+        if (excludedKeys.includes(key)) {
+          return false;
+        }
         let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
         // Compute country_name if not present
         if (key === "country_name" && !rawValue && agent.country_id) {
@@ -373,28 +395,22 @@ const AgentDetail = () => {
       })
       .join("\n");
 
-    // Copy Agent People section
-    let peopleSection = "";
-    if (agentPeople.length > 0) {
-      peopleSection = "\n\nAGENT PEOPLE:\n";
-      agentPeople.forEach((person, index) => {
-        peopleSection += `\nPerson ${index + 1}:\n`;
-        peopleTableColumns.forEach((column) => {
-          const value = prettyValue(person[column.key]);
-          if (value && value !== "-") {
-            peopleSection += `  ${column.label}: ${value}\n`;
-          }
-        });
-      });
+    // Add PIC if it exists (not in agentInfoSections but should be included)
+    let picLine = "";
+    if (agent.pic || agent.agents_pic) {
+      const picValue = agent.pic || agent.agents_pic;
+      if (picValue && picValue !== "-" && picValue !== "") {
+        picLine = `\nPIC: ${prettyValue(picValue)}`;
+      }
     }
 
-    const allData = lookupItems + peopleSection;
+    const allData = lookupItems + picLine;
 
     if (allData) {
       navigator.clipboard.writeText(allData).then(() => {
         toast({
           title: "Copied to clipboard",
-          description: "Agent information and people details have been copied to your clipboard.",
+          description: "Company information (right-hand side) has been copied to your clipboard.",
           status: "success",
           duration: 2000,
           isClosable: true,
@@ -512,9 +528,52 @@ const AgentDetail = () => {
                   </Tooltip>
                 </Flex>
                 {agentInfoSections.map((section) => {
+                  // Define order for left and right sides (matching edit mode layout)
+                  const leftSideOrder = [
+                    "address_type",
+                    "agentsdb_id",
+                    "type_client",
+                    "payment_term",
+                    "remarks",
+                    "website",
+                    "warnings",
+                    "id", // DB ID
+                  ];
+                  const rightSideOrder = [
+                    "name",
+                    "street",
+                    "street2",
+                    "street3",
+                    "street4",
+                    "street5",
+                    "street6",
+                    "street7",
+                    "city", // Postcode + City (combined with formatter)
+                    "country_name",
+                    "reg_no",
+                    "phone",
+                    "phone2",
+                    "email",
+                    "email2",
+                    "pic",
+                  ];
+
                   // Filter items to only show fields with actual data
                   const itemsWithData = section.items.filter(({ label, key, formatter }) => {
                     let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
+                    // Handle DB ID specially - use agent.id or id from params, always show
+                    if (key === "id") {
+                      rawValue = agent.id || agent.agent_id || agent.vendor_id || id || "";
+                      return true; // Always show DB ID
+                    }
+                    // Handle payment_term - check both payment_term and payment_terms
+                    if (key === "payment_term" && !rawValue) {
+                      rawValue = agent.payment_terms || agent.payment_term || "";
+                    }
+                    // Handle type_client - check both type_client and agents_type
+                    if (key === "type_client" && !rawValue) {
+                      rawValue = agent.agents_type || agent.type_client || "";
+                    }
                     // Compute country_name if not present
                     if (key === "country_name" && !rawValue && agent.country_id) {
                       const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
@@ -525,22 +584,79 @@ const AgentDetail = () => {
                     return displayValue && displayValue !== "-" && displayValue !== "";
                   });
 
+                  // Separate items into left and right sides
+                  const leftSideItems = [];
+                  const rightSideItems = [];
+                  const otherItems = [];
+
+                  itemsWithData.forEach((item) => {
+                    if (leftSideOrder.includes(item.key)) {
+                      leftSideItems.push(item);
+                    } else if (rightSideOrder.includes(item.key)) {
+                      rightSideItems.push(item);
+                    } else {
+                      otherItems.push(item);
+                    }
+                  });
+
+                  // Sort left and right side items according to order
+                  leftSideItems.sort((a, b) => {
+                    const indexA = leftSideOrder.indexOf(a.key);
+                    const indexB = leftSideOrder.indexOf(b.key);
+                    return indexA - indexB;
+                  });
+
+                  rightSideItems.sort((a, b) => {
+                    const indexA = rightSideOrder.indexOf(a.key);
+                    const indexB = rightSideOrder.indexOf(b.key);
+                    return indexA - indexB;
+                  });
+
+                  // Combine: interleave left and right items [Left1, Right1, Left2, Right2, ...]
+                  const orderedItems = [];
+                  const maxLength = Math.max(leftSideItems.length, rightSideItems.length);
+                  for (let i = 0; i < maxLength; i++) {
+                    if (leftSideItems[i]) {
+                      orderedItems.push({ ...leftSideItems[i], side: "left" });
+                    }
+                    if (rightSideItems[i]) {
+                      orderedItems.push({ ...rightSideItems[i], side: "right" });
+                    }
+                  }
+                  // Add any remaining items that don't fit in the order
+                  otherItems.forEach(item => {
+                    orderedItems.push({ ...item, side: orderedItems.length % 2 === 0 ? "left" : "right" });
+                  });
+
                   // Don't render the section if no items have data
-                  if (itemsWithData.length === 0) {
+                  if (orderedItems.length === 0) {
                     return null;
                   }
 
                   return (
                     <GridItem key={section.heading} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
                       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                        {itemsWithData.map(({ label, key, formatter }, idx) => {
+                        {orderedItems.map(({ label, key, formatter, side }, idx) => {
                           let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
+                          // Handle DB ID specially
+                          if (key === "id") {
+                            rawValue = agent.id || agent.agent_id || agent.vendor_id || id || "";
+                          }
+                          // Handle payment_term - check both payment_term and payment_terms
+                          if (key === "payment_term" && !rawValue) {
+                            rawValue = agent.payment_terms || agent.payment_term || "";
+                          }
+                          // Handle type_client - check both type_client and agents_type
+                          if (key === "type_client" && !rawValue) {
+                            rawValue = agent.agents_type || agent.type_client || "";
+                          }
                           // Compute country_name if not present
                           if (key === "country_name" && !rawValue && agent.country_id) {
                             const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
                             rawValue = getCountryName(agent.country_id, countryList);
                           }
-                          const addRightBorder = idx % 2 === 0; // first column cells
+                          // Determine border based on side: left side items get right border
+                          const addRightBorder = side === "left";
                           return (
                             <GridItem
                               key={key}

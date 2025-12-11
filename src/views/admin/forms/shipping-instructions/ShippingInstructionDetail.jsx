@@ -271,8 +271,8 @@ export default function ShippingInstructionDetail() {
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DETAILS</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN NUMBER</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PCS</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
@@ -284,7 +284,23 @@ export default function ShippingInstructionDetail() {
                     {cargoItems.map((item, index) => (
                       <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                          <Textarea
+                            value={item.warehouseId || ""}
+                            onChange={(e) => {
+                              const updatedItems = [...cargoItems];
+                              updatedItems[index].warehouseId = e.target.value;
+                              setCargoItems(updatedItems);
+                            }}
+                            size="sm"
+                            rows={2}
+                            resize="vertical"
+                            border="1px solid"
+                            borderColor="gray.300"
+                            fontSize="xs"
+                            minH="40px"
+                          />
+                        </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.details || ""}</Td>

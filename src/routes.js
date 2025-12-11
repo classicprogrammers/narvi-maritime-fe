@@ -70,6 +70,7 @@ import Locations from "views/admin/configurations/locations";
 import Currencies from "views/admin/configurations/currencies";
 import Countries from "views/admin/configurations/countries";
 import Vessels from "views/admin/configurations/vessels";
+import VesselDetail from "views/admin/configurations/VesselDetail";
 import UOM from "views/admin/configurations/uom";
 import Destinations from "views/admin/configurations/destinations";
 import Suppliers from "views/admin/configurations/suppliers";
@@ -173,7 +174,7 @@ const routes = [
         component: NewStockItem,
       },
       {
-        name: "Stocklist View",
+        name: "Stocklist View/Edit",
         path: "/stock-list/stocks",
         icon: <Icon as={MdList} width="20px" height="20px" color="inherit" />,
         component: Stocks,
@@ -299,12 +300,12 @@ const routes = [
         icon: <Icon as={MdBusiness} width="20px" height="20px" color="inherit" />,
         component: Suppliers,
       },
-      {
-        name: "Warehouses",
-        path: "/configurations/warehouses",
-        icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
-        component: Warehouses,
-      },
+      // {
+      //   name: "Warehouses",
+      //   path: "/configurations/warehouses",
+      //   icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
+      //   component: Warehouses,
+      // },
     ],
   },
   {
@@ -394,6 +395,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/stock-list/main-db-edit",
     component: StockDBMainEdit,
+  },
+  {
+    name: "Vessel Detail",
+    layout: "/admin",
+    path: "/configurations/vessels/:id",
+    component: VesselDetail,
   },
 ];
 

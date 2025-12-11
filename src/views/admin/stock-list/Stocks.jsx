@@ -37,17 +37,9 @@ import {
     Textarea,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdDelete, MdClose, MdCheck, MdCancel } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { deleteStockItemApi, updateStockItemApi } from "../../../api/stock";
-import {
-    AlertDialog,
-    AlertDialogBody,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogContent,
-    AlertDialogOverlay
-} from "@chakra-ui/react";
+import { updateStockItemApi } from "../../../api/stock";
 import { useHistory } from "react-router-dom";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -162,8 +154,6 @@ const STATUS_VARIATIONS = {
 export default function Stocks() {
     const history = useHistory();
     const [selectedRows, setSelectedRows] = useState(new Set());
-    const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
-    const cancelRef = React.useRef();
     const [activeTab, setActiveTab] = useState(0); // 0: By Vessel, 1: By Client
     const [editingRowIds, setEditingRowIds] = useState(new Set()); // Set of row IDs being edited
     const [editingRowData, setEditingRowData] = useState({}); // Map of row ID -> editing data
@@ -541,8 +531,8 @@ export default function Stocks() {
     const sortStockItems = (items) => {
         return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
-            const apDestA = getCountryName(a.ap_destination_id || a.ap_destination) || "";
-            const apDestB = getCountryName(b.ap_destination_id || b.ap_destination) || "";
+            const apDestA = String(a.ap_destination_id || a.ap_destination || "").toLowerCase();
+            const apDestB = String(b.ap_destination_id || b.ap_destination || "").toLowerCase();
             if (apDestA !== apDestB) {
                 return apDestA.localeCompare(apDestB);
             }
@@ -718,46 +708,6 @@ export default function Stocks() {
     const allPageItemsSelected = paginatedStock.length > 0 && paginatedStock.every(item => selectedRows.has(item.id));
     const somePageItemsSelected = paginatedStock.some(item => selectedRows.has(item.id));
 
-    // Handle bulk delete
-    const handleBulkDelete = async () => {
-        if (selectedRows.size === 0) return;
-
-        try {
-            const deletePromises = Array.from(selectedRows).map(id => deleteStockItemApi(id));
-            const results = await Promise.all(deletePromises);
-
-            const successCount = results.filter(r => r && r.result && r.result.status === 'success').length;
-
-            if (successCount > 0) {
-                toast({
-                    title: 'Success',
-                    description: `${successCount} stock item(s) deleted successfully`,
-                    status: 'success',
-                    duration: 3000,
-                    isClosable: true,
-                });
-                setBulkDeleteDialogOpen(false);
-                setSelectedRows(new Set());
-                getStockList();
-            } else {
-                throw new Error('Failed to delete stock items');
-            }
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to delete stock items',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
-
-    const handleBulkDeleteClick = () => {
-        if (selectedRows.size > 0) {
-            setBulkDeleteDialogOpen(true);
-        }
-    };
 
     // Handle inline edit start - for single row
     // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
@@ -826,6 +776,7 @@ export default function Stocks() {
             details: item.details || item.item_desc || "",
             remarks: item.remarks || "",
             via_hub: item.via_hub || "",
+            via_hub2: item.via_hub2 || "",
             shipping_doc: item.shipping_doc || "",
             export_doc: item.export_doc || "",
             vessel_destination: item.vessel_destination || item.vessel_destination_text || "",
@@ -961,12 +912,9 @@ export default function Stocks() {
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "origin", original: ["origin_id", "origin"], edited: ["origin_id", "origin"], transform: (v) => toValue(toId(v), false) },
-            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => {
-                if (!v && v !== 0) return false;
-                const num = typeof v === "string" ? parseInt(v, 10) : Number(v);
-                return isNaN(num) ? false : num;
-            } }, // ID field as number
+            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => v || "" }, // Free text field // ID field as number
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
+            { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
             { backend: "weight_kg", original: ["weight_kg", "weight_kgs"], edited: ["weight_kg"], transform: (v) => toNumber(v) },
@@ -987,8 +935,8 @@ export default function Stocks() {
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
             { backend: "destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "destination", "stock_destination"], transform: (v) => toValue(toId(v), false) }, // Keep destination for lines format
             { backend: "stock_destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "stock_destination"], transform: (v) => toValue(toId(v), false) },
-            { backend: "warehouse_id", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => toValue(toId(v), false) }, // Keep warehouse_id for lines format
-            { backend: "stock_warehouse", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => toValue(toId(v), false) },
+            { backend: "warehouse_id", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => v || "" }, // Free text field, not linked to warehouses
+            { backend: "stock_warehouse", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => v || "" }, // Free text field, not linked to warehouses
             { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
             { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
             { backend: "date_on_stock", original: ["date_on_stock"], edited: ["date_on_stock"], transform: (v) => toValue(v, false) },
@@ -1116,32 +1064,6 @@ export default function Stocks() {
         }
     };
 
-    // Handle single item delete
-    const handleDeleteItem = async (itemId, stockItemId) => {
-        try {
-            const result = await deleteStockItemApi(itemId);
-            if (result && result.result && result.result.status === 'success') {
-                toast({
-                    title: 'Success',
-                    description: `Stock item ${stockItemId || itemId} deleted successfully`,
-                    status: 'success',
-                    duration: 3000,
-                    isClosable: true,
-                });
-                getStockList();
-            } else {
-                throw new Error('Failed to delete stock item');
-            }
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to delete stock item',
-                status: 'error',
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
 
     // Format date for display
     const formatDate = (dateString) => {
@@ -1343,33 +1265,20 @@ export default function Stocks() {
             );
         }
 
-        // Handle AP destination as country searchable select
-        if (field.includes("ap_destination")) {
-            const countryOptions = countries
-                .filter(c => c && (c.id || c.country_id)) // Filter out invalid entries
-                .map(c => {
-                    const countryId = c.id || c.country_id;
-                    return {
-                        value: String(countryId),
-                        label: c.name || c.code || `Country ${countryId}`
-                    };
-                });
-
+        // Handle warehouse_id as free text textarea (not linked to warehouses)
+        if (field === "warehouse_id" || field === "stock_warehouse") {
             return (
-                <Box position="relative" zIndex={10}>
-                    <SimpleSearchableSelect
-                        value={currentValue ? String(currentValue) : ""}
-                        onChange={(val) => handleChange(val)}
-                        options={countryOptions}
-                        placeholder={countryOptions.length === 0 ? "No countries available" : "Select Country..."}
-                        displayKey="label"
-                        valueKey="value"
-                        formatOption={(option) => option.label || `Country ${option.value}`}
-                        isLoading={false}
-                        bg={inputBg}
-                        color={inputText}
-                    />
-                </Box>
+                <Textarea
+                    value={currentValue || ""}
+                    onChange={(e) => handleChange(e.target.value)}
+                    size="sm"
+                    rows={2}
+                    resize="vertical"
+                    bg={inputBg}
+                    color={inputText}
+                    borderColor={borderColor}
+                    placeholder="Enter Warehouse ID"
+                />
             );
         }
 
@@ -1525,17 +1434,20 @@ export default function Stocks() {
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
-                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination, "searchable") : <Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text>}
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{item.warehouse_id || item.stock_warehouse ? (item.stock_warehouse ? String(item.stock_warehouse) : getLocationName(item.warehouse_id)) : "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock || item.ready_ex_supplier, "date") : <Text {...cellText}>{formatDate(item.exp_ready_in_stock || item.ready_ex_supplier)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "blank", item.blank || "") : <Text {...cellText}>{renderText(item.blank)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -1566,18 +1478,6 @@ export default function Stocks() {
                                         variant="ghost"
                                         aria-label="Edit"
                                         onClick={() => handleEditStart(item)}
-                                    />
-                                    <IconButton
-                                        icon={<Icon as={MdDelete} />}
-                                        size="sm"
-                                        colorScheme="red"
-                                        variant="ghost"
-                                        aria-label="Delete"
-                                        onClick={() => {
-                                            if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
-                                                handleDeleteItem(item.id, item.stock_item_id);
-                                            }
-                                        }}
                                     />
                                 </HStack>
                             )}
@@ -1646,7 +1546,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{item.warehouse_id || item.stock_warehouse ? (item.stock_warehouse ? String(item.stock_warehouse) : getLocationName(item.warehouse_id)) : "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
@@ -1680,8 +1580,11 @@ export default function Stocks() {
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
-                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination, "searchable") : <Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text>}
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "via_hub2", item.via_hub2) : <Text {...cellText}>{renderText(item.via_hub2)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
@@ -1709,6 +1612,9 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "blank", item.blank || "") : <Text {...cellText}>{renderText(item.blank)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -1739,18 +1645,6 @@ export default function Stocks() {
                                         variant="ghost"
                                         aria-label="Edit"
                                         onClick={() => handleEditStart(item)}
-                                    />
-                                    <IconButton
-                                        icon={<Icon as={MdDelete} />}
-                                        size="sm"
-                                        colorScheme="red"
-                                        variant="ghost"
-                                        aria-label="Delete"
-                                        onClick={() => {
-                                            if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
-                                                handleDeleteItem(item.id, item.stock_item_id);
-                                            }
-                                        }}
                                     />
                                 </HStack>
                             )}
@@ -1801,9 +1695,10 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.ap_destination_id || item.ap_destination)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id ? getLocationName(item.warehouse_id) : "-"}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
@@ -1829,6 +1724,7 @@ export default function Stocks() {
                         <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
                         <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
+                        <Td {...cellProps}><Text {...cellText}>{renderText(item.blank)}</Text></Td>
                         <Td {...cellProps}>
                             <HStack spacing="2">
                                 <IconButton
@@ -1843,18 +1739,6 @@ export default function Stocks() {
                                             pathname: '/admin/stock-list/main-db-edit',
                                             state: { selectedItems, isBulkEdit: false }
                                         });
-                                    }}
-                                />
-                                <IconButton
-                                    icon={<Icon as={MdDelete} />}
-                                    size="sm"
-                                    colorScheme="red"
-                                    variant="ghost"
-                                    aria-label="Delete"
-                                    onClick={() => {
-                                        if (window.confirm(`Are you sure you want to delete stock item ${item.stock_item_id || item.id}?`)) {
-                                            handleDeleteItem(item.id, item.stock_item_id);
-                                        }
                                     }}
                                 />
                             </HStack>
@@ -1882,7 +1766,7 @@ export default function Stocks() {
                             fontWeight="700"
                             lineHeight="100%"
                         >
-                            Stocklist View
+                            Stock List Management
                         </Text>
                         {isRefreshing && (
                             <HStack spacing="2">
@@ -2226,14 +2110,6 @@ export default function Stocks() {
                                             Edit Selected
                                         </Button>
                                         <Button
-                                            leftIcon={<Icon as={MdDelete} />}
-                                            colorScheme="red"
-                                            size="sm"
-                                            onClick={handleBulkDeleteClick}
-                                        >
-                                            Delete Selected
-                                        </Button>
-                                        <Button
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => setSelectedRows(new Set())}
@@ -2294,11 +2170,13 @@ export default function Stocks() {
                                                     <Th {...headerProps}>DI NUMBER</Th>
                                                     <Th {...headerProps}>STOCK STATUS</Th>
                                                     <Th {...headerProps}>ORIGIN</Th>
-                                                    <Th {...headerProps}>VIA HUB</Th>
+                                                    <Th {...headerProps}>HUB 1</Th>
+                                                    <Th {...headerProps}>HUB 2</Th>
                                                     <Th {...headerProps}>AP DESTINATION</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                    <Th {...headerProps}></Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             ) : (
@@ -2312,14 +2190,15 @@ export default function Stocks() {
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
                                                     <Th {...headerProps}>PO#</Th>
-                                                    <Th {...headerProps}>DETAILS</Th>
+                                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>KG</Th>
                                                     <Th {...headerProps}>CBM</Th>
                                                     <Th {...headerProps}>CUR</Th>
                                                     <Th {...headerProps}>VALUE</Th>
                                                     <Th {...headerProps}>ORIGIN</Th>
-                                                    <Th {...headerProps}>VIA HUB</Th>
+                                                    <Th {...headerProps}>HUB 1</Th>
+                                                    <Th {...headerProps}>HUB 2</Th>
                                                     <Th {...headerProps}>AP DEST</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>SHIPPING DOC</Th>
@@ -2330,6 +2209,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SIC NUMBER</Th>
                                                     <Th {...headerProps}>DI NUMBER</Th>
+                                                    <Th {...headerProps}></Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             )}
@@ -2338,7 +2218,7 @@ export default function Stocks() {
                                     <Tbody>
                                         {isInitialLoading ? (
                                             <Tr>
-                                                <Td colSpan={activeTab === 0 ? 16 : 29}>
+                                                <Td colSpan={activeTab === 0 ? 18 : 31}>
                                                     <Center py="10">
                                                         <HStack spacing="4">
                                                             <Spinner size="lg" color="#1c4a95" />
@@ -2418,31 +2298,6 @@ export default function Stocks() {
                     </>
                 )}
             </Card>
-            {/* Bulk Delete Confirmation Dialog */}
-            <AlertDialog
-                isOpen={bulkDeleteDialogOpen}
-                leastDestructiveRef={cancelRef}
-                onClose={() => setBulkDeleteDialogOpen(false)}
-            >
-                <AlertDialogOverlay>
-                    <AlertDialogContent>
-                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                            Delete Selected Stock Items
-                        </AlertDialogHeader>
-                        <AlertDialogBody>
-                            Are you sure you want to delete {selectedRows.size} selected stock item(s)? This action cannot be undone.
-                        </AlertDialogBody>
-                        <AlertDialogFooter>
-                            <Button ref={cancelRef} onClick={() => setBulkDeleteDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button colorScheme="red" onClick={handleBulkDelete} ml={3}>
-                                Delete All
-                            </Button>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialogOverlay>
-            </AlertDialog>
         </Box>
     );
 }

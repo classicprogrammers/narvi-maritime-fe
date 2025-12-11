@@ -107,9 +107,11 @@ export default function StockForm() {
         currency: "",
         origin: "",
         viaHub: "", // Free text field
+        viaHub2: "", // Free text field
         expReadyInStock: "", // Date field
         dateOnStock: "", // Date field
         remarks: "",
+        blank: "",
         clientAccess: false,
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
@@ -596,9 +598,11 @@ export default function StockForm() {
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
             viaHub: getFieldValue(stock.via_hub, ""), // Free text field
+            viaHub2: getFieldValue(stock.via_hub2, ""), // Free text field
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
             remarks: getFieldValue(stock.remarks),
+            blank: getFieldValue(stock.blank, ""),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
             vesselDestination: getFieldValue(stock.vessel_destination) || getFieldValue(stock.destination) || "", // Free text field
@@ -730,6 +734,7 @@ export default function StockForm() {
             origin: rowData.origin ? String(rowData.origin) : "",
             ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
             via_hub: rowData.viaHub || "", // Free text field
+            via_hub2: rowData.viaHub2 || "", // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
@@ -1068,22 +1073,24 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Item</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Details</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
                             </Tr>
@@ -1203,11 +1210,13 @@ export default function StockForm() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                <Input
-                                            value={row.warehouseId}
+                                        <Textarea
+                                            value={row.warehouseId || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
-                                            placeholder=""
-                                    size="sm"
+                                            placeholder="Enter Warehouse ID"
+                                            size="sm"
+                                            rows={2}
+                                            resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1239,15 +1248,11 @@ export default function StockForm() {
                                         <NumberInput
                                             value={row.item || 1}
                                             onChange={(value) => handleInputChange(rowIndex, "item", value)}
-                                            min={1}
+                                            min={0}
                                             precision={0}
-                                    size="sm"
+                                            size="sm"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            <NumberInputStepper>
-                                                <NumberIncrementStepper />
-                                                <NumberDecrementStepper />
-                                            </NumberInputStepper>
                                         </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
@@ -1380,7 +1385,18 @@ export default function StockForm() {
                                         <Input
                                             value={row.viaHub || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
-                                            placeholder="Enter Via HUB"
+                                            placeholder="Enter HUB 1"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.viaHub2 || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
+                                            placeholder="Enter HUB 2"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1427,6 +1443,17 @@ export default function StockForm() {
                                             placeholder="Remarks (multiple lines supported)"
                                             size="sm"
                                             rows={4}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.blank || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "blank", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

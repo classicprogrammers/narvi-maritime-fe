@@ -47,15 +47,19 @@ import {
   MdEdit,
   MdDelete,
   MdDirectionsBoat,
+  MdVisibility,
+  MdPrint,
 } from "react-icons/md";
 import { CloseIcon } from "@chakra-ui/icons";
 import { List, ListItem } from "@chakra-ui/react";
+import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 
 import { getCustomersApi } from "../../../api/customer";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
 export default function Vessels() {
+  const history = useHistory();
   const [vessels, setVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -598,6 +602,16 @@ export default function Vessels() {
                         {/* Removed extra columns that referenced undefined variables */}
                         <Td py="12px" px="16px">
                           <HStack spacing={2}>
+                            <Tooltip label="View Vessel Details">
+                              <IconButton
+                                icon={<Icon as={MdVisibility} />}
+                                size="sm"
+                                colorScheme="green"
+                                variant="ghost"
+                                aria-label="View vessel details"
+                                onClick={() => history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel })}
+                              />
+                            </Tooltip>
                             <Tooltip label="Edit Vessel">
                               <IconButton
                                 icon={<Icon as={MdEdit} />}
@@ -928,46 +942,119 @@ export default function Vessels() {
         </ModalContent >
       </Modal >
 
-      {/* File Preview Modal */}
-      <Modal isOpen={!!previewFile} onClose={() => setPreviewFile(null)} size="xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>{previewFile?.filename}</ModalHeader>
+      {/* File Preview Modal - A4 Size Friendly Viewer */}
+      <Modal isOpen={!!previewFile} onClose={() => setPreviewFile(null)} size="full">
+        <ModalOverlay bg="rgba(0, 0, 0, 0.8)" />
+        <ModalContent maxW="210mm" maxH="297mm" m="auto" bg="white">
+          <ModalHeader bg="gray.100" borderBottom="1px" borderColor="gray.200">
+            <Flex justify="space-between" align="center">
+              <Text fontSize="lg" fontWeight="600">
+                {previewFile?.filename || "File Preview"}
+              </Text>
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdPrint} />}
+                onClick={() => {
+                  const printWindow = window.open();
+                  if (printWindow && previewFile?.fileUrl) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>${previewFile.filename}</title>
+                          <style>
+                            @page {
+                              size: A4;
+                              margin: 0;
+                            }
+                            body {
+                              margin: 0;
+                              padding: 0;
+                            }
+                            img, iframe {
+                              width: 100%;
+                              height: 100vh;
+                              object-fit: contain;
+                            }
+                          </style>
+                        </head>
+                        <body>
+                          ${previewFile.fileType?.startsWith("image/") 
+                            ? `<img src="${previewFile.fileUrl}" alt="${previewFile.filename}" />`
+                            : previewFile.fileType === "application/pdf"
+                            ? `<iframe src="${previewFile.fileUrl}" style="width: 100%; height: 100vh; border: none;"></iframe>`
+                            : `<p>Preview not available. <a href="${previewFile.fileUrl}" download>Download file</a></p>`
+                          }
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                    setTimeout(() => printWindow.print(), 250);
+                  }
+                }}
+              >
+                Print
+              </Button>
+            </Flex>
+          </ModalHeader>
           <ModalCloseButton />
-          <ModalBody>
-            {previewFile &&
-              (previewFile.fileType?.startsWith("image/") ? (
-                <img
-                  src={previewFile.fileUrl}
-                  alt={previewFile.filename}
-                  style={{
-                    maxWidth: "100%",
-                    borderRadius: "8px",
-                    objectFit: "contain",
-                  }}
-                />
+          <ModalBody p={0} bg="gray.50" display="flex" justifyContent="center" alignItems="center" minH="calc(100vh - 120px)">
+            {previewFile && (
+              previewFile.fileType?.startsWith("image/") ? (
+                <Box
+                  w="100%"
+                  h="100%"
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  p={4}
+                >
+                  <img
+                    src={previewFile.fileUrl}
+                    alt={previewFile.filename}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "calc(100vh - 120px)",
+                      objectFit: "contain",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                    }}
+                  />
+                </Box>
               ) : previewFile.fileType === "application/pdf" ? (
-                <iframe
-                  src={previewFile.fileUrl}
-                  title={previewFile.filename}
-                  width="100%"
-                  height="500px"
-                  style={{ borderRadius: "8px", border: "1px solid #ccc" }}
-                />
+                <Box
+                  w="100%"
+                  h="calc(100vh - 120px)"
+                  display="flex"
+                  justifyContent="center"
+                  alignItems="center"
+                  bg="gray.100"
+                >
+                  <iframe
+                    src={previewFile.fileUrl}
+                    title={previewFile.filename}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      border: "none",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                    }}
+                  />
+                </Box>
               ) : (
-                <Text>
-                  File preview not available.{" "}
-                  <a
+                <Box p={8} textAlign="center">
+                  <Text mb={4}>File preview not available for this file type.</Text>
+                  <Button
+                    as="a"
                     href={previewFile.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: "#3182CE" }}
+                    download={previewFile.filename}
+                    colorScheme="blue"
                   >
-                    Download or view externally
-                  </a>
-                  .
-                </Text>
-              ))}
+                    Download File
+                  </Button>
+                </Box>
+              )
+            )}
           </ModalBody>
         </ModalContent>
       </Modal>

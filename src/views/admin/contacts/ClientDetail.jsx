@@ -53,6 +53,7 @@ const clientInfoSections = [
       { label: "Clients Type", key: "type_client" },
       { label: "Vessel Types", key: "vessel_type" },
       { label: "Category", key: "client_category" },
+      { label: "Client Code", key: "client_code" },
       { label: "Email1", key: "email" },
       { label: "Email2", key: "email2" },
       { label: "Phone1", key: "phone" },
@@ -137,9 +138,25 @@ const ClientDetail = () => {
   const handleCopyLookupData = () => {
     if (!client) return;
 
-    // Copy LOOK UP section
+    // Right-hand side fields only (Company details - excluding left side fields)
+    // Right side fields: Company name, Address1-7, Postcode + City, Country, Reg No, Phone1, Phone2, Email1, Email2
+    // Excluded left side fields: Category, Payment Terms, Clients Type, Vessel Types, Website, Remarks
+    const excludedKeys = [
+      "client_category",  // Category (left side)
+      "payment_term",     // Payment Terms (left side)
+      "type_client",      // Clients Type (left side)
+      "vessel_type",     // Vessel Types (left side)
+      "website",         // Website (left side)
+      "remarks",         // Remarks (left side)
+    ];
+
+    // Filter and map only right-hand side fields (exclude left side fields)
     const lookupItems = clientInfoSections[0].items
       .filter(({ label, key, formatter }) => {
+        // Exclude left-hand side fields
+        if (excludedKeys.includes(key)) {
+          return false;
+        }
         const rawValue = formatter ? formatter(client[key], client) : client[key];
         const displayValue = prettyValue(rawValue);
         return displayValue && displayValue !== "-" && displayValue !== "";
@@ -150,28 +167,11 @@ const ClientDetail = () => {
       })
       .join("\n");
 
-    // Copy Client People section
-    let peopleSection = "";
-    if (clientPeople.length > 0) {
-      peopleSection = "\n\nCLIENT PEOPLE:\n";
-      clientPeople.forEach((person, index) => {
-        peopleSection += `\nPerson ${index + 1}:\n`;
-        peopleTableColumns.forEach((column) => {
-          const value = prettyValue(person[column.key]);
-          if (value && value !== "-") {
-            peopleSection += `  ${column.label}: ${value}\n`;
-          }
-        });
-      });
-    }
-
-    const allData = lookupItems + peopleSection;
-
-    if (allData) {
-      navigator.clipboard.writeText(allData).then(() => {
+    if (lookupItems) {
+      navigator.clipboard.writeText(lookupItems).then(() => {
         toast({
           title: "Copied to clipboard",
-          description: "Client information and people details have been copied to your clipboard.",
+          description: "Company information (right-hand side) has been copied to your clipboard.",
           status: "success",
           duration: 2000,
           isClosable: true,
@@ -271,6 +271,34 @@ const ClientDetail = () => {
                   </Tooltip>
                 </Flex>
                 {clientInfoSections.map((section) => {
+                  // Define order for left and right sides (matching edit mode layout)
+                  const leftSideOrder = [
+                    "client_code",
+                    "client_category",
+                    "type_client",
+                    "payment_term",
+                    "vessel_type",
+                    "remarks",
+                    "website",
+                  ];
+                  const rightSideOrder = [
+                    "name",
+                    "street",
+                    "street2",
+                    "street3",
+                    "street4",
+                    "street5",
+                    "street6",
+                    "street7",
+                    "city", // Postcode + City (combined with formatter)
+                    "country_name",
+                    "reg_no",
+                    "phone",
+                    "phone2",
+                    "email",
+                    "email2",
+                  ];
+
                   // Filter items to only show fields with actual data
                   const itemsWithData = section.items.filter(({ label, key, formatter }) => {
                     const rawValue = formatter ? formatter(client[key], client) : client[key];
@@ -279,17 +307,63 @@ const ClientDetail = () => {
                     return displayValue && displayValue !== "-" && displayValue !== "";
                   });
 
+                  // Separate items into left and right sides
+                  const leftSideItems = [];
+                  const rightSideItems = [];
+                  const otherItems = [];
+
+                  itemsWithData.forEach((item) => {
+                    if (leftSideOrder.includes(item.key)) {
+                      leftSideItems.push(item);
+                    } else if (rightSideOrder.includes(item.key)) {
+                      rightSideItems.push(item);
+                    } else {
+                      otherItems.push(item);
+                    }
+                  });
+
+                  // Sort left and right side items according to order
+                  leftSideItems.sort((a, b) => {
+                    const indexA = leftSideOrder.indexOf(a.key);
+                    const indexB = leftSideOrder.indexOf(b.key);
+                    return indexA - indexB;
+                  });
+
+                  rightSideItems.sort((a, b) => {
+                    const indexA = rightSideOrder.indexOf(a.key);
+                    const indexB = rightSideOrder.indexOf(b.key);
+                    return indexA - indexB;
+                  });
+
+                  // Combine: interleave left and right items [Left1, Right1, Left2, Right2, ...]
+                  const orderedItems = [];
+                  const maxLength = Math.max(leftSideItems.length, rightSideItems.length);
+                  for (let i = 0; i < maxLength; i++) {
+                    if (leftSideItems[i]) {
+                      orderedItems.push({ ...leftSideItems[i], side: "left" });
+                    }
+                    if (rightSideItems[i]) {
+                      orderedItems.push({ ...rightSideItems[i], side: "right" });
+                    }
+                  }
+                  // Add any remaining items that don't fit in the order (place them appropriately)
+                  otherItems.forEach(item => {
+                    // Place at end, alternating sides
+                    orderedItems.push({ ...item, side: orderedItems.length % 2 === 0 ? "left" : "right" });
+                  });
+
                   // Don't render the section if no items have data
-                  if (itemsWithData.length === 0) {
+                  if (orderedItems.length === 0) {
                     return null;
                   }
 
                   return (
                     <GridItem key={section.heading} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
                       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                        {itemsWithData.map(({ label, key, formatter }, idx) => {
+                        {orderedItems.map(({ label, key, formatter, side }, idx) => {
                           const rawValue = formatter ? formatter(client[key], client) : client[key];
-                          const addRightBorder = idx % 2 === 0; // first column cells
+                          // Determine border based on side: left side items get right border
+                          const addRightBorder = side === "left";
                           return (
                             <GridItem
                               key={key}

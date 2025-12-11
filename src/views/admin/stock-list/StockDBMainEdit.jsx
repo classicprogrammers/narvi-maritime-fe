@@ -100,6 +100,7 @@ export default function StockDBMainEdit() {
         // Editable fields - all from main DB table
         client: "",
         vessel: "",
+        vesselsProspects: "",
         soNumber: "",
         siNumber: "",
         siCombined: "",
@@ -109,7 +110,8 @@ export default function StockDBMainEdit() {
         poNumber: "",
         extra2: "",
         origin: "",
-        viaHub: "",
+        viaHub1: "",
+        viaHub2: "",
         apDestination: "",
         destination: "",
         warehouseId: "",
@@ -137,6 +139,7 @@ export default function StockDBMainEdit() {
         soStatus: "",
         vesselDest: "",
         vesselEta: "",
+        blank: "",
         // Internal fields for API payload
         vesselDestination: "",
         itemId: "",
@@ -215,6 +218,7 @@ export default function StockDBMainEdit() {
             // Editable fields - all from main DB table
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
+            vesselsProspects: getFieldValue(stock.vessels_prospects, ""),
             soNumber: normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || "",
             siNumber: normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || "",
             siCombined: getFieldValue(stock.si_combined) || "",
@@ -224,7 +228,8 @@ export default function StockDBMainEdit() {
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             extra2: getFieldValue(stock.extra_2) || getFieldValue(stock.extra) || "",
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
-            viaHub: getFieldValue(stock.via_hub, ""),
+            viaHub1: getFieldValue(stock.via_hub, ""),
+            viaHub2: getFieldValue(stock.via_hub2, ""),
             apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
             destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || normalizeId(stock.stock_destination) || "",
             warehouseId: normalizeId(stock.warehouse_id) || normalizeId(stock.stock_warehouse) || "",
@@ -253,6 +258,7 @@ export default function StockDBMainEdit() {
             soStatus: soStatusValue,
             vesselDest: vesselData.destination,
             vesselEta: vesselData.eta,
+            blank: getFieldValue(stock.blank, ""),
             // Internal fields
             vesselDestination: vesselData.destination,
             itemId: normalizeId(stock.item_id) || "",
@@ -433,18 +439,17 @@ export default function StockDBMainEdit() {
             ["client", "client_id", (v) => v ? String(v) : ""],
             ["supplier", "supplier_id", (v) => v ? String(v) : ""],
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
+            ["vesselsProspects", "vessels_prospects", (v) => v || ""],
             ["poNumber", "po_text", (v) => v || ""],
             ["pic", "pic", (v) => v || ""],
             ["itemId", "item_id", (v) => v ? String(v) : ""],
             ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
             ["currency", "currency_id", (v) => v ? String(v) : ""],
             ["origin", "origin", (v) => v ? String(v) : ""],
-            ["apDestination", "ap_destination", (v) => {
-                if (!v && v !== 0) return false;
-                const num = typeof v === "string" ? parseInt(v, 10) : Number(v);
-                return isNaN(num) ? false : num;
-            }],
-            ["viaHub", "via_hub", (v) => v || ""],
+            ["apDestination", "ap_destination", (v) => v || ""], // Free text field
+            ["apDestination", "ap_destination_id", (v) => v || ""], // Free text field
+            ["viaHub1", "via_hub", (v) => v || ""],
+            ["viaHub2", "via_hub2", (v) => v || ""],
             ["clientAccess", "client_access", (v) => Boolean(v)],
             ["remarks", "remarks", (v) => v || ""],
             ["weightKgs", "weight_kg", (v) => toNumber(v) || 0],
@@ -704,6 +709,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SL Create Date</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessels Prospects</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
@@ -713,7 +719,8 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Extra 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
@@ -724,8 +731,8 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Exp ready in stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipped Date</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Delivered Date</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Details</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Items</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight KG</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length CM</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width CM</Th>
@@ -741,6 +748,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel Dest</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel ETA</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SL Create Date Timestamp</Th>
                             </Tr>
                         </Thead>
@@ -792,6 +800,19 @@ export default function StockDBMainEdit() {
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Vessel ${option.id}`}
                                             isLoading={isLoadingVessels}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Textarea
+                                            value={row.vesselsProspects || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "vesselsProspects", e.target.value)}
+                                            placeholder="ETB&#10;ETA&#10;ETD"
+                                            size="sm"
+                                            rows={3}
+                                            resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -923,8 +944,8 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
-                                            value={row.viaHub || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
+                                            value={row.viaHub1 || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}
@@ -932,16 +953,23 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.apDestination}
-                                            onChange={(value) => handleInputChange(rowIndex, "apDestination", value)}
-                                            options={destinations}
-                                            placeholder="Select AP Destination"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || option.code || `AP Dest ${option.id}`}
-                                            isLoading={isLoadingDestinations}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.viaHub2 || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.apDestination || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
+                                            placeholder="Enter AP Destination"
+                                            size="sm"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -962,16 +990,14 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.warehouseId}
-                                            onChange={(value) => handleInputChange(rowIndex, "warehouseId", value)}
-                                            options={locations}
-                                            placeholder="Select Warehouse"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
-                                            isLoading={isLoadingLocations}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Textarea
+                                            value={row.warehouseId || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
+                                            placeholder="Enter Warehouse ID"
+                                            size="sm"
+                                            rows={2}
+                                            resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1072,15 +1098,15 @@ export default function StockDBMainEdit() {
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.items || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "items", e.target.value)}
-                                            placeholder=""
+                                        <NumberInput
+                                            value={row.items || 0}
+                                            onChange={(value) => handleInputChange(rowIndex, "items", value)}
+                                            min={0}
+                                            precision={0}
                                             size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <NumberInput
@@ -1248,6 +1274,17 @@ export default function StockDBMainEdit() {
                                             type="date"
                                             value={row.vesselEta || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "vesselEta", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.blank || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "blank", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}
