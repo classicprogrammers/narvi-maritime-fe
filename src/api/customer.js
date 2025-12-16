@@ -174,6 +174,9 @@ export const updateCustomerApi = async (customerId, data) => {
       payment_term: data.payment_term,
       type_client: data.type_client,
       vessel_type: data.vessel_type,
+      vessel_type1: data.vessel_type1,
+      vessel_type2: data.vessel_type2,
+      vessel_type3: data.vessel_type3,
       // Include children array if provided (with operations: update, delete, create)
       children: Array.isArray(data.children) && data.children.length > 0
         ? data.children.map((child) => removeUndefined(child))

@@ -287,6 +287,7 @@ const routes = [
         path: "/configurations/vessels",
         icon: <Icon as={MdDirectionsBoat} width="20px" height="20px" color="inherit" />,
         component: Vessels,
+        exact: true,
       },
       {
         name: "Destinations",
@@ -407,7 +408,7 @@ const hiddenRoutes = [
 // Filter routes based on user type (admin vs user)
 export const getFilteredRoutes = (userType = "user") => {
   const isAdmin = userType === "admin";
-  
+
   return routes.map(route => {
     // If route has submenu, filter submenu items
     if (route.submenu) {
@@ -415,23 +416,23 @@ export const getFilteredRoutes = (userType = "user") => {
         // Show all items, or if adminOnly is true, only show to admin
         return !item.adminOnly || (item.adminOnly && isAdmin);
       });
-      
+
       // If all submenu items are filtered out, don't show the parent menu
       if (filteredSubmenu.length === 0) {
         return null;
       }
-      
+
       return {
         ...route,
         submenu: filteredSubmenu
       };
     }
-    
+
     // If route itself is admin only
     if (route.adminOnly && !isAdmin) {
       return null;
     }
-    
+
     return route;
   }).filter(route => route !== null); // Remove null routes
 };
