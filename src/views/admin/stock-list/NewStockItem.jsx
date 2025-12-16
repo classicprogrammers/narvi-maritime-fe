@@ -1056,10 +1056,12 @@ export default function StockForm() {
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
-            <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto" overflowY="visible">
-                <Card w="100%" p="0" overflow="visible">
-                    <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
-                        <Thead>
+            <Box bg={cardBg} p={{ base: "4", md: "6" }} overflowX="auto">
+                {/* Make table body scrollable with frozen header (Excel-style) */}
+                <Card w="100%" p="0" overflow="hidden">
+                    <Box maxH="60vh" overflowY="auto">
+                        <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
+                            <Thead position="sticky" top={0} zIndex={444}>
                             <Tr>
                                 {isEditing && (
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">ID</Th>
@@ -1499,6 +1501,7 @@ export default function StockForm() {
                             ))}
                         </Tbody>
                     </Table>
+                    </Box>
                 </Card>
             </Box>
         </Box>

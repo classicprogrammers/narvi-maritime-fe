@@ -191,7 +191,7 @@ export default function Dashboard(props) {
           />
           <Box
             float="right"
-            minHeight="100vh"
+            minHeight="90vh"
             height="100%"
             overflow="auto"
             position="relative"
@@ -240,7 +240,7 @@ export default function Dashboard(props) {
                 mx="auto"
                 p={{ base: "20px", md: "30px" }}
                 pe="20px"
-                minH="100vh"
+                minH="90vh"
                 pt="50px"
                 position="relative"
                 zIndex="1000"

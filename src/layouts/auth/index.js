@@ -70,7 +70,7 @@ export default function Auth() {
         <Box
           bg={authBg}
           float="right"
-          minHeight="100vh"
+          minHeight="90vh"
           height="100%"
           position="relative"
           w="100%"
@@ -80,7 +80,7 @@ export default function Auth() {
           transitionTimingFunction="linear, linear, ease"
         >
           {getRoute() ? (
-            <Box mx="auto" minH="100vh">
+            <Box mx="auto" minH="90vh">
               <Switch>
                 {getRoutes(routes)}
                 <Redirect exact from="/auth" to="/auth/sign-in" />

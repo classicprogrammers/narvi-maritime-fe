@@ -13,7 +13,7 @@ function AuthIllustration(props) {
         h={{
           sm: "initial",
           md: "unset",
-          lg: "100vh",
+          lg: "90vh",
           xl: "97vh",
         }}
         w="100%"
