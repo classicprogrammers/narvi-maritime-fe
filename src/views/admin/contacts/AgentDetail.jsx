@@ -354,27 +354,22 @@ const AgentDetail = () => {
   const handleCopyLookupData = () => {
     if (!agent) return;
 
-    // Right-hand side fields only (Company details - excluding left side fields)
-    // Right side fields: Company name, Address1-7, Postcode + City, Country, Reg No, Phone1, Phone2, Email1, Email2, PIC
-    // Excluded left side fields: Address Type, Agent Code, Agent Type, Payment Terms, Remarks, Website, Warnings, DB ID
+    // Copy only main business information (no headings/subjects, no payment info, categories, or personal data)
     const excludedKeys = [
-      "address_type",     // Address Type (left side)
-      "agentsdb_id",      // Agent Code (left side)
-      "type_client",      // Agents Type (left side)
-      "payment_term",     // Payment Terms (left side)
-      "remarks",          // Remarks (left side)
-      "website",          // Website (left side)
-      "warnings",         // Warnings (left side)
-      "id",               // DB ID (left side)
+      "address_type",     // Address Type
+      "agentsdb_id",      // Agent Code
+      "type_client",      // Agent Type
+      "payment_term",     // Payment Terms
+      "remarks",          // Remarks
+      "website",          // Website
+      "warnings",         // Warnings
+      "id",               // DB ID
+      "pic",              // PIC (personal)
     ];
 
-    // Filter and map only right-hand side fields (exclude left side fields)
-    const lookupItems = agentInfoSections[0].items
-      .filter(({ label, key, formatter }) => {
-        // Exclude left-hand side fields
-        if (excludedKeys.includes(key)) {
-          return false;
-        }
+    const values = agentInfoSections[0].items
+      .filter(({ key, formatter }) => {
+        if (excludedKeys.includes(key)) return false;
         let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
         // Compute country_name if not present
         if (key === "country_name" && !rawValue && agent.country_id) {
@@ -384,33 +379,23 @@ const AgentDetail = () => {
         const displayValue = prettyValue(rawValue);
         return displayValue && displayValue !== "-" && displayValue !== "";
       })
-      .map(({ label, key, formatter }) => {
+      .map(({ key, formatter }) => {
         let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
         // Compute country_name if not present
         if (key === "country_name" && !rawValue && agent.country_id) {
           const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
           rawValue = getCountryName(agent.country_id, countryList);
         }
-        return `${label}: ${prettyValue(rawValue)}`;
-      })
-      .join("\n");
+        return String(prettyValue(rawValue));
+      });
 
-    // Add PIC if it exists (not in agentInfoSections but should be included)
-    let picLine = "";
-    if (agent.pic || agent.agents_pic) {
-      const picValue = agent.pic || agent.agents_pic;
-      if (picValue && picValue !== "-" && picValue !== "") {
-        picLine = `\nPIC: ${prettyValue(picValue)}`;
-      }
-    }
+    const textToCopy = values.join("\n");
 
-    const allData = lookupItems + picLine;
-
-    if (allData) {
-      navigator.clipboard.writeText(allData).then(() => {
+    if (textToCopy) {
+      navigator.clipboard.writeText(textToCopy).then(() => {
         toast({
           title: "Copied to clipboard",
-          description: "Company information (right-hand side) has been copied to your clipboard.",
+          description: "Main company information has been copied to your clipboard.",
           status: "success",
           duration: 2000,
           isClosable: true,
@@ -528,8 +513,26 @@ const AgentDetail = () => {
                   </Tooltip>
                 </Flex>
                 {agentInfoSections.map((section) => {
-                  // Define order for left and right sides (matching edit mode layout)
+                  // Define order for left (company details) and right (additional info) sides
                   const leftSideOrder = [
+                    "name",        // Company name
+                    "street",      // Address1
+                    "street2",     // Address2
+                    "street3",     // Address3
+                    "street4",     // Address4
+                    "street5",     // Address5
+                    "street6",     // Address6
+                    "street7",     // Address7
+                    "city",        // Postcode + City (combined with formatter)
+                    "country_name",
+                    "reg_no",
+                    "phone",
+                    "phone2",
+                    "email",
+                    "email2",
+                    "pic",
+                  ];
+                  const rightSideOrder = [
                     "address_type",
                     "agentsdb_id",
                     "type_client",
@@ -539,158 +542,93 @@ const AgentDetail = () => {
                     "warnings",
                     "id", // DB ID
                   ];
-                  const rightSideOrder = [
-                    "name",
-                    "street",
-                    "street2",
-                    "street3",
-                    "street4",
-                    "street5",
-                    "street6",
-                    "street7",
-                    "city", // Postcode + City (combined with formatter)
-                    "country_name",
-                    "reg_no",
-                    "phone",
-                    "phone2",
-                    "email",
-                    "email2",
-                    "pic",
-                  ];
 
-                  // Filter items to only show fields with actual data
-                  const itemsWithData = section.items.filter(({ label, key, formatter }) => {
+                  // Helper to resolve raw value with special rules
+                  const getRawValue = (item) => {
+                    const { key, formatter } = item;
                     let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
-                    // Handle DB ID specially - use agent.id or id from params, always show
                     if (key === "id") {
                       rawValue = agent.id || agent.agent_id || agent.vendor_id || id || "";
-                      return true; // Always show DB ID
                     }
-                    // Handle payment_term - check both payment_term and payment_terms
                     if (key === "payment_term" && !rawValue) {
                       rawValue = agent.payment_terms || agent.payment_term || "";
                     }
-                    // Handle type_client - check both type_client and agents_type
                     if (key === "type_client" && !rawValue) {
                       rawValue = agent.agents_type || agent.type_client || "";
                     }
-                    // Compute country_name if not present
                     if (key === "country_name" && !rawValue && agent.country_id) {
                       const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
                       rawValue = getCountryName(agent.country_id, countryList);
                     }
-                    const displayValue = prettyValue(rawValue);
-                    // Only include if value is not empty (not null, undefined, "", false, or "-")
-                    return displayValue && displayValue !== "-" && displayValue !== "";
-                  });
+                    return rawValue;
+                  };
 
-                  // Separate items into left and right sides
-                  const leftSideItems = [];
-                  const rightSideItems = [];
-                  const otherItems = [];
+                  const getOrderedItems = (keysOrder) =>
+                    keysOrder
+                      .map((key) => section.items.find((item) => item.key === key))
+                      .filter((item) => {
+                        if (!item) return false;
+                        const rawValue = getRawValue(item);
+                        // Always show DB ID even if value is falsy
+                        if (item.key === "id") return true;
+                        const displayValue = prettyValue(rawValue);
+                        return displayValue && displayValue !== "-" && displayValue !== "";
+                      });
 
-                  itemsWithData.forEach((item) => {
-                    if (leftSideOrder.includes(item.key)) {
-                      leftSideItems.push(item);
-                    } else if (rightSideOrder.includes(item.key)) {
-                      rightSideItems.push(item);
-                    } else {
-                      otherItems.push(item);
-                    }
-                  });
+                  const leftItems = getOrderedItems(leftSideOrder);
+                  const rightItems = getOrderedItems(rightSideOrder);
 
-                  // Sort left and right side items according to order
-                  leftSideItems.sort((a, b) => {
-                    const indexA = leftSideOrder.indexOf(a.key);
-                    const indexB = leftSideOrder.indexOf(b.key);
-                    return indexA - indexB;
-                  });
-
-                  rightSideItems.sort((a, b) => {
-                    const indexA = rightSideOrder.indexOf(a.key);
-                    const indexB = rightSideOrder.indexOf(b.key);
-                    return indexA - indexB;
-                  });
-
-                  // Combine: interleave left and right items [Left1, Right1, Left2, Right2, ...]
-                  const orderedItems = [];
-                  const maxLength = Math.max(leftSideItems.length, rightSideItems.length);
-                  for (let i = 0; i < maxLength; i++) {
-                    if (leftSideItems[i]) {
-                      orderedItems.push({ ...leftSideItems[i], side: "left" });
-                    }
-                    if (rightSideItems[i]) {
-                      orderedItems.push({ ...rightSideItems[i], side: "right" });
-                    }
-                  }
-                  // Add any remaining items that don't fit in the order
-                  otherItems.forEach(item => {
-                    orderedItems.push({ ...item, side: orderedItems.length % 2 === 0 ? "left" : "right" });
-                  });
-
-                  // Don't render the section if no items have data
-                  if (orderedItems.length === 0) {
+                  if (leftItems.length === 0 && rightItems.length === 0) {
                     return null;
                   }
+
+                  const renderRow = (item) => {
+                    const { label, key } = item;
+                    const rawValue = getRawValue(item);
+                    return (
+                      <Flex
+                        key={key}
+                        px={4}
+                        py={2}
+                        borderColor={borderColor}
+                        justifyContent="space-between"
+                        alignItems="center"
+                        gap={2}
+                      >
+                        <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
+                          {label}
+                        </Text>
+                        <Tooltip
+                          label={prettyValue(rawValue)}
+                          hasArrow
+                          isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
+                        >
+                          <Text
+                            fontSize="sm"
+                            color={valueColor}
+                            whiteSpace="nowrap"
+                            overflow="hidden"
+                            textOverflow="ellipsis"
+                            maxW="220px"
+                          >
+                            {prettyValue(rawValue)}
+                          </Text>
+                        </Tooltip>
+                      </Flex>
+                    );
+                  };
 
                   return (
                     <GridItem key={section.heading} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
                       <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                        {orderedItems.map(({ label, key, formatter, side }, idx) => {
-                          let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
-                          // Handle DB ID specially
-                          if (key === "id") {
-                            rawValue = agent.id || agent.agent_id || agent.vendor_id || id || "";
-                          }
-                          // Handle payment_term - check both payment_term and payment_terms
-                          if (key === "payment_term" && !rawValue) {
-                            rawValue = agent.payment_terms || agent.payment_term || "";
-                          }
-                          // Handle type_client - check both type_client and agents_type
-                          if (key === "type_client" && !rawValue) {
-                            rawValue = agent.agents_type || agent.type_client || "";
-                          }
-                          // Compute country_name if not present
-                          if (key === "country_name" && !rawValue && agent.country_id) {
-                            const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-                            rawValue = getCountryName(agent.country_id, countryList);
-                          }
-                          // Determine border based on side: left side items get right border
-                          const addRightBorder = side === "left";
-                          return (
-                            <GridItem
-                              key={key}
-                              px={4}
-                              py={2}
-                              borderColor={borderColor}
-                              borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
-                              display="flex"
-                              justifyContent="space-between"
-                              alignItems="center"
-                              gap={2}
-                            >
-                              <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                                {label}
-                              </Text>
-                              <Tooltip
-                                label={prettyValue(rawValue)}
-                                hasArrow
-                                isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
-                              >
-                                <Text
-                                  fontSize="sm"
-                                  color={valueColor}
-                                  whiteSpace="nowrap"
-                                  overflow="hidden"
-                                  textOverflow="ellipsis"
-                                  maxW="220px"
-                                >
-                                  {prettyValue(rawValue)}
-                                </Text>
-                              </Tooltip>
-                            </GridItem>
-                          );
-                        })}
+                        {/* Left column: company details */}
+                        <GridItem borderRight={{ base: "none", md: `1px solid ${borderColor}` }}>
+                          {leftItems.map(renderRow)}
+                        </GridItem>
+                        {/* Right column: additional info */}
+                        <GridItem>
+                          {rightItems.map(renderRow)}
+                        </GridItem>
                       </Grid>
                     </GridItem>
                   );

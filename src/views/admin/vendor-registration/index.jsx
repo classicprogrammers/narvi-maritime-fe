@@ -774,620 +774,419 @@ function VendorRegistration() {
                 <Box px="25px" pb="25px">
                     <form onSubmit={handleSubmit}>
                         <VStack spacing={6} align="stretch">
+                            {/* Company / Agent information - unified two-column layout */}
                             <Box border="1px solid" borderColor={borderLight} borderRadius="md" overflow="hidden">
                                 <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }}>
-                                    {isEditMode ? (
-                                        <>
-                                            {/* EDIT MODE - Left Side: 1. Address type */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
-                                                <Input name="address_type" value={formData.address_type} onChange={(e) => handleInputChange('address_type', e.target.value)} placeholder="e.g., Warehouse, Office, Main" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Right Side: 1. Company name */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
-                                                <Input name="name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Left Side: 2. Agent code */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
-                                                <Input name="agentsdb_id" value={formData.agentsdb_id} onChange={(e) => handleInputChange('agentsdb_id', e.target.value)} placeholder="AG-001" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Right Side: 2. Address1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
-                                                <Input name="street" value={formData.street} onChange={(e) => handleInputChange('street', e.target.value)} placeholder="Street address" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Left Side: 3. Agent type */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agents Type</Text>
-                                                <Input name="type_client" value={formData.type_client} onChange={(e) => handleInputChange('type_client', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Right Side: 3. Address2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
-                                                <InputGroup w={gridInputWidth}>
-                                                    <Input name="street2" value={formData.street2} onChange={(e) => handleInputChange('street2', e.target.value)} placeholder="Suite / Unit" size="sm" pr={visibleAddressFields < 3 ? "32px" : "0"} />
-                                                    {visibleAddressFields < 3 && (
-                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                            <IconButton
-                                                                aria-label="Add Address3"
-                                                                icon={<Icon as={MdAdd} />}
-                                                                size="xs"
-                                                                variant="ghost"
-                                                                colorScheme="blue"
-                                                                onClick={addMoreAddress}
-                                                                h="24px"
-                                                                w="24px"
-                                                                minW="24px"
-                                                            />
-                                                        </InputRightElement>
-                                                    )}
-                                                </InputGroup>
-                                            </Box>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {/* CREATE MODE - Original Layout */}
-                                            {/* ID - Show on both create and update pages, placed first */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} pt={1}>DB ID</Text>
-                                                <VStack spacing={1} align="flex-start" w={gridInputWidth}>
-                                                    <Input
-                                                        name="id"
-                                                        value={isEditMode && id ? id : ""}
-                                                        placeholder={isEditMode ? "" : "Will be auto-generated"}
-                                                        size="sm"
-                                                        w="100%"
-                                                        isReadOnly
-                                                        isDisabled
-                                                        bg={idInputBg}
-                                                        cursor="not-allowed"
-                                                        _disabled={{
-                                                            opacity: 1,
-                                                            cursor: "not-allowed",
-                                                        }}
+                                    {/* LEFT 1: Company name / RIGHT 1: Address Type */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
+                                        <Input name="name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
+                                        <Input name="address_type" value={formData.address_type} onChange={(e) => handleInputChange('address_type', e.target.value)} placeholder="e.g., Warehouse, Office, Main" size="sm" w={gridInputWidth} />
+                                    </Box>
+
+                                    {/* LEFT 2: Address1 / RIGHT 2: Agent Code */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
+                                        <Input name="street" value={formData.street} onChange={(e) => handleInputChange('street', e.target.value)} placeholder="Street address" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
+                                        <Input name="agentsdb_id" value={formData.agentsdb_id} onChange={(e) => handleInputChange('agentsdb_id', e.target.value)} placeholder="AG-001" size="sm" w={gridInputWidth} />
+                                    </Box>
+
+                                    {/* LEFT 3: Address2(+) / RIGHT 3: Agent Type */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
+                                        <InputGroup w={gridInputWidth}>
+                                            <Input
+                                                name="street2"
+                                                value={formData.street2}
+                                                onChange={(e) => handleInputChange('street2', e.target.value)}
+                                                placeholder="Suite / Unit"
+                                                size="sm"
+                                                pr={visibleAddressFields < 3 ? "32px" : "0"}
+                                            />
+                                            {visibleAddressFields < 3 && (
+                                                <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                    <IconButton
+                                                        aria-label="Add Address3"
+                                                        icon={<Icon as={MdAdd} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        colorScheme="blue"
+                                                        onClick={addMoreAddress}
+                                                        h="24px"
+                                                        w="24px"
+                                                        minW="24px"
                                                     />
-                                                </VStack>
-                                            </Box>
-                                            {/* Company name - No right border when ID is shown (right column) */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
-                                                <Input name="name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Address1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
-                                                <Input name="street" value={formData.street} onChange={(e) => handleInputChange('street', e.target.value)} placeholder="Street address" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Address2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
-                                                <InputGroup w={gridInputWidth}>
-                                                    <Input name="street2" value={formData.street2} onChange={(e) => handleInputChange('street2', e.target.value)} placeholder="Suite / Unit" size="sm" pr={visibleAddressFields < 3 ? "32px" : "0"} />
-                                                    {visibleAddressFields < 3 && (
-                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                            <IconButton
-                                                                aria-label="Add Address3"
-                                                                icon={<Icon as={MdAdd} />}
-                                                                size="xs"
-                                                                variant="ghost"
-                                                                colorScheme="blue"
-                                                                onClick={addMoreAddress}
-                                                                h="24px"
-                                                                w="24px"
-                                                                minW="24px"
-                                                            />
-                                                        </InputRightElement>
-                                                    )}
-                                                </InputGroup>
-                                            </Box>
-                                        </>
-                                    )}
-                                    {/* Address3-7 - conditionally shown, always on right side in edit mode */}
+                                                </InputRightElement>
+                                            )}
+                                        </InputGroup>
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Type</Text>
+                                        <Input name="type_client" value={formData.type_client} onChange={(e) => handleInputChange('type_client', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
+                                    </Box>
+
+                                    {/* LEFT: Address3–7 with empty right cells for alignment */}
                                     {visibleAddressFields >= 3 && (
-                                        <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
-                                            <InputGroup w={gridInputWidth}>
-                                                <Input
-                                                    name="street3"
-                                                    value={formData.street3}
-                                                    onChange={(e) => handleInputChange('street3', e.target.value)}
-                                                    placeholder="Additional address line"
-                                                    size="sm"
-                                                    pr="64px"
-                                                />
-                                                <InputRightElement
-                                                    width="64px"
-                                                    height="100%"
-                                                    display="flex"
-                                                    alignItems="center"
-                                                    justifyContent="flex-end"
-                                                    pr={1}
-                                                >
-                                                    {visibleAddressFields < 4 && (
-                                                        <IconButton
-                                                            aria-label="Add Address4"
-                                                            icon={<Icon as={MdAdd} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={addMoreAddress}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                            mr={1}
-                                                        />
-                                                    )}
-                                                    <IconButton
-                                                        aria-label="Remove Address3"
-                                                        icon={<Icon as={DeleteIcon} />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="red"
-                                                        onClick={() => removeAddressField(3)}
-                                                        h="24px"
-                                                        w="24px"
-                                                        minW="24px"
-                                                    />
-                                                </InputRightElement>
-                                            </InputGroup>
-                                        </Box>
-                                    )}
-                                    {/* Address4 - conditionally shown */}
-                                    {visibleAddressFields >= 4 && (
-                                        <Box px={4} py={2} borderColor={borderLight} borderRight={isEditMode ? "none" : { base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
-                                            <InputGroup w={gridInputWidth}>
-                                                <Input
-                                                    name="street4"
-                                                    value={formData.street4}
-                                                    onChange={(e) => handleInputChange('street4', e.target.value)}
-                                                    placeholder="Additional address line"
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    pr={visibleAddressFields < 5 ? "32px" : "0"}
-                                                />
-                                                {visibleAddressFields < 5 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Add Address5"
-                                                            icon={<Icon as={MdAdd} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={addMoreAddress}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                                {visibleAddressFields >= 5 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Remove Address4"
-                                                            icon={<Icon as={DeleteIcon} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="red"
-                                                            onClick={() => removeAddressField(4)}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                            </InputGroup>
-                                        </Box>
-                                    )}
-                                    {/* Address5 - conditionally shown */}
-                                    {visibleAddressFields >= 5 && (
-                                        <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
-                                            <InputGroup w={gridInputWidth}>
-                                                <Input
-                                                    name="street5"
-                                                    value={formData.street5}
-                                                    onChange={(e) => handleInputChange('street5', e.target.value)}
-                                                    placeholder="Additional address line"
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    pr={visibleAddressFields < 6 ? "32px" : "0"}
-                                                />
-                                                {visibleAddressFields < 6 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Add Address6"
-                                                            icon={<Icon as={MdAdd} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={addMoreAddress}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                                {visibleAddressFields >= 6 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Remove Address5"
-                                                            icon={<Icon as={DeleteIcon} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="red"
-                                                            onClick={() => removeAddressField(5)}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                            </InputGroup>
-                                        </Box>
-                                    )}
-                                    {/* Address6 - conditionally shown */}
-                                    {visibleAddressFields >= 6 && (
-                                        <Box px={4} py={2} borderColor={borderLight} borderRight={isEditMode ? "none" : { base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
-                                            <InputGroup w={gridInputWidth}>
-                                                <Input
-                                                    name="street6"
-                                                    value={formData.street6}
-                                                    onChange={(e) => handleInputChange('street6', e.target.value)}
-                                                    placeholder="Additional address line"
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    pr={visibleAddressFields < 7 ? "32px" : "0"}
-                                                />
-                                                {visibleAddressFields < 7 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Add Address7"
-                                                            icon={<Icon as={MdAdd} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={addMoreAddress}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                                {visibleAddressFields >= 7 && (
-                                                    <InputRightElement
-                                                        width="32px"
-                                                        height="100%"
-                                                        display="flex"
-                                                        alignItems="center"
-                                                        justifyContent="center"
-                                                    >
-                                                        <IconButton
-                                                            aria-label="Remove Address6"
-                                                            icon={<Icon as={DeleteIcon} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="red"
-                                                            onClick={() => removeAddressField(6)}
-                                                            h="24px"
-                                                            w="24px"
-                                                            minW="24px"
-                                                        />
-                                                    </InputRightElement>
-                                                )}
-                                            </InputGroup>
-                                        </Box>
-                                    )}
-                                    {/* Address7 - conditionally shown */}
-                                    {visibleAddressFields >= 7 && (
-                                        <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
-                                            <InputGroup w={gridInputWidth}>
-                                                <Input
-                                                    name="street7"
-                                                    value={formData.street7}
-                                                    onChange={(e) => handleInputChange('street7', e.target.value)}
-                                                    placeholder="Additional address line"
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    pr="32px"
-                                                />
-                                                <InputRightElement
-                                                    width="32px"
-                                                    height="100%"
-                                                    display="flex"
-                                                    alignItems="center"
-                                                    justifyContent="center"
-                                                >
-                                                    <IconButton
-                                                        aria-label="Remove Address7"
-                                                        icon={<Icon as={DeleteIcon} />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="red"
-                                                        onClick={() => removeAddressField(7)}
-                                                        h="24px"
-                                                        w="24px"
-                                                        minW="24px"
-                                                    />
-                                                </InputRightElement>
-                                            </InputGroup>
-                                        </Box>
-                                    )}
-                                    {isEditMode ? (
                                         <>
-                                            {/* EDIT MODE - Left Side: 4. Payment terms */}
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
-                                                <Input name="payment_term" value={formData.payment_term} onChange={(e) => handleInputChange('payment_term', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Right Side: 4. Postal code */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
-                                                <Input name="zip" value={formData.zip} onChange={(e) => handleInputChange('zip', e.target.value)} placeholder="Zip" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Left Side: 5. Remarks */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
-                                                <Textarea
-                                                    name="remarks"
-                                                    value={formData.remarks}
-                                                    onChange={(e) => handleInputChange('remarks', e.target.value)}
-                                                    placeholder="Notes..."
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    rows={3}
-                                                />
-                                            </Box>
-                                            {/* Right Side: 5. City */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
-                                                <Input name="city" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} placeholder="City" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Left Side: 6. Website */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
-                                                <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Right Side: 6. Country */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
-                                                <Box w={gridInputWidth}>
-                                                    <SearchableSelect
-                                                        value={formData.country_id}
-                                                        onChange={(val) => handleInputChange('country_id', val)}
-                                                        options={countryList || []}
-                                                        placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        isLoading={countriesLoading}
-                                                    />
-                                                </Box>
-                                            </Box>
-                                            {/* Left Side: 7. Warnings */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
-                                                <Textarea
-                                                    value={formData.warnings || ""}
-                                                    onChange={(e) => handleInputChange("warnings", e.target.value)}
-                                                    placeholder="Enter any warnings or notes"
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    rows={3}
-                                                    resize="vertical"
-                                                />
-                                            </Box>
-                                            {/* Right Side: 7. RegNo */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
-                                                <Input name="reg_no" value={formData.reg_no} onChange={(e) => handleInputChange('reg_no', e.target.value)} placeholder="Registration" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Left Side: 8. DB ID */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} pt={1}>DB ID</Text>
-                                                <VStack spacing={1} align="flex-start" w={gridInputWidth}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
+                                                <InputGroup w={gridInputWidth}>
                                                     <Input
-                                                        name="id"
-                                                        value={isEditMode && id ? id : ""}
-                                                        placeholder=""
+                                                        name="street3"
+                                                        value={formData.street3}
+                                                        onChange={(e) => handleInputChange('street3', e.target.value)}
+                                                        placeholder="Additional address line"
                                                         size="sm"
-                                                        w="100%"
-                                                        isReadOnly
-                                                        isDisabled
-                                                        bg={idInputBg}
-                                                        cursor="not-allowed"
-                                                        _disabled={{
-                                                            opacity: 1,
-                                                            cursor: "not-allowed",
-                                                        }}
+                                                        pr="64px"
                                                     />
-                                                </VStack>
+                                                    <InputRightElement width="64px" height="100%" display="flex" alignItems="center" justifyContent="flex-end" pr={1}>
+                                                        {visibleAddressFields < 4 && (
+                                                            <IconButton
+                                                                aria-label="Add Address4"
+                                                                icon={<Icon as={MdAdd} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                onClick={addMoreAddress}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                                mr={1}
+                                                            />
+                                                        )}
+                                                        <IconButton
+                                                            aria-label="Remove Address3"
+                                                            icon={<Icon as={DeleteIcon} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => removeAddressField(3)}
+                                                            h="24px"
+                                                            w="24px"
+                                                            minW="24px"
+                                                        />
+                                                    </InputRightElement>
+                                                </InputGroup>
                                             </Box>
-                                            {/* Right Side: 8. Phone 1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
-                                                <Input name="phone" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder="+65..." size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Empty left cell for alignment */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }}></Box>
-                                            {/* Right Side: 9. Phone2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
-                                                <Input name="phone2" value={formData.phone2} onChange={(e) => handleInputChange('phone2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Empty left cell for alignment */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }}></Box>
-                                            {/* Right Side: 10. Email1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
-                                                <Input type="email" name="email" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="name@company.com" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Empty left cell for alignment */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }}></Box>
-                                            {/* Right Side: 11. Email 2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
-                                                <Input type="email" name="email2" value={formData.email2} onChange={(e) => handleInputChange('email2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Empty left cell for alignment */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }}></Box>
-                                            {/* Right Side: 12. PIC */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
-                                                <Box w={gridInputWidth}>
-                                                    <SearchableSelect
-                                                        value={formData.pic}
-                                                        onChange={(val) => handleInputChange("pic", val)}
-                                                        options={users || []}
-                                                        placeholder={isLoadingUsers ? "Loading users..." : "Select PIC user"}
-                                                        displayKey="name"
-                                                        valueKey="name"
-                                                        isLoading={isLoadingUsers}
-                                                        onSearch={searchUsers}
-                                                    />
-                                                </Box>
-                                            </Box>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {/* CREATE MODE - Original Layout */}
-                                            {/* Postcode + City */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode + City</Text>
-                                                <HStack spacing={2} w={gridInputWidth}>
-                                                    <Input name="zip" value={formData.zip} onChange={(e) => handleInputChange('zip', e.target.value)} placeholder="Zip" size="sm" />
-                                                    <Input name="city" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} placeholder="City" size="sm" />
-                                                </HStack>
-                                            </Box>
-                                            {/* Country */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
-                                                <Box w={gridInputWidth}>
-                                                    <SearchableSelect
-                                                        value={formData.country_id}
-                                                        onChange={(val) => handleInputChange('country_id', val)}
-                                                        options={countryList || []}
-                                                        placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        isLoading={countriesLoading}
-                                                    />
-                                                </Box>
-                                            </Box>
-                                            {/* Reg No */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
-                                                <Input name="reg_no" value={formData.reg_no} onChange={(e) => handleInputChange('reg_no', e.target.value)} placeholder="Registration" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Payment Terms */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
-                                                <Input name="payment_term" value={formData.payment_term} onChange={(e) => handleInputChange('payment_term', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Agent Code */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
-                                                <Input name="agentsdb_id" value={formData.agentsdb_id} onChange={(e) => handleInputChange('agentsdb_id', e.target.value)} placeholder="AG-001" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Agents Type */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agents Type</Text>
-                                                <Input name="type_client" value={formData.type_client} onChange={(e) => handleInputChange('type_client', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Email1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
-                                                <Input type="email" name="email" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="name@company.com" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Email2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
-                                                <Input type="email" name="email2" value={formData.email2} onChange={(e) => handleInputChange('email2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Phone1 */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
-                                                <Input name="phone" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder="+65..." size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Phone2 */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
-                                                <Input name="phone2" value={formData.phone2} onChange={(e) => handleInputChange('phone2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Website */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
-                                                <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* Remarks - textarea */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
-                                                <Textarea
-                                                    name="remarks"
-                                                    value={formData.remarks}
-                                                    onChange={(e) => handleInputChange('remarks', e.target.value)}
-                                                    placeholder="Notes..."
-                                                    size="sm"
-                                                    w={gridInputWidth}
-                                                    rows={3}
-                                                />
-                                            </Box>
-                                            {/* Address Type */}
-                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
-                                                <Input name="address_type" value={formData.address_type} onChange={(e) => handleInputChange('address_type', e.target.value)} placeholder="e.g., Warehouse, Office, Main" size="sm" w={gridInputWidth} />
-                                            </Box>
-                                            {/* PIC */}
-                                            <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
-                                                <Box w={gridInputWidth}>
-                                                    <SearchableSelect
-                                                        value={formData.pic}
-                                                        onChange={(val) => handleInputChange("pic", val)}
-                                                        options={users || []}
-                                                        placeholder={isLoadingUsers ? "Loading users..." : "Select PIC user"}
-                                                        displayKey="name"
-                                                        valueKey="name"
-                                                        isLoading={isLoadingUsers}
-                                                        onSearch={searchUsers}
-                                                    />
-                                                </Box>
-                                            </Box>
+                                            <Box px={4} py={2} borderColor={borderLight}></Box>
                                         </>
                                     )}
+
+                                    {visibleAddressFields >= 4 && (
+                                        <>
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                                <InputGroup w={gridInputWidth}>
+                                                    <Input
+                                                        name="street4"
+                                                        value={formData.street4}
+                                                        onChange={(e) => handleInputChange('street4', e.target.value)}
+                                                        placeholder="Additional address line"
+                                                        size="sm"
+                                                        pr={visibleAddressFields < 5 ? "32px" : "0"}
+                                                    />
+                                                    {visibleAddressFields < 5 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Add Address5"
+                                                                icon={<Icon as={MdAdd} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                onClick={addMoreAddress}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                    {visibleAddressFields >= 5 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Remove Address4"
+                                                                icon={<Icon as={DeleteIcon} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="red"
+                                                                onClick={() => removeAddressField(4)}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                </InputGroup>
+                                            </Box>
+                                            <Box px={4} py={2} borderColor={borderLight}></Box>
+                                        </>
+                                    )}
+
+                                    {visibleAddressFields >= 5 && (
+                                        <>
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
+                                                <InputGroup w={gridInputWidth}>
+                                                    <Input
+                                                        name="street5"
+                                                        value={formData.street5}
+                                                        onChange={(e) => handleInputChange('street5', e.target.value)}
+                                                        placeholder="Additional address line"
+                                                        size="sm"
+                                                        pr={visibleAddressFields < 6 ? "32px" : "0"}
+                                                    />
+                                                    {visibleAddressFields < 6 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Add Address6"
+                                                                icon={<Icon as={MdAdd} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                onClick={addMoreAddress}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                    {visibleAddressFields >= 6 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Remove Address5"
+                                                                icon={<Icon as={DeleteIcon} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="red"
+                                                                onClick={() => removeAddressField(5)}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                </InputGroup>
+                                            </Box>
+                                            <Box px={4} py={2} borderColor={borderLight}></Box>
+                                        </>
+                                    )}
+
+                                    {visibleAddressFields >= 6 && (
+                                        <>
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
+                                                <InputGroup w={gridInputWidth}>
+                                                    <Input
+                                                        name="street6"
+                                                        value={formData.street6}
+                                                        onChange={(e) => handleInputChange('street6', e.target.value)}
+                                                        placeholder="Additional address line"
+                                                        size="sm"
+                                                        pr={visibleAddressFields < 7 ? "32px" : "0"}
+                                                    />
+                                                    {visibleAddressFields < 7 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Add Address7"
+                                                                icon={<Icon as={MdAdd} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                onClick={addMoreAddress}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                    {visibleAddressFields >= 7 && (
+                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                            <IconButton
+                                                                aria-label="Remove Address6"
+                                                                icon={<Icon as={DeleteIcon} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="red"
+                                                                onClick={() => removeAddressField(6)}
+                                                                h="24px"
+                                                                w="24px"
+                                                                minW="24px"
+                                                            />
+                                                        </InputRightElement>
+                                                    )}
+                                                </InputGroup>
+                                            </Box>
+                                            <Box px={4} py={2} borderColor={borderLight}></Box>
+                                        </>
+                                    )}
+
+                                    {visibleAddressFields >= 7 && (
+                                        <>
+                                            <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
+                                                <InputGroup w={gridInputWidth}>
+                                                    <Input
+                                                        name="street7"
+                                                        value={formData.street7}
+                                                        onChange={(e) => handleInputChange('street7', e.target.value)}
+                                                        placeholder="Additional address line"
+                                                        size="sm"
+                                                        pr="32px"
+                                                    />
+                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                        <IconButton
+                                                            aria-label="Remove Address7"
+                                                            icon={<Icon as={DeleteIcon} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => removeAddressField(7)}
+                                                            h="24px"
+                                                            w="24px"
+                                                            minW="24px"
+                                                        />
+                                                    </InputRightElement>
+                                                </InputGroup>
+                                            </Box>
+                                            <Box px={4} py={2} borderColor={borderLight}></Box>
+                                        </>
+                                    )}
+
+                                    {/* LEFT: Postcode / RIGHT: Payment Terms */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
+                                        <Input name="zip" value={formData.zip} onChange={(e) => handleInputChange('zip', e.target.value)} placeholder="Zip" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
+                                        <Input name="payment_term" value={formData.payment_term} onChange={(e) => handleInputChange('payment_term', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
+                                    </Box>
+
+                                    {/* LEFT: City / RIGHT: Remarks */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
+                                        <Input name="city" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} placeholder="City" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
+                                        <Textarea
+                                            name="remarks"
+                                            value={formData.remarks}
+                                            onChange={(e) => handleInputChange('remarks', e.target.value)}
+                                            placeholder="Notes..."
+                                            size="sm"
+                                            w={gridInputWidth}
+                                            rows={3}
+                                        />
+                                    </Box>
+
+                                    {/* LEFT: Country / RIGHT: Website */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
+                                        <Box w={gridInputWidth}>
+                                            <SearchableSelect
+                                                value={formData.country_id}
+                                                onChange={(val) => handleInputChange('country_id', val)}
+                                                options={countryList || []}
+                                                placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
+                                                displayKey="name"
+                                                valueKey="id"
+                                                isLoading={countriesLoading}
+                                            />
+                                        </Box>
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
+                                        <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" w={gridInputWidth} />
+                                    </Box>
+
+                                    {/* LEFT: RegNo / RIGHT: Warnings */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
+                                        <Input name="reg_no" value={formData.reg_no} onChange={(e) => handleInputChange('reg_no', e.target.value)} placeholder="Registration" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
+                                        <Textarea
+                                            value={formData.warnings || ""}
+                                            onChange={(e) => handleInputChange("warnings", e.target.value)}
+                                            placeholder="Enter any warnings or notes"
+                                            size="sm"
+                                            w={gridInputWidth}
+                                            rows={3}
+                                            resize="vertical"
+                                        />
+                                    </Box>
+
+                                    {/* LEFT: Phone1 / RIGHT: DB ID */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
+                                        <Input name="phone" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder="+65..." size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} pt={1}>DB ID</Text>
+                                        <VStack spacing={1} align="flex-start" w={gridInputWidth}>
+                                            <Input
+                                                name="id"
+                                                value={isEditMode && id ? id : ""}
+                                                placeholder={isEditMode ? "" : "Will be auto-generated"}
+                                                size="sm"
+                                                w="100%"
+                                                isReadOnly
+                                                isDisabled
+                                                bg={idInputBg}
+                                                cursor="not-allowed"
+                                                _disabled={{
+                                                    opacity: 1,
+                                                    cursor: "not-allowed",
+                                                }}
+                                            />
+                                        </VStack>
+                                    </Box>
+
+                                    {/* LEFT: Phone2 / RIGHT empty */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
+                                        <Input name="phone2" value={formData.phone2} onChange={(e) => handleInputChange('phone2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight}></Box>
+
+                                    {/* LEFT: Email1 / RIGHT empty */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
+                                        <Input type="email" name="email" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="name@company.com" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight}></Box>
+
+                                    {/* LEFT: Email2 / RIGHT empty */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
+                                        <Input type="email" name="email2" value={formData.email2} onChange={(e) => handleInputChange('email2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight}></Box>
+
+                                    {/* LEFT: PIC / RIGHT empty */}
+                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
+                                        <Box w={gridInputWidth}>
+                                            <SearchableSelect
+                                                value={formData.pic}
+                                                onChange={(val) => handleInputChange("pic", val)}
+                                                options={users || []}
+                                                placeholder={isLoadingUsers ? "Loading users..." : "Select PIC user"}
+                                                displayKey="name"
+                                                valueKey="name"
+                                                isLoading={isLoadingUsers}
+                                                onSearch={searchUsers}
+                                            />
+                                        </Box>
+                                    </Box>
+                                    <Box px={4} py={2} borderColor={borderLight}></Box>
                                 </Box>
                             </Box>
 
