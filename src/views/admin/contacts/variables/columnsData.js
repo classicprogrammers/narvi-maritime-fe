@@ -53,9 +53,9 @@ export const columnsDataAgents = [
     minWidth: 200,
   },
   {
-    Header: "WARNINGS",
-    accessor: "warnings",
-    minWidth: 220,
+    Header: "CNEE COUNT",
+    accessor: "cnee_count",
+    minWidth: 120,
   },
   {
     Header: "AGENT PEOPLE",

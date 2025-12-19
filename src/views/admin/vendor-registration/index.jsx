@@ -9,6 +9,7 @@ import {
     InputRightElement,
     Text,
     useColorModeValue,
+    useToast,
     VStack,
     HStack,
     Icon,
@@ -38,7 +39,7 @@ import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi } from "api/vendor";
 import SearchableSelect from "components/forms/SearchableSelect";
-import { useEntitySelects } from "hooks/useEntitySelects";
+import { listUsersApi } from "api/users";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
@@ -279,13 +280,62 @@ function VendorRegistration() {
     const gridInputWidth = { base: "60%", md: "60%" };
     const idInputBg = useColorModeValue("gray.100", "gray.700");
 
+    const toast = useToast();
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
-    // Entity selects (users for PIC field)
-    const {
-        users,
-        isLoadingUsers,
-        searchUsers,
-    } = useEntitySelects();
+
+    // Users for PIC field - loaded from existing users API (no new entitySelects API)
+    const [users, setUsers] = React.useState([]);
+    const [isLoadingUsers, setIsLoadingUsers] = React.useState(false);
+
+    React.useEffect(() => {
+        let isMounted = true;
+
+        const fetchUsersForPic = async () => {
+            setIsLoadingUsers(true);
+            try {
+                const data = await listUsersApi();
+                // Normalize possible response shapes similar to users admin page / stock page
+                const list =
+                    Array.isArray(data) ? data :
+                        Array.isArray(data?.users) ? data.users :
+                            Array.isArray(data?.result) ? data.result :
+                                Array.isArray(data?.data) ? data.data :
+                                    [];
+
+                const normalizedUsers = list
+                    .map((u, idx) => ({
+                        id: u.id ?? u.user_id ?? idx + 1,
+                        name: u.name ?? u.full_name ?? "",
+                        email: u.email ?? u.login ?? "",
+                        active: typeof u.active === "boolean"
+                            ? u.active
+                            : (u.status ? String(u.status).toLowerCase() === "active" : true),
+                        ...u,
+                    }))
+                    .filter((u) => u.active);
+
+                if (isMounted) {
+                    setUsers(normalizedUsers);
+                }
+            } catch (error) {
+                // Error is already surfaced via global API modal; just log here
+                console.error("Failed to fetch users for PIC field:", error);
+                if (isMounted) {
+                    setUsers([]);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoadingUsers(false);
+                }
+            }
+        };
+
+        fetchUsersForPic();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const peopleTableColumns = [
         { key: "company_name", label: "Agent company" },
@@ -335,7 +385,26 @@ function VendorRegistration() {
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
     const cancelRef = React.useRef();
-    const [visibleCneeFields, setVisibleCneeFields] = React.useState(1);
+    // New CNEE rows structure (replaces flat cnee1–cnee12 UI)
+    const emptyCneeRow = React.useMemo(
+        () => ({
+            cnee: "air", // "air" | "cargo" | "ocean_freight"
+            cnee_text: "",
+            warnings: "",
+            narvi_approved: false,
+        }),
+        []
+    );
+    const [cneeRows, setCneeRows] = React.useState([
+        {
+            cnee: "air",
+            cnee_text: "",
+            warnings: "",
+            narvi_approved: false,
+        },
+    ]);
+    // Keep original CNEE rows (with IDs) for delete tracking in edit mode
+    const [originalCneeRows, setOriginalCneeRows] = React.useState([]);
     // Address fields visibility state (default: 2, max: 4)
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
@@ -369,17 +438,93 @@ function VendorRegistration() {
         }
     };
 
-    const addCneeField = () => {
-        if (visibleCneeFields < MAX_CNEE_FIELDS) {
-            setVisibleCneeFields(prev => prev + 1);
+    const addCneeRow = () => {
+        if (cneeRows.length < MAX_CNEE_FIELDS) {
+            setCneeRows(prev => [...prev, { ...emptyCneeRow }]);
         }
     };
 
-    const removeCneeField = (index) => {
-        if (visibleCneeFields > 1) {
-            setFormData(prev => ({ ...prev, [`cnee${index}`]: "" }));
-            setVisibleCneeFields(prev => prev - 1);
+    const updateCneeRow = (rowIndex, field, value) => {
+        setCneeRows(prev => {
+            const updated = [...prev];
+            updated[rowIndex] = { ...updated[rowIndex], [field]: value };
+            return updated;
+        });
+    };
+
+    const removeCneeRow = (rowIndex) => {
+        if (cneeRows.length <= 1) return;
+        setCneeRows(prev => prev.filter((_, idx) => idx !== rowIndex));
+    };
+
+    const handleCopyCneeData = () => {
+        if (!cneeRows || cneeRows.length === 0) {
+            toast({
+                title: "No CNEE information",
+                description: "There is no CNEE data to copy.",
+                status: "info",
+                duration: 2000,
+                isClosable: true,
+            });
+            return;
         }
+
+        const lines = [];
+
+        cneeRows.forEach((row, index) => {
+            const typeLabel = (() => {
+                if (row.cnee === "air") return "Air freight";
+                if (row.cnee === "cargo") return "Cargo freight";
+                if (row.cnee === "ocean_freight") return "Ocean freight";
+                return String(row.cnee || "-");
+            })();
+
+            lines.push(`CNEE ${index + 1}: ${typeLabel}`);
+            lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
+
+            if (row.cnee_text && String(row.cnee_text).trim() !== "") {
+                lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
+            }
+
+            if (row.warnings && String(row.warnings).trim() !== "") {
+                lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
+            }
+
+            lines.push("");
+        });
+
+        const textToCopy = lines.join("\n").trim();
+        if (!textToCopy) {
+            toast({
+                title: "Nothing to copy",
+                description: "CNEE fields are empty.",
+                status: "info",
+                duration: 2000,
+                isClosable: true,
+            });
+            return;
+        }
+
+        navigator.clipboard
+            .writeText(textToCopy)
+            .then(() => {
+                toast({
+                    title: "CNEE information copied",
+                    description: "You can now paste it into another CNEE field.",
+                    status: "success",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            })
+            .catch(() => {
+                toast({
+                    title: "Copy failed",
+                    description: "Unable to copy CNEE information. Please try again.",
+                    status: "error",
+                    duration: 2000,
+                    isClosable: true,
+                });
+            });
     };
 
     const loadVendorData = React.useCallback(() => {
@@ -429,19 +574,6 @@ function VendorRegistration() {
                 phone2: vendorData.phone2 || "",
                 website: vendorData.website || "",
                 pic: vendorData.agents_pic || vendorData.pic || "",
-                cnee1: vendorData.cnee1 || "",
-                cnee2: vendorData.cnee2 || "",
-                cnee3: vendorData.cnee3 || "",
-                cnee4: vendorData.cnee4 || "",
-                cnee5: vendorData.cnee5 || "",
-                cnee6: vendorData.cnee6 || "",
-                cnee7: vendorData.cnee7 || "",
-                cnee8: vendorData.cnee8 || "",
-                cnee9: vendorData.cnee9 || "",
-                cnee10: vendorData.cnee10 || "",
-                cnee11: vendorData.cnee11 || "",
-                cnee12: vendorData.cnee12 || "",
-                cnee_text: vendorData.cnee_text || "",
                 warnings: vendorData.warnings || "",
                 narvi_approved: convertApprovalValueToBoolean(vendorData.narvi_maritime_approved_agent ?? vendorData.narvi_approved),
                 remarks: vendorData.remarks || "",
@@ -473,13 +605,56 @@ function VendorRegistration() {
                 setOriginalChildren([]);
             }
 
-            let maxCneeIndex = 1;
-            for (let i = 1; i <= MAX_CNEE_FIELDS; i++) {
-                if (vendorData[`cnee${i}`]?.trim()) {
-                    maxCneeIndex = i;
+            // Initialize CNEE rows from new agent_cnee_ids if available, otherwise from legacy fields
+            let initialCneeRows = [];
+
+            if (Array.isArray(vendorData.agent_cnee_ids) && vendorData.agent_cnee_ids.length > 0) {
+                // Preserve original rows with IDs for delete tracking
+                setOriginalCneeRows(
+                    vendorData.agent_cnee_ids.filter((item) => item && item.id)
+                );
+
+                initialCneeRows = vendorData.agent_cnee_ids.map((item) => ({
+                    _originalId: item.id,
+                    cnee: item.cnee || "air",
+                    cnee_text: getValue(item.cnee_text),
+                    warnings: getValue(item.warnings),
+                    narvi_approved: convertApprovalValueToBoolean(
+                        item.narvi_maritime_approved_agent ?? item.narvi_approved
+                    ),
+                }));
+            } else {
+                setOriginalCneeRows([]);
+
+                const cneeTexts = [];
+                for (let i = 1; i <= MAX_CNEE_FIELDS; i++) {
+                    const raw = vendorData[`cnee${i}`];
+                    if (raw && String(raw).trim() !== "") {
+                        cneeTexts.push(String(raw).trim());
+                    }
+                }
+                if (vendorData.cnee_text && String(vendorData.cnee_text).trim() !== "") {
+                    cneeTexts.push(String(vendorData.cnee_text).trim());
+                }
+
+                if (cneeTexts.length > 0) {
+                    const warnings = getValue(vendorData.warnings);
+                    const narviApproved = convertApprovalValueToBoolean(
+                        vendorData.narvi_maritime_approved_agent ?? vendorData.narvi_approved
+                    );
+                    initialCneeRows = cneeTexts.map((text) => ({
+                        cnee: "air",
+                        cnee_text: text,
+                        warnings,
+                        narvi_approved: narviApproved,
+                    }));
                 }
             }
-            setVisibleCneeFields(maxCneeIndex);
+
+            if (!initialCneeRows.length) {
+                initialCneeRows = [{ ...emptyCneeRow }];
+            }
+            setCneeRows(initialCneeRows);
         } catch (error) {
             console.error("Error loading vendor data:", error);
         }
@@ -621,6 +796,72 @@ function VendorRegistration() {
         return children;
     };
 
+    // Build agent_cnee_ids payload with create/update/delete semantics
+    const buildCneePayload = () => {
+        const items = [];
+
+        if (isEditMode) {
+            // Current IDs in UI (existing rows only)
+            const currentIds = new Set();
+            cneeRows.forEach((row) => {
+                const originalId = row._originalId || row.id;
+                if (originalId) {
+                    currentIds.add(String(originalId));
+                }
+            });
+
+            // Any original CNEE not present in currentIds should be deleted
+            originalCneeRows.forEach((item) => {
+                if (!item || !item.id) return;
+                const idStr = String(item.id);
+                if (!currentIds.has(idStr)) {
+                    items.push({
+                        id: item.id,
+                        op: "delete",
+                    });
+                }
+            });
+
+            // Add current CNEE rows as create/update
+            cneeRows.forEach((row) => {
+                const originalId = row._originalId || row.id;
+                const hasOriginalId = !!originalId;
+
+                const base = {
+                    cnee: row.cnee,
+                    cnee_text: row.cnee_text || "",
+                    warnings: row.warnings || "",
+                    narvi_maritime_approved_agent: !!row.narvi_approved,
+                };
+
+                if (hasOriginalId) {
+                    items.push({
+                        ...base,
+                        id: originalId,
+                        op: "update",
+                    });
+                } else {
+                    items.push({
+                        ...base,
+                        op: "create",
+                    });
+                }
+            });
+        } else {
+            // For new registration, just send plain items without id/op
+            cneeRows.forEach((row) => {
+                items.push({
+                    cnee: row.cnee,
+                    cnee_text: row.cnee_text || "",
+                    warnings: row.warnings || "",
+                    narvi_maritime_approved_agent: !!row.narvi_approved,
+                });
+            });
+        }
+
+        return items;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -638,9 +879,14 @@ function VendorRegistration() {
                             : (originalVendorData.parent !== undefined
                                 ? originalVendorData.parent
                                 : false)),
-                    children: buildChildrenPayload()
+                    children: buildChildrenPayload(),
+                    agent_cnee_ids: buildCneePayload(),
                 }
-                : { ...formData, children: buildChildrenPayload() };
+                : {
+                    ...formData,
+                    children: buildChildrenPayload(),
+                    agent_cnee_ids: buildCneePayload(),
+                };
 
             const result = isEditMode
                 ? await updateVendorApi(id, updatePayload)
@@ -655,7 +901,8 @@ function VendorRegistration() {
                     setFormData(INITIAL_FORM_DATA);
                     setPeopleRows([]);
                     setOriginalChildren([]);
-                    setVisibleCneeFields(1);
+                    setCneeRows([{ ...emptyCneeRow }]);
+                    setOriginalCneeRows([]);
                     setVisibleAddressFields(2);
                 }
             } else {
@@ -1182,7 +1429,6 @@ function VendorRegistration() {
                                                 displayKey="name"
                                                 valueKey="name"
                                                 isLoading={isLoadingUsers}
-                                                onSearch={searchUsers}
                                             />
                                         </Box>
                                     </Box>
@@ -1197,86 +1443,158 @@ function VendorRegistration() {
                                             <Icon as={MdBusiness} color={textColorBrand} />
                                             <Text fontSize="sm" fontWeight="600" color={headingColor}>CNEE Information</Text>
                                         </HStack>
-                                        <Button size="xs" variant="outline" leftIcon={<Icon as={MdAdd} />} onClick={addCneeField} isDisabled={visibleCneeFields >= MAX_CNEE_FIELDS}>Add More</Button>
+                                        <HStack spacing={2}>
+                                            <Button
+                                                size="xs"
+                                                variant="outline"
+                                                onClick={handleCopyCneeData}
+                                            >
+                                                Copy CNEE
+                                            </Button>
+                                            <Button
+                                                size="xs"
+                                                variant="outline"
+                                                leftIcon={<Icon as={MdAdd} />}
+                                                onClick={addCneeRow}
+                                                isDisabled={cneeRows.length >= MAX_CNEE_FIELDS}
+                                            >
+                                                Add CNEE
+                                            </Button>
+                                        </HStack>
                                     </HStack>
                                 </Box>
-                                <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }}>
-                                    {Array.from({ length: visibleCneeFields }, (_, index) => {
-                                        const fieldNumber = index + 1;
-                                        const fieldName = `cnee${fieldNumber}`;
-                                        const isOdd = (fieldNumber % 2 === 1);
-                                        const isLastField = fieldNumber === visibleCneeFields;
-                                        const showRemoveButton = visibleCneeFields > 1 && isLastField;
-                                        const hasRightBorder = isOdd && !isLastField;
-                                        return (
-                                            <Box
-                                                key={fieldNumber}
-                                                px={4}
-                                                py={2}
-                                                borderColor={borderLight}
-                                                borderRight={hasRightBorder ? { base: "none", md: `1px solid ${borderLight}` } : "none"}
-                                                display="flex"
-                                                justifyContent="space-between"
-                                                alignItems="center"
-                                                gap={2}
-                                            >
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>CNEE {fieldNumber}</Text>
-                                                <HStack spacing={2} w={gridInputWidth} align="center">
-                                                    <Input
-                                                        value={formData[fieldName] || ""}
-                                                        onChange={(e) => handleInputChange(fieldName, e.target.value)}
-                                                        placeholder={`Enter CNEE ${fieldNumber}`}
-                                                        size="sm"
-                                                        flex={1}
+                                <Box>
+                                    {cneeRows.map((row, rowIndex) => (
+                                        <Box
+                                            key={rowIndex}
+                                            borderTop="1px solid"
+                                            borderColor={borderLight}
+                                            px={4}
+                                            py={3}
+                                        >
+                                            {cneeRows.length > 1 && (
+                                                <Flex justify="flex-end" mb={2}>
+                                                    <IconButton
+                                                        aria-label="Remove CNEE"
+                                                        icon={<DeleteIcon />}
+                                                        size="xs"
+                                                        colorScheme="red"
+                                                        variant="ghost"
+                                                        onClick={() => removeCneeRow(rowIndex)}
                                                     />
-                                                    {showRemoveButton && (
-                                                        <IconButton
-                                                            aria-label="Remove CNEE field"
-                                                            icon={<Icon as={DeleteIcon} />}
-                                                            size="sm"
-                                                            colorScheme="red"
-                                                            variant="ghost"
-                                                            onClick={() => removeCneeField(fieldNumber)}
-                                                        />
-                                                    )}
-                                                </HStack>
+                                                </Flex>
+                                            )}
+
+                                            <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }} columnGap={4} rowGap={3}>
+                                                {/* CNEE Type */}
+                                                <Box
+                                                    display="flex"
+                                                    justifyContent="space-between"
+                                                    alignItems="center"
+                                                    gap={2}
+                                                    mb={{ base: 3, md: 0 }}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        color={textColorSecondary}
+                                                    >
+                                                        {`CNEE ${rowIndex + 1}`}
+                                                    </Text>
+                                                    <Select
+                                                        value={row.cnee}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee", e.target.value)}
+                                                        size="sm"
+                                                        w={gridInputWidth}
+                                                    >
+                                                        <option value="air">Air freight</option>
+                                                        <option value="cargo">Cargo freight</option>
+                                                        <option value="ocean_freight">Ocean freight</option>
+                                                    </Select>
+                                                </Box>
+
+                                                {/* Approved checkbox */}
+                                                <Box
+                                                    display="flex"
+                                                    justifyContent="space-between"
+                                                    alignItems="center"
+                                                    gap={2}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        color={textColorSecondary}
+                                                    >
+                                                        Narvi Maritime Approved
+                                                    </Text>
+                                                    <Checkbox
+                                                        isChecked={!!row.narvi_approved}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "narvi_approved", e.target.checked)}
+                                                        size="md"
+                                                        colorScheme="blue"
+                                                    />
+                                                </Box>
+
+                                                {/* CNEE Text */}
+                                                <Box
+                                                    mt={3}
+                                                    display="flex"
+                                                    justifyContent="space-between"
+                                                    alignItems="flex-start"
+                                                    gap={2}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        color={textColorSecondary}
+                                                        mt={1}
+                                                    >
+                                                        CNEE Text
+                                                    </Text>
+                                                    <Textarea
+                                                        value={row.cnee_text || ""}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee_text", e.target.value)}
+                                                        placeholder="Enter CNEE notes / free text"
+                                                        size="sm"
+                                                        w={gridInputWidth}
+                                                        rows={2}
+                                                        resize="vertical"
+                                                    />
+                                                </Box>
+
+                                                {/* Warnings */}
+                                                <Box
+                                                    mt={3}
+                                                    display="flex"
+                                                    justifyContent="space-between"
+                                                    alignItems="flex-start"
+                                                    gap={2}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        color={textColorSecondary}
+                                                        mt={1}
+                                                    >
+                                                        Warnings
+                                                    </Text>
+                                                    <Textarea
+                                                        value={row.warnings || ""}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "warnings", e.target.value)}
+                                                        placeholder="Enter warnings for this CNEE type"
+                                                        size="sm"
+                                                        w={gridInputWidth}
+                                                        rows={2}
+                                                        resize="vertical"
+                                                    />
+                                                </Box>
                                             </Box>
-                                        );
-                                    })}
-                                    {/* CNEE Text */}
-                                    <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>CNEE Text</Text>
-                                        <Input
-                                            value={formData.cnee_text || ""}
-                                            onChange={(e) => handleInputChange("cnee_text", e.target.value)}
-                                            placeholder="Enter additional CNEE text"
-                                            size="sm"
-                                            w={gridInputWidth}
-                                        />
-                                    </Box>
-                                    {/* Warnings - textarea */}
-                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
-                                        <Textarea
-                                            value={formData.warnings || ""}
-                                            onChange={(e) => handleInputChange("warnings", e.target.value)}
-                                            placeholder="Enter any warnings or notes"
-                                            size="sm"
-                                            w={gridInputWidth}
-                                            rows={3}
-                                            resize="vertical"
-                                        />
-                                    </Box>
-                                    {/* Narvi Maritime Approved Agent */}
-                                    <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Narvi Maritime Approved Agent</Text>
-                                        <Checkbox
-                                            isChecked={formData.narvi_approved === true}
-                                            onChange={(e) => handleInputChange("narvi_approved", e.target.checked)}
-                                            size="md"
-                                            colorScheme="blue"
-                                        />
-                                    </Box>
+                                        </Box>
+                                    ))}
                                 </Box>
                             </Box>
                         </VStack>

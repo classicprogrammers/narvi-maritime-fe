@@ -63,6 +63,7 @@ import {
   MdFilterList,
   MdVisibility,
   MdGroups,
+  MdInventory,
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
@@ -176,7 +177,6 @@ export default function VendorsTable(props) {
             (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
           );
           const countryName = (countryObj ? countryObj.name : item.country_name || "").toLowerCase();
-          const warnings = (item.warnings || item.warning || "").toLowerCase();
           const email = (item.email || item.email2 || "").toLowerCase();
           const phone = (item.phone || item.phone2 || "").toString().toLowerCase();
 
@@ -186,7 +186,6 @@ export default function VendorsTable(props) {
             regNo.includes(searchLower) ||
             city.includes(searchLower) ||
             countryName.includes(searchLower) ||
-            warnings.includes(searchLower) ||
             email.includes(searchLower) ||
             phone.includes(searchLower)
           );
@@ -266,9 +265,43 @@ export default function VendorsTable(props) {
         ? derivedCount
         : Math.max(parsedCount, derivedCount);
 
-      const warningsValue = item.warnings ?? item.warning ?? "";
       const registrationNo =
         item.reg_no ?? item.registration_no ?? item.registrationNo ?? "";
+
+      // Calculate CNEE count and build display list
+      let cneeCount = 0;
+      const cneeDisplay = [];
+
+      if (Array.isArray(item.agent_cnee_ids) && item.agent_cnee_ids.length > 0) {
+        cneeCount = item.agent_cnee_ids.length;
+        item.agent_cnee_ids.forEach((cneeItem) => {
+          const cneeType = cneeItem.cnee || "air";
+          let typeLabel = "";
+          if (cneeType === "air") typeLabel = "Air freight";
+          else if (cneeType === "cargo") typeLabel = "Cargo freight";
+          else if (cneeType === "ocean_freight") typeLabel = "Ocean freight";
+          else typeLabel = String(cneeType);
+
+          const cneeText = cneeItem.cnee_text ? String(cneeItem.cnee_text).trim() : "";
+          const displayName = cneeText ? `${typeLabel}: ${cneeText}` : typeLabel;
+          cneeDisplay.push(displayName);
+        });
+      } else {
+        // Fallback to legacy cnee1-cnee12 fields
+        for (let i = 1; i <= 12; i++) {
+          const cneeValue = item[`cnee${i}`];
+          if (cneeValue && String(cneeValue).trim() !== "") {
+            cneeCount++;
+            cneeDisplay.push(`CNEE ${i}: ${String(cneeValue).trim()}`);
+          }
+        }
+        // Also count cnee_text if it has a value
+        if (item.cnee_text && String(item.cnee_text).trim() !== "") {
+          cneeCount++;
+          cneeDisplay.push(`CNEE Text: ${String(item.cnee_text).trim()}`);
+        }
+      }
+
       const normalizedChildren = Array.isArray(rawChildren)
         ? rawChildren.map((child, index) => {
           const firstName = child?.first_name || child?.firstname || "";
@@ -305,7 +338,8 @@ export default function VendorsTable(props) {
       return {
         ...item,
         city_country: [item.city, countryName].filter(Boolean).join(", "),
-        warnings: warningsValue,
+        cnee_count: cneeCount,
+        cnee_display: cneeDisplay,
         reg_no: registrationNo,
         children_count: childCount,
         children_display: normalizedChildren,
@@ -1058,19 +1092,63 @@ export default function VendorsTable(props) {
                               {value}
                             </Text>
                           );
-                        } else if (cell.column.Header === "WARNINGS") {
-                          const warningsText = row.original.warnings || "-";
+                        } else if (cell.column.Header === "CNEE COUNT") {
+                          const rawCount = Number(row.original.cnee_count ?? 0);
+                          const cneeCount = Number.isNaN(rawCount) ? 0 : rawCount;
+                          const hasCnee = cneeCount > 0;
+                          const cneeList = Array.isArray(row.original.cnee_display)
+                            ? row.original.cnee_display
+                            : [];
+                          const tooltipContent = hasCnee
+                            ? cneeList
+                              .slice(0, 5)
+                              .map((cnee) => cnee)
+                              .join("\n") + (cneeList.length > 5 ? `\n+${cneeList.length - 5} more` : "")
+                            : "";
+
                           data = (
-                            <Text
-                              color={
-                                warningsText && warningsText !== "-"
-                                  ? "red.500"
-                                  : tableTextColorSecondary
-                              }
-                              fontSize="sm"
+                            <Tooltip
+                              label={tooltipContent}
+                              placement="top"
+                              hasArrow
+                              isDisabled={!hasCnee}
+                              maxW="260px"
+                              whiteSpace="pre-wrap"
+                              openDelay={150}
                             >
-                              {warningsText}
-                            </Text>
+                              <HStack spacing={2}>
+                                <Flex
+                                  align="center"
+                                  justify="center"
+                                  w="28px"
+                                  h="28px"
+                                  borderRadius="full"
+                                  bg={hasCnee ? peopleIconBgActive : peopleIconBgInactive}
+                                >
+                                  <Icon
+                                    as={MdInventory}
+                                    color={hasCnee ? peopleIconColorActive : peopleIconColorInactive}
+                                    boxSize={4}
+                                  />
+                                </Flex>
+                                <Box
+                                  minW="28px"
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="md"
+                                  bg={hasCnee ? peopleBadgeBgActive : peopleBadgeBgInactive}
+                                >
+                                  <Text
+                                    color={hasCnee ? "white" : peopleBadgeTextInactive}
+                                    fontSize="sm"
+                                    fontWeight="700"
+                                    textAlign="center"
+                                  >
+                                    {cneeCount}
+                                  </Text>
+                                </Box>
+                              </HStack>
+                            </Tooltip>
                           );
                         } else if (cell.column.Header === "AGENT PEOPLE") {
                           const rawCount = Number(row.original.children_count ?? 0);

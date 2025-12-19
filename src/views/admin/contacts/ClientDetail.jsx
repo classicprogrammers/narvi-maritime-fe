@@ -321,13 +321,10 @@ const ClientDetail = () => {
                         px={4}
                         py={2}
                         borderColor={borderColor}
-                        justifyContent="space-between"
-                        alignItems="center"
+                        justifyContent="flex-start"
+                        alignItems="flex-start"
                         gap={2}
                       >
-                        <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                          {label}
-                        </Text>
                         <Tooltip
                           label={prettyValue(rawValue)}
                           hasArrow

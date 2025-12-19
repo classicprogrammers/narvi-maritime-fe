@@ -44,6 +44,13 @@ const prettyValue = (value) => {
   return value;
 };
 
+// Normalize approval values to boolean
+const convertApprovalValueToBoolean = (value) => {
+  if (value === true || value === "true" || value === "1" || value === 1) return true;
+  if (value === false || value === "false" || value === "0" || value === 0 || value === "" || value === null || value === undefined) return false;
+  return false;
+};
+
 const agentInfoSections = [
   {
     heading: "Look up",
@@ -77,8 +84,8 @@ const agentInfoSections = [
   },
 ];
 
-// Helper function to build CNEE items dynamically based on agent data
-const buildCneeItems = (agent) => {
+// Helper function to build legacy CNEE items dynamically based on agent data
+const buildLegacyCneeItems = (agent) => {
   const items = [];
 
   for (let i = 1; i <= 12; i++) {
@@ -182,8 +189,6 @@ const AgentDetail = () => {
             : Array.isArray(vendors?.agents)
               ? vendors.agents
               : [];
-
-        console.log("Checking vendors list. Total vendors:", list.length, "Looking for ID:", id);
 
         const foundInList = list.find(
           (item) => {
@@ -344,6 +349,125 @@ const AgentDetail = () => {
       remarks: getValue(child.remarks),
     }));
   }, [agent]);
+
+  // Normalize CNEE rows according to new structure (agent_cnee_ids), with legacy fallback
+  const cneeRows = useMemo(() => {
+    if (!agent) return [];
+
+    // Prefer new structured CNEE records
+    if (Array.isArray(agent.agent_cnee_ids) && agent.agent_cnee_ids.length > 0) {
+      return agent.agent_cnee_ids.map((item) => ({
+        cnee: item.cnee || "air",
+        cnee_text: item.cnee_text || "",
+        warnings: item.warnings || "",
+        narvi_approved: convertApprovalValueToBoolean(
+          item.narvi_maritime_approved_agent ?? item.narvi_approved
+        ),
+      }));
+    }
+
+    // Fallback to legacy flat fields by collapsing into a single row if any legacy data exists
+    const hasAnyLegacy =
+      Array.from({ length: 12 }).some((_, i) => {
+        const val = agent[`cnee${i + 1}`];
+        return val && String(val).trim() !== "";
+      }) ||
+      (agent.cnee_text && String(agent.cnee_text).trim() !== "") ||
+      agent.warnings !== undefined ||
+      agent.narvi_maritime_approved_agent !== undefined ||
+      agent.narvi_approved !== undefined;
+
+    if (!hasAnyLegacy) return [];
+
+    const legacyTypes = [];
+    for (let i = 1; i <= 12; i++) {
+      const val = agent[`cnee${i}`];
+      if (val && String(val).trim() !== "") {
+        legacyTypes.push(`CNEE ${i}: ${String(val).trim()}`);
+      }
+    }
+
+    return [
+      {
+        cnee: legacyTypes.length > 0 ? legacyTypes.join("\n") : "N/A",
+        cnee_text: agent.cnee_text || "",
+        warnings: agent.warnings || "",
+        narvi_approved: convertApprovalValueToBoolean(
+          agent.narvi_maritime_approved_agent ?? agent.narvi_approved
+        ),
+      },
+    ];
+  }, [agent]);
+
+  const handleCopyCneeData = () => {
+    if (!cneeRows || cneeRows.length === 0) {
+      toast({
+        title: "No CNEE information",
+        description: "There is no CNEE data to copy.",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    const lines = [];
+
+    cneeRows.forEach((row, index) => {
+      const typeLabel = (() => {
+        if (row.cnee === "air") return "Air freight";
+        if (row.cnee === "cargo") return "Cargo freight";
+        if (row.cnee === "ocean_freight") return "Ocean freight";
+        return prettyValue(row.cnee);
+      })();
+
+      lines.push(`CNEE ${index + 1}: ${typeLabel}`);
+      lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
+
+      if (row.cnee_text && String(row.cnee_text).trim() !== "") {
+        lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
+      }
+
+      if (row.warnings !== undefined && String(row.warnings).trim() !== "") {
+        lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
+      }
+
+      lines.push(""); // blank line between rows
+    });
+
+    const textToCopy = lines.join("\n").trim();
+    if (!textToCopy) {
+      toast({
+        title: "Nothing to copy",
+        description: "CNEE fields are empty.",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    navigator.clipboard
+      .writeText(textToCopy)
+      .then(() => {
+        toast({
+          title: "CNEE information copied",
+          description: "You can now paste it into another CNEE field.",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Copy failed",
+          description: "Unable to copy CNEE information. Please try again.",
+          status: "error",
+          duration: 2000,
+          isClosable: true,
+        });
+      });
+  };
 
   const isBusy = isLoading || vendorsLoading;
 
@@ -583,7 +707,7 @@ const AgentDetail = () => {
                   }
 
                   const renderRow = (item) => {
-                    const { label, key } = item;
+                    const { key } = item;
                     const rawValue = getRawValue(item);
                     return (
                       <Flex
@@ -591,13 +715,10 @@ const AgentDetail = () => {
                         px={4}
                         py={2}
                         borderColor={borderColor}
-                        justifyContent="space-between"
-                        alignItems="center"
+                        justifyContent="flex-start"
+                        alignItems="flex-start"
                         gap={2}
                       >
-                        <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                          {label}
-                        </Text>
                         <Tooltip
                           label={prettyValue(rawValue)}
                           hasArrow
@@ -635,47 +756,143 @@ const AgentDetail = () => {
                 })}
               </Grid>
 
-              {/* CNEE Information Section */}
-              {(() => {
-                const cneeItems = buildCneeItems(agent);
-                if (cneeItems.length === 0) return null;
-
-                return (
-                  <Grid templateColumns={{ base: "1fr", lg: "1fr" }} gap={6}>
+              {/* CNEE Information Section - structured view */}
+              {cneeRows.length > 0 ? (
+                <Grid templateColumns={{ base: "1fr", lg: "1fr" }} gap={4}>
+                  <Flex justify="space-between" align="center">
                     <Text fontWeight="700" textTransform="uppercase" color={headingColor}>
                       CNEE Information
                     </Text>
-                    <GridItem border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
-                      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                        {cneeItems.map(({ label, key, formatter }, idx) => {
-                          let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
-                          const addRightBorder = idx % 2 === 0; // first column cells
-                          return (
-                            <GridItem
-                              key={key}
-                              px={4}
-                              py={2}
-                              borderColor={borderColor}
-                              borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
-                              display="flex"
-                              justifyContent="space-between"
-                              alignItems="center"
-                              gap={2}
-                            >
-                              <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                                {label}
-                              </Text>
-                              <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                {prettyValue(rawValue)}
-                              </Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyCneeData}
+                    >
+                      Copy CNEE
+                    </Button>
+                  </Flex>
+                  <GridItem border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+                    <Stack spacing={0}>
+                      {cneeRows.map((row, rowIndex) => (
+                        <Box
+                          key={rowIndex}
+                          borderTop={rowIndex === 0 ? "none" : "1px solid"}
+                          borderColor={borderColor}
+                          px={4}
+                          py={3}
+                        >
+                          <Grid
+                            templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }}
+                            columnGap={4}
+                            rowGap={3}
+                          >
+                            {/* CNEE Type */}
+                            <GridItem>
+                              <Flex
+                                alignItems="center"
+                                gap={4}
+                                mb={{ base: 3, md: 0 }}
+                              >
+                                <Text
+                                  fontSize="xs"
+                                  fontWeight="600"
+                                  textTransform="uppercase"
+                                  color={labelColor}
+                                  minW="90px"
+                                >
+                                  {`CNEE ${rowIndex + 1}`}
+                                </Text>
+                                <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
+                                  {(() => {
+                                    if (row.cnee === "air") return "Air freight";
+                                    if (row.cnee === "cargo") return "Cargo freight";
+                                    if (row.cnee === "ocean_freight") return "Ocean freight";
+                                    return prettyValue(row.cnee);
+                                  })()}
+                                </Text>
+                              </Flex>
                             </GridItem>
-                          );
-                        })}
-                      </Grid>
-                    </GridItem>
-                  </Grid>
-                );
-              })()}
+
+                            {/* Approved */}
+                            <GridItem>
+                              <Flex alignItems="center" gap={4}>
+                                <Text
+                                  fontSize="xs"
+                                  fontWeight="600"
+                                  textTransform="uppercase"
+                                  color={labelColor}
+                                  minW="150px"
+                                >
+                                  Narvi Maritime Approved
+                                </Text>
+                                <Text fontSize="sm" color={valueColor}>
+                                  {row.narvi_approved ? "Yes" : "No"}
+                                </Text>
+                              </Flex>
+                            </GridItem>
+
+                            {/* CNEE Text */}
+                            <GridItem colSpan={{ base: 1, md: 2 }}>
+                              <Flex
+                                mt={3}
+                                alignItems="flex-start"
+                                gap={4}
+                              >
+                                <Text
+                                  fontSize="xs"
+                                  fontWeight="600"
+                                  textTransform="uppercase"
+                                  color={labelColor}
+                                  mt={1}
+                                  minW="90px"
+                                >
+                                  CNEE Text
+                                </Text>
+                                <Text
+                                  fontSize="sm"
+                                  color={valueColor}
+                                  whiteSpace="pre-wrap"
+                                  flex="1"
+                                >
+                                  {prettyValue(row.cnee_text)}
+                                </Text>
+                              </Flex>
+                            </GridItem>
+
+                            {/* Warnings */}
+                            <GridItem colSpan={{ base: 1, md: 2 }}>
+                              <Flex
+                                mt={3}
+                                alignItems="flex-start"
+                                gap={4}
+                              >
+                                <Text
+                                  fontSize="xs"
+                                  fontWeight="600"
+                                  textTransform="uppercase"
+                                  color={labelColor}
+                                  mt={1}
+                                  minW="90px"
+                                >
+                                  Warnings
+                                </Text>
+                                <Text
+                                  fontSize="sm"
+                                  color={valueColor}
+                                  whiteSpace="pre-wrap"
+                                  flex="1"
+                                >
+                                  {prettyValue(row.warnings)}
+                                </Text>
+                              </Flex>
+                            </GridItem>
+                          </Grid>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </GridItem>
+                </Grid>
+              ) : null}
 
               <Box>
                 <Heading size="md" color={headingColor} mb={4}>

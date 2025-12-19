@@ -96,13 +96,55 @@ const buildAgentPayload = (agentData = {}, userId) => {
     agentData.narvi_maritime_approved_agent ?? agentData.narvi_approved;
 
   // Handle parent_id: preserve the value if explicitly set (including null), otherwise default to false
-  const parentIdValue = agentData.parent_id !== undefined 
-    ? agentData.parent_id
-    : (agentData.parentId !== undefined 
-      ? agentData.parentId
-      : (agentData.parent !== undefined
-        ? agentData.parent
-        : false));
+  const parentIdValue =
+    agentData.parent_id !== undefined
+      ? agentData.parent_id
+      : agentData.parentId !== undefined
+        ? agentData.parentId
+        : agentData.parent !== undefined
+          ? agentData.parent
+          : false;
+
+  // --- Build CNEE payload in new agent_cnee_ids format ---------------------
+  // If caller already passed agent_cnee_ids, keep them as-is.
+  let agentCneeIds = Array.isArray(agentData.agent_cnee_ids)
+    ? agentData.agent_cnee_ids
+    : null;
+
+  if (!agentCneeIds) {
+    const cneeTexts = [];
+
+    // Collect non-empty CNEE1–CNEE12 values
+    for (let i = 1; i <= 12; i += 1) {
+      const key = `cnee${i}`;
+      const raw = agentData[key];
+      if (raw !== null && raw !== undefined && String(raw).trim() !== "") {
+        cneeTexts.push(String(raw).trim());
+      }
+    }
+
+    // Include legacy free-text CNEE field if present
+    if (
+      agentData.cnee_text !== null &&
+      agentData.cnee_text !== undefined &&
+      String(agentData.cnee_text).trim() !== ""
+    ) {
+      cneeTexts.push(String(agentData.cnee_text).trim());
+    }
+
+    // Default CNEE type – backend requires a value; adjust when UI exposes type
+    const defaultCneeType = agentData.cnee || "air";
+
+    const normalizedWarnings = normalizeString(agentData.warnings);
+    const normalizedApproval = normalizeBoolean(approvalValue, false);
+
+    agentCneeIds = cneeTexts.map((text) => ({
+      cnee: defaultCneeType, // e.g. "air" | "cargo" | "ocean_freight"
+      cnee_text: text,
+      warnings: normalizedWarnings,
+      narvi_maritime_approved_agent: normalizedApproval,
+    }));
+  }
 
   const payload = {
     current_user:
@@ -132,19 +174,7 @@ const buildAgentPayload = (agentData = {}, userId) => {
     phone2: normalizeString(agentData.phone2),
     website: normalizeString(agentData.website),
     agents_pic: normalizeString(agentData.agents_pic ?? agentData.pic),
-    cnee1: normalizeString(agentData.cnee1),
-    cnee2: normalizeString(agentData.cnee2),
-    cnee3: normalizeString(agentData.cnee3),
-    cnee4: normalizeString(agentData.cnee4),
-    cnee5: normalizeString(agentData.cnee5),
-    cnee6: normalizeString(agentData.cnee6),
-    cnee7: normalizeString(agentData.cnee7),
-    cnee8: normalizeString(agentData.cnee8),
-    cnee9: normalizeString(agentData.cnee9),
-    cnee10: normalizeString(agentData.cnee10),
-    cnee11: normalizeString(agentData.cnee11),
-    cnee12: normalizeString(agentData.cnee12),
-    cnee_text: normalizeString(agentData.cnee_text),
+    // Keep legacy warnings / approval for backward compatibility
     warnings: normalizeString(agentData.warnings),
     narvi_maritime_approved_agent: normalizeBoolean(approvalValue, false),
     remarks: normalizeString(agentData.remarks),
@@ -153,6 +183,8 @@ const buildAgentPayload = (agentData = {}, userId) => {
     type_client: normalizeString(agentData.type_client),
     is_agent: agentData.is_agent ?? true,
     children,
+    // NEW CNEE payload structure
+    agent_cnee_ids: agentCneeIds,
   };
 
   return payload;

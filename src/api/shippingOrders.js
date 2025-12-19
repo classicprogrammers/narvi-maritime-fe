@@ -85,12 +85,14 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
     const payload = { id };
     const fieldsToCheck = [
       'done',
-      'pic',
+      'pic_id',
       'client_id',
       'vessel_id',
       'destination_id',
       'quotation_id',
       'eta_date',
+      'etb',
+      'etd',
       'date_order',
       'deadline_info',
       'est_to_usd',

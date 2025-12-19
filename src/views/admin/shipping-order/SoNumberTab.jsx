@@ -56,6 +56,7 @@ import {
   getDestinationsForSelect,
 } from "../../../api/entitySelects";
 import quotationsAPI from "../../../api/quotations";
+import { listUsersApi } from "../../../api/users";
 import {
   getShippingOrders,
   createShippingOrder,
@@ -113,10 +114,12 @@ const SoNumberTab = () => {
   const [vessels, setVessels] = useState([]);
   const [destinations, setDestinations] = useState([]);
   const [quotations, setQuotations] = useState([]);
+  const [users, setUsers] = useState([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [isLoadingVessels, setIsLoadingVessels] = useState(false);
   const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -135,15 +138,16 @@ const SoNumberTab = () => {
       so_number: "",
       date_created: "",
       done: "pending",
-      pic: "",
+      pic_id: null,
       client: "",
       client_id: null,
       vessel_name: "",
       vessel_id: null,
       destination: "",
       destination_id: null,
-      next_action: "",
       eta_date: "",
+      etb: "",
+      etd: "",
       deadline_info: "",
       est_to_usd: "",
       est_profit_usd: "",
@@ -163,15 +167,17 @@ const SoNumberTab = () => {
       so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
       date_created: order.date_created || order.date_order,
       done: order.done === "active" || order.done === true ? "active" : "pending",
-      pic: order.pic || order.pic_name || "",
+      pic_id: order.pic_id || order.pic || null,
+      pic_name: order.pic_name || order.pic || "",
       client: order.client || order.client_name || "",
       client_id: order.client_id || order.partner_id || null,
       vessel_name: order.vessel_name || order.vessel || "",
       vessel_id: order.vessel_id || null,
       destination: order.destination || order.destination_name || "",
       destination_id: order.destination_id || null,
-      next_action: order.next_action || "",
       eta_date: order.eta_date,
+      etb: order.etb,
+      etd: order.etd,
       deadline_info: order.deadline_info,
       est_to_usd: order.est_to_usd,
       est_profit_usd: order.est_profit_usd,
@@ -294,6 +300,45 @@ const SoNumberTab = () => {
     fetchQuotations();
   }, []);
 
+  // Fetch users for Person in Charge field
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setIsLoadingUsers(true);
+        const data = await listUsersApi();
+
+        // Normalize possible response shapes
+        const list =
+          Array.isArray(data) ? data :
+            Array.isArray(data?.users) ? data.users :
+              Array.isArray(data?.result) ? data.result :
+                Array.isArray(data?.data) ? data.data :
+                  [];
+
+        const normalizedUsers = list
+          .map((u, idx) => ({
+            id: u.id ?? u.user_id ?? idx + 1,
+            name: u.name ?? u.full_name ?? "",
+            email: u.email ?? u.login ?? "",
+            active: typeof u.active === "boolean"
+              ? u.active
+              : (u.status ? String(u.status).toLowerCase() === "active" : true),
+            ...u,
+          }))
+          .filter((u) => u.active);
+
+        setUsers(normalizedUsers);
+      } catch (error) {
+        console.error("Failed to fetch users for PIC field", error);
+        setUsers([]);
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   // Helper functions to get names from IDs
   const getClientName = useCallback((clientId) => {
     if (!clientId) return "-";
@@ -313,6 +358,12 @@ const SoNumberTab = () => {
     return destination ? destination.name : "-";
   }, [destinations]);
 
+  const getUserName = useCallback((userId) => {
+    if (!userId) return "-";
+    const user = users.find((u) => u.id === userId);
+    return user ? user.name : "-";
+  }, [users]);
+
   const filteredOrders = useMemo(() => {
     if (!searchValue) return orders;
     const lowered = searchValue.toLowerCase();
@@ -323,7 +374,7 @@ const SoNumberTab = () => {
         getVesselName(order.vessel_id),
         getClientName(order.client_id),
         getDestinationName(order.destination_id),
-        order.pic,
+        getUserName(order.pic_id) || order.pic_name,
         order.internal_remark,
         order.client_remark,
         order.deadline_info,
@@ -333,7 +384,7 @@ const SoNumberTab = () => {
         value ? value.toString().toLowerCase().includes(lowered) : false
       );
     });
-  }, [orders, searchValue, getClientName, getVesselName, getDestinationName]);
+  }, [orders, searchValue, getClientName, getVesselName, getDestinationName, getUserName]);
 
   const handleCreate = () => {
     setEditingOrder(null);
@@ -398,8 +449,15 @@ const SoNumberTab = () => {
 
     const toDateTime = (dateStr) => {
       if (!dateStr) return null;
-      // Backend expects "YYYY-MM-DD 00:00:00" format
+      // Backend expects "YYYY-MM-DD 00:00:00" format (used for date_order & eta_date)
       return `${dateStr} 00:00:00`;
+    };
+
+    const toDateOnly = (dateStr) => {
+      if (!dateStr) return null;
+      // Backend expects "YYYY-MM-DD" format (date only, no time) for ETB / ETD
+      // If dateStr already contains time, extract just the date part
+      return dateStr.split(" ")[0];
     };
 
     return {
@@ -411,13 +469,15 @@ const SoNumberTab = () => {
       destination_id: data.destination_id || null,
       // Status and meta - backend expects "active" or "pending"
       done: data.done === "active" || data.done === true ? "active" : "pending",
-      pic: data.pic || "",
+      pic_id: data.pic_id || null,
       // Backend expects empty string when no quotation is linked
       quotation_id:
         data.quotation_id === null || data.quotation_id === undefined
           ? ""
           : data.quotation_id,
       eta_date: toDateTime(data.eta_date),
+      etb: data.etb && data.etb !== false ? toDateOnly(data.etb) : false,
+      etd: data.etd && data.etd !== false ? toDateOnly(data.etd) : false,
       date_order: toDateTime(data.date_created || data.date_order),
       deadline_info: data.deadline_info || "",
       est_to_usd: toNumber(data.est_to_usd),
@@ -488,18 +548,14 @@ const SoNumberTab = () => {
 
   const getEtaDisplay = (order) => {
     const eta = order.eta_date ? formatDate(order.eta_date) : null;
-    const nextAction = order.next_action;
-    if (eta && nextAction) return `${eta} • ${nextAction}`;
-    if (eta) return eta;
-    if (nextAction) return nextAction;
-    return "-";
+    return eta || "-";
   };
 
   const renderTableBody = () => {
     if (isLoading && orders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={16}>
+          <Td colSpan={18}>
             <Center py="10">
               <Spinner size="lg" color="blue.500" />
             </Center>
@@ -511,7 +567,7 @@ const SoNumberTab = () => {
     if (filteredOrders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={16}>
+          <Td colSpan={18}>
             <Center py="10">
               <Text color={tableTextColor}>No SO records match your filters.</Text>
             </Center>
@@ -529,11 +585,13 @@ const SoNumberTab = () => {
             {order.done === "active" || order.done === true ? "Active" : "Pending POD"}
           </Badge>
         </Td>
-        <Td>{order.pic || "-"}</Td>
+        <Td>{getUserName(order.pic_id) || order.pic_name || "-"}</Td>
         <Td>{getClientName(order.client_id)}</Td>
         <Td>{getVesselName(order.vessel_id)}</Td>
         <Td>{getDestinationName(order.destination_id)}</Td>
         <Td>{getEtaDisplay(order)}</Td>
+        <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>
+        <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
         <Td>{order.deadline_info || "-"}</Td>
         <Td>{formatCurrency(order.est_to_usd)}</Td>
         <Td>{formatCurrency(order.est_profit_usd)}</Td>
@@ -626,7 +684,9 @@ const SoNumberTab = () => {
                 "Client",
                 "Vessel Name",
                 "Destination",
-                "Next Action / ETA",
+                "ETA",
+                "ETB",
+                "ETD",
                 "Deadline",
                 "EstTO USD",
                 "EstProfit USD",
@@ -664,226 +724,282 @@ const SoNumberTab = () => {
           <ModalCloseButton />
           <ModalBody>
             {formData && (
-              <VStack spacing="4" align="stretch">
-                <Flex gap="4" flexWrap="wrap">
-                  {editingOrder && (
-                    <FormControl flex="1">
-                      <FormLabel>SO Number</FormLabel>
+              <VStack spacing="6" align="stretch">
+                {/* Basic Information */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Basic Information
+                  </Text>
+                  <Flex gap="4" flexWrap="wrap">
+                    {editingOrder && (
+                      <FormControl flex="1">
+                        <FormLabel>SO Number</FormLabel>
+                        <Input
+                          value={formData.so_number || "-"}
+                          isReadOnly
+                          bg={useColorModeValue("gray.50", "gray.700")}
+                          cursor="not-allowed"
+                        />
+                      </FormControl>
+                    )}
+                    <FormControl flex="1" minW="220px">
+                      <FormLabel>Date Created</FormLabel>
                       <Input
-                        value={formData.so_number || "-"}
-                        isReadOnly
-                        bg={useColorModeValue("gray.50", "gray.700")}
-                        cursor="not-allowed"
+                        type="date"
+                        value={formData.date_created || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, date_created: e.target.value }))
+                        }
                       />
                     </FormControl>
-                  )}
-                  <FormControl flex="1">
-                    <FormLabel>Date Created</FormLabel>
-                    <Input
-                      type="date"
-                      value={formData.date_created || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, date_created: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>Done</FormLabel>
-                    <Select
-                      size="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      value={formData.done === "active" || formData.done === true ? "active" : "pending"}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          done: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="active">Active</option>
-                      <option value="pending">Pending POD</option>
-                    </Select>
-                  </FormControl>
-                </Flex>
-
-                <Flex gap="4" flexWrap="wrap">
-                  <FormControl flex="1">
-                    <FormLabel>Person in Charge</FormLabel>
-                    <Input
-                      value={formData.pic}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, pic: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl flex="1" isRequired>
-                    <FormLabel>Client</FormLabel>
-                    <SimpleSearchableSelect
-                      value={formData.client_id}
-                      onChange={(value) =>
-                        setFormData((prev) => ({ ...prev, client_id: value }))
-                      }
-                      options={clients}
-                      placeholder="Select client"
-                      displayKey="name"
-                      valueKey="id"
-                      isLoading={isLoadingClients}
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      size="sm"
-                    />
-                  </FormControl>
-                  <FormControl flex="1" isRequired>
-                    <FormLabel>Vessel</FormLabel>
-                    <SimpleSearchableSelect
-                      value={formData.vessel_id}
-                      onChange={(value) =>
-                        setFormData((prev) => ({ ...prev, vessel_id: value }))
-                      }
-                      options={vessels}
-                      placeholder="Select vessel"
-                      displayKey="name"
-                      valueKey="id"
-                      isLoading={isLoadingVessels}
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      size="sm"
-                    />
-                  </FormControl>
-                </Flex>
-
-                <Flex gap="4" flexWrap="wrap">
-                  <FormControl flex="1">
-                    <FormLabel>Destination</FormLabel>
-                    <SimpleSearchableSelect
-                      value={formData.destination_id}
-                      onChange={(value) =>
-                        setFormData((prev) => ({ ...prev, destination_id: value }))
-                      }
-                      options={destinations}
-                      placeholder="Select destination"
-                      displayKey="name"
-                      valueKey="id"
-                      isLoading={isLoadingDestinations}
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      size="sm"
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>Next Action</FormLabel>
-                    <Input
-                      value={formData.next_action}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, next_action: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>ETA</FormLabel>
-                    <Input
-                      type="date"
-                      value={formData.eta_date || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, eta_date: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>Deadline / ETA text</FormLabel>
-                    <Input
-                      value={formData.deadline_info}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, deadline_info: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                </Flex>
-
-                <Flex gap="4" flexWrap="wrap">
-                  <FormControl flex="1">
-                    <FormLabel>EstTO USD</FormLabel>
-                    <Input
-                      type="number"
-                      value={formData.est_to_usd}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, est_to_usd: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>EstProfit USD</FormLabel>
-                    <Input
-                      type="number"
-                      value={formData.est_profit_usd}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, est_profit_usd: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                </Flex>
-
-                <FormControl>
-                  <FormLabel>Internal Remark</FormLabel>
-                  <Textarea
-                    value={formData.internal_remark}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, internal_remark: e.target.value }))
-                    }
-                  />
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Client Remark</FormLabel>
-                  <Textarea
-                    value={formData.client_remark}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, client_remark: e.target.value }))
-                    }
-                  />
-                </FormControl>
-
-                <Flex gap="4" flexWrap="wrap">
-                  <FormControl flex="1">
-                    <FormLabel>Quotation</FormLabel>
-                    <SimpleSearchableSelect
-                      value={formData.quotation_id}
-                      onChange={(value) =>
-                        setFormData((prev) => {
-                          const selected = quotations.find((q) => q.id === value);
-                          return {
+                    <FormControl flex="1" minW="220px">
+                      <FormLabel>Done</FormLabel>
+                      <Select
+                        size="sm"
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        value={formData.done === "active" || formData.done === true ? "active" : "pending"}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
                             ...prev,
-                            quotation_id: value,
-                            quotation: selected ? selected.name : "",
-                          };
-                        })
-                      }
-                      options={quotations}
-                      placeholder="Select quotation"
-                      displayKey="name"
-                      valueKey="id"
-                      isLoading={isLoadingQuotations}
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      size="sm"
-                    />
-                  </FormControl>
-                  <FormControl flex="1">
-                    <FormLabel>SO Timestamp</FormLabel>
-                    <Input
-                      value={formData.timestamp}
+                            done: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="active">Active</option>
+                        <option value="pending">Pending POD</option>
+                      </Select>
+                    </FormControl>
+                  </Flex>
+                </Box>
+
+                {/* Party & Vessel */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Party & Vessel
+                  </Text>
+                  <Flex gap="4" flexWrap="wrap">
+                    <FormControl flex="1" minW="220px">
+                      <FormLabel>Person in Charge</FormLabel>
+                      <SimpleSearchableSelect
+                        value={formData.pic_id}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, pic_id: value }))
+                        }
+                        options={users}
+                        placeholder="Select person in charge"
+                        displayKey="name"
+                        valueKey="id"
+                        isLoading={isLoadingUsers}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        size="sm"
+                      />
+                    </FormControl>
+                    <FormControl flex="1" isRequired minW="260px">
+                      <FormLabel>Client</FormLabel>
+                      <SimpleSearchableSelect
+                        value={formData.client_id}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, client_id: value }))
+                        }
+                        options={clients}
+                        placeholder="Select client"
+                        displayKey="name"
+                        valueKey="id"
+                        isLoading={isLoadingClients}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        size="sm"
+                      />
+                    </FormControl>
+                    <FormControl flex="1" isRequired minW="260px">
+                      <FormLabel>Vessel</FormLabel>
+                      <SimpleSearchableSelect
+                        value={formData.vessel_id}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, vessel_id: value }))
+                        }
+                        options={vessels}
+                        placeholder="Select vessel"
+                        displayKey="name"
+                        valueKey="id"
+                        isLoading={isLoadingVessels}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        size="sm"
+                      />
+                    </FormControl>
+                  </Flex>
+                </Box>
+
+                {/* Schedule */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Schedule
+                  </Text>
+                  <Flex gap="4" flexWrap="wrap">
+                    <FormControl flex="1" minW="260px">
+                      <FormLabel>Destination</FormLabel>
+                      <SimpleSearchableSelect
+                        value={formData.destination_id}
+                        onChange={(value) =>
+                          setFormData((prev) => ({ ...prev, destination_id: value }))
+                        }
+                        options={destinations}
+                        placeholder="Select destination"
+                        displayKey="name"
+                        valueKey="id"
+                        isLoading={isLoadingDestinations}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        size="sm"
+                      />
+                    </FormControl>
+                    <FormControl flex="1" minW="180px">
+                      <FormLabel>ETA</FormLabel>
+                      <Input
+                        type="date"
+                        value={formData.eta_date || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, eta_date: e.target.value }))
+                        }
+                      />
+                    </FormControl>
+                    <FormControl flex="1" minW="180px">
+                      <FormLabel>ETB</FormLabel>
+                      <Input
+                        type="date"
+                        value={formData.etb && formData.etb !== false ? (typeof formData.etb === 'string' ? formData.etb.split(' ')[0] : formData.etb) : ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, etb: e.target.value || false }))
+                        }
+                      />
+                    </FormControl>
+                    <FormControl flex="1" minW="180px">
+                      <FormLabel>ETD</FormLabel>
+                      <Input
+                        type="date"
+                        value={formData.etd && formData.etd !== false ? (typeof formData.etd === 'string' ? formData.etd.split(' ')[0] : formData.etd) : ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, etd: e.target.value || false }))
+                        }
+                      />
+                    </FormControl>
+                    <FormControl flex="2" minW="260px">
+                      <FormLabel>Deadline / ETA text</FormLabel>
+                      <Input
+                        value={formData.deadline_info}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, deadline_info: e.target.value }))
+                        }
+                      />
+                    </FormControl>
+                  </Flex>
+                </Box>
+
+                {/* Financials */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Financials
+                  </Text>
+                  <Flex gap="4" flexWrap="wrap">
+                    <FormControl flex="1" minW="220px">
+                      <FormLabel>EstTO USD</FormLabel>
+                      <Input
+                        type="number"
+                        value={formData.est_to_usd}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, est_to_usd: e.target.value }))
+                        }
+                      />
+                    </FormControl>
+                    <FormControl flex="1" minW="220px">
+                      <FormLabel>EstProfit USD</FormLabel>
+                      <Input
+                        type="number"
+                        value={formData.est_profit_usd}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, est_profit_usd: e.target.value }))
+                        }
+                      />
+                    </FormControl>
+                  </Flex>
+                </Box>
+
+                {/* Remarks */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Remarks
+                  </Text>
+                  <FormControl mb="3">
+                    <FormLabel>Internal Remark</FormLabel>
+                    <Textarea
+                      value={formData.internal_remark}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, timestamp: e.target.value }))
+                        setFormData((prev) => ({ ...prev, internal_remark: e.target.value }))
                       }
-                      placeholder="13/06/2025 12:44:22"
                     />
                   </FormControl>
-                </Flex>
+                  <FormControl>
+                    <FormLabel>Client Remark</FormLabel>
+                    <Textarea
+                      value={formData.client_remark}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, client_remark: e.target.value }))
+                      }
+                    />
+                  </FormControl>
+                </Box>
+
+                {/* Quotation & Timestamp */}
+                <Box>
+                  <Text fontSize="md" fontWeight="semibold" mb="3">
+                    Links & Metadata
+                  </Text>
+                  <Flex gap="4" flexWrap="wrap">
+                    <FormControl flex="1" minW="260px">
+                      <FormLabel>Quotation</FormLabel>
+                      <SimpleSearchableSelect
+                        value={formData.quotation_id}
+                        onChange={(value) =>
+                          setFormData((prev) => {
+                            const selected = quotations.find((q) => q.id === value);
+                            return {
+                              ...prev,
+                              quotation_id: value,
+                              quotation: selected ? selected.name : "",
+                            };
+                          })
+                        }
+                        options={quotations}
+                        placeholder="Select quotation"
+                        displayKey="name"
+                        valueKey="id"
+                        isLoading={isLoadingQuotations}
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        size="sm"
+                      />
+                    </FormControl>
+                    <FormControl flex="1" minW="260px">
+                      <FormLabel>SO Timestamp</FormLabel>
+                      <Input
+                        value={formData.timestamp}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, timestamp: e.target.value }))
+                        }
+                        placeholder="13/06/2025 12:44:22"
+                      />
+                    </FormControl>
+                  </Flex>
+                </Box>
               </VStack>
             )}
           </ModalBody>
