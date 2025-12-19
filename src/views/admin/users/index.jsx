@@ -49,6 +49,7 @@ import {
 } from "react-icons/md";
 import Card from "components/card/Card";
 import { listUsersApi, signupUserApi, updateUserApi, forgotPasswordApi } from "api/users";
+import { useUser } from "../../../redux/hooks/useUser";
 
 export default function Users() {
     const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -85,6 +86,10 @@ export default function Users() {
         user_type: "user", // Default to 'user'
     });
     const [showPassword, setShowPassword] = useState(false);
+
+    // Only admins can create or deactivate users
+    const { user: currentUser } = useUser();
+    const isAdmin = currentUser?.user_type === "admin";
 
     const filteredUsers = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -142,6 +147,7 @@ export default function Users() {
     };
 
     const handleCreateClick = () => {
+        if (!isAdmin) return;
         resetForm();
         openModal();
     };
@@ -159,6 +165,7 @@ export default function Users() {
     };
 
     const handleDeleteClick = (user) => {
+        if (!isAdmin) return;
         setUserToDelete(user);
         openDelete();
     };
@@ -246,9 +253,11 @@ export default function Users() {
                             Users
                         </Text>
                     </HStack>
-                    <Button leftIcon={<MdAdd />} colorScheme="blue" onClick={handleCreateClick}>
-                        New User
-                    </Button>
+                    {isAdmin && (
+                        <Button leftIcon={<MdAdd />} colorScheme="blue" onClick={handleCreateClick}>
+                            New User
+                        </Button>
+                    )}
                 </Flex>
 
                 <Flex mb="16px" align="center" justify="space-between">
@@ -306,14 +315,16 @@ export default function Users() {
                                                 size="sm"
                                                 onClick={() => handleEditClick(user)}
                                             />
-                                            <IconButton
-                                                aria-label="Delete user"
-                                                icon={<MdDelete />}
-                                                size="sm"
-                                                colorScheme="red"
-                                                variant="outline"
-                                                onClick={() => handleDeleteClick(user)}
-                                            />
+                                            {isAdmin && (
+                                                <IconButton
+                                                    aria-label="Delete user"
+                                                    icon={<MdDelete />}
+                                                    size="sm"
+                                                    colorScheme="red"
+                                                    variant="outline"
+                                                    onClick={() => handleDeleteClick(user)}
+                                                />
+                                            )}
                                         </Flex>
                                     </Td>
                                 </Tr>

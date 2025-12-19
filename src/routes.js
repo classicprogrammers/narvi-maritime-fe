@@ -197,6 +197,7 @@ const routes = [
     path: "/users",
     icon: <Icon as={MdPeople} width="20px" height="20px" color="inherit" />,
     component: Users,
+    adminOnly: true,
   },
   {
     name: "Forms",

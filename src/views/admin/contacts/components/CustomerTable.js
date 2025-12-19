@@ -40,6 +40,7 @@ import {
 } from "@chakra-ui/react";
 import React, { useMemo, useState, useRef } from "react";
 import { useHistory } from "react-router-dom";
+import { useUser } from "../../../../redux/hooks/useUser";
 import {
   useGlobalFilter,
   usePagination,
@@ -105,6 +106,10 @@ export default function CustomerTable(props) {
   } = useDisclosure();
 
   const cancelRef = useRef();
+
+  // Only admins can delete clients
+  const { user } = useUser();
+  const isAdmin = user?.user_type === "admin";
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
@@ -1046,16 +1051,18 @@ export default function CustomerTable(props) {
                                   aria-label="Edit client"
                                 />
                               </Tooltip>
-                              <Tooltip label="Delete Client">
-                                <IconButton
-                                  icon={<Icon as={MdDelete} />}
-                                  size="sm"
-                                  colorScheme="red"
-                                  variant="ghost"
-                                  onClick={() => handleDelete(row.original)}
-                                  aria-label="Delete client"
-                                />
-                              </Tooltip>
+                          {isAdmin && (
+                            <Tooltip label="Delete Client">
+                              <IconButton
+                                icon={<Icon as={MdDelete} />}
+                                size="sm"
+                                colorScheme="red"
+                                variant="ghost"
+                                onClick={() => handleDelete(row.original)}
+                                aria-label="Delete client"
+                              />
+                            </Tooltip>
+                          )}
                             </HStack>
                           );
                         }
