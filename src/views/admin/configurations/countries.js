@@ -46,6 +46,7 @@ export default function Countries() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingCountry, setEditingCountry] = useState(null);
+  const [originalStates, setOriginalStates] = useState([]); // Track original states for comparison
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -63,6 +64,8 @@ export default function Countries() {
   const [formData, setFormData] = useState({
     name: "",
     code: "",
+    // States / regions for this country
+    states: [], // each: { id?, name, code }
   });
 
   // Fetch countries
@@ -135,8 +138,10 @@ export default function Countries() {
       name: "",
       code: "",
       active: true,
+      states: [],
     });
     setEditingCountry(null);
+    setOriginalStates([]);
   };
 
   // Open modal for creating new country
@@ -147,13 +152,98 @@ export default function Countries() {
 
   // Open modal for editing country
   const handleEditCountry = (country) => {
+    const normalizedStates = Array.isArray(country.states)
+      ? country.states.map((s) => ({
+        id: s.id,
+        name: s.name || "",
+        code: s.code || "",
+      }))
+      : [];
+
     setFormData({
       name: country.name || "",
       code: country.code || "",
       active: country.active !== undefined ? country.active : true,
+      states: normalizedStates,
     });
+    // Store original states for comparison
+    setOriginalStates(normalizedStates.map(s => ({ ...s })));
     setEditingCountry(country);
     onModalOpen();
+  };
+
+  // Build states payload with operations
+  const buildStatesPayload = () => {
+    if (!formData.states || formData.states.length === 0) {
+      return [];
+    }
+
+    if (editingCountry) {
+      // For update: compare with original states to determine operations
+      const currentStateIds = new Set(
+        formData.states.filter(s => s.id).map(s => s.id)
+      );
+      const originalStateIds = new Set(
+        originalStates.filter(s => s.id).map(s => s.id)
+      );
+
+      const statesPayload = [];
+
+      // Find deleted states (in original but not in current)
+      originalStates.forEach(originalState => {
+        if (originalState.id && !currentStateIds.has(originalState.id)) {
+          statesPayload.push({
+            op: "delete",
+            id: originalState.id,
+          });
+        }
+      });
+
+      // Process current states
+      formData.states.forEach(state => {
+        if (!state.name || !state.code) {
+          // Skip empty states
+          return;
+        }
+
+        if (!state.id) {
+          // New state - create operation
+          statesPayload.push({
+            op: "create",
+            name: state.name.trim(),
+            code: state.code.trim().toUpperCase(),
+          });
+        } else {
+          // Existing state - check if it changed
+          const originalState = originalStates.find(s => s.id === state.id);
+          if (originalState) {
+            const hasChanged =
+              originalState.name !== state.name.trim() ||
+              originalState.code !== state.code.trim().toUpperCase();
+
+            if (hasChanged) {
+              statesPayload.push({
+                op: "update",
+                id: state.id,
+                name: state.name.trim(),
+                code: state.code.trim().toUpperCase(),
+              });
+            }
+          }
+        }
+      });
+
+      return statesPayload;
+    } else {
+      // For create: all states are new
+      return formData.states
+        .filter(state => state.name && state.code) // Only include non-empty states
+        .map(state => ({
+          op: "create",
+          name: state.name.trim(),
+          code: state.code.trim().toUpperCase(),
+        }));
+    }
   };
 
   // Handle form submission (create or update)
@@ -161,9 +251,17 @@ export default function Countries() {
     try {
       setIsLoading(true);
 
+      // Build payload with states operations
+      const statesPayload = buildStatesPayload();
+      const payload = {
+        name: formData.name.trim(),
+        code: formData.code.trim().toUpperCase(),
+        states: statesPayload,
+      };
+
       if (editingCountry) {
         // Update existing country
-        const response = await countriesAPI.updateCountry(editingCountry.id, formData);
+        const response = await countriesAPI.updateCountry(editingCountry.id, payload);
 
         // Extract success message from API response
         let successMessage = "Country updated successfully";
@@ -188,7 +286,7 @@ export default function Countries() {
         });
       } else {
         // Create new country
-        const response = await countriesAPI.createCountry(formData);
+        const response = await countriesAPI.createCountry(payload);
 
         // Extract success message from API response
         let successMessage = "Country created successfully";
@@ -332,6 +430,9 @@ export default function Countries() {
                     Code
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                    States
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Actions
                   </Th>
                 </Tr>
@@ -356,6 +457,13 @@ export default function Countries() {
                     <Td py="12px" px="16px">
                       <Text color={textColor} fontSize="sm" fontWeight="600">
                         {country.code || "-"}
+                      </Text>
+                    </Td>
+                    <Td py="12px" px="16px">
+                      <Text color={textColor} fontSize="sm">
+                        {Array.isArray(country.states) && country.states.length > 0
+                          ? `${country.states.length} state${country.states.length > 1 ? "s" : ""}`
+                          : "-"}
                       </Text>
                     </Td>
                     <Td py="12px" px="16px">
@@ -484,6 +592,7 @@ export default function Countries() {
           <ModalCloseButton color="white" />
           <ModalBody py="6">
             <VStack spacing="4" align="stretch">
+              {/* Country core info */}
               <FormControl isRequired>
                 <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
                   Country Name
@@ -492,7 +601,7 @@ export default function Countries() {
                   size="md"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
-                  placeholder="Enter country name (e.g., Canada)"
+                  placeholder="Enter country name (e.g., Hong Kong)"
                   borderRadius="md"
                 />
               </FormControl>
@@ -504,14 +613,100 @@ export default function Countries() {
                 <Input
                   size="md"
                   value={formData.code}
-                  onChange={(e) => handleInputChange("code", e.target.value)}
-                  placeholder="Enter country code (e.g., CA)"
+                  onChange={(e) => handleInputChange("code", e.target.value.toUpperCase())}
+                  placeholder="Enter country code (e.g., HK)"
                   borderRadius="md"
                   maxLength={3}
-                  textTransform="uppercase"
                 />
               </FormControl>
-              
+
+              {/* States / Regions management */}
+              <Box mt={2}>
+                <Flex justify="space-between" align="center" mb={2}>
+                  <Text fontSize="sm" fontWeight="medium" color="gray.700">
+                    States / Regions
+                  </Text>
+                  <Button
+                    size="xs"
+                    colorScheme="green"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        states: [
+                          ...(prev.states || []),
+                          { id: undefined, name: "", code: "" },
+                        ],
+                      }))
+                    }
+                  >
+                    Add State
+                  </Button>
+                </Flex>
+                {(!formData.states || formData.states.length === 0) && (
+                  <Text fontSize="xs" color="gray.500">
+                    No states added yet.
+                  </Text>
+                )}
+                <VStack spacing={2} align="stretch" maxH="240px" overflowY="auto" mt={1}>
+                  {(formData.states || []).map((state, idx) => (
+                    <HStack key={state.id ?? idx} spacing={2} align="flex-start">
+                      <FormControl>
+                        <FormLabel fontSize="xs" color="gray.500">
+                          Name
+                        </FormLabel>
+                        <Input
+                          size="sm"
+                          value={state.name}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              states: prev.states.map((s, i) =>
+                                i === idx ? { ...s, name: value } : s
+                              ),
+                            }));
+                          }}
+                          placeholder="e.g., Hong Kong Island"
+                        />
+                      </FormControl>
+                      <FormControl maxW="110px">
+                        <FormLabel fontSize="xs" color="gray.500">
+                          Code
+                        </FormLabel>
+                        <Input
+                          size="sm"
+                          value={state.code}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase();
+                            setFormData((prev) => ({
+                              ...prev,
+                              states: prev.states.map((s, i) =>
+                                i === idx ? { ...s, code: value } : s
+                              ),
+                            }));
+                          }}
+                          placeholder="e.g., HK"
+                          maxLength={5}
+                        />
+                      </FormControl>
+                      <IconButton
+                        aria-label="Remove state"
+                        icon={<Text fontSize="lg">×</Text>}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        mt={6}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            states: prev.states.filter((_, i) => i !== idx),
+                          }))
+                        }
+                      />
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
             </VStack>
           </ModalBody>
           <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">

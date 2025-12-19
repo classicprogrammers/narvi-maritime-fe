@@ -1273,7 +1273,15 @@ export default function StockForm() {
                                             valueKey="id"
                                             formatOption={(option) => {
                                                 const name = option.name || `Country ${option.id}`;
-                                                return option.code ? `${name} (${option.code})` : name;
+                                                const code = option.code || "";
+                                                const stateCodes = Array.isArray(option.states)
+                                                    ? option.states
+                                                        .map((s) => s.code)
+                                                        .filter(Boolean)
+                                                        .join(", ")
+                                                    : "";
+                                                const base = code ? `${name} (${code})` : name;
+                                                return stateCodes ? `${base} - ${stateCodes}` : base;
                                             }}
                                             isLoading={isLoadingCountries}
                                             bg={inputBg}

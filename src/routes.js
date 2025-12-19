@@ -27,6 +27,7 @@ import {
   MdPhone,
   MdAdd,
   MdStorage,
+  MdHistory,
 } from "react-icons/md";
 
 // Admin Imports
@@ -83,6 +84,7 @@ import SignUp from "views/auth/signUp";
 
 // Users
 import Users from "views/admin/users";
+import HistoryLogs from "views/admin/history-logs";
 
 const routes = [
   {
@@ -180,6 +182,14 @@ const routes = [
         component: Stocks,
       },
     ],
+  },
+  {
+    name: "History Logs",
+    layout: "/admin",
+    path: "/history-logs",
+    icon: <Icon as={MdHistory} width="20px" height="20px" color="inherit" />,
+    component: HistoryLogs,
+    adminOnly: true,
   },
   {
     name: "Users",

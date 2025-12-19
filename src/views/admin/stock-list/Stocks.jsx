@@ -405,7 +405,7 @@ export default function Stocks() {
 
     // getUserName removed - PIC is now a free text field, display directly
 
-    // Helper to get country name for origin field
+    // Helper to get country name for origin field (with airport/state codes if available)
     const getCountryName = (countryId) => {
         if (!countryId) return "-";
         
@@ -425,7 +425,16 @@ export default function Stocks() {
         });
         
         if (country) {
-            return country.name || country.code || `Country ${countryId}`;
+            const name = country.name || country.code || `Country ${countryId}`;
+            const code = country.code || "";
+            const stateCodes = Array.isArray(country.states)
+                ? country.states
+                    .map((s) => s.code)
+                    .filter(Boolean)
+                    .join(", ")
+                : "";
+            const base = code ? `${name} (${code})` : name;
+            return stateCodes ? `${base} - ${stateCodes}` : base;
         }
         
         // Debug logging if country not found
@@ -1208,9 +1217,19 @@ export default function Stocks() {
                 .filter(c => c && (c.id || c.country_id)) // Filter out invalid entries
                 .map(c => {
                     const countryId = c.id || c.country_id;
+                    const name = c.name || c.code || `Country ${countryId}`;
+                    const code = c.code || "";
+                    const stateCodes = Array.isArray(c.states)
+                        ? c.states
+                            .map((s) => s.code)
+                            .filter(Boolean)
+                            .join(", ")
+                        : "";
+                    const base = code ? `${name} (${code})` : name;
+                    const label = stateCodes ? `${base} - ${stateCodes}` : base;
                     return {
                         value: String(countryId),
-                        label: c.name || c.code || `Country ${countryId}`
+                        label,
                     };
                 });
 
