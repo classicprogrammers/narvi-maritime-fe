@@ -57,6 +57,7 @@ import {
 } from "../../../api/entitySelects";
 import quotationsAPI from "../../../api/quotations";
 import { listUsersApi } from "../../../api/users";
+import countriesAPI from "../../../api/countries";
 import {
   getShippingOrders,
   createShippingOrder,
@@ -115,11 +116,13 @@ const SoNumberTab = () => {
   const [destinations, setDestinations] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [users, setUsers] = useState([]);
+  const [countries, setCountries] = useState([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [isLoadingVessels, setIsLoadingVessels] = useState(false);
   const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingCountries, setIsLoadingCountries] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -132,25 +135,30 @@ const SoNumberTab = () => {
     )}/${now.getFullYear()} ${pad(now.getHours())}:${pad(
       now.getMinutes()
     )}:${pad(now.getSeconds())}`;
+    // Default DATE CREATED to today's date (YYYY-MM-DD) when creating a new SO
+    const todayDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+      now.getDate()
+    )}`;
 
     setFormData({
       id: null,
       so_number: "",
-      date_created: "",
-      done: "pending",
+      date_created: todayDate,
+      // Default status when creating a new SO
+      done: "pending_pod",
       pic_id: null,
       client: "",
       client_id: null,
       vessel_name: "",
       vessel_id: null,
-      destination: "",
-      destination_id: null,
+      destination_type: "", // "port_country", "city_country", "airport_country", "country"
+      destination: "", // text input for port name, city, airport, or country name
+      country_id: null, // selected country ID
+      destination_id: null, // legacy field, keep for backward compatibility
       eta_date: "",
       etb: "",
       etd: "",
       deadline_info: "",
-      est_to_usd: "",
-      est_profit_usd: "",
       internal_remark: "",
       client_remark: "",
       quotation: "",
@@ -162,25 +170,36 @@ const SoNumberTab = () => {
   // Normalize backend data into the shape the table expects
   const normalizeOrder = (order) => {
     if (!order) return null;
+    // Use original created date from API response (date_created or date_order), but
+    // trim to YYYY-MM-DD for the date input in the form.
+    const rawCreated = order.date_created || order.date_order || order.create_date;
+    const createdDateOnly = rawCreated ? String(rawCreated).split(" ")[0] : "";
+
     return {
       id: order.id,
       so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
-      date_created: order.date_created || order.date_order,
-      done: order.done === "active" || order.done === true ? "active" : "pending",
+      date_created: createdDateOnly,
+      // Keep backend value as-is if present, otherwise default to "pending_pod"
+      done:
+        typeof order.done === "string"
+          ? order.done
+          : order.done === true
+            ? "active"
+            : "pending_pod",
       pic_id: order.pic_id || order.pic || null,
       pic_name: order.pic_name || order.pic || "",
       client: order.client || order.client_name || "",
       client_id: order.client_id || order.partner_id || null,
       vessel_name: order.vessel_name || order.vessel || "",
       vessel_id: order.vessel_id || null,
+      destination_type: order.destination_type || "",
       destination: order.destination || order.destination_name || "",
-      destination_id: order.destination_id || null,
+      country_id: order.country_id || null,
+      destination_id: order.destination_id || null, // legacy field
       eta_date: order.eta_date,
       etb: order.etb,
       etd: order.etd,
       deadline_info: order.deadline_info,
-      est_to_usd: order.est_to_usd,
-      est_profit_usd: order.est_profit_usd,
       internal_remark: order.internal_remark,
       client_remark: order.client_remark,
       quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
@@ -339,6 +358,37 @@ const SoNumberTab = () => {
     fetchUsers();
   }, []);
 
+  // Fetch countries for destination country dropdown
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        setIsLoadingCountries(true);
+        const response = await countriesAPI.getCountries();
+
+        // Normalize countries response
+        const countriesList =
+          Array.isArray(response?.countries) ? response.countries :
+            Array.isArray(response?.result?.countries) ? response.result.countries :
+              Array.isArray(response) ? response : [];
+
+        const normalized = countriesList.map((c) => ({
+          id: c.id,
+          name: c.name || "",
+          code: c.code || "",
+        }));
+
+        setCountries(normalized);
+      } catch (error) {
+        console.error("Failed to fetch countries for destination", error);
+        setCountries([]);
+      } finally {
+        setIsLoadingCountries(false);
+      }
+    };
+
+    fetchCountries();
+  }, []);
+
   // Helper functions to get names from IDs
   const getClientName = useCallback((clientId) => {
     if (!clientId) return "-";
@@ -358,6 +408,30 @@ const SoNumberTab = () => {
     return destination ? destination.name : "-";
   }, [destinations]);
 
+  const getCountryName = useCallback((countryId) => {
+    if (!countryId) return "-";
+    const country = countries.find((c) => c.id === countryId);
+    return country ? country.name : "-";
+  }, [countries]);
+
+  // Helper to format destination display for table
+  const getDestinationDisplay = useCallback((order) => {
+    if (order.destination_type && order.destination) {
+      const countryName = order.country_id ? getCountryName(order.country_id) : "";
+      if (order.destination_type === "country") {
+        return order.destination;
+      } else if (countryName && countryName !== "-") {
+        return `${order.destination}, ${countryName}`;
+      }
+      return order.destination;
+    }
+    // Fallback to legacy destination_id
+    if (order.destination_id) {
+      return getDestinationName(order.destination_id);
+    }
+    return "-";
+  }, [getCountryName, getDestinationName]);
+
   const getUserName = useCallback((userId) => {
     if (!userId) return "-";
     const user = users.find((u) => u.id === userId);
@@ -373,7 +447,7 @@ const SoNumberTab = () => {
         order.so_number,
         getVesselName(order.vessel_id),
         getClientName(order.client_id),
-        getDestinationName(order.destination_id),
+        getDestinationDisplay(order),
         getUserName(order.pic_id) || order.pic_name,
         order.internal_remark,
         order.client_remark,
@@ -384,7 +458,7 @@ const SoNumberTab = () => {
         value ? value.toString().toLowerCase().includes(lowered) : false
       );
     });
-  }, [orders, searchValue, getClientName, getVesselName, getDestinationName, getUserName]);
+  }, [orders, searchValue, getClientName, getVesselName, getDestinationDisplay, getUserName]);
 
   const handleCreate = () => {
     setEditingOrder(null);
@@ -466,9 +540,14 @@ const SoNumberTab = () => {
       ...(data.so_number && { name: data.so_number, so_number: data.so_number }),
       client_id: data.client_id || null,
       vessel_id: data.vessel_id || null,
-      destination_id: data.destination_id || null,
-      // Status and meta - backend expects "active" or "pending"
-      done: data.done === "active" || data.done === true ? "active" : "pending",
+      // Destination fields - new structure
+      destination_type: data.destination_type || null,
+      destination: data.destination || null,
+      country_id: data.country_id || null,
+      // Legacy field for backward compatibility (if needed)
+      ...(data.destination_id && { destination_id: data.destination_id }),
+      // Status and meta - send status as selected in UI; default already set in resetForm
+      done: data.done || "pending_pod",
       pic_id: data.pic_id || null,
       // Backend expects empty string when no quotation is linked
       quotation_id:
@@ -480,8 +559,6 @@ const SoNumberTab = () => {
       etd: data.etd && data.etd !== false ? toDateOnly(data.etd) : false,
       date_order: toDateTime(data.date_created || data.date_order),
       deadline_info: data.deadline_info || "",
-      est_to_usd: toNumber(data.est_to_usd),
-      est_profit_usd: toNumber(data.est_profit_usd),
       internal_remark: data.internal_remark || "",
       client_remark: data.client_remark || "",
     };
@@ -581,20 +658,42 @@ const SoNumberTab = () => {
         <Td>{getSoNumber(order)}</Td>
         <Td>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Td>
         <Td>
-          <Badge colorScheme={order.done === "active" || order.done === true ? "green" : "orange"}>
-            {order.done === "active" || order.done === true ? "Active" : "Pending POD"}
+          <Badge
+            colorScheme={
+              order.done === "active"
+                ? "green"
+                : order.done === "done"
+                  ? "blue"
+                  : order.done === "cancelled"
+                    ? "red"
+                    : order.done === "archive"
+                      ? "gray"
+                      : order.done === "ready_for_invoice"
+                        ? "purple"
+                        : "orange"
+            }
+          >
+            {order.done === "pending_pod"
+              ? "Pending POD"
+              : order.done === "ready_for_invoice"
+                ? "Ready for Invoice"
+                : order.done === "done"
+                  ? "Done"
+                  : order.done === "cancelled"
+                    ? "Cancelled"
+                    : order.done === "archive"
+                      ? "Archive"
+                      : "Active"}
           </Badge>
         </Td>
         <Td>{getUserName(order.pic_id) || order.pic_name || "-"}</Td>
         <Td>{getClientName(order.client_id)}</Td>
         <Td>{getVesselName(order.vessel_id)}</Td>
-        <Td>{getDestinationName(order.destination_id)}</Td>
+        <Td>{getDestinationDisplay(order)}</Td>
         <Td>{getEtaDisplay(order)}</Td>
         <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>
         <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
         <Td>{order.deadline_info || "-"}</Td>
-        <Td>{formatCurrency(order.est_to_usd)}</Td>
-        <Td>{formatCurrency(order.est_profit_usd)}</Td>
         <Td maxW="200px">
           <Text noOfLines={2}>{order.internal_remark || "-"}</Text>
         </Td>
@@ -688,8 +787,6 @@ const SoNumberTab = () => {
                 "ETB",
                 "ETD",
                 "Deadline",
-                "EstTO USD",
-                "EstProfit USD",
                 "Internal Remark",
                 "Client Remark",
                 "Quotation",
@@ -727,9 +824,6 @@ const SoNumberTab = () => {
               <VStack spacing="6" align="stretch">
                 {/* Basic Information */}
                 <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Basic Information
-                  </Text>
                   <Flex gap="4" flexWrap="wrap">
                     {editingOrder && (
                       <FormControl flex="1">
@@ -747,6 +841,7 @@ const SoNumberTab = () => {
                       <Input
                         type="date"
                         value={formData.date_created || ""}
+                        isReadOnly={!!editingOrder}
                         onChange={(e) =>
                           setFormData((prev) => ({ ...prev, date_created: e.target.value }))
                         }
@@ -759,7 +854,7 @@ const SoNumberTab = () => {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        value={formData.done === "active" || formData.done === true ? "active" : "pending"}
+                        value={formData.done || "pending_pod"}
                         onChange={(e) =>
                           setFormData((prev) => ({
                             ...prev,
@@ -768,7 +863,11 @@ const SoNumberTab = () => {
                         }
                       >
                         <option value="active">Active</option>
-                        <option value="pending">Pending POD</option>
+                        <option value="archive">Archive</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="done">Done</option>
+                        <option value="pending_pod">Pending POD</option>
+                        <option value="ready_for_invoice">Ready for Invoice</option>
                       </Select>
                     </FormControl>
                   </Flex>
@@ -776,9 +875,6 @@ const SoNumberTab = () => {
 
                 {/* Party & Vessel */}
                 <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Party & Vessel
-                  </Text>
                   <Flex gap="4" flexWrap="wrap">
                     <FormControl flex="1" minW="220px">
                       <FormLabel>Person in Charge</FormLabel>
@@ -835,32 +931,97 @@ const SoNumberTab = () => {
                       />
                     </FormControl>
                   </Flex>
+                  <Flex gap="4" flexWrap="wrap" mt="4">
+                    <FormControl flex="1" minW="260px">
+                      <FormLabel>Destination Type</FormLabel>
+                      <Select
+                        size="sm"
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                        value={formData.destination_type || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            destination_type: e.target.value,
+                            destination: "", // Clear destination when type changes
+                            country_id: null, // Clear country when type changes
+                          }))
+                        }
+                        placeholder="Select destination type"
+                      >
+                        <option value="port_country">Port Name + Country</option>
+                        <option value="city_country">City + Country</option>
+                        <option value="airport_country">Airport + Country</option>
+                        <option value="country">Country</option>
+                      </Select>
+                    </FormControl>
+                    {formData.destination_type && formData.destination_type !== "country" && (
+                      <FormControl flex="1" minW="260px">
+                        <FormLabel>
+                          {formData.destination_type === "port_country"
+                            ? "Port Name"
+                            : formData.destination_type === "city_country"
+                              ? "City"
+                              : formData.destination_type === "airport_country"
+                                ? "Airport"
+                                : "Destination"}
+                        </FormLabel>
+                        <Input
+                          size="sm"
+                          bg={inputBg}
+                          color={inputText}
+                          borderColor={borderColor}
+                          value={formData.destination || ""}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, destination: e.target.value }))
+                          }
+                          placeholder={
+                            formData.destination_type === "port_country"
+                              ? "Enter port name"
+                              : formData.destination_type === "city_country"
+                                ? "Enter city name"
+                                : formData.destination_type === "airport_country"
+                                  ? "Enter airport name"
+                                  : "Enter destination"
+                          }
+                        />
+                      </FormControl>
+                    )}
+                    {formData.destination_type && (
+                      <FormControl flex="1" minW="260px">
+                        <FormLabel>Country</FormLabel>
+                        <SimpleSearchableSelect
+                          value={formData.country_id}
+                          onChange={(value) => {
+                            const selectedCountry = countries.find((c) => c.id === value);
+                            setFormData((prev) => ({
+                              ...prev,
+                              country_id: value,
+                              // If destination_type is "country", auto-fill destination with country name
+                              ...(prev.destination_type === "country" && selectedCountry
+                                ? { destination: selectedCountry.name }
+                                : {}),
+                            }));
+                          }}
+                          options={countries}
+                          placeholder="Select country"
+                          displayKey="name"
+                          valueKey="id"
+                          isLoading={isLoadingCountries}
+                          bg={inputBg}
+                          color={inputText}
+                          borderColor={borderColor}
+                          size="sm"
+                        />
+                      </FormControl>
+                    )}
+                  </Flex>
                 </Box>
 
                 {/* Schedule */}
                 <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Schedule
-                  </Text>
                   <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="260px">
-                      <FormLabel>Destination</FormLabel>
-                      <SimpleSearchableSelect
-                        value={formData.destination_id}
-                        onChange={(value) =>
-                          setFormData((prev) => ({ ...prev, destination_id: value }))
-                        }
-                        options={destinations}
-                        placeholder="Select destination"
-                        displayKey="name"
-                        valueKey="id"
-                        isLoading={isLoadingDestinations}
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        size="sm"
-                      />
-                    </FormControl>
                     <FormControl flex="1" minW="180px">
                       <FormLabel>ETA</FormLabel>
                       <Input
@@ -903,40 +1064,8 @@ const SoNumberTab = () => {
                   </Flex>
                 </Box>
 
-                {/* Financials */}
-                <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Financials
-                  </Text>
-                  <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="220px">
-                      <FormLabel>EstTO USD</FormLabel>
-                      <Input
-                        type="number"
-                        value={formData.est_to_usd}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, est_to_usd: e.target.value }))
-                        }
-                      />
-                    </FormControl>
-                    <FormControl flex="1" minW="220px">
-                      <FormLabel>EstProfit USD</FormLabel>
-                      <Input
-                        type="number"
-                        value={formData.est_profit_usd}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, est_profit_usd: e.target.value }))
-                        }
-                      />
-                    </FormControl>
-                  </Flex>
-                </Box>
-
                 {/* Remarks */}
                 <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Remarks
-                  </Text>
                   <FormControl mb="3">
                     <FormLabel>Internal Remark</FormLabel>
                     <Textarea
@@ -959,11 +1088,8 @@ const SoNumberTab = () => {
 
                 {/* Quotation & Timestamp */}
                 <Box>
-                  <Text fontSize="md" fontWeight="semibold" mb="3">
-                    Links & Metadata
-                  </Text>
                   <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="260px">
+                    <FormControl flex="1" minW="260px" isDisabled>
                       <FormLabel>Quotation</FormLabel>
                       <SimpleSearchableSelect
                         value={formData.quotation_id}
@@ -982,6 +1108,8 @@ const SoNumberTab = () => {
                         displayKey="name"
                         valueKey="id"
                         isLoading={isLoadingQuotations}
+                        // Temporarily disabled until quotation integration is finalized
+                        isDisabled
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}

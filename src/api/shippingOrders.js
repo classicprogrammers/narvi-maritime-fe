@@ -88,7 +88,10 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       'pic_id',
       'client_id',
       'vessel_id',
-      'destination_id',
+      'destination_id', // legacy field
+      'destination_type', // new destination structure
+      'destination', // new destination structure
+      'country_id', // new destination structure
       'quotation_id',
       'eta_date',
       'etb',

@@ -1052,16 +1052,16 @@ export default function CustomerTable(props) {
                                 />
                               </Tooltip>
                           {isAdmin && (
-                            <Tooltip label="Delete Client">
-                              <IconButton
-                                icon={<Icon as={MdDelete} />}
-                                size="sm"
-                                colorScheme="red"
-                                variant="ghost"
-                                onClick={() => handleDelete(row.original)}
-                                aria-label="Delete client"
-                              />
-                            </Tooltip>
+                              <Tooltip label="Delete Client">
+                                <IconButton
+                                  icon={<Icon as={MdDelete} />}
+                                  size="sm"
+                                  colorScheme="red"
+                                  variant="ghost"
+                                  onClick={() => handleDelete(row.original)}
+                                  aria-label="Delete client"
+                                />
+                              </Tooltip>
                           )}
                             </HStack>
                           );
