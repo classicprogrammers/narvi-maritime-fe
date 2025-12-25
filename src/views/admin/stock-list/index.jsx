@@ -24,7 +24,7 @@ import {
     VStack,
     useToast,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdFilterList, MdClose } from "react-icons/md";
+import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select } from "@chakra-ui/react";
 import { useHistory, Redirect } from "react-router-dom";
@@ -526,6 +526,141 @@ export default function StockList() {
         return value;
     };
 
+    // Handle viewing attachments - convert base64 to blob URL to avoid navigation errors
+    const handleViewFile = (attachment) => {
+        try {
+            let fileUrl = null;
+
+            // Case 1: actual uploaded file (File or Blob)
+            if (attachment instanceof File || attachment instanceof Blob) {
+                fileUrl = URL.createObjectURL(attachment);
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            // Case 3: base64 data (most common for attachments) - convert to blob
+            else if (attachment.datas) {
+                try {
+                    const mimeType = attachment.mimetype || "application/octet-stream";
+                    const base64Data = attachment.datas;
+                    
+                    // Convert base64 to binary
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+                    
+                    // Create object URL from blob
+                    fileUrl = URL.createObjectURL(blob);
+                    window.open(fileUrl, '_blank');
+                    return;
+                } catch (base64Error) {
+                    console.error('Error converting base64 to blob:', base64Error);
+                    // Fall back to download if viewing fails
+                    handleDownloadFile(attachment);
+                    return;
+                }
+            }
+            // Case 4: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}`;
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            // Case 5: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+                window.open(fileUrl, '_blank');
+                return;
+            }
+
+            // If we get here, no valid file data was found
+            toast({
+                title: 'Error',
+                description: 'Unable to view file. File data not available.',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        } catch (error) {
+            console.error('Error viewing file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to view file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    // Handle downloading attachments - simplified like vessel attachments
+    const handleDownloadFile = (attachment) => {
+        try {
+            let fileUrl = null;
+            let fileName = attachment.filename || attachment.name || 'download';
+
+            // Case 1: actual uploaded file (File or Blob)
+            if (attachment instanceof File || attachment instanceof Blob) {
+                fileUrl = URL.createObjectURL(attachment);
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+            }
+            // Case 3: base64 data (most common for attachments)
+            else if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                fileUrl = `data:${mimeType};base64,${attachment.datas}`;
+            }
+            // Case 4: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
+            }
+            // Case 5: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+            }
+
+            if (fileUrl) {
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                toast({
+                    title: 'Error',
+                    description: 'Unable to download file. File data not available.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to download file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
     // Get status color for small badges in this summary view
     const getStatusColor = (status) => {
         switch (status) {
@@ -997,7 +1132,8 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("sl_create_datetime")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SL CREATE DATE TIMESTAMP {sortField === "sl_create_datetime" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps}></Th>
+                                    <Th {...headerProps}>FILES</Th>
+                                    <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
                             </Thead>
                             <Tbody>
@@ -1062,7 +1198,56 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.blank)}</Text></Td>
+                                        <Td {...cellProps}>
+                                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                                <VStack spacing={1} align="stretch">
+                                                    {item.attachments.map((att, idx) => (
+                                                        <HStack key={idx} spacing={1} align="center">
+                                                            <Text
+                                                                fontSize="xs"
+                                                                isTruncated
+                                                                flex={1}
+                                                                title={att.filename || att.name}
+                                                                cursor="pointer"
+                                                                color="blue.500"
+                                                                _hover={{ textDecoration: "underline" }}
+                                                                onClick={() => handleViewFile(att)}
+                                                            >
+                                                                {att.filename || att.name || `File ${idx + 1}`}
+                                                            </Text>
+                                                            <IconButton
+                                                                icon={<Icon as={MdVisibility} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                aria-label="View file"
+                                                                onClick={() => handleViewFile(att)}
+                                                            />
+                                                            <IconButton
+                                                                icon={<Icon as={MdDownload} />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                aria-label="Download file"
+                                                                onClick={() => handleDownloadFile(att)}
+                                                            />
+                                                        </HStack>
+                                                    ))}
+                                                </VStack>
+                                            ) : (
+                                                <Text fontSize="xs" color="gray.500">No files</Text>
+                                            )}
+                                        </Td>
+                                        <Td {...cellProps}>
+                                            <IconButton
+                                                icon={<Icon as={MdEdit} />}
+                                                size="sm"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                aria-label="Edit"
+                                                onClick={() => handleEditItem(item)}
+                                            />
+                                        </Td>
                                     </Tr>
                                 ))}
                             </Tbody>

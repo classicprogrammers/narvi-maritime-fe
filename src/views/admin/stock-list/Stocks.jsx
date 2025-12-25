@@ -583,101 +583,30 @@ export default function Stocks() {
         return style.label || status || "-";
     };
 
-    // Helper function to clean and prepare base64 data
-    const cleanBase64Data = (data) => {
-        if (!data) return null;
-
-        let cleaned = String(data).trim();
-
-        // Remove data URI prefix if present (e.g., "data:application/pdf;base64,")
-        if (cleaned.includes(',')) {
-            cleaned = cleaned.split(',')[1];
-        }
-
-        // Remove any whitespace, newlines, or other non-base64 characters
-        cleaned = cleaned.replace(/\s/g, '');
-
-        // Handle URL-safe base64 encoding (replace - with + and _ with /)
-        cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
-
-        // Validate base64 format (should only contain A-Z, a-z, 0-9, +, /, and =)
-        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-        if (!base64Regex.test(cleaned)) {
-            console.warn('Base64 data contains invalid characters, attempting to clean...');
-            // Remove any characters that aren't valid base64
-            cleaned = cleaned.replace(/[^A-Za-z0-9+/=]/g, '');
-        }
-
-        // Ensure proper padding - base64 strings must have length that's a multiple of 4
-        const paddingNeeded = (4 - (cleaned.length % 4)) % 4;
-        if (paddingNeeded > 0) {
-            // Remove any existing padding first
-            cleaned = cleaned.replace(/=+$/, '');
-            // Add correct padding
-            cleaned += '='.repeat(paddingNeeded);
-        }
-
-        // Final validation - check if the cleaned string is valid base64
-        if (cleaned.length === 0) {
-            console.warn('Base64 data is empty after cleaning');
-            return null;
-        }
-
-        // Verify the string can be decoded (basic check)
-        if (cleaned.length % 4 !== 0) {
-            console.warn('Base64 data length is not a multiple of 4:', cleaned.length);
-            // Try to fix by adding padding
-            const fixPadding = (4 - (cleaned.length % 4)) % 4;
-            cleaned += '='.repeat(fixPadding);
-        }
-
-        return cleaned;
-    };
-
-    // Handle viewing/downloading attachments
+    // Handle viewing attachments - simplified like vessel attachments
     const handleViewFile = (attachment) => {
         try {
             let fileUrl = null;
-            let blobUrl = null; // Track blob URLs for cleanup
 
-            // Case 1: base64 data (most common for attachments)
-            if (attachment.datas) {
-                const mimeType = attachment.mimetype || "application/octet-stream";
-                const rawData = attachment.datas;
-                const base64Data = cleanBase64Data(rawData);
-
-                console.log('Attachment data:', {
-                    hasData: !!rawData,
-                    dataType: typeof rawData,
-                    dataLength: rawData?.length,
-                    firstChars: rawData?.substring(0, 50),
-                    cleanedLength: base64Data?.length,
-                    mimeType
-                });
-
-                if (!base64Data) {
-                    toast({
-                        title: 'Error',
-                        description: 'Invalid file data format',
-                        status: 'error',
-                        duration: 3000,
-                        isClosable: true,
-                    });
-                    return;
-                }
-
+            // Case 1: actual uploaded file (File or Blob)
+            if (attachment instanceof File || attachment instanceof Blob) {
+                fileUrl = URL.createObjectURL(attachment);
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+                window.open(fileUrl, '_blank');
+                return;
+            }
+            // Case 3: base64 data (most common for attachments) - convert to blob
+            else if (attachment.datas) {
                 try {
-                    // Validate base64 string before attempting to decode
-                    if (base64Data.length === 0) {
-                        throw new Error('Base64 data is empty');
-                    }
-
-                    // Check if length is valid (should be multiple of 4 after padding)
-                    if (base64Data.length % 4 !== 0) {
-                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
-                    }
-
-                    // Convert base64 to blob for better browser compatibility
+                    const mimeType = attachment.mimetype || "application/octet-stream";
+                    const base64Data = attachment.datas;
+                    
+                    // Convert base64 to binary
                     const byteCharacters = atob(base64Data);
                     const byteNumbers = new Array(byteCharacters.length);
                     for (let i = 0; i < byteCharacters.length; i++) {
@@ -685,64 +614,40 @@ export default function Stocks() {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: mimeType });
-
-                    blobUrl = URL.createObjectURL(blob);
-                    fileUrl = blobUrl;
+                    
+                    // Create object URL from blob
+                    fileUrl = URL.createObjectURL(blob);
+                    window.open(fileUrl, '_blank');
+                    return;
                 } catch (base64Error) {
-                    console.error('Error decoding base64:', base64Error, {
-                        dataLength: base64Data?.length,
-                        firstChars: base64Data?.substring(0, 50),
-                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
-                        mimeType
-                    });
-                    toast({
-                        title: 'Error',
-                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
-                        status: 'error',
-                        duration: 5000,
-                        isClosable: true,
-                    });
+                    console.error('Error converting base64 to blob:', base64Error);
+                    // Fall back to download if viewing fails
+                    handleDownloadFile(attachment);
                     return;
                 }
             }
-            // Case 2: backend URL
-            else if (attachment.url) {
-                fileUrl = attachment.url;
-            }
-            // Case 3: construct URL from attachment ID
+            // Case 4: construct URL from attachment ID
             else if (attachment.id) {
                 const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
                 fileUrl = `${baseUrl}/web/content/${attachment.id}`;
+                window.open(fileUrl, '_blank');
+                return;
             }
-            // Case 4: file path
+            // Case 5: file path
             else if (attachment.path) {
                 fileUrl = attachment.path;
+                window.open(fileUrl, '_blank');
+                return;
             }
 
-            if (fileUrl) {
-                // Open in new tab
-                const newWindow = window.open(fileUrl, '_blank');
-
-                // Clean up blob URL after a delay (once it's opened)
-                if (blobUrl) {
-                    setTimeout(() => {
-                        URL.revokeObjectURL(blobUrl);
-                    }, 1000);
-                }
-
-                // If window.open failed, try download instead
-                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-                    handleDownloadFile(attachment);
-                }
-            } else {
-                toast({
-                    title: 'Error',
-                    description: 'Unable to view file. File data not available.',
-                    status: 'error',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            }
+            // If we get here, no valid file data was found
+            toast({
+                title: 'Error',
+                description: 'Unable to view file. File data not available.',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
         } catch (error) {
             console.error('Error viewing file:', error);
             toast({
@@ -755,77 +660,31 @@ export default function Stocks() {
         }
     };
 
+    // Handle downloading attachments - simplified like vessel attachments
     const handleDownloadFile = (attachment) => {
         try {
             let fileUrl = null;
-            let blobUrl = null; // Track blob URLs for cleanup
             let fileName = attachment.filename || attachment.name || 'download';
 
-            // Case 1: base64 data
-            if (attachment.datas) {
-                const mimeType = attachment.mimetype || "application/octet-stream";
-                const base64Data = cleanBase64Data(attachment.datas);
-
-                if (!base64Data) {
-                    toast({
-                        title: 'Error',
-                        description: 'Invalid file data format',
-                        status: 'error',
-                        duration: 3000,
-                        isClosable: true,
-                    });
-                    return;
-                }
-
-                try {
-                    // Validate base64 string before attempting to decode
-                    if (base64Data.length === 0) {
-                        throw new Error('Base64 data is empty');
-                    }
-
-                    // Check if length is valid (should be multiple of 4 after padding)
-                    if (base64Data.length % 4 !== 0) {
-                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
-                    }
-
-                    // Convert base64 to blob and download
-                    const byteCharacters = atob(base64Data);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: mimeType });
-
-                    blobUrl = URL.createObjectURL(blob);
-                    fileUrl = blobUrl;
-                } catch (base64Error) {
-                    console.error('Error decoding base64:', base64Error, {
-                        dataLength: base64Data?.length,
-                        firstChars: base64Data?.substring(0, 50),
-                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
-                        mimeType
-                    });
-                    toast({
-                        title: 'Error',
-                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
-                        status: 'error',
-                        duration: 5000,
-                        isClosable: true,
-                    });
-                    return;
-                }
+            // Case 1: actual uploaded file (File or Blob)
+            if (attachment instanceof File || attachment instanceof Blob) {
+                fileUrl = URL.createObjectURL(attachment);
             }
             // Case 2: backend URL
             else if (attachment.url) {
                 fileUrl = attachment.url;
             }
-            // Case 3: construct URL from attachment ID
+            // Case 3: base64 data (most common for attachments)
+            else if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                fileUrl = `data:${mimeType};base64,${attachment.datas}`;
+            }
+            // Case 4: construct URL from attachment ID
             else if (attachment.id) {
                 const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
                 fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
             }
-            // Case 4: file path
+            // Case 5: file path
             else if (attachment.path) {
                 fileUrl = attachment.path;
             }
@@ -838,13 +697,6 @@ export default function Stocks() {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-
-                // Clean up blob URL after download
-                if (blobUrl) {
-                    setTimeout(() => {
-                        URL.revokeObjectURL(blobUrl);
-                    }, 100);
-                }
             } else {
                 toast({
                     title: 'Error',
@@ -1863,6 +1715,46 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "internal_remarks", item.internal_remarks || item.remarks, "textarea") : <Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
+                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                <VStack spacing={1} align="stretch">
+                                    {item.attachments.map((att, idx) => (
+                                        <HStack key={idx} spacing={1} align="center">
+                                            <Text
+                                                fontSize="xs"
+                                                isTruncated
+                                                flex={1}
+                                                title={att.filename || att.name}
+                                                cursor="pointer"
+                                                color="blue.500"
+                                                _hover={{ textDecoration: "underline" }}
+                                                onClick={() => handleViewFile(att)}
+                                            >
+                                                {att.filename || att.name || `File ${idx + 1}`}
+                                            </Text>
+                                            <IconButton
+                                                icon={<Icon as={MdVisibility} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                aria-label="View file"
+                                                onClick={() => handleViewFile(att)}
+                                            />
+                                            <IconButton
+                                                icon={<Icon as={MdDownload} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                aria-label="Download file"
+                                                onClick={() => handleDownloadFile(att)}
+                                            />
+                                        </HStack>
+                                    ))}
+                                </VStack>
+                            ) : (
+                                <Text fontSize="xs" color="gray.500">No files</Text>
+                            )}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? (
                                 <HStack spacing="2">
                                     <IconButton
@@ -2025,6 +1917,46 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                <VStack spacing={1} align="stretch">
+                                    {item.attachments.map((att, idx) => (
+                                        <HStack key={idx} spacing={1} align="center">
+                                            <Text
+                                                fontSize="xs"
+                                                isTruncated
+                                                flex={1}
+                                                title={att.filename || att.name}
+                                                cursor="pointer"
+                                                color="blue.500"
+                                                _hover={{ textDecoration: "underline" }}
+                                                onClick={() => handleViewFile(att)}
+                                            >
+                                                {att.filename || att.name || `File ${idx + 1}`}
+                                            </Text>
+                                            <IconButton
+                                                icon={<Icon as={MdVisibility} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                aria-label="View file"
+                                                onClick={() => handleViewFile(att)}
+                                            />
+                                            <IconButton
+                                                icon={<Icon as={MdDownload} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                aria-label="Download file"
+                                                onClick={() => handleDownloadFile(att)}
+                                            />
+                                        </HStack>
+                                    ))}
+                                </VStack>
+                            ) : (
+                                <Text fontSize="xs" color="gray.500">No files</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -2866,7 +2798,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>READY EX SUPPLIER</Th>
-                                                    <Th {...headerProps}></Th>
+                                                    <Th {...headerProps}>FILES</Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             ) : (
@@ -2899,7 +2831,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SIC NUMBER</Th>
                                                     <Th {...headerProps}>DI NUMBER</Th>
-                                                    <Th {...headerProps}></Th>
+                                                    <Th {...headerProps}>FILES</Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
                                             )}
@@ -2908,7 +2840,7 @@ export default function Stocks() {
                                     <Tbody>
                                         {isInitialLoading ? (
                                             <Tr>
-                                                <Td colSpan={activeTab === 0 ? 18 : 31}>
+                                                <Td colSpan={activeTab === 0 ? 19 : 32}>
                                                     <Center py="10">
                                                         <HStack spacing="4">
                                                             <Spinner size="lg" color="#1c4a95" />
