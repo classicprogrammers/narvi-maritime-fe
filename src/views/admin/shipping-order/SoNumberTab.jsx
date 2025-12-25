@@ -41,6 +41,14 @@ import {
   useDisclosure,
   useToast,
   Select,
+  Chip,
+  Wrap,
+  WrapItem,
+  Checkbox,
+  CheckboxGroup,
+  Tag,
+  TagLabel,
+  TagCloseButton,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -48,6 +56,10 @@ import {
   MdEdit,
   MdRefresh,
   MdSearch,
+  MdClose,
+  MdArrowUpward,
+  MdArrowDownward,
+  MdFilterList,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import {
@@ -102,6 +114,7 @@ const SoNumberTab = () => {
   const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
+  const hoverBg = useColorModeValue("gray.100", "gray.600");
 
   const toast = useToast();
   const [orders, setOrders] = useState([]);
@@ -126,6 +139,36 @@ const SoNumberTab = () => {
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
+  const picFilterModalDisclosure = useDisclosure();
+
+  // Filter states
+  const [activeFilters, setActiveFilters] = useState({
+    activeATH: false,
+    activeSIN: false,
+    activeClient: false,
+    readyForInvoiceClient: false,
+    athReadyForInvoice: false,
+    sinReadyForInvoice: false,
+  });
+
+  // PIC filter states - store PIC IDs
+  const [activeATHPics, setActiveATHPics] = useState([]); // Default: Amanta, Igor, Tasos
+  const [activeSINPics, setActiveSINPics] = useState([]); // Default: Martin
+  const [athReadyForInvoicePics, setAthReadyForInvoicePics] = useState([]); // Default: Amanta, Igor, Tasos
+  const [sinReadyForInvoicePics, setSinReadyForInvoicePics] = useState([]); // Default: Martin
+
+  // Client filter states
+  const [activeClientFilter, setActiveClientFilter] = useState(null);
+  const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(null);
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({
+    field: null,
+    direction: 'asc', // 'asc' or 'desc'
+  });
+
+  // Current PIC filter being edited
+  const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
 
   const resetForm = () => {
     const now = new Date();
@@ -354,6 +397,66 @@ const SoNumberTab = () => {
     fetchPICs();
   }, []);
 
+  // Initialize default PICs when PICs are loaded
+  useEffect(() => {
+    if (pics.length > 0) {
+      // Find PICs by name (case-insensitive)
+      const findPicByName = (name) => {
+        return pics.find((p) => p.name && p.name.toLowerCase() === name.toLowerCase());
+      };
+
+      // Initialize Active ATH PICs (Amanta, Igor, Tasos)
+      if (activeATHPics.length === 0) {
+        const amanta = findPicByName("Amanta");
+        const igor = findPicByName("Igor");
+        const tasos = findPicByName("Tasos");
+        const defaultATH = [amanta, igor, tasos]
+          .filter(Boolean)
+          .map((p) => Number(p.id))
+          .filter((id) => !Number.isNaN(id));
+        if (defaultATH.length > 0) {
+          setActiveATHPics(defaultATH);
+        }
+      }
+
+      // Initialize Active SIN PICs (Martin)
+      if (activeSINPics.length === 0) {
+        const martin = findPicByName("Martin");
+        if (martin) {
+          const martinId = Number(martin.id);
+          if (!Number.isNaN(martinId)) {
+            setActiveSINPics([martinId]);
+          }
+        }
+      }
+
+      // Initialize ATH Ready for Invoice PICs (Amanta, Igor, Tasos)
+      if (athReadyForInvoicePics.length === 0) {
+        const amanta = findPicByName("Amanta");
+        const igor = findPicByName("Igor");
+        const tasos = findPicByName("Tasos");
+        const defaultATH = [amanta, igor, tasos]
+          .filter(Boolean)
+          .map((p) => Number(p.id))
+          .filter((id) => !Number.isNaN(id));
+        if (defaultATH.length > 0) {
+          setAthReadyForInvoicePics(defaultATH);
+        }
+      }
+
+      // Initialize SIN Ready for Invoice PICs (Martin)
+      if (sinReadyForInvoicePics.length === 0) {
+        const martin = findPicByName("Martin");
+        if (martin) {
+          const martinId = Number(martin.id);
+          if (!Number.isNaN(martinId)) {
+            setSinReadyForInvoicePics([martinId]);
+          }
+        }
+      }
+    }
+  }, [pics, activeATHPics.length, activeSINPics.length, athReadyForInvoicePics.length, sinReadyForInvoicePics.length]);
+
   // Fetch countries for destination country dropdown
   useEffect(() => {
     const fetchCountries = async () => {
@@ -434,27 +537,225 @@ const SoNumberTab = () => {
     return pic ? pic.name : "-";
   }, [pics]);
 
-  const filteredOrders = useMemo(() => {
-    if (!searchValue) return orders;
-    const lowered = searchValue.toLowerCase();
+  // Handler functions for filters
+  const toggleFilter = (filterName) => {
+    setActiveFilters((prev) => ({
+      ...prev,
+      [filterName]: !prev[filterName],
+    }));
+  };
 
-    return orders.filter((order) => {
-      const candidateValues = [
-        order.so_number,
-        getVesselName(order.vessel_id),
-        getClientName(order.client_id),
-        getDestinationDisplay(order),
-        getPICName(order.pic_new) || order.pic_name,
-        order.internal_remark,
-        order.client_remark,
-        order.deadline_info,
-      ];
-
-      return candidateValues.some((value) =>
-        value ? value.toString().toLowerCase().includes(lowered) : false
-      );
+  const handleSort = (field) => {
+    setSortConfig((prev) => {
+      if (prev.field === field) {
+        // Toggle direction if same field
+        return {
+          field,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      } else {
+        // New field, default to ascending
+        return {
+          field,
+          direction: "asc",
+        };
+      }
     });
-  }, [orders, searchValue, getClientName, getVesselName, getDestinationDisplay, getPICName]);
+  };
+
+  const openPicFilterModal = (filterType) => {
+    setEditingPicFilter(filterType);
+    picFilterModalDisclosure.onOpen();
+  };
+
+  const handlePicFilterSave = (selectedPicIds) => {
+    if (editingPicFilter === "activeATH") {
+      setActiveATHPics(selectedPicIds);
+    } else if (editingPicFilter === "activeSIN") {
+      setActiveSINPics(selectedPicIds);
+    } else if (editingPicFilter === "athReadyForInvoice") {
+      setAthReadyForInvoicePics(selectedPicIds);
+    } else if (editingPicFilter === "sinReadyForInvoice") {
+      setSinReadyForInvoicePics(selectedPicIds);
+    }
+    picFilterModalDisclosure.onClose();
+    setEditingPicFilter(null);
+  };
+
+  // Filter and sort orders
+  const filteredOrders = useMemo(() => {
+    let filtered = [...orders];
+
+    // Apply text search filter
+    if (searchValue) {
+      const lowered = searchValue.toLowerCase();
+      filtered = filtered.filter((order) => {
+        const candidateValues = [
+          order.so_number,
+          getVesselName(order.vessel_id),
+          getClientName(order.client_id),
+          getDestinationDisplay(order),
+          getPICName(order.pic_new) || order.pic_name,
+          order.internal_remark,
+          order.client_remark,
+          order.deadline_info,
+        ];
+
+        return candidateValues.some((value) =>
+          value ? value.toString().toLowerCase().includes(lowered) : false
+        );
+      });
+    }
+
+    // Helper function to normalize PIC ID for comparison
+    const normalizePicId = (picId) => {
+      if (picId === null || picId === undefined || picId === false || picId === "") {
+        return null;
+      }
+      // Convert to number for consistent comparison
+      const numId = Number(picId);
+      return Number.isNaN(numId) ? null : numId;
+    };
+
+    // Helper function to extract PIC ID from order (check multiple fields and raw data)
+    const extractPicId = (order) => {
+      // Try normalized fields first
+      let picId = order.pic_new || order.pic_id || order.pic;
+
+      // If not found, check raw order data
+      if (!picId && order._raw) {
+        picId = order._raw.pic_new || order._raw.pic_id || order._raw.pic;
+      }
+
+      // Handle case where pic might be an object with id property
+      if (picId && typeof picId === 'object' && picId.id) {
+        picId = picId.id;
+      }
+
+      // Handle case where pic might be an array (take first element)
+      if (Array.isArray(picId) && picId.length > 0) {
+        picId = picId[0];
+        // If array element is an object, get its id
+        if (typeof picId === 'object' && picId.id) {
+          picId = picId.id;
+        }
+      }
+
+      return normalizePicId(picId);
+    };
+
+    // Apply Active ATH filter
+    if (activeFilters.activeATH && activeATHPics.length > 0) {
+      const normalizedFilterPics = activeATHPics.map(id => Number(id));
+      filtered = filtered.filter((order) => {
+        const orderPicId = extractPicId(order);
+        if (orderPicId === null) return false;
+        return order.done === "active" && normalizedFilterPics.includes(orderPicId);
+      });
+    }
+
+    // Apply Active SIN filter
+    if (activeFilters.activeSIN && activeSINPics.length > 0) {
+      filtered = filtered.filter((order) => {
+        const orderPicId = extractPicId(order);
+        if (orderPicId === null) return false;
+        // Normalize filter PIC IDs and compare
+        const normalizedFilterPics = activeSINPics.map(id => Number(id));
+        return order.done === "active" && normalizedFilterPics.includes(orderPicId);
+      });
+    }
+
+    // Apply Active Client filter
+    if (activeFilters.activeClient && activeClientFilter) {
+      filtered = filtered.filter((order) => {
+        return order.done === "active" && order.client_id === activeClientFilter;
+      });
+    }
+
+    // Apply Ready for Invoice Client filter
+    if (activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter) {
+      filtered = filtered.filter((order) => {
+        return order.done === "ready_for_invoice" && order.client_id === readyForInvoiceClientFilter;
+      });
+    }
+
+    // Apply ATH Ready for Invoice filter
+    if (activeFilters.athReadyForInvoice && athReadyForInvoicePics.length > 0) {
+      filtered = filtered.filter((order) => {
+        const orderPicId = extractPicId(order);
+        if (orderPicId === null) return false;
+        // Normalize filter PIC IDs and compare
+        const normalizedFilterPics = athReadyForInvoicePics.map(id => Number(id));
+        return order.done === "ready_for_invoice" && normalizedFilterPics.includes(orderPicId);
+      });
+    }
+
+    // Apply SIN Ready for Invoice filter
+    if (activeFilters.sinReadyForInvoice && sinReadyForInvoicePics.length > 0) {
+      filtered = filtered.filter((order) => {
+        const orderPicId = extractPicId(order);
+        if (orderPicId === null) return false;
+        // Normalize filter PIC IDs and compare
+        const normalizedFilterPics = sinReadyForInvoicePics.map(id => Number(id));
+        return order.done === "ready_for_invoice" && normalizedFilterPics.includes(orderPicId);
+      });
+    }
+
+    // Apply sorting
+    if (sortConfig.field) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+
+        if (sortConfig.field === "next_action") {
+          // Sort by deadline_info (Next Action)
+          aValue = a.deadline_info || "";
+          bValue = b.deadline_info || "";
+        } else if (sortConfig.field === "so_number") {
+          aValue = a.so_number || "";
+          bValue = b.so_number || "";
+        } else if (sortConfig.field === "date_created") {
+          aValue = a.date_created || "";
+          bValue = b.date_created || "";
+        } else if (sortConfig.field === "client") {
+          aValue = getClientName(a.client_id);
+          bValue = getClientName(b.client_id);
+        } else if (sortConfig.field === "pic") {
+          aValue = getPICName(a.pic_new) || a.pic_name || "";
+          bValue = getPICName(b.pic_new) || b.pic_name || "";
+        } else {
+          aValue = a[sortConfig.field] || "";
+          bValue = b[sortConfig.field] || "";
+        }
+
+        // Convert to strings for comparison
+        const aStr = String(aValue).toLowerCase();
+        const bStr = String(bValue).toLowerCase();
+
+        if (sortConfig.direction === "asc") {
+          return aStr.localeCompare(bStr);
+        } else {
+          return bStr.localeCompare(aStr);
+        }
+      });
+    }
+
+    return filtered;
+  }, [
+    orders,
+    searchValue,
+    activeFilters,
+    activeATHPics,
+    activeSINPics,
+    activeClientFilter,
+    readyForInvoiceClientFilter,
+    athReadyForInvoicePics,
+    sinReadyForInvoicePics,
+    sortConfig,
+    getClientName,
+    getVesselName,
+    getDestinationDisplay,
+    getPICName,
+  ]);
 
   const handleCreate = () => {
     setEditingOrder(null);
@@ -762,6 +1063,237 @@ const SoNumberTab = () => {
         </HStack>
       </Flex>
 
+      {/* Filters Section */}
+      <Box mb="4">
+        <Flex direction="column" gap="3">
+          <Wrap spacing="3">
+            {/* Active ATH Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.activeATH ? "solid" : "outline"}
+                colorScheme={activeFilters.activeATH ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("activeATH")}
+              >
+                <TagLabel>Active ATH</TagLabel>
+                {activeFilters.activeATH && (
+                  <IconButton
+                    size="xs"
+                    aria-label="Configure PICs"
+                    icon={<Icon as={MdFilterList} />}
+                    variant="ghost"
+                    ml="2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPicFilterModal("activeATH");
+                    }}
+                  />
+                )}
+                {activeFilters.activeATH && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("activeATH");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* Active SIN Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.activeSIN ? "solid" : "outline"}
+                colorScheme={activeFilters.activeSIN ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("activeSIN")}
+              >
+                <TagLabel>Active SIN</TagLabel>
+                {activeFilters.activeSIN && (
+                  <IconButton
+                    size="xs"
+                    aria-label="Configure PICs"
+                    icon={<Icon as={MdFilterList} />}
+                    variant="ghost"
+                    ml="2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPicFilterModal("activeSIN");
+                    }}
+                  />
+                )}
+                {activeFilters.activeSIN && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("activeSIN");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* Active Client Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.activeClient ? "solid" : "outline"}
+                colorScheme={activeFilters.activeClient ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("activeClient")}
+              >
+                <TagLabel>
+                  Active Client
+                  {activeFilters.activeClient && activeClientFilter && (
+                    <Text as="span" ml="2" fontSize="xs">
+                      ({getClientName(activeClientFilter)})
+                    </Text>
+                  )}
+                </TagLabel>
+                {activeFilters.activeClient && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("activeClient");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* Ready for Invoice Client Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.readyForInvoiceClient ? "solid" : "outline"}
+                colorScheme={activeFilters.readyForInvoiceClient ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("readyForInvoiceClient")}
+              >
+                <TagLabel>
+                  Ready for Invoice Client
+                  {activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter && (
+                    <Text as="span" ml="2" fontSize="xs">
+                      ({getClientName(readyForInvoiceClientFilter)})
+                    </Text>
+                  )}
+                </TagLabel>
+                {activeFilters.readyForInvoiceClient && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("readyForInvoiceClient");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* ATH Ready for Invoice Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.athReadyForInvoice ? "solid" : "outline"}
+                colorScheme={activeFilters.athReadyForInvoice ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("athReadyForInvoice")}
+              >
+                <TagLabel>ATH Ready for Invoice</TagLabel>
+                {activeFilters.athReadyForInvoice && (
+                  <IconButton
+                    size="xs"
+                    aria-label="Configure PICs"
+                    icon={<Icon as={MdFilterList} />}
+                    variant="ghost"
+                    ml="2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPicFilterModal("athReadyForInvoice");
+                    }}
+                  />
+                )}
+                {activeFilters.athReadyForInvoice && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("athReadyForInvoice");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+
+            {/* SIN Ready for Invoice Filter */}
+            <WrapItem>
+              <Tag
+                size="md"
+                borderRadius="full"
+                variant={activeFilters.sinReadyForInvoice ? "solid" : "outline"}
+                colorScheme={activeFilters.sinReadyForInvoice ? "blue" : "gray"}
+                cursor="pointer"
+                onClick={() => toggleFilter("sinReadyForInvoice")}
+              >
+                <TagLabel>SIN Ready for Invoice</TagLabel>
+                {activeFilters.sinReadyForInvoice && (
+                  <IconButton
+                    size="xs"
+                    aria-label="Configure PICs"
+                    icon={<Icon as={MdFilterList} />}
+                    variant="ghost"
+                    ml="2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openPicFilterModal("sinReadyForInvoice");
+                    }}
+                  />
+                )}
+                {activeFilters.sinReadyForInvoice && (
+                  <TagCloseButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFilter("sinReadyForInvoice");
+                    }}
+                  />
+                )}
+              </Tag>
+            </WrapItem>
+          </Wrap>
+
+          {/* Client Selection for Active and Ready for Invoice Client filters */}
+          {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
+            <Box>
+              <SimpleSearchableSelect
+                value={activeFilters.activeClient ? activeClientFilter : readyForInvoiceClientFilter}
+                onChange={(value) => {
+                  if (activeFilters.activeClient) {
+                    setActiveClientFilter(value);
+                  } else {
+                    setReadyForInvoiceClientFilter(value);
+                  }
+                }}
+                options={clients}
+                placeholder="Select client"
+                displayKey="name"
+                valueKey="id"
+                isLoading={isLoadingClients}
+                bg={inputBg}
+                color={inputText}
+                borderColor={borderColor}
+                size="sm"
+                maxW="300px"
+              />
+            </Box>
+          )}
+        </Flex>
+      </Box>
+
       <Box
         border="1px"
         borderColor={borderColor}
@@ -772,25 +1304,25 @@ const SoNumberTab = () => {
           <Thead bg={tableHeaderBg}>
             <Tr>
               {[
-                "SO Number",
-                "Date Created",
-                "Done",
-                "Person in Charge",
-                "Client",
-                "Vessel Name",
-                "Destination",
-                "ETA",
-                "ETB",
-                "ETD",
-                "Deadline",
-                "Internal Remark",
-                "Client Remark",
-                "Quotation",
-                "SOCreateDate Timestamp",
-                "Actions",
-              ].map((label) => (
+                { label: "SO Number", field: "so_number", sortable: true },
+                { label: "Date Created", field: "date_created", sortable: true },
+                { label: "Status", field: "done", sortable: false },
+                { label: "Person in Charge", field: "pic", sortable: true },
+                { label: "Client", field: "client", sortable: true },
+                { label: "Vessel Name", field: "vessel_name", sortable: false },
+                { label: "Destination", field: "destination", sortable: false },
+                { label: "ETA", field: "eta_date", sortable: false },
+                { label: "ETB", field: "etb", sortable: false },
+                { label: "ETD", field: "etd", sortable: false },
+                { label: "Next Action", field: "next_action", sortable: true },
+                { label: "Internal Remark", field: "internal_remark", sortable: false },
+                { label: "Client Remark", field: "client_remark", sortable: false },
+                { label: "Quotation", field: "quotation", sortable: false },
+                { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
+                { label: "Actions", field: null, sortable: false },
+              ].map((col) => (
                 <Th
-                  key={label}
+                  key={col.label}
                   borderRight="1px"
                   borderColor={tableBorderColor}
                   color={tableTextColor}
@@ -800,8 +1332,20 @@ const SoNumberTab = () => {
                   py="10px"
                   px="12px"
                   minW="130px"
+                  cursor={col.sortable ? "pointer" : "default"}
+                  onClick={col.sortable ? () => handleSort(col.field) : undefined}
+                  _hover={col.sortable ? { bg: hoverBg } : {}}
+                  position="relative"
                 >
-                  {label}
+                  <Flex align="center" gap="2">
+                    <Text>{col.label}</Text>
+                    {col.sortable && sortConfig.field === col.field && (
+                      <Icon
+                        as={sortConfig.direction === "asc" ? MdArrowUpward : MdArrowDownward}
+                        fontSize="14px"
+                      />
+                    )}
+                  </Flex>
                 </Th>
               ))}
             </Tr>
@@ -844,7 +1388,7 @@ const SoNumberTab = () => {
                       />
                     </FormControl>
                     <FormControl flex="1" minW="220px">
-                      <FormLabel>Done</FormLabel>
+                      <FormLabel>Status</FormLabel>
                       <Select
                         size="sm"
                         bg={inputBg}
@@ -1163,6 +1707,75 @@ const SoNumberTab = () => {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      {/* PIC Filter Selection Modal */}
+      <Modal isOpen={picFilterModalDisclosure.isOpen} onClose={picFilterModalDisclosure.onClose} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            {editingPicFilter === "activeATH" && "Active ATH - Select PICs"}
+            {editingPicFilter === "activeSIN" && "Active SIN - Select PICs"}
+            {editingPicFilter === "athReadyForInvoice" && "ATH Ready for Invoice - Select PICs"}
+            {editingPicFilter === "sinReadyForInvoice" && "SIN Ready for Invoice - Select PICs"}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing="4" align="stretch">
+              <Text fontSize="sm" color={tableTextColor}>
+                Select Person in Charge (PIC) names to filter:
+              </Text>
+              <CheckboxGroup
+                value={
+                  (editingPicFilter === "activeATH"
+                    ? activeATHPics
+                    : editingPicFilter === "activeSIN"
+                      ? activeSINPics
+                      : editingPicFilter === "athReadyForInvoice"
+                        ? athReadyForInvoicePics
+                        : editingPicFilter === "sinReadyForInvoice"
+                          ? sinReadyForInvoicePics
+                          : []
+                  ).map((id) => String(id))
+                }
+                onChange={(values) => {
+                  const picIds = values.map((v) => Number(v));
+                  if (editingPicFilter === "activeATH") {
+                    setActiveATHPics(picIds);
+                  } else if (editingPicFilter === "activeSIN") {
+                    setActiveSINPics(picIds);
+                  } else if (editingPicFilter === "athReadyForInvoice") {
+                    setAthReadyForInvoicePics(picIds);
+                  } else if (editingPicFilter === "sinReadyForInvoice") {
+                    setSinReadyForInvoicePics(picIds);
+                  }
+                }}
+              >
+                <VStack spacing="2" align="stretch" maxH="400px" overflowY="auto">
+                  {pics.map((pic) => (
+                    <Checkbox
+                      key={pic.id}
+                      value={String(pic.id)}
+                      colorScheme="blue"
+                    >
+                      {pic.name}
+                    </Checkbox>
+                  ))}
+                </VStack>
+              </CheckboxGroup>
+              {pics.length === 0 && (
+                <Text fontSize="sm" color="gray.500" textAlign="center" py="4">
+                  No PICs available
+                </Text>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={picFilterModalDisclosure.onClose}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };
