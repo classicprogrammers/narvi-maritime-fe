@@ -39,7 +39,6 @@ import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi } from "api/vendor";
 import SearchableSelect from "components/forms/SearchableSelect";
-import { listUsersApi } from "api/users";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
@@ -282,60 +281,6 @@ function VendorRegistration() {
 
     const toast = useToast();
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
-
-    // Users for PIC field - loaded from existing users API (no new entitySelects API)
-    const [users, setUsers] = React.useState([]);
-    const [isLoadingUsers, setIsLoadingUsers] = React.useState(false);
-
-    React.useEffect(() => {
-        let isMounted = true;
-
-        const fetchUsersForPic = async () => {
-            setIsLoadingUsers(true);
-            try {
-                const data = await listUsersApi();
-                // Normalize possible response shapes similar to users admin page / stock page
-                const list =
-                    Array.isArray(data) ? data :
-                        Array.isArray(data?.users) ? data.users :
-                            Array.isArray(data?.result) ? data.result :
-                                Array.isArray(data?.data) ? data.data :
-                                    [];
-
-                const normalizedUsers = list
-                    .map((u, idx) => ({
-                        id: u.id ?? u.user_id ?? idx + 1,
-                        name: u.name ?? u.full_name ?? "",
-                        email: u.email ?? u.login ?? "",
-                        active: typeof u.active === "boolean"
-                            ? u.active
-                            : (u.status ? String(u.status).toLowerCase() === "active" : true),
-                        ...u,
-                    }))
-                    .filter((u) => u.active);
-
-                if (isMounted) {
-                    setUsers(normalizedUsers);
-                }
-            } catch (error) {
-                // Error is already surfaced via global API modal; just log here
-                console.error("Failed to fetch users for PIC field:", error);
-                if (isMounted) {
-                    setUsers([]);
-                }
-            } finally {
-                if (isMounted) {
-                    setIsLoadingUsers(false);
-                }
-            }
-        };
-
-        fetchUsersForPic();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
 
     const peopleTableColumns = [
         { key: "company_name", label: "Agent company" },
@@ -1420,17 +1365,14 @@ function VendorRegistration() {
                                     {/* LEFT: PIC / RIGHT empty */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
-                                        <Box w={gridInputWidth}>
-                                            <SearchableSelect
-                                                value={formData.pic}
-                                                onChange={(val) => handleInputChange("pic", val)}
-                                                options={users || []}
-                                                placeholder={isLoadingUsers ? "Loading users..." : "Select PIC user"}
-                                                displayKey="name"
-                                                valueKey="name"
-                                                isLoading={isLoadingUsers}
-                                            />
-                                        </Box>
+                                        <Input
+                                            name="pic"
+                                            value={formData.pic}
+                                            onChange={(e) => handleInputChange("pic", e.target.value)}
+                                            placeholder="Enter Person in Charge"
+                                            size="sm"
+                                            w={gridInputWidth}
+                                        />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight}></Box>
                                 </Box>

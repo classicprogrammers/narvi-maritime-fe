@@ -154,7 +154,7 @@ const STATUS_VARIATIONS = {
 export default function Stocks() {
     const history = useHistory();
     const [selectedRows, setSelectedRows] = useState(new Set());
-    const [activeTab, setActiveTab] = useState(0); // 0: By Vessel, 1: By Client
+    const [activeTab, setActiveTab] = useState(0); // 0: Stock View / Edit, 1: Stocklist view for clients
     const [editingRowIds, setEditingRowIds] = useState(new Set()); // Set of row IDs being edited
     const [editingRowData, setEditingRowData] = useState({}); // Map of row ID -> editing data
 
@@ -228,6 +228,7 @@ export default function Stocks() {
         py: "12px",
         px: "16px",
         minW: "130px",
+        maxW: "200px",
     };
     const cellText = {
         color: tableTextColor,
@@ -403,16 +404,63 @@ export default function Stocks() {
         return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
     };
 
+    const getSoNumberNameFromNumber = (soNumber) => {
+        if (!soNumber) return "-";
+        // Try to find by so_number field
+        const so = shippingOrders.find(s =>
+            String(s.so_number || s.name || "") === String(soNumber) ||
+            String(s.id) === String(soNumber)
+        );
+        return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soNumber}`;
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case "pending":
+                return "blue";
+            case "in_stock":
+            case "stock":
+                return "gray";
+            case "on_shipping":
+                return "orange";
+            case "on_delivery":
+                return "blue";
+            case "in_transit":
+                return "green";
+            case "arrived":
+            case "arrived_dest":
+                return "gray";
+            case "shipped":
+                return "orange";
+            case "delivered":
+                return "red";
+            case "irregular":
+            case "irregularities":
+                return "red";
+            case "cancelled":
+                return "purple";
+            default:
+                return "gray";
+        }
+    };
+
+    const handleEditItem = (item) => {
+        history.push({
+            pathname: '/admin/stock-list/main-db-edit',
+            state: { selectedItems: [item], isBulkEdit: false }
+        });
+    };
+
     // getUserName removed - PIC is now a free text field, display directly
 
     // Helper to get country name for origin field (with airport/state codes if available)
     const getCountryName = (countryId) => {
         if (!countryId) return "-";
-        
+
         // Convert to string and number for comparison
         const countryIdStr = String(countryId);
         const countryIdNum = Number(countryId);
-        
+
         // Try to find by ID (handle different field names)
         const country = countries.find(c => {
             if (!c) return false;
@@ -423,7 +471,7 @@ export default function Stocks() {
                 Number(cId) === countryIdNum
             );
         });
-        
+
         if (country) {
             const name = country.name || country.code || `Country ${countryId}`;
             const code = country.code || "";
@@ -436,12 +484,12 @@ export default function Stocks() {
             const base = code ? `${name} (${code})` : name;
             return stateCodes ? `${base} - ${stateCodes}` : base;
         }
-        
+
         // Debug logging if country not found
         if (countries.length > 0) {
             console.log(`Country ${countryId} not found. Available countries sample:`, countries.slice(0, 5).map(c => ({ id: c.id, country_id: c.country_id, name: c.name })));
         }
-        
+
         return `Country ${countryId}`;
     };
 
@@ -567,7 +615,17 @@ export default function Stocks() {
         });
     };
 
-    // Filter stock list for By Vessel view
+    // Filter stock list by status checkboxes only
+    const getFilteredStockByStatus = () => {
+        let filtered = [...stockList];
+
+        // Filter by selected statuses using the matchesStatus helper
+        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
+
+        return filtered;
+    };
+
+    // Filter stock list for By Vessel view (kept for commented out tabs)
     const getFilteredStockByVessel = () => {
         let filtered = [...stockList];
 
@@ -934,10 +992,12 @@ export default function Stocks() {
             { backend: "volume_cbm", original: ["volume_cbm"], edited: ["volume_cbm"], transform: (v) => toNumber(v) },
             { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
             // Arrays of PO numbers and LWH lines (derived from text, one per line)
-            { backend: "po_text_array", original: ["po_text_array"], edited: ["po_text"], transform: (v) => {
-                const val = Array.isArray(v) ? v.join("\n") : (v || "");
-                return splitLines(val);
-            } },
+            {
+                backend: "po_text_array", original: ["po_text_array"], edited: ["po_text"], transform: (v) => {
+                    const val = Array.isArray(v) ? v.join("\n") : (v || "");
+                    return splitLines(val);
+                }
+            },
             { backend: "cw_freight", original: ["cw_freight", "cw_airfreight"], edited: ["cw_freight"], transform: (v) => toNumber(v) },
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
@@ -955,10 +1015,12 @@ export default function Stocks() {
             { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
             { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => toNumber(v) || 1 },
             { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
-            { backend: "lwh_text_array", original: ["lwh_text_array"], edited: ["lwh_text"], transform: (v) => {
-                const val = Array.isArray(v) ? v.join("\n") : (v || "");
-                return splitLines(val);
-            } },
+            {
+                backend: "lwh_text_array", original: ["lwh_text_array"], edited: ["lwh_text"], transform: (v) => {
+                    const val = Array.isArray(v) ? v.join("\n") : (v || "");
+                    return splitLines(val);
+                }
+            },
             { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
             { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
             { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => toValue(toId(v), false) },
@@ -1808,287 +1870,591 @@ export default function Stocks() {
                     </HStack>
                 </Flex>
 
-                {/* Tabs Section */}
-                <Box px="25px" mb="20px">
-                    <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
-                        <TabList>
-                            <Tab>Stocklist By Vessel</Tab>
-                            <Tab>Stocklist By Client</Tab>
-                        </TabList>
+                {/* Tabs Section - COMMENTED OUT FOR NOW */}
+                {false && (
+                    <Box px="25px" mb="20px">
+                        <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
+                            <TabList>
+                                <Tab>Stocklist By Vessel</Tab>
+                                <Tab>Stocklist By Client</Tab>
+                            </TabList>
 
-                        <TabPanels>
-                            {/* Tab 1: Stocklist By Vessel */}
-                            <TabPanel px="0" pt="20px">
-                                {/* Filters for By Vessel View */}
-                                <Box mb="20px">
+                            <TabPanels>
+                                {/* Tab 1: Stocklist By Vessel */}
+                                <TabPanel px="0" pt="20px">
+                                    {/* Filters for By Vessel View */}
+                                    <Box mb="20px">
 
-                                    {/* Filters Box - Side by Side */}
-                                    {(!vesselViewVesselData || !vesselViewClientData) && (
-                                        <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                                            <Flex direction={{ base: "column", md: "row" }} gap="4" align="flex-start">
-                                                {/* Vessel Filter */}
-                                                {!vesselViewVesselData && (
-                                                    <Box flex="1" minW="0">
-                                                        <Flex justify="space-between" align="center" mb="12px">
-                                                            <Text fontSize="sm" fontWeight="600" color={textColor}>
-                                                                Filter by Vessel
+                                        {/* Filters Box - Side by Side */}
+                                        {(!vesselViewVesselData || !vesselViewClientData) && (
+                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                <Flex direction={{ base: "column", md: "row" }} gap="4" align="flex-start">
+                                                    {/* Vessel Filter */}
+                                                    {!vesselViewVesselData && (
+                                                        <Box flex="1" minW="0">
+                                                            <Flex justify="space-between" align="center" mb="12px">
+                                                                <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                                    Filter by Vessel
+                                                                </Text>
+                                                            </Flex>
+                                                            <SimpleSearchableSelect
+                                                                value={vesselViewVessel}
+                                                                onChange={(value) => setVesselViewVessel(value)}
+                                                                options={vessels}
+                                                                placeholder="Select Vessel"
+                                                                displayKey="name"
+                                                                valueKey="id"
+                                                                formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                                isLoading={isLoadingVessels}
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                            />
+                                                        </Box>
+                                                    )}
+
+                                                    {/* Client Filter */}
+                                                    {!vesselViewClientData && (
+                                                        <Box flex="1" minW="0">
+                                                            <Flex justify="space-between" align="center" mb="12px">
+                                                                <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                                    Filter by Client
+                                                                </Text>
+                                                            </Flex>
+                                                            <SimpleSearchableSelect
+                                                                value={vesselViewClient}
+                                                                onChange={(value) => setVesselViewClient(value)}
+                                                                options={clients}
+                                                                placeholder="Select Client"
+                                                                displayKey="name"
+                                                                valueKey="id"
+                                                                formatOption={(option) => option.name || `Client ${option.id}`}
+                                                                isLoading={isLoadingClients}
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                            />
+                                                        </Box>
+                                                    )}
+                                                </Flex>
+                                            </Box>
+                                        )}
+
+                                        {/* Orange Bar - Vessel Name and Client Name */}
+                                        {(vesselViewVesselData || vesselViewClientData) && (
+                                            <Box mb="20px" p="4" bg={useColorModeValue("orange.400", "orange.600")} borderRadius="md">
+                                                <VStack spacing="2" align="stretch">
+                                                    {vesselViewVesselData && (
+                                                        <HStack justify="space-between" align="center">
+                                                            <Text fontSize="sm" fontWeight="700" color="white">
+                                                                Vessel Name: {vesselViewVesselData.name}
                                                             </Text>
-                                                        </Flex>
-                                                        <SimpleSearchableSelect
-                                                            value={vesselViewVessel}
-                                                            onChange={(value) => setVesselViewVessel(value)}
-                                                            options={vessels}
-                                                            placeholder="Select Vessel"
-                                                            displayKey="name"
-                                                            valueKey="id"
-                                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
-                                                            isLoading={isLoadingVessels}
-                                                            bg={inputBg}
-                                                            color={inputText}
+                                                            <Button
+                                                                size="xs"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="whiteAlpha"
+                                                                variant="solid"
+                                                                onClick={() => setVesselViewVessel(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        </HStack>
+                                                    )}
+                                                    {vesselViewClientData && (
+                                                        <HStack justify="space-between" align="center">
+                                                            <Text fontSize="sm" fontWeight="700" color="white">
+                                                                Client Name: {vesselViewClientData.name}
+                                                            </Text>
+                                                            <Button
+                                                                size="xs"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="whiteAlpha"
+                                                                variant="solid"
+                                                                onClick={() => setVesselViewClient(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        </HStack>
+                                                    )}
+                                                </VStack>
+                                            </Box>
+                                        )}
+
+
+                                        {/* Right Side: Status Filter Boxes */}
+                                        <Box flex="1" minW="0">
+                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                                    CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                                </Text>
+                                                <Flex flexWrap="wrap" gap="3" pb="2">
+                                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                                        <Box
+                                                            key={statusKey}
+                                                            p="4"
+                                                            minW="130px"
+                                                            flex="0 0 auto"
+                                                            bg={config.bgColor}
+                                                            borderRadius="md"
+                                                            border="1px"
                                                             borderColor={borderColor}
-                                                        />
-                                                    </Box>
-                                                )}
-
-                                                {/* Client Filter */}
-                                                {!vesselViewClientData && (
-                                                    <Box flex="1" minW="0">
-                                                        <Flex justify="space-between" align="center" mb="12px">
-                                                            <Text fontSize="sm" fontWeight="600" color={textColor}>
-                                                                Filter by Client
+                                                        >
+                                                            <Text
+                                                                fontSize="xs"
+                                                                fontWeight="600"
+                                                                color={config.textColor}
+                                                                mb="8px"
+                                                            >
+                                                                {config.label}
                                                             </Text>
+                                                            <Checkbox
+                                                                isChecked={vesselViewStatuses.has(statusKey)}
+                                                                onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                                size="md"
+                                                                colorScheme={config.color}
+                                                                borderColor="gray.600"
+                                                                sx={{
+                                                                    "& .chakra-checkbox__control": {
+                                                                        borderColor: "gray.600",
+                                                                        _checked: {
+                                                                            borderColor: `${config.color}.500`,
+                                                                        },
+                                                                    },
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                    ))}
+                                                </Flex>
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                </TabPanel>
+
+                                {/* Tab 2: Stocklist By Client */}
+                                <TabPanel px="0" pt="20px">
+                                    {/* Filters for By Client View */}
+                                    <Box mb="20px">
+                                        <Box flex="0 0 auto" minW={{ base: "100%", lg: "400px" }}>
+                                            {/* Client Filter - Two Input Fields */}
+                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+
+                                                <Flex direction="row" gap="4" align="stretch">
+                                                    {/* Client ID Input */}
+                                                    <FormControl>
+                                                        <Flex justify="space-between" align="center" >
+                                                            <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
+                                                                Filter by Client ID
+                                                            </FormLabel>
+                                                            {clientViewClient && (
+                                                                <Button
+                                                                    size="xs"
+                                                                    leftIcon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewClient(null)}
+                                                                >
+                                                                    Clear Filter
+                                                                </Button>
+                                                            )}
                                                         </Flex>
                                                         <SimpleSearchableSelect
-                                                            value={vesselViewClient}
-                                                            onChange={(value) => setVesselViewClient(value)}
+                                                            value={clientViewClient}
+                                                            onChange={(value) => {
+                                                                setClientViewClient(value);
+                                                                // Client name will auto-fill via clientViewClientData
+                                                            }}
                                                             options={clients}
-                                                            placeholder="Select Client"
-                                                            displayKey="name"
+                                                            placeholder="Select Client ID"
+                                                            displayKey="id"
                                                             valueKey="id"
-                                                            formatOption={(option) => option.name || `Client ${option.id}`}
+                                                            formatOption={(option) => `${option.id}`}
                                                             isLoading={isLoadingClients}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
+                                                            padding="18px"
                                                         />
-                                                    </Box>
-                                                )}
-                                            </Flex>
-                                        </Box>
-                                    )}
+                                                    </FormControl>
 
-                                    {/* Orange Bar - Vessel Name and Client Name */}
-                                    {(vesselViewVesselData || vesselViewClientData) && (
-                                        <Box mb="20px" p="4" bg={useColorModeValue("orange.400", "orange.600")} borderRadius="md">
-                                            <VStack spacing="2" align="stretch">
-                                                {vesselViewVesselData && (
-                                                    <HStack justify="space-between" align="center">
-                                                        <Text fontSize="sm" fontWeight="700" color="white">
-                                                            Vessel Name: {vesselViewVesselData.name}
-                                                        </Text>
-                                                        <Button
-                                                            size="xs"
-                                                            leftIcon={<Icon as={MdClose} />}
-                                                            colorScheme="whiteAlpha"
-                                                            variant="solid"
-                                                            onClick={() => setVesselViewVessel(null)}
-                                                        >
-                                                            Clear
-                                                        </Button>
-                                                    </HStack>
-                                                )}
-                                                {vesselViewClientData && (
-                                                    <HStack justify="space-between" align="center">
-                                                        <Text fontSize="sm" fontWeight="700" color="white">
-                                                            Client Name: {vesselViewClientData.name}
-                                                        </Text>
-                                                        <Button
-                                                            size="xs"
-                                                            leftIcon={<Icon as={MdClose} />}
-                                                            colorScheme="whiteAlpha"
-                                                            variant="solid"
-                                                            onClick={() => setVesselViewClient(null)}
-                                                        >
-                                                            Clear
-                                                        </Button>
-                                                    </HStack>
-                                                )}
-                                            </VStack>
-                                        </Box>
-                                    )}
-
-
-                                    {/* Right Side: Status Filter Boxes */}
-                                    <Box flex="1" minW="0">
-                                        <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                                            <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                                CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                            </Text>
-                                            <Flex flexWrap="wrap" gap="3" pb="2">
-                                                {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                                    <Box
-                                                        key={statusKey}
-                                                        p="4"
-                                                        minW="130px"
-                                                        flex="0 0 auto"
-                                                        bg={config.bgColor}
-                                                        borderRadius="md"
-                                                        border="1px"
-                                                        borderColor={borderColor}
-                                                    >
-                                                        <Text
-                                                            fontSize="xs"
-                                                            fontWeight="600"
-                                                            color={config.textColor}
-                                                            mb="8px"
-                                                        >
-                                                            {config.label}
-                                                        </Text>
-                                                        <Checkbox
-                                                            isChecked={vesselViewStatuses.has(statusKey)}
-                                                            onChange={() => handleVesselViewStatusToggle(statusKey)}
-                                                            size="md"
-                                                            colorScheme={config.color}
-                                                            borderColor="gray.600"
-                                                            sx={{
-                                                                "& .chakra-checkbox__control": {
-                                                                    borderColor: "gray.600",
-                                                                    _checked: {
-                                                                        borderColor: `${config.color}.500`,
-                                                                    },
-                                                                },
-                                                            }}
-                                                        />
-                                                    </Box>
-                                                ))}
-                                            </Flex>
-                                        </Box>
-                                    </Box>
-                                </Box>
-                            </TabPanel>
-
-                            {/* Tab 2: Stocklist By Client */}
-                            <TabPanel px="0" pt="20px">
-                                {/* Filters for By Client View */}
-                                <Box mb="20px">
-                                    <Box flex="0 0 auto" minW={{ base: "100%", lg: "400px" }}>
-                                        {/* Client Filter - Two Input Fields */}
-                                        <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-
-                                            <Flex direction="row" gap="4" align="stretch">
-                                                {/* Client ID Input */}
-                                                <FormControl>
-                                                    <Flex justify="space-between" align="center" >
+                                                    {/* Client Name Input (Auto-filled, Read-only) */}
+                                                    <FormControl>
                                                         <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
-                                                            Filter by Client ID
+                                                            Client Name
                                                         </FormLabel>
-                                                        {clientViewClient && (
-                                                            <Button
-                                                                size="xs"
-                                                                leftIcon={<Icon as={MdClose} />}
-                                                                colorScheme="red"
-                                                                variant="ghost"
-                                                                onClick={() => setClientViewClient(null)}
-                                                            >
-                                                                Clear Filter
-                                                            </Button>
-                                                        )}
-                                                    </Flex>
-                                                    <SimpleSearchableSelect
-                                                        value={clientViewClient}
-                                                        onChange={(value) => {
-                                                            setClientViewClient(value);
-                                                            // Client name will auto-fill via clientViewClientData
-                                                        }}
-                                                        options={clients}
-                                                        placeholder="Select Client ID"
-                                                        displayKey="id"
-                                                        valueKey="id"
-                                                        formatOption={(option) => `${option.id}`}
-                                                        isLoading={isLoadingClients}
-                                                        bg={inputBg}
-                                                        color={inputText}
-                                                        borderColor={borderColor}
-                                                        padding="18px"
-                                                    />
-                                                </FormControl>
-
-                                                {/* Client Name Input (Auto-filled, Read-only) */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
-                                                        Client Name
-                                                    </FormLabel>
-                                                    <Input
-                                                        value={clientViewClientData ? clientViewClientData.name : ""}
-                                                        placeholder="Client name will auto-fill when ID is selected"
-                                                        isReadOnly
-                                                        bg={inputBg}
-                                                        color={inputText}
-                                                        borderColor={borderColor}
-                                                        _focus={{ borderColor: borderColor }}
-                                                    />
-                                                </FormControl>
-                                            </Flex>
-                                        </Box>
-                                    </Box>
-                                    {/* Right Side: Status Filter Boxes */}
-                                    <Box flex="1" minW="0">
-                                        <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                                            <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                                CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                            </Text>
-                                            <Flex direction="row" flexWrap="wrap" gap="3" pb="2">
-                                                {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                                    <Box
-                                                        key={statusKey}
-                                                        p="4"
-                                                        minW="130px"
-                                                        flex="0 0 auto"
-                                                        bg={config.bgColor}
-                                                        borderRadius="md"
-                                                        border="1px"
-                                                        borderColor={borderColor}
-                                                    >
-                                                        <Text
-                                                            fontSize="xs"
-                                                            fontWeight="600"
-                                                            color={config.textColor}
-                                                            mb="8px"
-                                                        >
-                                                            {config.label}
-                                                        </Text>
-                                                        <Checkbox
-                                                            isChecked={clientViewStatuses.has(statusKey)}
-                                                            onChange={() => handleClientViewStatusToggle(statusKey)}
-                                                            size="md"
-                                                            colorScheme={config.color}
-                                                            borderColor="gray.600"
-                                                            sx={{
-                                                                "& .chakra-checkbox__control": {
-                                                                    borderColor: "gray.600",
-                                                                    _checked: {
-                                                                        borderColor: `${config.color}.500`,
-                                                                    },
-                                                                },
-                                                            }}
+                                                        <Input
+                                                            value={clientViewClientData ? clientViewClientData.name : ""}
+                                                            placeholder="Client name will auto-fill when ID is selected"
+                                                            isReadOnly
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            _focus={{ borderColor: borderColor }}
                                                         />
-                                                    </Box>
-                                                ))}
-                                            </Flex>
-                                            {/* Sorting Order Text */}
-                                            <Text fontSize="xs" color={textColor} mt="12px" opacity={0.7}>
-                                                Sorting order: AP Dest &gt; Via Hub &gt; Stock Status &gt; Date on Stock
-                                            </Text>
+                                                    </FormControl>
+                                                </Flex>
+                                            </Box>
+                                        </Box>
+                                        {/* Right Side: Status Filter Boxes */}
+                                        <Box flex="1" minW="0">
+                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                                    CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                                </Text>
+                                                <Flex direction="row" flexWrap="wrap" gap="3" pb="2">
+                                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                                        <Box
+                                                            key={statusKey}
+                                                            p="4"
+                                                            minW="130px"
+                                                            flex="0 0 auto"
+                                                            bg={config.bgColor}
+                                                            borderRadius="md"
+                                                            border="1px"
+                                                            borderColor={borderColor}
+                                                        >
+                                                            <Text
+                                                                fontSize="xs"
+                                                                fontWeight="600"
+                                                                color={config.textColor}
+                                                                mb="8px"
+                                                            >
+                                                                {config.label}
+                                                            </Text>
+                                                            <Checkbox
+                                                                isChecked={clientViewStatuses.has(statusKey)}
+                                                                onChange={() => handleClientViewStatusToggle(statusKey)}
+                                                                size="md"
+                                                                colorScheme={config.color}
+                                                                borderColor="gray.600"
+                                                                sx={{
+                                                                    "& .chakra-checkbox__control": {
+                                                                        borderColor: "gray.600",
+                                                                        _checked: {
+                                                                            borderColor: `${config.color}.500`,
+                                                                        },
+                                                                    },
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                    ))}
+                                                </Flex>
+                                                {/* Sorting Order Text */}
+                                                <Text fontSize="xs" color={textColor} mt="12px" opacity={0.7}>
+                                                    Sorting order: AP Dest &gt; Via Hub &gt; Stock Status &gt; Date on Stock
+                                                </Text>
+                                            </Box>
                                         </Box>
                                     </Box>
+                                </TabPanel>
+
+                            </TabPanels>
+                        </Tabs>
+                    </Box>
+                )}
+
+                {/* Tabs for Stock View and Client View */}
+                <Box px="25px" mb="20px">
+                    <Tabs index={activeTab} onChange={setActiveTab} variant="enclosed" colorScheme="blue">
+                        <TabList>
+                            <Tab>Stock View / Edit</Tab>
+                            <Tab>Stocklist view for clients</Tab>
+                        </TabList>
+
+                        <TabPanels>
+                            {/* Tab 1: Stock View / Edit */}
+                            <TabPanel px="0" pt="20px">
+                                {/* Status Filter Checkboxes Section */}
+                                <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
+                                    <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                        CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                    </Text>
+                                    <Flex flexWrap="wrap" gap="3" pb="2">
+                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                            <Box
+                                                key={statusKey}
+                                                p="4"
+                                                minW="130px"
+                                                flex="0 0 auto"
+                                                bg={config.bgColor}
+                                                borderRadius="md"
+                                                border="1px"
+                                                borderColor={borderColor}
+                                            >
+                                                <Text
+                                                    fontSize="xs"
+                                                    fontWeight="600"
+                                                    color={config.textColor}
+                                                    mb="8px"
+                                                >
+                                                    {config.label}
+                                                </Text>
+                                                <Checkbox
+                                                    isChecked={vesselViewStatuses.has(statusKey)}
+                                                    onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                    size="md"
+                                                    colorScheme={config.color}
+                                                    borderColor="gray.600"
+                                                    sx={{
+                                                        "& .chakra-checkbox__control": {
+                                                            borderColor: "gray.600",
+                                                            _checked: {
+                                                                borderColor: `${config.color}.500`,
+                                                            },
+                                                        },
+                                                    }}
+                                                />
+                                            </Box>
+                                        ))}
+                                    </Flex>
+                                </Card>
+
+                                {/* Table with fields in exact order from image */}
+                                <Box overflowX="auto">
+                                    <Table size="sm" minW="6000px">
+                                        <Thead bg={tableHeaderBg}>
+                                            <Tr>
+                                                <Th {...headerProps}>VESSEL</Th>
+                                                <Th {...headerProps}>STOCKITEMID</Th>
+                                                <Th {...headerProps}>SUPPLIER</Th>
+                                                <Th {...headerProps}>PO NUMBER</Th>
+                                                <Th {...headerProps}>SO NUMBER</Th>
+                                                <Th {...headerProps}>SI NUMBER</Th>
+                                                <Th {...headerProps}>SI COMBINED</Th>
+                                                <Th {...headerProps}>DI NUMBER</Th>
+                                                <Th {...headerProps}>STOCK STATUS</Th>
+                                                <Th {...headerProps}>ORIGIN</Th>
+                                                <Th {...headerProps}>VIA HUB 1</Th>
+                                                <Th {...headerProps}>VIA HUB 2</Th>
+                                                <Th {...headerProps}>AP DESTINATION</Th>
+                                                <Th {...headerProps}>DESTINATION</Th>
+                                                <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                <Th {...headerProps}>DATE ON STOCK</Th>
+                                                <Th {...headerProps}>SHIPPED DATE</Th>
+                                                <Th {...headerProps}>DELIVERED DATE</Th>
+                                                <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                <Th {...headerProps}>EXPORT DOCS</Th>
+                                                <Th {...headerProps}>REMARKS</Th>
+                                                <Th {...headerProps}>ITEMS</Th>
+                                                <Th {...headerProps}>WEIGHT KGS</Th>
+                                                <Th {...headerProps}>LENGTH CM</Th>
+                                                <Th {...headerProps}>WIDTH CM</Th>
+                                                <Th {...headerProps}>HEIGHT CM</Th>
+                                                <Th {...headerProps}>VOLUME NO DIM</Th>
+                                                <Th {...headerProps}>LWH TEXT</Th>
+                                                <Th {...headerProps}>VOLUME CBM</Th>
+                                                <Th {...headerProps}>CURRENCY</Th>
+                                                <Th {...headerProps}>VALUE</Th>
+                                                <Th {...headerProps}>CLIENT</Th>
+                                                <Th {...headerProps}>INTERNAL REMARKS</Th>
+                                                <Th {...headerProps}>FILES</Th>
+                                                <Th {...headerProps}>ACTIONS</Th>
+                                            </Tr>
+                                        </Thead>
+                                        <Tbody>
+                                            {getFilteredStockByStatus().map((item, index) => {
+                                                const statusStyle = getStatusStyle(item.stock_status);
+                                                const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                return (
+                                                    <Tr key={item.id} bg={rowBg}>
+                                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text></Td>
+                                                        <Td {...cellProps}>
+                                                            <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
+                                                                {renderText(item.stock_status)}
+                                                            </Badge>
+                                                        </Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text></Td>
+                                                        <Td {...cellProps}>
+                                                            <Button size="xs" variant="outline" colorScheme="blue">
+                                                                Files
+                                                            </Button>
+                                                        </Td>
+                                                        <Td {...cellProps}>
+                                                            <IconButton
+                                                                icon={<Icon as={MdEdit} />}
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                colorScheme="blue"
+                                                                onClick={() => handleEditItem(item)}
+                                                                aria-label="Edit"
+                                                            />
+                                                        </Td>
+                                                    </Tr>
+                                                );
+                                            })}
+                                        </Tbody>
+                                    </Table>
                                 </Box>
                             </TabPanel>
 
+                            {/* Tab 2: Stocklist view for clients */}
+                            <TabPanel px="0" pt="20px">
+                                {/* Status Filter Checkboxes Section for Client View */}
+                                <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
+                                    <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                        CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
+                                    </Text>
+                                    <Flex flexWrap="wrap" gap="3" pb="2">
+                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
+                                            <Box
+                                                key={statusKey}
+                                                p="4"
+                                                minW="130px"
+                                                flex="0 0 auto"
+                                                bg={config.bgColor}
+                                                borderRadius="md"
+                                                border="1px"
+                                                borderColor={borderColor}
+                                            >
+                                                <Text
+                                                    fontSize="xs"
+                                                    fontWeight="600"
+                                                    color={config.textColor}
+                                                    mb="8px"
+                                                >
+                                                    {config.label}
+                                                </Text>
+                                                <Checkbox
+                                                    isChecked={vesselViewStatuses.has(statusKey)}
+                                                    onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                    size="md"
+                                                    colorScheme={config.color}
+                                                    borderColor="gray.600"
+                                                    sx={{
+                                                        "& .chakra-checkbox__control": {
+                                                            borderColor: "gray.600",
+                                                            _checked: {
+                                                                borderColor: `${config.color}.500`,
+                                                            },
+                                                        },
+                                                    }}
+                                                />
+                                            </Box>
+                                        ))}
+                                    </Flex>
+                                </Card>
+
+                                {/* Table with fields for client view only */}
+                                <Box overflowX="auto">
+                                    <Table variant="striped" size="sm" minW="5000px">
+                                        <Thead bg={tableHeaderBg}>
+                                            <Tr>
+                                                <Th {...headerProps}>VESSEL</Th>
+                                                <Th {...headerProps}>SUPPLIER</Th>
+                                                <Th {...headerProps}>PO NUMBER</Th>
+                                                <Th {...headerProps}>STOCK STATUS</Th>
+                                                <Th {...headerProps}>ORIGIN</Th>
+                                                <Th {...headerProps}>VIA HUB 1</Th>
+                                                <Th {...headerProps}>VIA HUB 2</Th>
+                                                <Th {...headerProps}>AP DESTINATION</Th>
+                                                <Th {...headerProps}>DESTINATION</Th>
+                                                <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                <Th {...headerProps}>DATE ON STOCK</Th>
+                                                <Th {...headerProps}>SHIPPED DATE</Th>
+                                                <Th {...headerProps}>DELIVERED DATE</Th>
+                                                <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                <Th {...headerProps}>EXPORT DOCS</Th>
+                                                <Th {...headerProps}>REMARKS</Th>
+                                                <Th {...headerProps}>ITEMS</Th>
+                                                <Th {...headerProps}>WEIGHT KGS</Th>
+                                                <Th {...headerProps}>LENGTH CM</Th>
+                                                <Th {...headerProps}>WIDTH CM</Th>
+                                                <Th {...headerProps}>HEIGHT CM</Th>
+                                                <Th {...headerProps}>VOLUME NO DIM</Th>
+                                                <Th {...headerProps}>LWH TEXT</Th>
+                                                <Th {...headerProps}>VOLUME CBM</Th>
+                                                <Th {...headerProps}>CURRENCY</Th>
+                                                <Th {...headerProps}>VALUE</Th>
+                                                <Th {...headerProps}>FILES</Th>
+                                            </Tr>
+                                        </Thead>
+                                        <Tbody>
+                                            {getFilteredStockByStatus().map((item, index) => {
+                                                const statusStyle = getStatusStyle(item.stock_status);
+                                                const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                return (
+                                                    <Tr key={item.id} bg={rowBg}>
+                                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                                        <Td {...cellProps}>
+                                                            <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
+                                                                {renderText(item.stock_status)}
+                                                            </Badge>
+                                                        </Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                                        <Td {...cellProps}>
+                                                            <Button size="xs" variant="outline" colorScheme="blue">
+                                                                Files
+                                                            </Button>
+                                                        </Td>
+                                                    </Tr>
+                                                );
+                                            })}
+                                        </Tbody>
+                                    </Table>
+                                </Box>
+                            </TabPanel>
                         </TabPanels>
                     </Tabs>
                 </Box>
 
-                {(
+                {/* Remove bulk actions and old table - keeping only status filter and new table above */}
+                {false && (
                     <>
                         {/* Bulk Action Buttons - Show one set at a time */}
                         {(selectedRows.size > 0 || editingRowIds.size > 0) && (

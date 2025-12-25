@@ -20,7 +20,7 @@ import {
   IconButton,
   useToast,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy } from "react-icons/md";
+import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -42,6 +42,36 @@ const prettyValue = (value) => {
     return "-";
   }
   return value;
+};
+
+// Helper to validate and normalize URLs
+const isValidUrl = (string) => {
+  if (!string || typeof string !== "string") return false;
+  const trimmed = string.trim();
+  if (trimmed === "") return false;
+
+  try {
+    // Try to create a URL object - this validates the URL format
+    let urlString = trimmed;
+    // If URL doesn't start with http:// or https://, add https://
+    if (!/^https?:\/\//i.test(urlString)) {
+      urlString = `https://${urlString}`;
+    }
+    new URL(urlString);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+// Helper to normalize URL (add https:// if missing)
+const normalizeUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
 };
 
 // Normalize approval values to boolean
@@ -591,6 +621,23 @@ const AgentDetail = () => {
             <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint}>
               Print
             </Button>
+            {agent && (
+              <Button
+                leftIcon={<Icon as={MdEdit} />}
+                colorScheme="blue"
+                onClick={() => {
+                  const agentId = agent.id || agent.agent_id || agent.vendor_id || id;
+                  if (agentId) {
+                    history.push({
+                      pathname: `/admin/vendor-registration/${agentId}`,
+                      state: { vendorData: agent }
+                    });
+                  }
+                }}
+              >
+                Edit Agent
+              </Button>
+            )}
             <Button onClick={() => history.push("/admin/contacts/agents")}>Back to Agents</Button>
           </Flex>
         </Flex>
@@ -709,6 +756,45 @@ const AgentDetail = () => {
                   const renderRow = (item) => {
                     const { key } = item;
                     const rawValue = getRawValue(item);
+                    const displayValue = prettyValue(rawValue);
+
+                    // Special handling for website field - make it clickable if valid URL
+                    if (key === "website" && isValidUrl(rawValue)) {
+                      const normalizedUrl = normalizeUrl(rawValue);
+                      return (
+                        <Flex
+                          key={key}
+                          px={4}
+                          py={2}
+                          borderColor={borderColor}
+                          justifyContent="flex-start"
+                          alignItems="center"
+                          gap={2}
+                        >
+                          <Text
+                            fontSize="sm"
+                            color={valueColor}
+                            whiteSpace="nowrap"
+                            overflow="hidden"
+                            textOverflow="ellipsis"
+                            maxW="180px"
+                          >
+                            {displayValue}
+                          </Text>
+                          <Button
+                            size="xs"
+                            colorScheme="blue"
+                            variant="outline"
+                            leftIcon={<Icon as={MdOpenInNew} />}
+                            onClick={() => window.open(normalizedUrl, "_blank", "noopener,noreferrer")}
+                          >
+                            Visit
+                          </Button>
+                        </Flex>
+                      );
+                    }
+
+                    // Default rendering for other fields
                     return (
                       <Flex
                         key={key}
@@ -720,9 +806,9 @@ const AgentDetail = () => {
                         gap={2}
                       >
                         <Tooltip
-                          label={prettyValue(rawValue)}
+                          label={displayValue}
                           hasArrow
-                          isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
+                          isDisabled={!displayValue || String(displayValue).length <= 30}
                         >
                           <Text
                             fontSize="sm"
@@ -732,7 +818,7 @@ const AgentDetail = () => {
                             textOverflow="ellipsis"
                             maxW="220px"
                           >
-                            {prettyValue(rawValue)}
+                            {displayValue}
                           </Text>
                         </Tooltip>
                       </Flex>
