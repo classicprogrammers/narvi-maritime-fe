@@ -36,12 +36,15 @@ import {
     MdAdd,
     MdContentCopy,
     MdDelete,
+    MdAttachFile,
+    MdClose as MdRemove,
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
+import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -79,7 +82,7 @@ export default function StockForm() {
         stockItemId: "",
         client: "",
         vessel: "",
-        pic: "",
+        pic: null, // PIC ID
         stockStatus: "",
         supplier: "",
         // Allow multiple PO numbers via multi-line text (one per line)
@@ -108,10 +111,13 @@ export default function StockForm() {
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel
         destination: "", // Auto-filled from vessel (destination field)
-        apDestination: "", // Auto-filled from vessel destination
+        apDestination: "", // AP Destination - Free text
         itemId: "",
         item: 1,
         volumeCbm: "",
+        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+        attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
+        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
     });
 
     // Form state - array of rows
@@ -280,6 +286,36 @@ export default function StockForm() {
                 });
             } finally {
                 setIsLoadingCountries(false);
+            }
+
+            // Fetch PICs
+            try {
+                setIsLoadingPICs(true);
+                const response = await picAPI.getPICs();
+                let picList = [];
+                if (response && response.persons && Array.isArray(response.persons)) {
+                    picList = response.persons;
+                } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
+                    picList = response.result.persons;
+                } else if (Array.isArray(response)) {
+                    picList = response;
+                }
+                const normalizedPICs = picList.map((pic) => ({
+                    id: pic.id,
+                    name: pic.name || "",
+                }));
+                setPics(normalizedPICs);
+            } catch (error) {
+                console.error('Failed to fetch PICs:', error);
+                toast({
+                    title: 'Warning',
+                    description: 'Failed to load PICs',
+                    status: 'warning',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingPICs(false);
             }
         };
 
@@ -455,34 +491,6 @@ export default function StockForm() {
         );
     }, [clients]);
 
-    // Normalize PIC IDs when clients are loaded (PIC uses clients array)
-    useEffect(() => {
-        if (!clients.length) return;
-        setFormRows((prevRows) =>
-            prevRows.map((row) => {
-                if (!row.pic || row.pic === "" || row.pic === false) {
-                    return row;
-                }
-                const normalizedValue = String(row.pic);
-                // Try exact ID match first
-                const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
-                if (exactMatch) {
-                    console.log("Found PIC match:", exactMatch.id, "for value:", normalizedValue);
-                    return { ...row, pic: String(exactMatch.id) };
-                }
-                // Try fallback matching by name
-                const fallbackMatch = clients.find(
-                    (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                if (fallbackMatch) {
-                    console.log("Found PIC fallback match:", fallbackMatch.id, "for value:", normalizedValue);
-                    return { ...row, pic: String(fallbackMatch.id) };
-                }
-                console.log("No PIC match found for value:", normalizedValue, "Available clients:", clients.map(c => ({ id: c.id, name: c.name })));
-                return row;
-            })
-        );
-    }, [clients]);
 
     const toNumber = (value) => {
         if (value === "" || value === null || value === undefined) {
@@ -512,11 +520,11 @@ export default function StockForm() {
             stockItemId: getFieldValue(stock.stock_item_id),
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            pic: normalizeId(stock.pic_id) || normalizeId(stock.pic) || "",
+            pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null,
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number),
-            warehouseId: getFieldValue(stock.warehouse_id),
+            warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
@@ -532,7 +540,10 @@ export default function StockForm() {
             value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
-            viaHub: getFieldValue(stock.via_hub, ""), // Free text field
+            viaHub: getFieldValue(stock.via_hub, ""),
+            attachments: [], // New uploads will be added here
+            attachmentsToDelete: [], // IDs of attachments to delete
+            existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API // Free text field
             viaHub2: getFieldValue(stock.via_hub2, ""), // Free text field
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
@@ -541,8 +552,8 @@ export default function StockForm() {
             // Internal fields for API payload (auto-filled or from data)
             vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta),
-            destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || "",
-            apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
+            destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
+            apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
             itemId: normalizeId(stock.item_id) || "",
             item: toNumber(stock.item) || 1,
             volumeCbm: getFieldValue(stock.volume_cbm, ""),
@@ -552,6 +563,66 @@ export default function StockForm() {
             return rowData;
         }
         setFormRows([rowData]);
+    };
+
+    // Handle file upload for attachments
+    const handleFileUpload = (rowIndex, files) => {
+        const fileArray = Array.from(files || []);
+        const filePromises = fileArray.map(file => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result || '';
+                // Extract base64 data without data URL prefix
+                const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
+                resolve({ 
+                    filename: file.name, 
+                    datas: base64data, 
+                    mimetype: file.type || 'application/octet-stream' 
+                });
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(filePromises).then(newAttachments => {
+            setFormRows(prevRows => prevRows.map((row, idx) => {
+                if (idx === rowIndex) {
+                    return {
+                        ...row,
+                        attachments: [...(row.attachments || []), ...newAttachments]
+                    };
+                }
+                return row;
+            }));
+        });
+    };
+
+    // Handle attachment deletion (for new uploads)
+    const handleDeleteAttachment = (rowIndex, attachmentIndex) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const newAttachments = [...(row.attachments || [])];
+                newAttachments.splice(attachmentIndex, 1);
+                return { ...row, attachments: newAttachments };
+            }
+            return row;
+        }));
+    };
+
+    // Handle existing attachment deletion (marks for deletion in API)
+    const handleDeleteExistingAttachment = (rowIndex, attachmentId) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const existingAttachments = [...(row.existingAttachments || [])];
+                const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
+                const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
+                return { 
+                    ...row, 
+                    existingAttachments: updatedAttachments,
+                    attachmentsToDelete: attachmentsToDelete
+                };
+            }
+            return row;
+        }));
     };
 
     const handleInputChange = (rowIndex, field, value) => {
@@ -655,13 +726,15 @@ export default function StockForm() {
             // Send raw text plus parsed array of PO numbers (one per line)
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
-            pic_id: rowData.pic ? String(rowData.pic) : "",
+            pic_new: rowData.pic ? String(rowData.pic) : false,
             item_id: rowData.itemId ? String(rowData.itemId) : "",
             item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
-            ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
+            ap_destination_new: rowData.apDestination || "",
             via_hub: rowData.viaHub || "", // Free text field
+            attachments: rowData.attachments || [], // Include attachments in payload
+            attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             via_hub2: rowData.viaHub2 || "", // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
@@ -679,8 +752,8 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
-            destination: rowData.destination ? String(rowData.destination) : "",
-            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "",
+            destination_new: rowData.destination || "",
+            warehouse_new: rowData.warehouseId || "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
             exp_ready_in_stock: rowData.expReadyInStock || "",
@@ -1009,7 +1082,8 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
                             </Tr>
                         </Thead>
@@ -1059,17 +1133,21 @@ export default function StockForm() {
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
-                                            value={row.pic}
-                                            onChange={(value) => handleInputChange(rowIndex, "pic", value)}
-                                            options={clients}
+                                            value={row.pic ? String(row.pic) : null}
+                                            onChange={(value) => {
+                                                // Store the PIC ID
+                                                handleInputChange(rowIndex, "pic", value ? String(value) : null);
+                                            }}
+                                            options={pics}
                                             placeholder="Select PIC"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `PIC ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                            isLoading={isLoadingPICs}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            size="sm"
                                         />
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
@@ -1357,6 +1435,69 @@ export default function StockForm() {
                                             <option value="false">No</option>
                                             <option value="true">Yes</option>
                                         </Select>
+                                    </Td>
+                                    {/* Files - Upload/Download button */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <VStack spacing={2} align="stretch">
+                                            {/* File Upload Input */}
+                                            <Input
+                                                type="file"
+                                                multiple
+                                                size="sm"
+                                                onChange={(e) => handleFileUpload(rowIndex, e.target.files)}
+                                                accept="application/pdf,image/*,.doc,.docx"
+                                                display="none"
+                                                id={`file-upload-form-${rowIndex}`}
+                                                style={{ display: 'none' }}
+                                            />
+                                            <label htmlFor={`file-upload-form-${rowIndex}`}>
+                                                <Button
+                                                    as="span"
+                                                    size="xs"
+                                                    variant="outline"
+                                                    colorScheme="blue"
+                                                    leftIcon={<Icon as={MdAttachFile} />}
+                                                    cursor="pointer"
+                                                    w="100%"
+                                                >
+                                                    Upload Files
+                                                </Button>
+                                            </label>
+                                            
+                                            {/* Display existing attachments */}
+                                            {(row.existingAttachments || []).map((att, attIdx) => (
+                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs">
+                                                    <Text isTruncated flex={1} title={att.filename}>
+                                                        {att.filename}
+                                                    </Text>
+                                                    <IconButton
+                                                        aria-label="Delete attachment"
+                                                        icon={<MdRemove />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        colorScheme="red"
+                                                        onClick={() => handleDeleteExistingAttachment(rowIndex, att.id)}
+                                                    />
+                                                </Flex>
+                                            ))}
+                                            
+                                            {/* Display newly uploaded attachments */}
+                                            {(row.attachments || []).map((att, attIdx) => (
+                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs">
+                                                    <Text isTruncated flex={1} title={att.filename}>
+                                                        {att.filename}
+                                                    </Text>
+                                                    <IconButton
+                                                        aria-label="Remove attachment"
+                                                        icon={<MdRemove />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        colorScheme="red"
+                                                        onClick={() => handleDeleteAttachment(rowIndex, attIdx)}
+                                                    />
+                                                </Flex>
+                                            ))}
+                                        </VStack>
                                     </Td>
                                     <Td px="8px" py="8px">
                                         <HStack spacing="2">

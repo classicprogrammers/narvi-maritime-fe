@@ -94,7 +94,7 @@ export default function Vessels() {
     vessel_type: "",
     attachments: [],
     // For updates: IDs of existing attachments the user removed
-    attachments_to_delete: [],
+    attachment_to_delete: [],
   });
 
   const [previewFile, setPreviewFile] = useState(null);
@@ -225,7 +225,7 @@ export default function Vessels() {
       imo: "",
       vessel_type: "",
       attachments: [],
-      attachments_to_delete: [],
+      attachment_to_delete: [],
     });
     setEditingVessel(null);
     setPreviewFile(null);
@@ -257,7 +257,7 @@ export default function Vessels() {
         vessel_type: vesselInfo.vessel_type || "",
         attachments: vesselInfo.attachments || [],
         // Start with nothing marked for deletion
-        attachments_to_delete: [],
+        attachment_to_delete: [],
       });
       setEditingVessel({ ...vessel, ...vesselInfo });
 
@@ -309,8 +309,8 @@ export default function Vessels() {
 
       if (editingVessel) {
         console.log('worded');
-        // Update existing vessel
-        const response = await vesselsAPI.updateVessel(finalFormData);
+        // Update existing vessel - pass original vessel data to only send changed fields
+        const response = await vesselsAPI.updateVessel(finalFormData, null, editingVessel);
 
         // Extract success message from API response
         let successMessage = "Vessel updated successfully";
@@ -901,7 +901,7 @@ export default function Vessels() {
                                   // If this attachment came from the backend and has an id,
                                   // track it so the API can delete it.
                                   const updatedAttachmentsToDelete = [
-                                    ...(prev.attachments_to_delete || []),
+                                    ...(prev.attachment_to_delete || []),
                                   ];
 
                                   if (attachmentToRemove && attachmentToRemove.id) {
@@ -911,7 +911,7 @@ export default function Vessels() {
                                   return {
                                     ...prev,
                                     attachments: updatedAttachments,
-                                    attachments_to_delete: updatedAttachmentsToDelete,
+                                    attachment_to_delete: updatedAttachmentsToDelete,
                                   };
                                 });
                               }}

@@ -275,15 +275,24 @@ export default function VendorsTable(props) {
       if (Array.isArray(item.agent_cnee_ids) && item.agent_cnee_ids.length > 0) {
         cneeCount = item.agent_cnee_ids.length;
         item.agent_cnee_ids.forEach((cneeItem) => {
-          const cneeType = cneeItem.cnee || "air";
+          const cneeType = cneeItem.cnee_type || "cargo";
           let typeLabel = "";
-          if (cneeType === "air") typeLabel = "Air freight";
-          else if (cneeType === "cargo") typeLabel = "Cargo freight";
-          else if (cneeType === "ocean_freight") typeLabel = "Ocean freight";
+          if (cneeType === "air") typeLabel = "Air Freight";
+          else if (cneeType === "cargo") typeLabel = "Cargo Freight";
+          else if (cneeType === "ocean_freight") typeLabel = "Ocean Freight";
           else typeLabel = String(cneeType);
 
+          const cnee1 = cneeItem.cnee1 ? String(cneeItem.cnee1).trim() : "";
           const cneeText = cneeItem.cnee_text ? String(cneeItem.cnee_text).trim() : "";
-          const displayName = cneeText ? `${typeLabel}: ${cneeText}` : typeLabel;
+          let displayName = "";
+          if (cnee1) {
+            displayName = `${cnee1} (${typeLabel})`;
+          } else {
+            displayName = typeLabel;
+          }
+          if (cneeText) {
+            displayName += `: ${cneeText}`;
+          }
           cneeDisplay.push(displayName);
         });
       } else {

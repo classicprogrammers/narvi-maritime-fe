@@ -56,7 +56,7 @@ import {
   getDestinationsForSelect,
 } from "../../../api/entitySelects";
 import quotationsAPI from "../../../api/quotations";
-import { listUsersApi } from "../../../api/users";
+import picAPI from "../../../api/pic";
 import countriesAPI from "../../../api/countries";
 import {
   getShippingOrders,
@@ -115,13 +115,13 @@ const SoNumberTab = () => {
   const [vessels, setVessels] = useState([]);
   const [destinations, setDestinations] = useState([]);
   const [quotations, setQuotations] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [pics, setPics] = useState([]);
   const [countries, setCountries] = useState([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [isLoadingVessels, setIsLoadingVessels] = useState(false);
   const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingPICs, setIsLoadingPICs] = useState(false);
   const [isLoadingCountries, setIsLoadingCountries] = useState(false);
 
   const formDisclosure = useDisclosure();
@@ -146,7 +146,7 @@ const SoNumberTab = () => {
       date_created: todayDate,
       // Default status when creating a new SO
       done: "pending_pod",
-      pic_id: null,
+      pic_new: null,
       client: "",
       client_id: null,
       vessel_name: "",
@@ -186,7 +186,7 @@ const SoNumberTab = () => {
           : order.done === true
             ? "active"
             : "pending_pod",
-      pic_id: order.pic_id || order.pic || null,
+      pic_new: order.pic_new || order.pic_id || order.pic || null,
       pic_name: order.pic_name || order.pic || "",
       client: order.client || order.client_name || "",
       client_id: order.client_id || order.partner_id || null,
@@ -319,43 +319,39 @@ const SoNumberTab = () => {
     fetchQuotations();
   }, []);
 
-  // Fetch users for Person in Charge field
+  // Fetch PICs for Person in Charge field
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchPICs = async () => {
       try {
-        setIsLoadingUsers(true);
-        const data = await listUsersApi();
+        setIsLoadingPICs(true);
+        const response = await picAPI.getPICs();
 
-        // Normalize possible response shapes
-        const list =
-          Array.isArray(data) ? data :
-            Array.isArray(data?.users) ? data.users :
-              Array.isArray(data?.result) ? data.result :
-                Array.isArray(data?.data) ? data.data :
-                  [];
+        // Handle API response format: { status: "success", count: 1, persons: [...] }
+        let picList = [];
+        if (response && response.persons && Array.isArray(response.persons)) {
+          picList = response.persons;
+        } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
+          picList = response.result.persons;
+        } else if (Array.isArray(response)) {
+          picList = response;
+        }
 
-        const normalizedUsers = list
-          .map((u, idx) => ({
-            id: u.id ?? u.user_id ?? idx + 1,
-            name: u.name ?? u.full_name ?? "",
-            email: u.email ?? u.login ?? "",
-            active: typeof u.active === "boolean"
-              ? u.active
-              : (u.status ? String(u.status).toLowerCase() === "active" : true),
-            ...u,
-          }))
-          .filter((u) => u.active);
+        // Normalize PICs for the dropdown
+        const normalizedPICs = picList.map((pic) => ({
+          id: pic.id,
+          name: pic.name || "",
+        }));
 
-        setUsers(normalizedUsers);
+        setPics(normalizedPICs);
       } catch (error) {
-        console.error("Failed to fetch users for PIC field", error);
-        setUsers([]);
+        console.error("Failed to fetch PICs for PIC field", error);
+        setPics([]);
       } finally {
-        setIsLoadingUsers(false);
+        setIsLoadingPICs(false);
       }
     };
 
-    fetchUsers();
+    fetchPICs();
   }, []);
 
   // Fetch countries for destination country dropdown
@@ -432,11 +428,11 @@ const SoNumberTab = () => {
     return "-";
   }, [getCountryName, getDestinationName]);
 
-  const getUserName = useCallback((userId) => {
-    if (!userId) return "-";
-    const user = users.find((u) => u.id === userId);
-    return user ? user.name : "-";
-  }, [users]);
+  const getPICName = useCallback((picId) => {
+    if (!picId) return "-";
+    const pic = pics.find((p) => p.id === picId);
+    return pic ? pic.name : "-";
+  }, [pics]);
 
   const filteredOrders = useMemo(() => {
     if (!searchValue) return orders;
@@ -448,7 +444,7 @@ const SoNumberTab = () => {
         getVesselName(order.vessel_id),
         getClientName(order.client_id),
         getDestinationDisplay(order),
-        getUserName(order.pic_id) || order.pic_name,
+        getPICName(order.pic_new) || order.pic_name,
         order.internal_remark,
         order.client_remark,
         order.deadline_info,
@@ -458,7 +454,7 @@ const SoNumberTab = () => {
         value ? value.toString().toLowerCase().includes(lowered) : false
       );
     });
-  }, [orders, searchValue, getClientName, getVesselName, getDestinationDisplay, getUserName]);
+  }, [orders, searchValue, getClientName, getVesselName, getDestinationDisplay, getPICName]);
 
   const handleCreate = () => {
     setEditingOrder(null);
@@ -548,7 +544,7 @@ const SoNumberTab = () => {
       ...(data.destination_id && { destination_id: data.destination_id }),
       // Status and meta - send status as selected in UI; default already set in resetForm
       done: data.done || "pending_pod",
-      pic_id: data.pic_id || null,
+      pic_new: data.pic_new || null,
       // Backend expects empty string when no quotation is linked
       quotation_id:
         data.quotation_id === null || data.quotation_id === undefined
@@ -686,7 +682,7 @@ const SoNumberTab = () => {
                       : "Active"}
           </Badge>
         </Td>
-        <Td>{getUserName(order.pic_id) || order.pic_name || "-"}</Td>
+        <Td>{getPICName(order.pic_new) || order.pic_name || "-"}</Td>
         <Td>{getClientName(order.client_id)}</Td>
         <Td>{getVesselName(order.vessel_id)}</Td>
         <Td>{getDestinationDisplay(order)}</Td>
@@ -879,15 +875,15 @@ const SoNumberTab = () => {
                     <FormControl flex="1" minW="220px">
                       <FormLabel>Person in Charge</FormLabel>
                       <SimpleSearchableSelect
-                        value={formData.pic_id}
+                        value={formData.pic_new}
                         onChange={(value) =>
-                          setFormData((prev) => ({ ...prev, pic_id: value }))
+                          setFormData((prev) => ({ ...prev, pic_new: value }))
                         }
-                        options={users}
+                        options={pics}
                         placeholder="Select person in charge"
                         displayKey="name"
                         valueKey="id"
-                        isLoading={isLoadingUsers}
+                        isLoading={isLoadingPICs}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}

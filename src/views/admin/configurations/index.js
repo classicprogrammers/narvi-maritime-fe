@@ -18,6 +18,7 @@ import {
   MdPublic,
   MdDirectionsBoat,
   MdPlace,
+  MdPerson,
 } from "react-icons/md";
 import { useHistory } from "react-router-dom";
 
@@ -121,6 +122,13 @@ export default function Configurations() {
       icon: MdPlace,
       path: "/admin/configurations/destinations",
       color: "orange",
+    },
+    {
+      title: "PIC (Person in Charge)",
+      description: "Manage persons in charge",
+      icon: MdPerson,
+      path: "/admin/configurations/pic",
+      color: "pink",
     },
   ];
 

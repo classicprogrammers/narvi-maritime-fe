@@ -34,7 +34,7 @@ import {
     Tooltip,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
-import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack } from "react-icons/md";
+import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack, MdOpenInNew, MdContentCopy } from "react-icons/md";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi } from "api/vendor";
@@ -88,6 +88,35 @@ const INITIAL_FORM_DATA = {
 
 // Helper functions
 const getValue = (val) => (val !== false && val !== null && val !== undefined) ? String(val) : "";
+
+// Validate URL
+const isValidUrl = (string) => {
+    try {
+        const url = new URL(string);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (_) {
+        // If URL doesn't start with http:// or https://, try adding https://
+        if (string && string.trim() !== '') {
+            try {
+                const url = new URL(string.startsWith('http') ? string : `https://${string}`);
+                return url.protocol === 'http:' || url.protocol === 'https:';
+            } catch (_) {
+                return false;
+            }
+        }
+        return false;
+    }
+};
+
+// Format URL for opening (add https:// if missing)
+const formatUrlForOpen = (url) => {
+    if (!url || url.trim() === '') return '';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+    }
+    return `https://${trimmed}`;
+};
 
 const convertApprovalValueToBoolean = (value) => {
     if (value === true || value === "true" || value === "1" || value === 1) return true;
@@ -333,7 +362,8 @@ function VendorRegistration() {
     // New CNEE rows structure (replaces flat cnee1–cnee12 UI)
     const emptyCneeRow = React.useMemo(
         () => ({
-            cnee: "air", // "air" | "cargo" | "ocean_freight"
+            cnee1: "", // Free text field
+            cnee_type: "cargo", // Select field: "cargo" | "air" | "ocean_freight"
             cnee_text: "",
             warnings: "",
             narvi_approved: false,
@@ -342,7 +372,8 @@ function VendorRegistration() {
     );
     const [cneeRows, setCneeRows] = React.useState([
         {
-            cnee: "air",
+            cnee1: "",
+            cnee_type: "cargo",
             cnee_text: "",
             warnings: "",
             narvi_approved: false,
@@ -402,8 +433,8 @@ function VendorRegistration() {
         setCneeRows(prev => prev.filter((_, idx) => idx !== rowIndex));
     };
 
-    const handleCopyCneeData = () => {
-        if (!cneeRows || cneeRows.length === 0) {
+    const handleCopySingleCneeData = (rowIndex) => {
+        if (!cneeRows || cneeRows.length === 0 || !cneeRows[rowIndex]) {
             toast({
                 title: "No CNEE information",
                 description: "There is no CNEE data to copy.",
@@ -414,29 +445,26 @@ function VendorRegistration() {
             return;
         }
 
+        const row = cneeRows[rowIndex];
+        const typeLabel = (() => {
+            if (row.cnee_type === "air") return "Air Freight";
+            if (row.cnee_type === "cargo") return "Cargo Freight";
+            if (row.cnee_type === "ocean_freight") return "Ocean Freight";
+            return String(row.cnee_type || "-");
+        })();
+
         const lines = [];
+        lines.push(`CNEE ${rowIndex + 1}: ${row.cnee1 || "-"}`);
+        lines.push(`CNEE TYPE: ${typeLabel}`);
+        lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
 
-        cneeRows.forEach((row, index) => {
-            const typeLabel = (() => {
-                if (row.cnee === "air") return "Air freight";
-                if (row.cnee === "cargo") return "Cargo freight";
-                if (row.cnee === "ocean_freight") return "Ocean freight";
-                return String(row.cnee || "-");
-            })();
+        if (row.cnee_text && String(row.cnee_text).trim() !== "") {
+            lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
+        }
 
-            lines.push(`CNEE ${index + 1}: ${typeLabel}`);
-            lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
-
-            if (row.cnee_text && String(row.cnee_text).trim() !== "") {
-                lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
-            }
-
-            if (row.warnings && String(row.warnings).trim() !== "") {
-                lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
-            }
-
-            lines.push("");
-        });
+        if (row.warnings && String(row.warnings).trim() !== "") {
+            lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
+        }
 
         const textToCopy = lines.join("\n").trim();
         if (!textToCopy) {
@@ -454,8 +482,8 @@ function VendorRegistration() {
             .writeText(textToCopy)
             .then(() => {
                 toast({
-                    title: "CNEE information copied",
-                    description: "You can now paste it into another CNEE field.",
+                    title: "CNEE information copied to clipboard",
+                    description: `CNEE ${rowIndex + 1} information has been copied.`,
                     status: "success",
                     duration: 2000,
                     isClosable: true,
@@ -561,7 +589,8 @@ function VendorRegistration() {
 
                 initialCneeRows = vendorData.agent_cnee_ids.map((item) => ({
                     _originalId: item.id,
-                    cnee: item.cnee || "air",
+                    cnee1: getValue(item.cnee1),
+                    cnee_type: item.cnee_type || "cargo",
                     cnee_text: getValue(item.cnee_text),
                     warnings: getValue(item.warnings),
                     narvi_approved: convertApprovalValueToBoolean(
@@ -773,7 +802,8 @@ function VendorRegistration() {
                 const hasOriginalId = !!originalId;
 
                 const base = {
-                    cnee: row.cnee,
+                    cnee1: row.cnee1 || "",
+                    cnee_type: row.cnee_type || "cargo",
                     cnee_text: row.cnee_text || "",
                     warnings: row.warnings || "",
                     narvi_maritime_approved_agent: !!row.narvi_approved,
@@ -796,7 +826,8 @@ function VendorRegistration() {
             // For new registration, just send plain items without id/op
             cneeRows.forEach((row) => {
                 items.push({
-                    cnee: row.cnee,
+                    cnee1: row.cnee1 || "",
+                    cnee_type: row.cnee_type || "cargo",
                     cnee_text: row.cnee_text || "",
                     warnings: row.warnings || "",
                     narvi_maritime_approved_agent: !!row.narvi_approved,
@@ -1294,7 +1325,22 @@ function VendorRegistration() {
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
-                                        <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" w={gridInputWidth} />
+                                        <Flex gap={2} w={gridInputWidth} alignItems="center">
+                                            <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" flex="1" />
+                                            {isValidUrl(formData.website) && (
+                                                <IconButton
+                                                    aria-label="Go to website"
+                                                    icon={<Icon as={MdOpenInNew} />}
+                                                    size="sm"
+                                                    colorScheme="blue"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        const url = formatUrlForOpen(formData.website);
+                                                        window.open(url, '_blank', 'noopener,noreferrer');
+                                                    }}
+                                                />
+                                            )}
+                                        </Flex>
                                     </Box>
 
                                     {/* LEFT: RegNo / RIGHT: Warnings */}
@@ -1389,13 +1435,6 @@ function VendorRegistration() {
                                             <Button
                                                 size="xs"
                                                 variant="outline"
-                                                onClick={handleCopyCneeData}
-                                            >
-                                                Copy CNEE
-                                            </Button>
-                                            <Button
-                                                size="xs"
-                                                variant="outline"
                                                 leftIcon={<Icon as={MdAdd} />}
                                                 onClick={addCneeRow}
                                                 isDisabled={cneeRows.length >= MAX_CNEE_FIELDS}
@@ -1414,8 +1453,16 @@ function VendorRegistration() {
                                             px={4}
                                             py={3}
                                         >
-                                            {cneeRows.length > 1 && (
-                                                <Flex justify="flex-end" mb={2}>
+                                            <Flex justify="flex-end" mb={2} gap={2}>
+                                                <Button
+                                                    size="xs"
+                                                    variant="outline"
+                                                    leftIcon={<Icon as={MdContentCopy} />}
+                                                    onClick={() => handleCopySingleCneeData(rowIndex)}
+                                                >
+                                                    Copy CNEE {rowIndex + 1} information to the clipboard
+                                                </Button>
+                                                {cneeRows.length > 1 && (
                                                     <IconButton
                                                         aria-label="Remove CNEE"
                                                         icon={<DeleteIcon />}
@@ -1424,11 +1471,11 @@ function VendorRegistration() {
                                                         variant="ghost"
                                                         onClick={() => removeCneeRow(rowIndex)}
                                                     />
-                                                </Flex>
-                                            )}
+                                                )}
+                                            </Flex>
 
                                             <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }} columnGap={4} rowGap={3}>
-                                                {/* CNEE Type */}
+                                                {/* CNEE1 - Free Text */}
                                                 <Box
                                                     display="flex"
                                                     justifyContent="space-between"
@@ -1442,26 +1489,24 @@ function VendorRegistration() {
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
                                                     >
-                                                        {`CNEE ${rowIndex + 1}`}
+                                                        CNEE1
                                                     </Text>
-                                                    <Select
-                                                        value={row.cnee}
-                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee", e.target.value)}
+                                                    <Input
+                                                        value={row.cnee1 || ""}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee1", e.target.value)}
+                                                        placeholder="Enter CNEE1 (free text)"
                                                         size="sm"
                                                         w={gridInputWidth}
-                                                    >
-                                                        <option value="air">Air freight</option>
-                                                        <option value="cargo">Cargo freight</option>
-                                                        <option value="ocean_freight">Ocean freight</option>
-                                                    </Select>
+                                                    />
                                                 </Box>
 
-                                                {/* Approved checkbox */}
+                                                {/* CNEE Type - Select */}
                                                 <Box
                                                     display="flex"
                                                     justifyContent="space-between"
                                                     alignItems="center"
                                                     gap={2}
+                                                    mb={{ base: 3, md: 0 }}
                                                 >
                                                     <Text
                                                         fontSize="xs"
@@ -1469,15 +1514,21 @@ function VendorRegistration() {
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
                                                     >
-                                                        Narvi Maritime Approved
+                                                        CNEE Type
                                                     </Text>
-                                                    <Checkbox
-                                                        isChecked={!!row.narvi_approved}
-                                                        onChange={(e) => updateCneeRow(rowIndex, "narvi_approved", e.target.checked)}
-                                                        size="md"
-                                                        colorScheme="blue"
-                                                    />
+                                                    <Select
+                                                        value={row.cnee_type || "cargo"}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee_type", e.target.value)}
+                                                        size="sm"
+                                                        w={gridInputWidth}
+                                                    >
+                                                        <option value="cargo">Cargo Freight</option>
+                                                        <option value="air">Air Freight</option>
+                                                        <option value="ocean_freight">Ocean Freight</option>
+                                                    </Select>
                                                 </Box>
+
+
 
                                                 {/* CNEE Text */}
                                                 <Box
@@ -1502,7 +1553,7 @@ function VendorRegistration() {
                                                         placeholder="Enter CNEE notes / free text"
                                                         size="sm"
                                                         w={gridInputWidth}
-                                                        rows={2}
+                                                        rows={3}
                                                         resize="vertical"
                                                     />
                                                 </Box>
@@ -1530,8 +1581,31 @@ function VendorRegistration() {
                                                         placeholder="Enter warnings for this CNEE type"
                                                         size="sm"
                                                         w={gridInputWidth}
-                                                        rows={2}
+                                                        rows={3}
                                                         resize="vertical"
+                                                    />
+                                                </Box>
+
+                                                {/* Approved checkbox */}
+                                                <Box
+                                                    display="flex"
+                                                    justifyContent="space-between"
+                                                    alignItems="center"
+                                                    gap={2}
+                                                >
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        color={textColorSecondary}
+                                                    >
+                                                        Narvi Maritime Approved
+                                                    </Text>
+                                                    <Checkbox
+                                                        isChecked={!!row.narvi_approved}
+                                                        onChange={(e) => updateCneeRow(rowIndex, "narvi_approved", e.target.checked)}
+                                                        size="md"
+                                                        colorScheme="blue"
                                                     />
                                                 </Box>
                                             </Box>

@@ -61,7 +61,7 @@ const HistoryLogs = () => {
                     if (!Array.isArray(entries)) return [];
 
                     return entries.flatMap((entry) => {
-                        const entryModel = entry.model || modelKey;
+                        const entryModel = entry.model_display_name || entry.model || modelKey;
                         const entryUser = entry.user || user;
                         const entryUserName = entryUser.name || userName || "-";
                         const time =

@@ -85,7 +85,7 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
     const payload = { id };
     const fieldsToCheck = [
       'done',
-      'pic_id',
+      'pic_new',
       'client_id',
       'vessel_id',
       'destination_id', // legacy field

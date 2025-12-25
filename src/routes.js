@@ -76,6 +76,7 @@ import UOM from "views/admin/configurations/uom";
 import Destinations from "views/admin/configurations/destinations";
 import Suppliers from "views/admin/configurations/suppliers";
 import Warehouses from "views/admin/configurations/warehouses";
+import PIC from "views/admin/configurations/pic";
 
 // Auth Imports
 import SignInCentered from "views/auth/signIn";
@@ -305,6 +306,12 @@ const routes = [
         path: "/configurations/destinations",
         icon: <Icon as={MdPlace} width="20px" height="20px" color="inherit" />,
         component: Destinations,
+      },
+      {
+        name: "PIC (Person in Charge)",
+        path: "/configurations/pic",
+        icon: <Icon as={MdPerson} width="20px" height="20px" color="inherit" />,
+        component: PIC,
       },
       {
         name: "Suppliers",

@@ -35,6 +35,10 @@ import {
     MdChevronLeft,
     MdSave,
     MdDelete,
+    MdAttachFile,
+    MdClose as MdRemove,
+    MdVisibility,
+    MdDownload,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -44,6 +48,7 @@ import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
 import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
+import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockDBMainEdit() {
@@ -72,6 +77,8 @@ export default function StockDBMainEdit() {
     const [currencies, setCurrencies] = useState([]);
     const [countries, setCountries] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
+    const [pics, setPics] = useState([]);
+    const [isLoadingPICs, setIsLoadingPICs] = useState(false);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
     const [isLoadingCountries, setIsLoadingCountries] = useState(false);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
@@ -81,6 +88,17 @@ export default function StockDBMainEdit() {
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
+    const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+    
+    // Cell props for consistent styling
+    const cellProps = {
+        borderRight: "1px",
+        borderColor: tableBorderColor,
+        py: "8px",
+        px: "8px",
+        minW: "130px",
+        maxW: "200px",
+    };
 
     // Helper function to convert value to number
     const toNumber = (value) => {
@@ -135,8 +153,11 @@ export default function StockDBMainEdit() {
         value: "",
         currency: "",
         clientAccess: false,
-        pic: "",
+        pic: null, // PIC ID
         soStatus: "",
+        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+        attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
+        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
         vesselDest: "",
         vesselEta: "",
         blank: "",
@@ -230,9 +251,9 @@ export default function StockDBMainEdit() {
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
             viaHub1: getFieldValue(stock.via_hub, ""),
             viaHub2: getFieldValue(stock.via_hub2, ""),
-            apDestination: normalizeId(stock.ap_destination_id) || normalizeId(stock.ap_destination) || "",
-            destination: normalizeId(stock.destination_id) || normalizeId(stock.destination) || normalizeId(stock.stock_destination) || "",
-            warehouseId: normalizeId(stock.warehouse_id) || normalizeId(stock.stock_warehouse) || "",
+            apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
+            destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
+            warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             shippingDoc: getFieldValue(stock.shipping_doc) || "",
             exportDoc: getFieldValue(stock.export_doc) || "",
             remarks: getFieldValue(stock.remarks) || "",
@@ -254,7 +275,7 @@ export default function StockDBMainEdit() {
             value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             clientAccess: Boolean(stock.client_access),
-            pic: getFieldValue(stock.pic) || getFieldValue(stock.pic_id) || "", // PIC is a free text field (char), not an ID
+            pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
             soStatus: soStatusValue,
             vesselDest: vesselData.destination,
             vesselEta: vesselData.eta,
@@ -262,6 +283,9 @@ export default function StockDBMainEdit() {
             // Internal fields
             vesselDestination: vesselData.destination,
             itemId: normalizeId(stock.item_id) || "",
+            attachments: [], // New uploads will be added here
+            attachmentsToDelete: [], // IDs of attachments to delete
+            existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
         };
 
         if (returnData) {
@@ -391,10 +415,366 @@ export default function StockDBMainEdit() {
             } finally {
                 setIsLoadingShippingOrders(false);
             }
+
+            // Fetch PICs
+            try {
+                setIsLoadingPICs(true);
+                const response = await picAPI.getPICs();
+                let picList = [];
+                if (response && response.persons && Array.isArray(response.persons)) {
+                    picList = response.persons;
+                } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
+                    picList = response.result.persons;
+                } else if (Array.isArray(response)) {
+                    picList = response;
+                }
+                const normalizedPICs = picList.map((pic) => ({
+                    id: pic.id,
+                    name: pic.name || "",
+                }));
+                setPics(normalizedPICs);
+            } catch (error) {
+                console.error('Failed to fetch PICs:', error);
+            } finally {
+                setIsLoadingPICs(false);
+            }
         };
 
         fetchLookupData();
     }, []);
+
+    // Handle file upload for attachments
+    const handleFileUpload = (rowIndex, files) => {
+        const fileArray = Array.from(files || []);
+        const filePromises = fileArray.map(file => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result || '';
+                // Extract base64 data without data URL prefix
+                const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
+                resolve({ 
+                    filename: file.name, 
+                    datas: base64data, 
+                    mimetype: file.type || 'application/octet-stream' 
+                });
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(filePromises).then(newAttachments => {
+            setFormRows(prevRows => prevRows.map((row, idx) => {
+                if (idx === rowIndex) {
+                    return {
+                        ...row,
+                        attachments: [...(row.attachments || []), ...newAttachments]
+                    };
+                }
+                return row;
+            }));
+        });
+    };
+
+    // Handle attachment deletion (for new uploads)
+    const handleDeleteAttachment = (rowIndex, attachmentIndex) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const newAttachments = [...(row.attachments || [])];
+                newAttachments.splice(attachmentIndex, 1);
+                return { ...row, attachments: newAttachments };
+            }
+            return row;
+        }));
+    };
+
+    // Handle existing attachment deletion (marks for deletion in API)
+    const handleDeleteExistingAttachment = (rowIndex, attachmentId) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const existingAttachments = [...(row.existingAttachments || [])];
+                const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
+                const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
+                return { 
+                    ...row, 
+                    existingAttachments: updatedAttachments,
+                    attachmentsToDelete: attachmentsToDelete
+                };
+            }
+            return row;
+        }));
+    };
+
+    // Helper function to clean and prepare base64 data
+    const cleanBase64Data = (data) => {
+        if (!data) return null;
+        
+        let cleaned = String(data).trim();
+        
+        // Remove data URI prefix if present (e.g., "data:application/pdf;base64,")
+        if (cleaned.includes(',')) {
+            cleaned = cleaned.split(',')[1];
+        }
+        
+        // Remove any whitespace, newlines, or other non-base64 characters
+        cleaned = cleaned.replace(/\s/g, '');
+        
+        // Handle URL-safe base64 encoding (replace - with + and _ with /)
+        cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+        
+        // Validate base64 format (should only contain A-Z, a-z, 0-9, +, /, and =)
+        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Regex.test(cleaned)) {
+            console.warn('Base64 data contains invalid characters, attempting to clean...');
+            // Remove any characters that aren't valid base64
+            cleaned = cleaned.replace(/[^A-Za-z0-9+/=]/g, '');
+        }
+        
+        // Ensure proper padding - base64 strings must have length that's a multiple of 4
+        const paddingNeeded = (4 - (cleaned.length % 4)) % 4;
+        if (paddingNeeded > 0) {
+            // Remove any existing padding first
+            cleaned = cleaned.replace(/=+$/, '');
+            // Add correct padding
+            cleaned += '='.repeat(paddingNeeded);
+        }
+        
+        // Final validation - check if the cleaned string is valid base64
+        if (cleaned.length === 0) {
+            console.warn('Base64 data is empty after cleaning');
+            return null;
+        }
+        
+        // Verify the string can be decoded (basic check)
+        if (cleaned.length % 4 !== 0) {
+            console.warn('Base64 data length is not a multiple of 4:', cleaned.length);
+            // Try to fix by adding padding
+            const fixPadding = (4 - (cleaned.length % 4)) % 4;
+            cleaned += '='.repeat(fixPadding);
+        }
+        
+        return cleaned;
+    };
+
+    // Handle viewing attachments
+    const handleViewFile = (attachment) => {
+        try {
+            let fileUrl = null;
+            let blobUrl = null; // Track blob URLs for cleanup
+
+            // Case 1: base64 data (most common for attachments)
+            if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                const base64Data = cleanBase64Data(attachment.datas);
+                
+                if (!base64Data) {
+                    toast({
+                        title: 'Error',
+                        description: 'Invalid file data format',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+                
+                try {
+                    // Validate base64 string before attempting to decode
+                    if (base64Data.length === 0) {
+                        throw new Error('Base64 data is empty');
+                    }
+
+                    // Check if length is valid (should be multiple of 4 after padding)
+                    if (base64Data.length % 4 !== 0) {
+                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
+                    }
+
+                    // Convert base64 to blob for better browser compatibility
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+                    
+                    blobUrl = URL.createObjectURL(blob);
+                    fileUrl = blobUrl;
+                } catch (base64Error) {
+                    console.error('Error decoding base64:', base64Error, {
+                        dataLength: base64Data?.length,
+                        firstChars: base64Data?.substring(0, 50),
+                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
+                        mimeType
+                    });
+                    toast({
+                        title: 'Error',
+                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+            }
+            // Case 3: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}`;
+            }
+            // Case 4: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+            }
+
+            if (fileUrl) {
+                // Open in new tab
+                const newWindow = window.open(fileUrl, '_blank');
+                
+                // Clean up blob URL after a delay (once it's opened)
+                if (blobUrl) {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1000);
+                }
+                
+                // If window.open failed, try download instead
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    handleDownloadFile(attachment);
+                }
+            } else {
+                toast({
+                    title: 'Error',
+                    description: 'Unable to view file. File data not available.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } catch (error) {
+            console.error('Error viewing file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to view file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    const handleDownloadFile = (attachment) => {
+        try {
+            let fileUrl = null;
+            let blobUrl = null; // Track blob URLs for cleanup
+            let fileName = attachment.filename || attachment.name || 'download';
+
+            // Case 1: base64 data
+            if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                const base64Data = cleanBase64Data(attachment.datas);
+                
+                if (!base64Data) {
+                    toast({
+                        title: 'Error',
+                        description: 'Invalid file data format',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+                
+                try {
+                    // Validate base64 string before attempting to decode
+                    if (base64Data.length === 0) {
+                        throw new Error('Base64 data is empty');
+                    }
+
+                    // Check if length is valid (should be multiple of 4 after padding)
+                    if (base64Data.length % 4 !== 0) {
+                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
+                    }
+
+                    // Convert base64 to blob and download
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+                    
+                    blobUrl = URL.createObjectURL(blob);
+                    fileUrl = blobUrl;
+                } catch (base64Error) {
+                    console.error('Error decoding base64:', base64Error, {
+                        dataLength: base64Data?.length,
+                        firstChars: base64Data?.substring(0, 50),
+                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
+                        mimeType
+                    });
+                    toast({
+                        title: 'Error',
+                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+            }
+            // Case 3: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
+            }
+            // Case 4: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+            }
+
+            if (fileUrl) {
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Clean up blob URL after download
+                if (blobUrl) {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                    }, 100);
+                }
+            } else {
+                toast({
+                    title: 'Error',
+                    description: 'Unable to download file. File data not available.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to download file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
 
     // Handle input change
     const handleInputChange = (rowIndex, field, value) => {
@@ -441,13 +821,12 @@ export default function StockDBMainEdit() {
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
             ["vesselsProspects", "vessels_prospects", (v) => v || ""],
             ["poNumber", "po_text", (v) => v || ""],
-            ["pic", "pic", (v) => v || ""],
+            ["pic", "pic_new", (v) => v ? String(v) : false],
             ["itemId", "item_id", (v) => v ? String(v) : ""],
             ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
             ["currency", "currency_id", (v) => v ? String(v) : ""],
             ["origin", "origin", (v) => v ? String(v) : ""],
-            ["apDestination", "ap_destination", (v) => v || ""], // Free text field
-            ["apDestination", "ap_destination_id", (v) => v || ""], // Free text field
+            ["apDestination", "ap_destination_new", (v) => v || ""], // Free text field
             ["viaHub1", "via_hub", (v) => v || ""],
             ["viaHub2", "via_hub2", (v) => v || ""],
             ["clientAccess", "client_access", (v) => Boolean(v)],
@@ -462,10 +841,11 @@ export default function StockDBMainEdit() {
             ["cwAirfreight", "cw_freight", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
             ["extra2", "extra", (v) => v || ""],
-            ["destination", "destination", (v) => v ? String(v) : ""],
-            ["destination", "stock_destination", (v) => v ? String(v) : ""],
-            ["warehouseId", "warehouse_id", (v) => v ? String(v) : ""],
-            ["warehouseId", "stock_warehouse", (v) => v ? String(v) : ""],
+            ["destination", "destination_new", (v) => v || ""],
+            // Attachments
+            ["attachments", "attachments", (v) => v || []],
+            ["attachmentsToDelete", "attachment_to_delete", (v) => v || []],
+            ["warehouseId", "warehouse_new", (v) => v || ""],
             ["shippingDoc", "shipping_doc", (v) => v || ""],
             ["exportDoc", "export_doc", (v) => v || ""],
             ["dateOnStock", "date_on_stock", (v) => v || ""],
@@ -744,6 +1124,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel Dest</Th>
@@ -756,7 +1137,7 @@ export default function StockDBMainEdit() {
                             {formRows.map((row, rowIndex) => (
                                 <Tr key={row.id}>
                                     {/* Read-only fields */}
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.stockItemId || ""}
                                             isReadOnly
@@ -765,7 +1146,7 @@ export default function StockDBMainEdit() {
                                             color={inputText}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.slCreateDate || ""}
                                             isReadOnly
@@ -775,7 +1156,7 @@ export default function StockDBMainEdit() {
                                         />
                                     </Td>
                                     {/* Editable fields */}
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.client}
                                             onChange={(value) => handleInputChange(rowIndex, "client", value)}
@@ -790,7 +1171,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.vessel}
                                             onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
@@ -805,7 +1186,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Textarea
                                             value={row.vesselsProspects || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "vesselsProspects", e.target.value)}
@@ -818,7 +1199,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.soNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
@@ -829,7 +1210,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.siNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
@@ -840,7 +1221,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.siCombined || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
@@ -851,7 +1232,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.diNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
@@ -862,7 +1243,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Select
                                             value={row.stockStatus}
                                             onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
@@ -884,7 +1265,7 @@ export default function StockDBMainEdit() {
                                             <option value="cancelled">Cancelled</option>
                                         </Select>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.supplier}
                                             onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
@@ -899,7 +1280,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.poNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
@@ -910,7 +1291,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.extra2 || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "extra2", e.target.value)}
@@ -921,7 +1302,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.origin}
                                             onChange={(value) => handleInputChange(rowIndex, "origin", value)}
@@ -942,7 +1323,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.viaHub1 || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
@@ -953,7 +1334,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.viaHub2 || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
@@ -964,7 +1345,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.apDestination || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
@@ -975,7 +1356,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.destination}
                                             onChange={(value) => handleInputChange(rowIndex, "destination", value)}
@@ -990,7 +1371,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Textarea
                                             value={row.warehouseId || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
@@ -1003,7 +1384,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.shippingDoc || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
@@ -1014,7 +1395,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.exportDoc || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
@@ -1025,7 +1406,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Textarea
                                             value={row.remarks || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
@@ -1037,7 +1418,7 @@ export default function StockDBMainEdit() {
                                             rows={2}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             type="date"
                                             value={row.dateOnStock || ""}
@@ -1049,7 +1430,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             type="date"
                                             value={row.expReadyInStock || ""}
@@ -1061,7 +1442,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             type="date"
                                             value={row.shippedDate || ""}
@@ -1073,7 +1454,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             type="date"
                                             value={row.deliveredDate || ""}
@@ -1085,7 +1466,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Textarea
                                             value={row.details || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
@@ -1097,7 +1478,7 @@ export default function StockDBMainEdit() {
                                             rows={2}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.items || 0}
                                             onChange={(value) => handleInputChange(rowIndex, "items", value)}
@@ -1108,7 +1489,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.weightKgs}
                                             onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
@@ -1119,7 +1500,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.lengthCm}
                                             onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
@@ -1130,7 +1511,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.widthCm}
                                             onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
@@ -1141,7 +1522,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.heightCm}
                                             onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
@@ -1152,7 +1533,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.volumeNoDim}
                                             onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
@@ -1163,7 +1544,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.volumeCbm}
                                             onChange={(value) => handleInputChange(rowIndex, "volumeCbm", value)}
@@ -1174,7 +1555,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.lwhText || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
@@ -1185,7 +1566,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.cwAirfreight}
                                             onChange={(value) => handleInputChange(rowIndex, "cwAirfreight", value)}
@@ -1196,7 +1577,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <NumberInput
                                             value={row.value}
                                             onChange={(value) => handleInputChange(rowIndex, "value", value)}
@@ -1207,7 +1588,7 @@ export default function StockDBMainEdit() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
                                             value={row.currency}
                                             onChange={(value) => handleInputChange(rowIndex, "currency", value)}
@@ -1226,25 +1607,148 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Checkbox
                                             isChecked={row.clientAccess}
                                             onChange={(e) => handleInputChange(rowIndex, "clientAccess", e.target.checked)}
                                             size="sm"
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Input
-                                            value={row.pic || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
-                                            placeholder="Enter PIC"
-                                            size="sm"
+                                    {/* Files - Upload/Download button */}
+                                    <Td {...cellProps}>
+                                        <VStack spacing={2} align="stretch">
+                                            {/* File Upload Input */}
+                                            <Input
+                                                type="file"
+                                                multiple
+                                                size="sm"
+                                                onChange={(e) => handleFileUpload(rowIndex, e.target.files)}
+                                                accept="application/pdf,image/*,.doc,.docx"
+                                                display="none"
+                                                id={`file-upload-main-${rowIndex}`}
+                                                style={{ display: 'none' }}
+                                            />
+                                            <label htmlFor={`file-upload-main-${rowIndex}`}>
+                                                <Button
+                                                    as="span"
+                                                    size="xs"
+                                                    variant="outline"
+                                                    colorScheme="blue"
+                                                    leftIcon={<Icon as={MdAttachFile} />}
+                                                    cursor="pointer"
+                                                    w="100%"
+                                                >
+                                                    Upload Files
+                                                </Button>
+                                            </label>
+                                            
+                                            {/* Display existing attachments */}
+                                            {(row.existingAttachments || []).map((att, attIdx) => (
+                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                    <Text 
+                                                        isTruncated 
+                                                        flex={1} 
+                                                        title={att.filename || att.name}
+                                                        cursor="pointer"
+                                                        color="blue.500"
+                                                        _hover={{ textDecoration: "underline" }}
+                                                        onClick={() => handleViewFile(att)}
+                                                    >
+                                                        {att.filename || att.name || `File ${attIdx + 1}`}
+                                                    </Text>
+                                                    <HStack spacing={0}>
+                                                        <IconButton
+                                                            aria-label="View file"
+                                                            icon={<Icon as={MdVisibility} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                            onClick={() => handleViewFile(att)}
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Download file"
+                                                            icon={<Icon as={MdDownload} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                            onClick={() => handleDownloadFile(att)}
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Delete attachment"
+                                                            icon={<Icon as={MdRemove} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => handleDeleteExistingAttachment(rowIndex, att.id)}
+                                                        />
+                                                    </HStack>
+                                                </Flex>
+                                            ))}
+                                            
+                                            {/* Display newly uploaded attachments */}
+                                            {(row.attachments || []).map((att, attIdx) => (
+                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                    <Text 
+                                                        isTruncated 
+                                                        flex={1} 
+                                                        title={att.filename}
+                                                        cursor="pointer"
+                                                        color="blue.500"
+                                                        _hover={{ textDecoration: "underline" }}
+                                                        onClick={() => handleViewFile(att)}
+                                                    >
+                                                        {att.filename || att.name || `File ${attIdx + 1}`}
+                                                    </Text>
+                                                    <HStack spacing={0}>
+                                                        <IconButton
+                                                            aria-label="View file"
+                                                            icon={<Icon as={MdVisibility} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                            onClick={() => handleViewFile(att)}
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Download file"
+                                                            icon={<Icon as={MdDownload} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                            onClick={() => handleDownloadFile(att)}
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Remove attachment"
+                                                            icon={<Icon as={MdRemove} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => handleDeleteAttachment(rowIndex, attIdx)}
+                                                        />
+                                                    </HStack>
+                                                </Flex>
+                                            ))}
+                                        </VStack>
+                                    </Td>
+                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.pic ? String(row.pic) : null}
+                                            onChange={(value) => {
+                                                // Store the PIC ID
+                                                handleInputChange(rowIndex, "pic", value ? String(value) : null);
+                                            }}
+                                            options={pics}
+                                            placeholder="Select PIC"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => option.name || `PIC ${option.id}`}
+                                            isLoading={isLoadingPICs}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            size="sm"
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.soStatus || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "soStatus", e.target.value)}
@@ -1255,7 +1759,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.vesselDest || row.vesselDestination || ""}
                                             onChange={(e) => {
@@ -1269,7 +1773,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             type="date"
                                             value={row.vesselEta || ""}
@@ -1281,7 +1785,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.blank || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "blank", e.target.value)}
@@ -1292,7 +1796,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                    <Td {...cellProps}>
                                         <Input
                                             value={row.slCreateDateTime || ""}
                                             isReadOnly

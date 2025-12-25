@@ -37,12 +37,16 @@ import {
     MdContentCopy,
     MdDelete,
     MdClose,
+    MdAttachFile,
+    MdClose as MdRemove,
 } from "react-icons/md";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import countriesAPI from "../../../api/countries";
+import currenciesAPI from "../../../api/currencies";
 import api from "../../../api/axios";
+import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -66,12 +70,27 @@ export default function StockForm() {
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
     const [countries, setCountries] = useState([]);
     const [isLoadingCountries, setIsLoadingCountries] = useState(false);
+    const [currencies, setCurrencies] = useState([]);
+    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
+    const [pics, setPics] = useState([]);
+    const [isLoadingPICs, setIsLoadingPICs] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
+    const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+    
+    // Cell props for consistent styling
+    const cellProps = {
+        borderRight: "1px",
+        borderColor: tableBorderColor,
+        py: "8px",
+        px: "8px",
+        minW: "130px",
+        maxW: "200px",
+    };
 
     // Default empty row template – only keep fields that exist in the UI
     const getEmptyRow = () => ({
@@ -80,7 +99,7 @@ export default function StockForm() {
         stockItemId: "",
         client: "",
         vessel: "",
-        pic: "", // Free text (changed from user select)
+        pic: null, // PIC ID
         stockStatus: "",
         supplier: "",
         poNumber: "", // Free text + textarea
@@ -96,7 +115,7 @@ export default function StockForm() {
         lwhText: "", // LWH Text Details - Free text + textarea
         dgUnNumber: "", // DG/UN Number - Free text + textarea
         value: "", // Value - numbers
-        currency: "", // Currency - Text (free text, changed from dropdown)
+        currency: null, // Currency ID
         origin: "", // Origin - Airport code or Country
         viaHub: "", // Via HUB 1 - Airport code
         viaHub2: "", // Via HUB 2 - Airport code
@@ -117,6 +136,9 @@ export default function StockForm() {
         volumeCbm: "",
         blank: "", // Keep for backward compatibility
         details: "", // Keep for backward compatibility
+        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+        attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
+        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
     });
 
     // Form state - array of rows
@@ -269,7 +291,26 @@ export default function StockForm() {
                 setIsLoadingSuppliers(false);
             }
 
-            // Currency is now free text - no currencies fetching needed
+            // Fetch currencies
+            try {
+                setIsLoadingCurrencies(true);
+                const currenciesResponse = await currenciesAPI.getCurrencies();
+                const currenciesData = (currenciesResponse && Array.isArray(currenciesResponse.currencies))
+                    ? currenciesResponse.currencies
+                    : (Array.isArray(currenciesResponse) ? currenciesResponse : []);
+                setCurrencies(currenciesData || []);
+            } catch (error) {
+                console.error('Failed to fetch currencies:', error);
+                toast({
+                    title: 'Warning',
+                    description: 'Failed to load currencies',
+                    status: 'warning',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingCurrencies(false);
+            }
 
             try {
                 setIsLoadingCountries(true);
@@ -291,13 +332,66 @@ export default function StockForm() {
                 setIsLoadingCountries(false);
             }
 
-            // PIC is now free text - no users fetching needed
+            // Fetch PICs
+            try {
+                setIsLoadingPICs(true);
+                const response = await picAPI.getPICs();
+                let picList = [];
+                if (response && response.persons && Array.isArray(response.persons)) {
+                    picList = response.persons;
+                } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
+                    picList = response.result.persons;
+                } else if (Array.isArray(response)) {
+                    picList = response;
+                }
+                const normalizedPICs = picList.map((pic) => ({
+                    id: pic.id,
+                    name: pic.name || "",
+                }));
+                setPics(normalizedPICs);
+            } catch (error) {
+                console.error('Failed to fetch PICs:', error);
+                toast({
+                    title: 'Warning',
+                    description: 'Failed to load PICs',
+                    status: 'warning',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingPICs(false);
+            }
         };
 
         fetchClientsAndVessels();
     }, [toast]);
 
-    // Currency is now free text - no normalization needed
+    // Normalize currency values when currencies are loaded
+    useEffect(() => {
+        if (!currencies.length) return;
+        setFormRows((prevRows) =>
+            prevRows.map((row) => {
+                if (!row.currency) {
+                    return row;
+                }
+                const normalizedValue = String(row.currency);
+                // Try exact ID match first
+                const exactMatch = currencies.find((currency) => String(currency.id) === normalizedValue);
+                if (exactMatch) {
+                    return { ...row, currency: String(exactMatch.id) };
+                }
+                // Try fallback matching by name/code/symbol
+                const fallbackMatch = currencies.find(
+                    (currency) =>
+                        String(currency.name)?.toLowerCase() === normalizedValue.toLowerCase() ||
+                        String(currency.full_name)?.toLowerCase() === normalizedValue.toLowerCase() ||
+                        String(currency.symbol)?.toLowerCase() === normalizedValue.toLowerCase() ||
+                        String(currency.code)?.toLowerCase() === normalizedValue.toLowerCase()
+                );
+                return fallbackMatch ? { ...row, currency: String(fallbackMatch.id) } : row;
+            })
+        );
+    }, [currencies]);
 
     useEffect(() => {
         if (!countries.length) return;
@@ -322,6 +416,7 @@ export default function StockForm() {
             })
         );
     }, [countries]);
+
 
     // PIC is now free text - no normalization needed
 
@@ -472,12 +567,12 @@ export default function StockForm() {
             stockItemId: getFieldValue(stock.stock_item_id),
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            pic: getFieldValue(stock.pic) || getFieldValue(stock.pic_id) || "", // Free text
+            pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
-            warehouseId: getFieldValue(stock.warehouse_id),
+            warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
             item: toNumber(stock.item) || 1,
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
@@ -488,12 +583,12 @@ export default function StockForm() {
             lwhText: getFieldValue(stock.lwh_text),
             dgUnNumber: getFieldValue(stock.dg_un_number) || getFieldValue(stock.dg_un) || getFieldValue(stock.un_number) || "",
             value: getFieldValue(stock.value, ""),
-            currency: getFieldValue(stock.currency) || getFieldValue(stock.currency_id) || "", // Free text
+            currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || null, // Currency ID
             origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
             viaHub: getFieldValue(stock.via_hub, ""),
             viaHub2: getFieldValue(stock.via_hub2, ""),
-            apDestination: getFieldValue(stock.ap_destination) || normalizeId(stock.ap_destination_id) || "",
-            destination: getFieldValue(stock.destination) || normalizeId(stock.destination_id) || "",
+            apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
+            destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
             remarks: getFieldValue(stock.remarks),
@@ -509,12 +604,75 @@ export default function StockForm() {
             volumeCbm: getFieldValue(stock.volume_cbm, ""),
             blank: getFieldValue(stock.blank, ""),
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
+            attachments: [], // New uploads will be added here
+            attachmentsToDelete: [], // IDs of attachments to delete
+            existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
         };
 
         if (returnData) {
             return rowData;
         }
         setFormRows([rowData]);
+    };
+
+    // Handle file upload for attachments
+    const handleFileUpload = (rowIndex, files) => {
+        const fileArray = Array.from(files || []);
+        const filePromises = fileArray.map(file => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result || '';
+                // Extract base64 data without data URL prefix
+                const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
+                resolve({ 
+                    filename: file.name, 
+                    datas: base64data, 
+                    mimetype: file.type || 'application/octet-stream' 
+                });
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(filePromises).then(newAttachments => {
+            setFormRows(prevRows => prevRows.map((row, idx) => {
+                if (idx === rowIndex) {
+                    return {
+                        ...row,
+                        attachments: [...(row.attachments || []), ...newAttachments]
+                    };
+                }
+                return row;
+            }));
+        });
+    };
+
+    // Handle attachment deletion (for new uploads)
+    const handleDeleteAttachment = (rowIndex, attachmentIndex) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const newAttachments = [...(row.attachments || [])];
+                newAttachments.splice(attachmentIndex, 1);
+                return { ...row, attachments: newAttachments };
+            }
+            return row;
+        }));
+    };
+
+    // Handle existing attachment deletion (marks for deletion in API)
+    const handleDeleteExistingAttachment = (rowIndex, attachmentId) => {
+        setFormRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                const existingAttachments = [...(row.existingAttachments || [])];
+                const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
+                const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
+                return { 
+                    ...row, 
+                    existingAttachments: updatedAttachments,
+                    attachmentsToDelete: attachmentsToDelete
+                };
+            }
+            return row;
+        }));
     };
 
     const handleInputChange = (rowIndex, field, value) => {
@@ -534,8 +692,8 @@ export default function StockForm() {
                     const vesselDestinationName = selectedVessel.destination_name || selectedVessel.destination; // Try to get name
                     if (vesselDestinationId) {
                         const destId = String(vesselDestinationId);
-                        updatedRow.destination = destId; // For destination field (Many2one)
-                        updatedRow.apDestination = destId; // For ap_destination field (Many2one)
+                        updatedRow.destination = destId; // For destination field
+                        updatedRow.apDestination = destId; // For ap_destination field
                     }
                     // vessel_destination is now free text - fill with name if available, or leave empty
                     if (vesselDestinationName && typeof vesselDestinationName === 'string') {
@@ -623,13 +781,13 @@ export default function StockForm() {
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
-            pic: rowData.pic ? String(rowData.pic) : "",
+            pic_new: rowData.pic ? String(rowData.pic) : false,
             item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
             item: toNumber(rowData.item) || 1,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin: rowData.origin ? String(rowData.origin) : "",
-            ap_destination: rowData.apDestination ? String(rowData.apDestination) : "",
+            ap_destination_new: rowData.apDestination || "",
             via_hub: rowData.viaHub || "", // Free text field
             via_hub2: rowData.viaHub2 || "", // Free text field
             client_access: Boolean(rowData.clientAccess),
@@ -646,10 +804,8 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
-            destination: rowData.destination || "", // Destination - Free text
-            stock_destination: rowData.destination || "", // Also include stock_destination as free text
-            warehouse_id: rowData.warehouseId ? String(rowData.warehouseId) : "", // Keep warehouse_id for lines format
-            stock_warehouse: rowData.warehouseId ? String(rowData.warehouseId) : "", // Also include stock_warehouse
+            destination_new: rowData.destination || "", // Destination - Free text
+            warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
             date_on_stock: rowData.dateOnStock || "",
@@ -658,6 +814,8 @@ export default function StockForm() {
             delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
             dg_un_number: rowData.dgUnNumber || "", // DG/UN Number - Free text
+            attachments: rowData.attachments || [], // Include attachments in payload
+            attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
             stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "",
@@ -704,7 +862,7 @@ export default function StockForm() {
                 // Send all lines in a single payload
                 const payload = { lines };
                 const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
-
+                
                 if (result && result.result && result.result.status === 'success') {
                     toast({
                         title: 'Success',
@@ -789,15 +947,15 @@ export default function StockForm() {
                     // Success case - no errors
                     if (resultData.status === 'success') {
                         const successCount = resultData.created_count || lines.length;
-                        toast({
-                            title: 'Success',
-                            description: `${successCount} stock item(s) created successfully`,
-                            status: 'success',
-                            duration: 3000,
-                            isClosable: true,
-                        });
-                        getStockList();
-                        history.push("/admin/stock-list/stocks");
+                    toast({
+                        title: 'Success',
+                        description: `${successCount} stock item(s) created successfully`,
+                        status: 'success',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    getStockList();
+                    history.push("/admin/stock-list/stocks");
                     } else {
                         const errorMsg = resultData.message || result?.message || 'Failed to create stock items';
                         toast({
@@ -834,7 +992,7 @@ export default function StockForm() {
 
 
     if (isLoading) {
-        return (
+    return (
             <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
                 <Flex justify="center" align="center" h="200px">
                     <VStack spacing="4">
@@ -870,30 +1028,30 @@ export default function StockForm() {
 
                 <HStack spacing="3">
                     {!isEditing && (
-                        <Button
+                    <Button
                             leftIcon={<Icon as={MdAdd} />}
                             bg="blue.500"
-                            color="white"
-                            size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={handleAddRow}
-                        >
-                            Add Row
-                        </Button>
-                    )}
-                    <Button
-                        leftIcon={<Icon as={MdSave} />}
-                        bg="green.500"
                         color="white"
                         size="sm"
                         px="6"
                         py="3"
                         borderRadius="md"
-                        _hover={{ bg: "green.600" }}
-                        onClick={handleSaveStockItem}
+                            _hover={{ bg: "blue.600" }}
+                            onClick={handleAddRow}
+                    >
+                            Add Row
+                    </Button>
+                    )}
+                <Button
+                    leftIcon={<Icon as={MdSave} />}
+                    bg="green.500"
+                    color="white"
+                    size="sm"
+                    px="6"
+                    py="3"
+                    borderRadius="md"
+                    _hover={{ bg: "green.600" }}
+                    onClick={handleSaveStockItem}
                         isLoading={updateLoading}
                         loadingText="Saving..."
                     >
@@ -902,7 +1060,7 @@ export default function StockForm() {
                             : isEditing
                                 ? "Update Stock Item"
                                 : `Save ${formRows.length} Item(s)`}
-                    </Button>
+                </Button>
                 </HStack>
             </Flex>
 
@@ -917,7 +1075,7 @@ export default function StockForm() {
                     borderBottom="1px"
                     borderColor={borderColor}
                 >
-                    <HStack spacing="2">
+                <HStack spacing="2">
                         <Button
                             size="xs"
                             onClick={() => {
@@ -933,7 +1091,7 @@ export default function StockForm() {
                         </Button>
                         <Text fontSize="sm" color={textColor}>
                             Item {currentItemIndex + 1} of {selectedItems.length}
-                        </Text>
+                    </Text>
                         <Button
                             size="xs"
                             onClick={() => {
@@ -947,11 +1105,11 @@ export default function StockForm() {
                         >
                             Next
                         </Button>
-                    </HStack>
+                </HStack>
                     <Text fontSize="xs" color="gray.500">
                         Changes will apply to all {selectedItems.length} selected items
                     </Text>
-                </Flex>
+            </Flex>
             )}
 
             {/* Main Content Area - Horizontal Table Form */}
@@ -961,154 +1119,162 @@ export default function StockForm() {
                     <Box maxH="60vh" overflowY="auto">
                         <Table variant="striped" size="sm" colorScheme="gray" minW="5000px">
                             <Thead position="sticky" top={0} zIndex={444}>
-                                <Tr>
-                                    {isEditing && (
-                                        <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">ID</Th>
-                                    )}
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
+                            <Tr>
+                                {isEditing && (
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">ID</Th>
+                                )}
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 1</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 2</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Docs</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export docs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
-                                </Tr>
-                            </Thead>
-                            <Tbody>
-                                {formRows.map((row, rowIndex) => (
-                                    <Tr key={row.id}>
-                                        {isEditing && (
-                                            <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                                <Input
-                                                    value={row.stockItemId || ""}
-                                                    isReadOnly
-                                                    size="sm"
-                                                    bg={useColorModeValue("gray.100", "gray.700")}
-                                                    color={inputText}
-                                                />
-                                            </Td>
-                                        )}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
+                            </Tr>
+                        </Thead>
+                        <Tbody>
+                            {formRows.map((row, rowIndex) => (
+                                <Tr key={row.id}>
+                                    {isEditing && (
+                                            <Td {...cellProps}>
+                                <Input
+                                                value={row.stockItemId || ""}
+                                                isReadOnly
+                                    size="sm"
+                                                bg={useColorModeValue("gray.100", "gray.700")}
+                                                color={inputText}
+                                            />
+                                        </Td>
+                                    )}
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.client}
+                                            onChange={(value) => handleInputChange(rowIndex, "client", value)}
+                                            options={clients}
+                                            placeholder="Select Client"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => option.name || `Client ${option.id}`}
+                                            isLoading={isLoadingClients}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.vessel}
+                                            onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
+                                            options={vessels}
+                                            placeholder="Select Vessel"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                            isLoading={isLoadingVessels}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                             <SimpleSearchableSelect
-                                                value={row.client}
-                                                onChange={(value) => handleInputChange(rowIndex, "client", value)}
-                                                options={clients}
-                                                placeholder="Select Client"
+                                                value={row.pic ? String(row.pic) : null}
+                                                onChange={(value) => {
+                                                    // Store the PIC ID
+                                                    handleInputChange(rowIndex, "pic", value ? String(value) : null);
+                                                }}
+                                                options={pics}
+                                                placeholder="Select PIC"
                                                 displayKey="name"
                                                 valueKey="id"
-                                                formatOption={(option) => option.name || `Client ${option.id}`}
-                                                isLoading={isLoadingClients}
+                                                formatOption={(option) => option.name || `PIC ${option.id}`}
+                                                isLoading={isLoadingPICs}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.vessel}
-                                                onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                                options={vessels}
-                                                placeholder="Select Vessel"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || `Vessel ${option.id}`}
-                                                isLoading={isLoadingVessels}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
-                                                value={row.pic || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "pic", e.target.value)}
-                                                placeholder="Enter PIC"
                                                 size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
                                             />
                                         </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Select
-                                                value={row.stockStatus}
-                                                onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            >
-                                                <option value="">Select</option>
-                                                <option value="blank">Blank</option>
-                                                <option value="pending">Pending</option>
-                                                <option value="in_stock">In Stock</option>
-                                                <option value="on_shipping">On Shipping Instr</option>
-                                                <option value="on_delivery">On Delivery Instr</option>
-                                                <option value="in_transit">In Transit</option>
-                                                <option value="arrived">Arrived Dest</option>
-                                                <option value="shipped">Shipped</option>
-                                                <option value="delivered">Delivered</option>
-                                                <option value="irregular">Irregularities</option>
-                                                <option value="cancelled">Cancelled</option>
-                                            </Select>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.supplier}
-                                                onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
-                                                options={suppliers}
-                                                placeholder="Select Supplier"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                isLoading={isLoadingSuppliers}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        {/* Single PO Number field, but allow multiple lines for clarity */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Textarea
-                                                value={row.poNumber || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                                placeholder="Enter PO Number(s) - one per line"
-                                                size="sm"
-                                                rows={3}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                        <Td {...cellProps}>
+                                <Select
+                                            value={row.stockStatus}
+                                            onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
+                                    size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="">Select</option>
+                                            <option value="blank">Blank</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="in_stock">In Stock</option>
+                                            <option value="on_shipping">On Shipping Instr</option>
+                                            <option value="on_delivery">On Delivery Instr</option>
+                                            <option value="in_transit">In Transit</option>
+                                            <option value="arrived">Arrived Dest</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="irregular">Irregularities</option>
+                                            <option value="cancelled">Cancelled</option>
+                                </Select>
+                                    </Td>
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.supplier}
+                                            onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
+                                            options={suppliers}
+                                            placeholder="Select Supplier"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => option.name || `Supplier ${option.id}`}
+                                            isLoading={isLoadingSuppliers}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    {/* Single PO Number field, but allow multiple lines for clarity */}
+                                        <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.poNumber || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
+                                            placeholder="Enter PO Number(s) - one per line"
+                                            size="sm"
+                                            rows={3}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* Ready ex Supplier - date field */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Input
                                                 type="date"
                                                 value={row.expReadyInStock || ""}
@@ -1120,154 +1286,162 @@ export default function StockForm() {
                                             />
                                         </Td>
                                         {/* Warehouse ID - Free text + textarea */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Textarea
-                                                value={row.warehouseId || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
-                                                placeholder="Enter Warehouse ID"
-                                                size="sm"
-                                                rows={2}
-                                                resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                        <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.warehouseId || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "warehouseId", e.target.value)}
+                                            placeholder="Enter Warehouse ID"
+                                            size="sm"
+                                            rows={2}
+                                            resize="vertical"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* Date on Stock - date field */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
+                                        <Td {...cellProps}>
+                                        <Input
                                                 type="date"
                                                 value={row.dateOnStock || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.item || 1}
-                                                onChange={(value) => handleInputChange(rowIndex, "item", value)}
-                                                min={0}
-                                                precision={0}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.weightKgs}
-                                                onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.lengthCm}
-                                                onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.widthCm}
-                                                onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.heightCm}
-                                                onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.volumeNoDim}
-                                                onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Textarea
-                                                value={row.lwhText}
-                                                onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
-                                                placeholder="LWH Text (one set per line)"
-                                                size="sm"
-                                                rows={3}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.item || 1}
+                                            onChange={(value) => handleInputChange(rowIndex, "item", value)}
+                                            min={0}
+                                            precision={0}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.weightKgs}
+                                            onChange={(value) => handleInputChange(rowIndex, "weightKgs", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.lengthCm}
+                                            onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.widthCm}
+                                            onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.heightCm}
+                                            onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.volumeNoDim}
+                                            onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.lwhText}
+                                            onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
+                                            placeholder="LWH Text (one set per line)"
+                                            size="sm"
+                                            rows={3}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
                                             <Textarea
                                                 value={row.dgUnNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "dgUnNumber", e.target.value)}
                                                 placeholder="Enter DG/UN Number"
-                                                size="sm"
+                                    size="sm"
                                                 rows={3}
                                                 resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <NumberInput
-                                                value={row.value}
-                                                onChange={(value) => handleInputChange(rowIndex, "value", value)}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
-                                                value={row.currency || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "currency", e.target.value)}
-                                                placeholder="Enter Currency"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                            <SimpleSearchableSelect
-                                                value={row.origin}
-                                                onChange={(value) => handleInputChange(rowIndex, "origin", value)}
-                                                options={countries}
-                                                placeholder="Select Country"
-                                                displayKey="name"
-                                                valueKey="id"
-                                                formatOption={(option) => {
-                                                    const name = option.name || `Country ${option.id}`;
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <NumberInput
+                                            value={row.value}
+                                            onChange={(value) => handleInputChange(rowIndex, "value", value)}
+                                            min={0}
+                                            precision={2}
+                                            size="sm"
+                                        >
+                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                        </NumberInput>
+                                    </Td>
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.currency}
+                                            onChange={(value) => handleInputChange(rowIndex, "currency", value)}
+                                            options={currencies}
+                                            placeholder="Select Currency"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => {
+                                                const code = option.name || option.code || option.symbol || "";
+                                                const fullName = option.full_name || option.description || "";
+                                                return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
+                                            }}
+                                            isLoading={isLoadingCurrencies}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                                        <SimpleSearchableSelect
+                                            value={row.origin}
+                                            onChange={(value) => handleInputChange(rowIndex, "origin", value)}
+                                            options={countries}
+                                            placeholder="Select Country"
+                                            displayKey="name"
+                                            valueKey="id"
+                                            formatOption={(option) => {
+                                                const name = option.name || `Country ${option.id}`;
                                                     const code = option.code || "";
                                                     const stateCodes = Array.isArray(option.states)
                                                         ? option.states
@@ -1277,75 +1451,75 @@ export default function StockForm() {
                                                         : "";
                                                     const base = code ? `${name} (${code})` : name;
                                                     return stateCodes ? `${base} - ${stateCodes}` : base;
-                                                }}
-                                                isLoading={isLoadingCountries}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
-                                                value={row.viaHub || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
-                                                placeholder="Enter HUB 1"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
-                                                value={row.viaHub2 || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
-                                                placeholder="Enter HUB 2"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
-                                                value={row.apDestination || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
-                                                placeholder="AP Destination"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                            }}
+                                            isLoading={isLoadingCountries}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <Input
+                                            value={row.viaHub || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
+                                            placeholder="Enter HUB 1"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <Input
+                                            value={row.viaHub2 || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
+                                            placeholder="Enter HUB 2"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                        <Td {...cellProps}>
+                                        <Input
+                                            value={row.apDestination || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
+                                            placeholder="AP Destination"
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* Destination - Free text */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
+                                        <Td {...cellProps}>
+                                        <Input
                                                 value={row.destination || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "destination", e.target.value)}
                                                 placeholder="Enter Destination"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* Shipping Docs - Free text + textarea */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Textarea
                                                 value={row.shippingDoc || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                                 placeholder="Enter Shipping Docs"
-                                                size="sm"
+                                            size="sm"
                                                 rows={3}
                                                 resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* Export docs - Free text + textarea */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Textarea
+                                        <Td {...cellProps}>
+                                        <Textarea
                                                 value={row.exportDoc || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
                                                 placeholder="Enter Export docs"
@@ -1358,33 +1532,33 @@ export default function StockForm() {
                                             />
                                         </Td>
                                         {/* Remarks - Free text + textarea */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Textarea
                                                 value={row.remarks || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
+                                            onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
                                                 placeholder="Enter Remarks"
-                                                size="sm"
+                                            size="sm"
                                                 rows={3}
                                                 resize="vertical"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* SO - Free text */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Input
+                                        <Td {...cellProps}>
+                                        <Input
                                                 value={row.soNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
                                                 placeholder="Enter SO"
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
                                         {/* SI Number - Free text */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Input
                                                 value={row.siNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
@@ -1396,7 +1570,7 @@ export default function StockForm() {
                                             />
                                         </Td>
                                         {/* SI Combined - Free text */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Input
                                                 value={row.siCombined || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
@@ -1408,7 +1582,7 @@ export default function StockForm() {
                                             />
                                         </Td>
                                         {/* DI Number - Free text */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Td {...cellProps}>
                                             <Input
                                                 value={row.diNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
@@ -1420,66 +1594,109 @@ export default function StockForm() {
                                             />
                                         </Td>
                                         {/* Client Access - Yes or No */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Select
-                                                value={row.clientAccess ? "true" : "false"}
-                                                onChange={(e) => handleInputChange(rowIndex, "clientAccess", e.target.value === "true")}
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            >
-                                                <option value="false">No</option>
-                                                <option value="true">Yes</option>
-                                            </Select>
-                                        </Td>
+                                        <Td {...cellProps}>
+                                        <Select
+                                            value={row.clientAccess ? "true" : "false"}
+                                            onChange={(e) => handleInputChange(rowIndex, "clientAccess", e.target.value === "true")}
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="false">No</option>
+                                            <option value="true">Yes</option>
+                                        </Select>
+                                    </Td>
                                         {/* Files - Upload/Download button */}
-                                        <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                            <Button
+                                        <Td {...cellProps}>
+                                            <VStack spacing={2} align="stretch">
+                                                {/* File Upload Input */}
+                                                <Input
+                                                    type="file"
+                                                    multiple
+                                                    size="sm"
+                                                    onChange={(e) => handleFileUpload(rowIndex, e.target.files)}
+                                                    accept="application/pdf,image/*,.doc,.docx"
+                                                    display="none"
+                                                    id={`file-upload-${rowIndex}`}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <label htmlFor={`file-upload-${rowIndex}`}>
+                                                    <Button
+                                                        as="span"
+                                                        size="xs"
+                                                        variant="outline"
+                                                        colorScheme="blue"
+                                                        leftIcon={<Icon as={MdAttachFile} />}
+                                                        cursor="pointer"
+                                                        w="100%"
+                                                    >
+                                                        Upload Files
+                                                    </Button>
+                                                </label>
+                                                
+                                                {/* Display existing attachments */}
+                                                {(row.existingAttachments || []).map((att, attIdx) => (
+                                                    <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs">
+                                                        <Text isTruncated flex={1} title={att.filename}>
+                                                            {att.filename}
+                                                        </Text>
+                                                        <IconButton
+                                                            aria-label="Delete attachment"
+                                                            icon={<MdRemove />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => handleDeleteExistingAttachment(rowIndex, att.id)}
+                                                        />
+                                                    </Flex>
+                                                ))}
+                                                
+                                                {/* Display newly uploaded attachments */}
+                                                {(row.attachments || []).map((att, attIdx) => (
+                                                    <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs">
+                                                        <Text isTruncated flex={1} title={att.filename}>
+                                                            {att.filename}
+                                                        </Text>
+                                                        <IconButton
+                                                            aria-label="Remove attachment"
+                                                            icon={<MdRemove />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => handleDeleteAttachment(rowIndex, attIdx)}
+                                                        />
+                                                    </Flex>
+                                                ))}
+                                            </VStack>
+                                        </Td>
+                                    <Td px="8px" py="8px">
+                                        <HStack spacing="2">
+                                            <IconButton
+                                                icon={<Icon as={MdContentCopy} />}
                                                 size="sm"
-                                                variant="outline"
-                                                colorScheme="blue"
-                                                onClick={() => {
-                                                    // TODO: Implement file upload/download functionality
-                                                    toast({
-                                                        title: "File Upload",
-                                                        description: "File upload/download functionality will be implemented",
-                                                        status: "info",
-                                                        duration: 3000,
-                                                        isClosable: true,
-                                                    });
-                                                }}
-                                            >
-                                                Files
-                                            </Button>
-                                        </Td>
-                                        <Td px="8px" py="8px">
-                                            <HStack spacing="2">
-                                                <IconButton
-                                                    icon={<Icon as={MdContentCopy} />}
-                                                    size="sm"
-                                                    colorScheme="green"
-                                                    variant="ghost"
-                                                    onClick={() => handleCopyRow(rowIndex)}
-                                                    aria-label="Copy row"
-                                                    title="Copy/Repeat row"
-                                                />
-                                                <IconButton
-                                                    icon={<Icon as={MdDelete} />}
-                                                    size="sm"
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => handleDeleteRow(rowIndex)}
-                                                    aria-label="Delete row"
-                                                    title="Delete row"
-                                                    isDisabled={formRows.length === 1}
-                                                />
-                                            </HStack>
-                                        </Td>
-                                    </Tr>
-                                ))}
-                            </Tbody>
-                        </Table>
+                                                colorScheme="green"
+                                                variant="ghost"
+                                                onClick={() => handleCopyRow(rowIndex)}
+                                                aria-label="Copy row"
+                                                title="Copy/Repeat row"
+                                            />
+                                            <IconButton
+                                                icon={<Icon as={MdDelete} />}
+                                                size="sm"
+                                                colorScheme="red"
+                                                variant="ghost"
+                                                onClick={() => handleDeleteRow(rowIndex)}
+                                                aria-label="Delete row"
+                                                title="Delete row"
+                                                isDisabled={formRows.length === 1}
+                                            />
+                                        </HStack>
+                                    </Td>
+                                </Tr>
+                            ))}
+                        </Tbody>
+                    </Table>
                     </Box>
                 </Card>
             </Box>

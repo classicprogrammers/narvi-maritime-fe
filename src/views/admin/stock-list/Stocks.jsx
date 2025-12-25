@@ -37,7 +37,7 @@ import {
     Textarea,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi } from "../../../api/stock";
 import { useHistory } from "react-router-dom";
@@ -583,13 +583,296 @@ export default function Stocks() {
         return style.label || status || "-";
     };
 
+    // Helper function to clean and prepare base64 data
+    const cleanBase64Data = (data) => {
+        if (!data) return null;
+
+        let cleaned = String(data).trim();
+
+        // Remove data URI prefix if present (e.g., "data:application/pdf;base64,")
+        if (cleaned.includes(',')) {
+            cleaned = cleaned.split(',')[1];
+        }
+
+        // Remove any whitespace, newlines, or other non-base64 characters
+        cleaned = cleaned.replace(/\s/g, '');
+
+        // Handle URL-safe base64 encoding (replace - with + and _ with /)
+        cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+
+        // Validate base64 format (should only contain A-Z, a-z, 0-9, +, /, and =)
+        const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Regex.test(cleaned)) {
+            console.warn('Base64 data contains invalid characters, attempting to clean...');
+            // Remove any characters that aren't valid base64
+            cleaned = cleaned.replace(/[^A-Za-z0-9+/=]/g, '');
+        }
+
+        // Ensure proper padding - base64 strings must have length that's a multiple of 4
+        const paddingNeeded = (4 - (cleaned.length % 4)) % 4;
+        if (paddingNeeded > 0) {
+            // Remove any existing padding first
+            cleaned = cleaned.replace(/=+$/, '');
+            // Add correct padding
+            cleaned += '='.repeat(paddingNeeded);
+        }
+
+        // Final validation - check if the cleaned string is valid base64
+        if (cleaned.length === 0) {
+            console.warn('Base64 data is empty after cleaning');
+            return null;
+        }
+
+        // Verify the string can be decoded (basic check)
+        if (cleaned.length % 4 !== 0) {
+            console.warn('Base64 data length is not a multiple of 4:', cleaned.length);
+            // Try to fix by adding padding
+            const fixPadding = (4 - (cleaned.length % 4)) % 4;
+            cleaned += '='.repeat(fixPadding);
+        }
+
+        return cleaned;
+    };
+
+    // Handle viewing/downloading attachments
+    const handleViewFile = (attachment) => {
+        try {
+            let fileUrl = null;
+            let blobUrl = null; // Track blob URLs for cleanup
+
+            // Case 1: base64 data (most common for attachments)
+            if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                const rawData = attachment.datas;
+                const base64Data = cleanBase64Data(rawData);
+
+                console.log('Attachment data:', {
+                    hasData: !!rawData,
+                    dataType: typeof rawData,
+                    dataLength: rawData?.length,
+                    firstChars: rawData?.substring(0, 50),
+                    cleanedLength: base64Data?.length,
+                    mimeType
+                });
+
+                if (!base64Data) {
+                    toast({
+                        title: 'Error',
+                        description: 'Invalid file data format',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+
+                try {
+                    // Validate base64 string before attempting to decode
+                    if (base64Data.length === 0) {
+                        throw new Error('Base64 data is empty');
+                    }
+
+                    // Check if length is valid (should be multiple of 4 after padding)
+                    if (base64Data.length % 4 !== 0) {
+                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
+                    }
+
+                    // Convert base64 to blob for better browser compatibility
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+
+                    blobUrl = URL.createObjectURL(blob);
+                    fileUrl = blobUrl;
+                } catch (base64Error) {
+                    console.error('Error decoding base64:', base64Error, {
+                        dataLength: base64Data?.length,
+                        firstChars: base64Data?.substring(0, 50),
+                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
+                        mimeType
+                    });
+                    toast({
+                        title: 'Error',
+                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+            }
+            // Case 3: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}`;
+            }
+            // Case 4: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+            }
+
+            if (fileUrl) {
+                // Open in new tab
+                const newWindow = window.open(fileUrl, '_blank');
+
+                // Clean up blob URL after a delay (once it's opened)
+                if (blobUrl) {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                    }, 1000);
+                }
+
+                // If window.open failed, try download instead
+                if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+                    handleDownloadFile(attachment);
+                }
+            } else {
+                toast({
+                    title: 'Error',
+                    description: 'Unable to view file. File data not available.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } catch (error) {
+            console.error('Error viewing file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to view file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    const handleDownloadFile = (attachment) => {
+        try {
+            let fileUrl = null;
+            let blobUrl = null; // Track blob URLs for cleanup
+            let fileName = attachment.filename || attachment.name || 'download';
+
+            // Case 1: base64 data
+            if (attachment.datas) {
+                const mimeType = attachment.mimetype || "application/octet-stream";
+                const base64Data = cleanBase64Data(attachment.datas);
+
+                if (!base64Data) {
+                    toast({
+                        title: 'Error',
+                        description: 'Invalid file data format',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+
+                try {
+                    // Validate base64 string before attempting to decode
+                    if (base64Data.length === 0) {
+                        throw new Error('Base64 data is empty');
+                    }
+
+                    // Check if length is valid (should be multiple of 4 after padding)
+                    if (base64Data.length % 4 !== 0) {
+                        throw new Error(`Invalid base64 length: ${base64Data.length} (must be multiple of 4)`);
+                    }
+
+                    // Convert base64 to blob and download
+                    const byteCharacters = atob(base64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+
+                    blobUrl = URL.createObjectURL(blob);
+                    fileUrl = blobUrl;
+                } catch (base64Error) {
+                    console.error('Error decoding base64:', base64Error, {
+                        dataLength: base64Data?.length,
+                        firstChars: base64Data?.substring(0, 50),
+                        lastChars: base64Data?.substring(Math.max(0, base64Data?.length - 20)),
+                        mimeType
+                    });
+                    toast({
+                        title: 'Error',
+                        description: `Failed to decode file data. The file may be corrupted or in an unsupported format. ${base64Error.message ? `Error: ${base64Error.message}` : ''}`,
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 2: backend URL
+            else if (attachment.url) {
+                fileUrl = attachment.url;
+            }
+            // Case 3: construct URL from attachment ID
+            else if (attachment.id) {
+                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+                fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
+            }
+            // Case 4: file path
+            else if (attachment.path) {
+                fileUrl = attachment.path;
+            }
+
+            if (fileUrl) {
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Clean up blob URL after download
+                if (blobUrl) {
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                    }, 100);
+                }
+            } else {
+                toast({
+                    title: 'Error',
+                    description: 'Unable to download file. File data not available.',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to download file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
     // Shared sorting function - used by both By Vessel and By Client tabs
     // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
     const sortStockItems = (items) => {
         return [...items].sort((a, b) => {
             // 1. Sort by AP Destination
-            const apDestA = String(a.ap_destination_id || a.ap_destination || "").toLowerCase();
-            const apDestB = String(b.ap_destination_id || b.ap_destination || "").toLowerCase();
+            const apDestA = String(a.ap_destination_new || a.ap_destination_id || a.ap_destination || "").toLowerCase();
+            const apDestB = String(b.ap_destination_new || b.ap_destination_id || b.ap_destination || "").toLowerCase();
             if (apDestA !== apDestB) {
                 return apDestA.localeCompare(apDestB);
             }
@@ -973,13 +1256,13 @@ export default function Stocks() {
             { backend: "client_id", original: ["client_id", "client"], edited: ["client_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "supplier_id", original: ["supplier_id", "supplier"], edited: ["supplier_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "pic", original: ["pic", "pic_id"], edited: ["pic"], transform: (v) => v || "" },
+            { backend: "pic_new", original: ["pic_new", "pic", "pic_id"], edited: ["pic_new"], transform: (v) => v ? String(v) : false },
             { backend: "item", original: ["item"], edited: ["item"], transform: (v) => toNumber(v) || 1 }, // BOXES field - item count
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "origin", original: ["origin_id", "origin"], edited: ["origin_id", "origin"], transform: (v) => toValue(toId(v), false) },
-            { backend: "ap_destination", original: ["ap_destination_id", "ap_destination"], edited: ["ap_destination_id", "ap_destination"], transform: (v) => v || "" }, // Free text field // ID field as number
+            { backend: "ap_destination_new", original: ["ap_destination_new", "ap_destination_id", "ap_destination"], edited: ["ap_destination_new", "ap_destination"], transform: (v) => v || "" }, // Free text field
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
             { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
@@ -1002,10 +1285,8 @@ export default function Stocks() {
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
-            { backend: "destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "destination", "stock_destination"], transform: (v) => toValue(toId(v), false) }, // Keep destination for lines format
-            { backend: "stock_destination", original: ["destination_id", "destination", "stock_destination"], edited: ["destination_id", "stock_destination"], transform: (v) => toValue(toId(v), false) },
-            { backend: "warehouse_id", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => v || "" }, // Free text field, not linked to warehouses
-            { backend: "stock_warehouse", original: ["warehouse_id", "stock_warehouse"], edited: ["warehouse_id", "stock_warehouse"], transform: (v) => v || "" }, // Free text field, not linked to warehouses
+            { backend: "destination_new", original: ["destination_new", "destination_id", "destination", "stock_destination"], edited: ["destination_new", "destination"], transform: (v) => v || "" }, // Free text field
+            { backend: "warehouse_new", original: ["warehouse_new", "warehouse_id", "stock_warehouse"], edited: ["warehouse_new", "warehouse_id"], transform: (v) => v || "" }, // Free text field
             { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
             { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
             { backend: "date_on_stock", original: ["date_on_stock"], edited: ["date_on_stock"], transform: (v) => toValue(v, false) },
@@ -1516,19 +1797,70 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "ap_destination_new", item.ap_destination_new || item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "destination_new", item.destination_new || item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "exp_ready_in_stock", item.exp_ready_in_stock || item.ready_ex_supplier, "date") : <Text {...cellText}>{formatDate(item.exp_ready_in_stock || item.ready_ex_supplier)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "blank", item.blank || "") : <Text {...cellText}>{renderText(item.blank)}</Text>}
+                            {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <Text {...cellText}>{formatDate(item.date_on_stock)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "shipped_date", item.shipped_date, "date") : <Text {...cellText}>{formatDate(item.shipped_date)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <Text {...cellText}>{renderText(item.export_doc)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <Text {...cellText}>{renderText(item.remarks)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || 1, "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "length_cm", item.length_cm, "number") : <Text {...cellText}>{renderText(item.length_cm)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "width_cm", item.width_cm, "number") : <Text {...cellText}>{renderText(item.width_cm)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "height_cm", item.height_cm, "number") : <Text {...cellText}>{renderText(item.height_cm)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "volume_no_dim", item.volume_no_dim || item.volume_dim, "number") : <Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "lwh_text", item.lwh_text, "textarea") : <Text {...cellText}>{renderText(item.lwh_text)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "volume_cbm", item.volume_cbm, "number") : <Text {...cellText}>{renderText(item.volume_cbm)}</Text>}
+                        </Td>
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
+                        </Td>
+                        <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
+                            {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getClientName(item.client_id || item.client)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "internal_remarks", item.internal_remarks || item.remarks, "textarea") : <Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -1627,7 +1959,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "warehouse_id", item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text>}
+                            {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
@@ -1665,10 +1997,10 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "via_hub2", item.via_hub2) : <Text {...cellText}>{renderText(item.via_hub2)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_id", item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "ap_destination_new", item.ap_destination_new || item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "destination_id", item.destination_id || item.destination || item.stock_destination, "searchable") : <Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text>}
+                            {isEditing ? renderEditableCell(item, "destination_new", item.destination_new || item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc) : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
@@ -1693,9 +2025,6 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "blank", item.blank || "") : <Text {...cellText}>{renderText(item.blank)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -1729,100 +2058,6 @@ export default function Stocks() {
                                     />
                                 </HStack>
                             )}
-                        </Td>
-                    </Tr>
-                );
-            } else {
-                // By Status view (full set of columns)
-                return (
-                    <Tr
-                        key={item.id}
-                        bg={rowBg}
-                        borderBottom="1px"
-                        borderColor={tableBorderColor}
-                        _hover={{ opacity: 0.9 }}
-                    >
-                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
-                            <Checkbox
-                                isChecked={selectedRows.has(item.id)}
-                                onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                size="sm"
-                                borderColor="gray.600"
-                                sx={{
-                                    "& .chakra-checkbox__control": {
-                                        borderColor: "gray.600",
-                                        _checked: {
-                                            borderColor: "blue.500",
-                                        },
-                                    },
-                                }}
-                            />
-                        </Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number)}</Text></Td>
-                        <Td {...cellProps}>
-                            <Badge colorScheme={statusStyle.color} size="sm" borderRadius="full" px="3" py="1">
-                                {getStatusLabel(item.stock_status)}
-                            </Badge>
-                        </Td>
-                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.origin_id || item.origin)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination_id || item.ap_destination)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_id || item.stock_warehouse)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.details || item.item_desc)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || "-")}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
-                        <Td {...cellProps}>{renderMultiLineLabels(item.lwh_text)}</Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.cw_freight || item.cw_airfreight)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic || item.pic_id)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.so_status)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{getDestinationName(item.vessel_destination || item.destination)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.vessel_eta)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
-                        <Td {...cellProps}><Text {...cellText}>{renderText(item.blank)}</Text></Td>
-                        <Td {...cellProps}>
-                            <HStack spacing="2">
-                                <IconButton
-                                    icon={<Icon as={MdEdit} />}
-                                    size="sm"
-                                    colorScheme="blue"
-                                    variant="ghost"
-                                    aria-label="Edit"
-                                    onClick={() => {
-                                        const selectedItems = [item];
-                                        history.push({
-                                            pathname: '/admin/stock-list/main-db-edit',
-                                            state: { selectedItems, isBulkEdit: false }
-                                        });
-                                    }}
-                                />
-                            </HStack>
                         </Td>
                     </Tr>
                 );
@@ -2273,9 +2508,9 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
@@ -2296,9 +2531,44 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text></Td>
                                                         <Td {...cellProps}>
-                                                            <Button size="xs" variant="outline" colorScheme="blue">
-                                                                Files
-                                                            </Button>
+                                                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                                                <VStack spacing={1} align="stretch">
+                                                                    {item.attachments.map((att, idx) => (
+                                                                        <HStack key={idx} spacing={1} align="center">
+                                                                            <Text
+                                                                                fontSize="xs"
+                                                                                isTruncated
+                                                                                flex={1}
+                                                                                title={att.filename || att.name}
+                                                                                cursor="pointer"
+                                                                                color="blue.500"
+                                                                                _hover={{ textDecoration: "underline" }}
+                                                                                onClick={() => handleViewFile(att)}
+                                                                            >
+                                                                                {att.filename || att.name || `File ${idx + 1}`}
+                                                                            </Text>
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdVisibility} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                aria-label="View file"
+                                                                                onClick={() => handleViewFile(att)}
+                                                                            />
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdDownload} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                aria-label="Download file"
+                                                                                onClick={() => handleDownloadFile(att)}
+                                                                            />
+                                                                        </HStack>
+                                                                    ))}
+                                                                </VStack>
+                                                            ) : (
+                                                                <Text fontSize="xs" color="gray.500">No files</Text>
+                                                            )}
                                                         </Td>
                                                         <Td {...cellProps}>
                                                             <IconButton
@@ -2346,8 +2616,8 @@ export default function Stocks() {
                                                     {config.label}
                                                 </Text>
                                                 <Checkbox
-                                                    isChecked={vesselViewStatuses.has(statusKey)}
-                                                    onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                    isChecked={clientViewStatuses.has(statusKey)}
+                                                    onChange={() => handleClientViewStatusToggle(statusKey)}
                                                     size="md"
                                                     colorScheme={config.color}
                                                     borderColor="gray.600"
@@ -2417,9 +2687,9 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
@@ -2438,9 +2708,44 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                                         <Td {...cellProps}>
-                                                            <Button size="xs" variant="outline" colorScheme="blue">
-                                                                Files
-                                                            </Button>
+                                                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                                                <VStack spacing={1} align="stretch">
+                                                                    {item.attachments.map((att, idx) => (
+                                                                        <HStack key={idx} spacing={1} align="center">
+                                                                            <Text
+                                                                                fontSize="xs"
+                                                                                isTruncated
+                                                                                flex={1}
+                                                                                title={att.filename || att.name}
+                                                                                cursor="pointer"
+                                                                                color="blue.500"
+                                                                                _hover={{ textDecoration: "underline" }}
+                                                                                onClick={() => handleViewFile(att)}
+                                                                            >
+                                                                                {att.filename || att.name || `File ${idx + 1}`}
+                                                                            </Text>
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdVisibility} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                aria-label="View file"
+                                                                                onClick={() => handleViewFile(att)}
+                                                                            />
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdDownload} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                aria-label="Download file"
+                                                                                onClick={() => handleDownloadFile(att)}
+                                                                            />
+                                                                        </HStack>
+                                                                    ))}
+                                                                </VStack>
+                                                            ) : (
+                                                                <Text fontSize="xs" color="gray.500">No files</Text>
+                                                            )}
                                                         </Td>
                                                     </Tr>
                                                 );
