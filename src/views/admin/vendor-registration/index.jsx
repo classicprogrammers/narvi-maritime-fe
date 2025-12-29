@@ -363,7 +363,7 @@ function VendorRegistration() {
     const emptyCneeRow = React.useMemo(
         () => ({
             cnee1: "", // Free text field
-            cnee_type: "cargo", // Select field: "cargo" | "air" | "ocean_freight"
+            cnee_type_text: "", // Free text field with suggestions
             cnee_text: "",
             warnings: "",
             narvi_approved: false,
@@ -373,7 +373,7 @@ function VendorRegistration() {
     const [cneeRows, setCneeRows] = React.useState([
         {
             cnee1: "",
-            cnee_type: "cargo",
+            cnee_type_text: "",
             cnee_text: "",
             warnings: "",
             narvi_approved: false,
@@ -446,31 +446,16 @@ function VendorRegistration() {
         }
 
         const row = cneeRows[rowIndex];
-        const typeLabel = (() => {
-            if (row.cnee_type === "air") return "Air Freight";
-            if (row.cnee_type === "cargo") return "Cargo Freight";
-            if (row.cnee_type === "ocean_freight") return "Ocean Freight";
-            return String(row.cnee_type || "-");
-        })();
+        
+        // Only copy CNEE TEXT
+        const cneeText = row.cnee_text && String(row.cnee_text).trim() !== "" 
+            ? String(row.cnee_text).trim() 
+            : "";
 
-        const lines = [];
-        lines.push(`CNEE ${rowIndex + 1}: ${row.cnee1 || "-"}`);
-        lines.push(`CNEE TYPE: ${typeLabel}`);
-        lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
-
-        if (row.cnee_text && String(row.cnee_text).trim() !== "") {
-            lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
-        }
-
-        if (row.warnings && String(row.warnings).trim() !== "") {
-            lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
-        }
-
-        const textToCopy = lines.join("\n").trim();
-        if (!textToCopy) {
+        if (!cneeText) {
             toast({
                 title: "Nothing to copy",
-                description: "CNEE fields are empty.",
+                description: "CNEE TEXT is empty.",
                 status: "info",
                 duration: 2000,
                 isClosable: true,
@@ -479,11 +464,11 @@ function VendorRegistration() {
         }
 
         navigator.clipboard
-            .writeText(textToCopy)
+            .writeText(cneeText)
             .then(() => {
                 toast({
-                    title: "CNEE information copied to clipboard",
-                    description: `CNEE ${rowIndex + 1} information has been copied.`,
+                    title: "CNEE TEXT copied to clipboard",
+                    description: `CNEE ${rowIndex + 1} text has been copied.`,
                     status: "success",
                     duration: 2000,
                     isClosable: true,
@@ -492,7 +477,7 @@ function VendorRegistration() {
             .catch(() => {
                 toast({
                     title: "Copy failed",
-                    description: "Unable to copy CNEE information. Please try again.",
+                    description: "Unable to copy CNEE text. Please try again.",
                     status: "error",
                     duration: 2000,
                     isClosable: true,
@@ -590,7 +575,7 @@ function VendorRegistration() {
                 initialCneeRows = vendorData.agent_cnee_ids.map((item) => ({
                     _originalId: item.id,
                     cnee1: getValue(item.cnee1),
-                    cnee_type: item.cnee_type || "cargo",
+                    cnee_type_text: getValue(item.cnee_type_text || item.cnee_type),
                     cnee_text: getValue(item.cnee_text),
                     warnings: getValue(item.warnings),
                     narvi_approved: convertApprovalValueToBoolean(
@@ -656,6 +641,82 @@ function VendorRegistration() {
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Helper function to handle numbered list on Enter (reusable for both main remarks and people remarks)
+    const createNumberedListHandler = (updateFunction) => {
+        return (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                const currentText = e.target.value;
+                const cursorPosition = e.target.selectionStart;
+                
+                // Get the text before and after cursor
+                const textBeforeCursor = currentText.substring(0, cursorPosition);
+                const textAfterCursor = currentText.substring(cursorPosition);
+                
+                // Find the current line (text from last newline to cursor)
+                const lastNewlineIndex = textBeforeCursor.lastIndexOf("\n");
+                const currentLine = textBeforeCursor.substring(lastNewlineIndex + 1);
+                
+                // If current line is empty, just add a newline
+                if (!currentLine.trim()) {
+                    const newValue = textBeforeCursor + "\n" + textAfterCursor;
+                    updateFunction(newValue);
+                    // Set cursor position after the newline
+                    setTimeout(() => {
+                        e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1;
+                    }, 0);
+                    return;
+                }
+                
+                // Parse existing numbered items to get the next number
+                const allLines = currentText.split("\n");
+                let maxNumber = 0;
+                
+                // Find the highest number in existing numbered items
+                allLines.forEach(line => {
+                    const match = line.trim().match(/^(\d+)\.\s/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxNumber) {
+                            maxNumber = num;
+                        }
+                    }
+                });
+                
+                // Check if current line already has a number prefix
+                const trimmedCurrentLine = currentLine.trim();
+                const hasNumberPrefix = /^\d+\.\s/.test(trimmedCurrentLine);
+                
+                let newLine;
+                if (hasNumberPrefix) {
+                    // Already has a number, keep it as is
+                    newLine = currentLine;
+                } else {
+                    // Add numbering to current line
+                    const nextNumber = maxNumber + 1;
+                    // Preserve any leading whitespace
+                    const leadingWhitespace = currentLine.match(/^\s*/)?.[0] || "";
+                    const lineContent = trimmedCurrentLine;
+                    newLine = leadingWhitespace + `${nextNumber}. ${lineContent}`;
+                }
+                
+                // Build the new value
+                const linesBefore = lastNewlineIndex >= 0 
+                    ? textBeforeCursor.substring(0, lastNewlineIndex + 1)
+                    : "";
+                const newValue = linesBefore + newLine + "\n" + textAfterCursor;
+                
+                updateFunction(newValue);
+                
+                // Set cursor position after the newline
+                setTimeout(() => {
+                    const newCursorPos = linesBefore.length + newLine.length + 1;
+                    e.target.selectionStart = e.target.selectionEnd = newCursorPos;
+                }, 0);
+            }
+        };
     };
 
     const updatePeopleRow = (rowIndex, field, value) => {
@@ -803,7 +864,7 @@ function VendorRegistration() {
 
                 const base = {
                     cnee1: row.cnee1 || "",
-                    cnee_type: row.cnee_type || "cargo",
+                    cnee_type_text: row.cnee_type_text || "",
                     cnee_text: row.cnee_text || "",
                     warnings: row.warnings || "",
                     narvi_maritime_approved_agent: !!row.narvi_approved,
@@ -827,7 +888,7 @@ function VendorRegistration() {
             cneeRows.forEach((row) => {
                 items.push({
                     cnee1: row.cnee1 || "",
-                    cnee_type: row.cnee_type || "cargo",
+                    cnee_type_text: row.cnee_type_text || "",
                     cnee_text: row.cnee_text || "",
                     warnings: row.warnings || "",
                     narvi_maritime_approved_agent: !!row.narvi_approved,
@@ -1301,7 +1362,10 @@ function VendorRegistration() {
                                             name="remarks"
                                             value={formData.remarks}
                                             onChange={(e) => handleInputChange('remarks', e.target.value)}
-                                            placeholder="Notes..."
+                                            onKeyDown={createNumberedListHandler((newValue) => {
+                                                handleInputChange('remarks', newValue);
+                                            })}
+                                            placeholder="Type and press Enter to create numbered list..."
                                             size="sm"
                                             w={gridInputWidth}
                                             rows={3}
@@ -1500,7 +1564,7 @@ function VendorRegistration() {
                                                     />
                                                 </Box>
 
-                                                {/* CNEE Type - Select */}
+                                                {/* CNEE Type - Combobox (Input with datalist) */}
                                                 <Box
                                                     display="flex"
                                                     justifyContent="space-between"
@@ -1516,16 +1580,21 @@ function VendorRegistration() {
                                                     >
                                                         CNEE Type
                                                     </Text>
-                                                    <Select
-                                                        value={row.cnee_type || "cargo"}
-                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee_type", e.target.value)}
-                                                        size="sm"
-                                                        w={gridInputWidth}
-                                                    >
-                                                        <option value="cargo">Cargo Freight</option>
-                                                        <option value="air">Air Freight</option>
-                                                        <option value="ocean_freight">Ocean Freight</option>
-                                                    </Select>
+                                                    <Box w={gridInputWidth} position="relative">
+                                                        <Input
+                                                            list={`cnee-type-${rowIndex}`}
+                                                            value={row.cnee_type_text || ""}
+                                                            onChange={(e) => updateCneeRow(rowIndex, "cnee_type_text", e.target.value)}
+                                                            placeholder="Type or select CNEE type..."
+                                                            size="sm"
+                                                            w="100%"
+                                                        />
+                                                        <datalist id={`cnee-type-${rowIndex}`}>
+                                                            <option value="Air Freight">Air Freight</option>
+                                                            <option value="Cargo Freight">Cargo Freight</option>
+                                                            <option value="Ocean Freight">Ocean Freight</option>
+                                                        </datalist>
+                                                    </Box>
                                                 </Box>
 
 
@@ -1714,6 +1783,9 @@ function VendorRegistration() {
                                                         <Textarea
                                                             value={row[column.key] || ""}
                                                             onChange={(e) => updatePeopleRow(rowIndex, column.key, e.target.value)}
+                                                            onKeyDown={createNumberedListHandler((newValue) => {
+                                                                updatePeopleRow(rowIndex, column.key, newValue);
+                                                            })}
                                                             size="sm"
                                                             border="1px solid"
                                                             borderColor={borderLight}
@@ -1723,7 +1795,7 @@ function VendorRegistration() {
                                                                 borderColor: "blue.500",
                                                                 boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.3)",
                                                             }}
-                                                            placeholder={peoplePlaceholders[column.key] || undefined}
+                                                            placeholder="Type and press Enter to create numbered list..."
                                                             rows={3}
                                                             resize="vertical"
                                                         />

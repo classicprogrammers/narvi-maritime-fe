@@ -37,13 +37,43 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
-import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd } from "react-icons/md";
+import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
 // Redux
 import { useCustomer } from "redux/hooks/useCustomer";
+
+// Helper to validate and normalize URLs
+const isValidUrl = (string) => {
+    if (!string || typeof string !== "string") return false;
+    const trimmed = string.trim();
+    if (trimmed === "") return false;
+
+    try {
+        // Try to create a URL object - this validates the URL format
+        let urlString = trimmed;
+        // If URL doesn't start with http:// or https://, add https://
+        if (!/^https?:\/\//i.test(urlString)) {
+            urlString = `https://${urlString}`;
+        }
+        new URL(urlString);
+        return true;
+    } catch (_) {
+        return false;
+    }
+};
+
+// Helper to normalize URL (add https:// if missing)
+const normalizeUrl = (url) => {
+    if (!url || typeof url !== "string") return url;
+    const trimmed = url.trim();
+    if (!/^https?:\/\//i.test(trimmed)) {
+        return `https://${trimmed}`;
+    }
+    return trimmed;
+};
 
 function CustomerRegistration() {
     const history = useHistory();
@@ -362,6 +392,90 @@ function CustomerRegistration() {
             [name]: value
         }));
     };
+
+    // Helper function to handle numbered list on Enter (reusable for both main remarks and people remarks)
+    const createNumberedListHandler = (updateFunction) => {
+        return (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                const currentText = e.target.value;
+                const cursorPosition = e.target.selectionStart;
+
+                // Get the text before and after cursor
+                const textBeforeCursor = currentText.substring(0, cursorPosition);
+                const textAfterCursor = currentText.substring(cursorPosition);
+
+                // Find the current line (text from last newline to cursor)
+                const lastNewlineIndex = textBeforeCursor.lastIndexOf("\n");
+                const currentLine = textBeforeCursor.substring(lastNewlineIndex + 1);
+
+                // If current line is empty, just add a newline
+                if (!currentLine.trim()) {
+                    const newValue = textBeforeCursor + "\n" + textAfterCursor;
+                    updateFunction(newValue);
+                    // Set cursor position after the newline
+                    setTimeout(() => {
+                        e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1;
+                    }, 0);
+                    return;
+                }
+
+                // Parse existing numbered items to get the next number
+                const allLines = currentText.split("\n");
+                let maxNumber = 0;
+
+                // Find the highest number in existing numbered items
+                allLines.forEach(line => {
+                    const match = line.trim().match(/^(\d+)\.\s/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (num > maxNumber) {
+                            maxNumber = num;
+                        }
+                    }
+                });
+
+                // Check if current line already has a number prefix
+                const trimmedCurrentLine = currentLine.trim();
+                const hasNumberPrefix = /^\d+\.\s/.test(trimmedCurrentLine);
+
+                let newLine;
+                if (hasNumberPrefix) {
+                    // Already has a number, keep it as is
+                    newLine = currentLine;
+                } else {
+                    // Add numbering to current line
+                    const nextNumber = maxNumber + 1;
+                    // Preserve any leading whitespace
+                    const leadingWhitespace = currentLine.match(/^\s*/)?.[0] || "";
+                    const lineContent = trimmedCurrentLine;
+                    newLine = leadingWhitespace + `${nextNumber}. ${lineContent}`;
+                }
+
+                // Build the new value
+                const linesBefore = lastNewlineIndex >= 0
+                    ? textBeforeCursor.substring(0, lastNewlineIndex + 1)
+                    : "";
+                const newValue = linesBefore + newLine + "\n" + textAfterCursor;
+
+                updateFunction(newValue);
+
+                // Set cursor position after the newline
+                setTimeout(() => {
+                    const newCursorPos = linesBefore.length + newLine.length + 1;
+                    e.target.selectionStart = e.target.selectionEnd = newCursorPos;
+                }, 0);
+            }
+        };
+    };
+
+    // Handle remarks field with numbered list on Enter
+    const handleRemarksKeyDown = createNumberedListHandler((newValue) => {
+        setFormData(prev => ({
+            ...prev,
+            remarks: newValue
+        }));
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -1038,7 +1152,8 @@ function CustomerRegistration() {
                                                             name="remarks"
                                                             value={formData.remarks}
                                                             onChange={handleInputChange}
-                                                            placeholder="Notes..."
+                                                            onKeyDown={handleRemarksKeyDown}
+                                                            placeholder="Type and press Enter to create numbered list..."
                                                             size="sm"
                                                             w={gridInputWidth}
                                                             rows={3}
@@ -1052,7 +1167,23 @@ function CustomerRegistration() {
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
-                                                        <Input name="website" value={formData.website} onChange={handleInputChange} placeholder="https://..." size="sm" w={gridInputWidth} />
+                                                        <Flex gap={2} alignItems="center" w={gridInputWidth}>
+                                                            <Input name="website" value={formData.website} onChange={handleInputChange} placeholder="https://..." size="sm" flex="1" />
+                                                            {formData.website && isValidUrl(formData.website) && (
+                                                                <Button
+                                                                    size="xs"
+                                                                    colorScheme="blue"
+                                                                    variant="outline"
+                                                                    leftIcon={<Icon as={MdOpenInNew} />}
+                                                                    onClick={() => {
+                                                                        const normalizedUrl = normalizeUrl(formData.website);
+                                                                        window.open(normalizedUrl, "_blank", "noopener,noreferrer");
+                                                                    }}
+                                                                >
+                                                                    Visit
+                                                                </Button>
+                                                            )}
+                                                        </Flex>
                                                     </Box>
 
                                                     {/* LEFT: Phone1 / RIGHT: empty */}
@@ -1188,6 +1319,13 @@ function CustomerRegistration() {
                                                                                     return updated;
                                                                                 });
                                                                             }}
+                                                                            onKeyDown={createNumberedListHandler((newValue) => {
+                                                                                setPeopleRows((prev) => {
+                                                                                    const updated = [...prev];
+                                                                                    updated[rowIndex] = { ...updated[rowIndex], [column.key]: newValue };
+                                                                                    return updated;
+                                                                                });
+                                                                            })}
                                                                             size="sm"
                                                                             style={{ backgroundColor: "#f7f7f77a" }}
                                                                             border="1px solid"
@@ -1197,7 +1335,7 @@ function CustomerRegistration() {
                                                                                 borderColor: "blue.500",
                                                                                 boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
                                                                             }}
-                                                                            placeholder={peoplePlaceholders[column.key] || undefined}
+                                                                            placeholder="Type and press Enter to create numbered list..."
                                                                             rows={3}
                                                                             resize="vertical"
                                                                         />

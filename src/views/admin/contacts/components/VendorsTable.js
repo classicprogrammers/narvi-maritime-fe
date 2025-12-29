@@ -269,46 +269,41 @@ export default function VendorsTable(props) {
         item.reg_no ?? item.registration_no ?? item.registrationNo ?? "";
 
       // Calculate CNEE count and build display list
+      // Only count CNEE entries that have cnee1 values (CNEE1, CNEE2, CNEE3, etc.)
       let cneeCount = 0;
       const cneeDisplay = [];
 
       if (Array.isArray(item.agent_cnee_ids) && item.agent_cnee_ids.length > 0) {
-        cneeCount = item.agent_cnee_ids.length;
-        item.agent_cnee_ids.forEach((cneeItem) => {
-          const cneeType = cneeItem.cnee_type || "cargo";
-          let typeLabel = "";
-          if (cneeType === "air") typeLabel = "Air Freight";
-          else if (cneeType === "cargo") typeLabel = "Cargo Freight";
-          else if (cneeType === "ocean_freight") typeLabel = "Ocean Freight";
-          else typeLabel = String(cneeType);
-
+        // Filter to only include entries with cnee1 values
+        const cneeWithCnee1 = item.agent_cnee_ids.filter((cneeItem) => {
           const cnee1 = cneeItem.cnee1 ? String(cneeItem.cnee1).trim() : "";
+          return cnee1 !== "";
+        });
+
+        cneeCount = cneeWithCnee1.length;
+        cneeWithCnee1.forEach((cneeItem, index) => {
           const cneeText = cneeItem.cnee_text ? String(cneeItem.cnee_text).trim() : "";
-          let displayName = "";
-          if (cnee1) {
-            displayName = `${cnee1} (${typeLabel})`;
-          } else {
-            displayName = typeLabel;
-          }
+          const cneeNumber = index + 1;
+
+          // Format: "CNEE 1: CNEE text" or just "CNEE 1" if no text
           if (cneeText) {
-            displayName += `: ${cneeText}`;
+            cneeDisplay.push(`CNEE ${cneeNumber}: ${cneeText}`);
+          } else {
+            cneeDisplay.push(`CNEE ${cneeNumber}`);
           }
-          cneeDisplay.push(displayName);
         });
       } else {
         // Fallback to legacy cnee1-cnee12 fields
+        // Only count entries that have values in cnee1-cnee12 fields
         for (let i = 1; i <= 12; i++) {
           const cneeValue = item[`cnee${i}`];
           if (cneeValue && String(cneeValue).trim() !== "") {
             cneeCount++;
+            // For legacy, we don't have separate cnee_text, so just show the cnee value
             cneeDisplay.push(`CNEE ${i}: ${String(cneeValue).trim()}`);
           }
         }
-        // Also count cnee_text if it has a value
-        if (item.cnee_text && String(item.cnee_text).trim() !== "") {
-          cneeCount++;
-          cneeDisplay.push(`CNEE Text: ${String(item.cnee_text).trim()}`);
-        }
+        // Note: Legacy cnee_text field is not counted separately, only cnee1-cnee12
       }
 
       const normalizedChildren = Array.isArray(rawChildren)
@@ -1800,3 +1795,4 @@ export default function VendorsTable(props) {
     </>
   );
 }
+

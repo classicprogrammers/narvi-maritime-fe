@@ -388,7 +388,7 @@ const AgentDetail = () => {
     if (Array.isArray(agent.agent_cnee_ids) && agent.agent_cnee_ids.length > 0) {
       return agent.agent_cnee_ids.map((item) => ({
         cnee1: item.cnee1 || "",
-        cnee_type: item.cnee_type || "cargo",
+        cnee_type_text: item.cnee_type_text || item.cnee_type || "",
         cnee_text: item.cnee_text || "",
         warnings: item.warnings || "",
         narvi_approved: convertApprovalValueToBoolean(
@@ -421,7 +421,7 @@ const AgentDetail = () => {
     return [
       {
         cnee1: legacyTypes.length > 0 ? legacyTypes.join("\n") : "N/A",
-        cnee_type: "cargo", // Default for legacy data
+        cnee_type_text: "", // Empty for legacy data
         cnee_text: agent.cnee_text || "",
         warnings: agent.warnings || "",
         narvi_approved: convertApprovalValueToBoolean(
@@ -444,31 +444,16 @@ const AgentDetail = () => {
     }
 
     const row = cneeRows[rowIndex];
-    const typeLabel = (() => {
-      if (row.cnee_type === "air") return "Air Freight";
-      if (row.cnee_type === "cargo") return "Cargo Freight";
-      if (row.cnee_type === "ocean_freight") return "Ocean Freight";
-      return String(row.cnee_type || "-");
-    })();
+    
+    // Only copy CNEE TEXT
+    const cneeText = row.cnee_text && String(row.cnee_text).trim() !== "" 
+      ? String(row.cnee_text).trim() 
+      : "";
 
-    const lines = [];
-    lines.push(`CNEE ${rowIndex + 1}: ${row.cnee1 || "-"}`);
-    lines.push(`CNEE TYPE: ${typeLabel}`);
-    lines.push(`NARVI MARITIME APPROVED: ${row.narvi_approved ? "Yes" : "No"}`);
-
-    if (row.cnee_text && String(row.cnee_text).trim() !== "") {
-      lines.push(`CNEE TEXT: ${String(row.cnee_text).trim()}`);
-    }
-
-    if (row.warnings !== undefined && String(row.warnings).trim() !== "") {
-      lines.push(`WARNINGS: ${String(row.warnings).trim()}`);
-    }
-
-    const textToCopy = lines.join("\n").trim();
-    if (!textToCopy) {
+    if (!cneeText) {
       toast({
         title: "Nothing to copy",
-        description: "CNEE fields are empty.",
+        description: "CNEE TEXT is empty.",
         status: "info",
         duration: 2000,
         isClosable: true,
@@ -477,11 +462,11 @@ const AgentDetail = () => {
     }
 
     navigator.clipboard
-      .writeText(textToCopy)
+      .writeText(cneeText)
       .then(() => {
         toast({
-          title: "CNEE information copied to clipboard",
-          description: `CNEE ${rowIndex + 1} information has been copied.`,
+          title: "CNEE TEXT copied to clipboard",
+          description: `CNEE ${rowIndex + 1} text has been copied.`,
           status: "success",
           duration: 2000,
           isClosable: true,
@@ -490,7 +475,7 @@ const AgentDetail = () => {
       .catch(() => {
         toast({
           title: "Copy failed",
-          description: "Unable to copy CNEE information. Please try again.",
+          description: "Unable to copy CNEE text. Please try again.",
           status: "error",
           duration: 2000,
           isClosable: true,
@@ -807,6 +792,37 @@ const AgentDetail = () => {
                       );
                     }
 
+                    // Special handling for remarks field - preserve line breaks for numbered lists
+                    if (key === "remarks") {
+                      return (
+                        <Flex
+                          key={key}
+                          px={4}
+                          py={2}
+                          borderColor={borderColor}
+                          justifyContent="flex-start"
+                          alignItems="flex-start"
+                          gap={2}
+                        >
+                          <Tooltip
+                            label={displayValue}
+                            hasArrow
+                            isDisabled={!displayValue || String(displayValue).length <= 30}
+                          >
+                            <Text
+                              fontSize="sm"
+                              color={valueColor}
+                              whiteSpace="pre-wrap"
+                              overflow="visible"
+                              maxW="220px"
+                            >
+                              {displayValue}
+                            </Text>
+                          </Tooltip>
+                        </Flex>
+                      );
+                    }
+
                     // Default rendering for other fields
                     return (
                       <Flex
@@ -927,12 +943,7 @@ const AgentDetail = () => {
                                   CNEE Type
                                 </Text>
                                 <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                  {(() => {
-                                    if (row.cnee_type === "air") return "Air Freight";
-                                    if (row.cnee_type === "cargo") return "Cargo Freight";
-                                    if (row.cnee_type === "ocean_freight") return "Ocean Freight";
-                                    return prettyValue(row.cnee_type);
-                                  })()}
+                                  {prettyValue(row.cnee_type_text)}
                                 </Text>
                               </Flex>
                             </GridItem>
@@ -1057,9 +1068,9 @@ const AgentDetail = () => {
                                   <Text
                                     fontSize="sm"
                                     color={valueColor}
-                                    whiteSpace="nowrap"
-                                    overflow="hidden"
-                                    textOverflow="ellipsis"
+                                    whiteSpace={column.key === "remarks" ? "pre-wrap" : "nowrap"}
+                                    overflow={column.key === "remarks" ? "visible" : "hidden"}
+                                    textOverflow={column.key === "remarks" ? "clip" : "ellipsis"}
                                     maxW="220px"
                                   >
                                     {prettyValue(person[column.key])}

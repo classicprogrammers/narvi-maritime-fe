@@ -20,7 +20,7 @@ import {
   IconButton,
   useToast,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy } from "react-icons/md";
+import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -31,6 +31,36 @@ const prettyValue = (value) => {
     return "-";
   }
   return value;
+};
+
+// Helper to validate and normalize URLs
+const isValidUrl = (string) => {
+  if (!string || typeof string !== "string") return false;
+  const trimmed = string.trim();
+  if (trimmed === "") return false;
+
+  try {
+    // Try to create a URL object - this validates the URL format
+    let urlString = trimmed;
+    // If URL doesn't start with http:// or https://, add https://
+    if (!/^https?:\/\//i.test(urlString)) {
+      urlString = `https://${urlString}`;
+    }
+    new URL(urlString);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+// Helper to normalize URL (add https:// if missing)
+const normalizeUrl = (url) => {
+  if (!url || typeof url !== "string") return url;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
 };
 
 const clientInfoSections = [
@@ -146,6 +176,7 @@ const ClientDetail = () => {
       "vessel_type",      // Vessel Types
       "website",          // Website
       "remarks",          // Remarks
+      "client_code",      // Client Code (right hand side)
     ];
 
     const values = clientInfoSections[0].items
@@ -238,6 +269,23 @@ const ClientDetail = () => {
             <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrint}>
               Print
             </Button>
+            {client && (
+              <Button
+                leftIcon={<Icon as={MdEdit} />}
+                colorScheme="blue"
+                onClick={() => {
+                  const clientId = client.id || id;
+                  if (clientId) {
+                    history.push({
+                      pathname: `/admin/customer-registration`,
+                      state: { client: client, clientId: clientId }
+                    });
+                  }
+                }}
+              >
+                Edit Client
+              </Button>
+            )}
             <Button onClick={() => history.push("/admin/contacts/customer")}>Back to Clients</Button>
           </Flex>
         </Flex>
@@ -315,6 +363,76 @@ const ClientDetail = () => {
 
                   const renderRow = ({ label, key, formatter }) => {
                     const rawValue = formatter ? formatter(client[key], client) : client[key];
+                    const displayValue = prettyValue(rawValue);
+
+                    // Special handling for website field - make it clickable if valid URL
+                    if (key === "website" && isValidUrl(rawValue)) {
+                      const normalizedUrl = normalizeUrl(rawValue);
+                      return (
+                        <Flex
+                          key={key}
+                          px={4}
+                          py={2}
+                          borderColor={borderColor}
+                          justifyContent="flex-start"
+                          alignItems="center"
+                          gap={2}
+                        >
+                          <Text
+                            fontSize="sm"
+                            color={valueColor}
+                            whiteSpace="nowrap"
+                            overflow="hidden"
+                            textOverflow="ellipsis"
+                            maxW="180px"
+                          >
+                            {displayValue}
+                          </Text>
+                          <Button
+                            size="xs"
+                            colorScheme="blue"
+                            variant="outline"
+                            leftIcon={<Icon as={MdOpenInNew} />}
+                            onClick={() => window.open(normalizedUrl, "_blank", "noopener,noreferrer")}
+                          >
+                            Visit
+                          </Button>
+                        </Flex>
+                      );
+                    }
+
+                    // Special handling for remarks field - preserve line breaks for numbered lists
+                    if (key === "remarks") {
+                      return (
+                        <Flex
+                          key={key}
+                          px={4}
+                          py={2}
+                          borderColor={borderColor}
+                          justifyContent="flex-start"
+                          alignItems="flex-start"
+                          gap={2}
+                        >
+                          <Tooltip
+                            label={displayValue}
+                            hasArrow
+                            isDisabled={!displayValue || String(displayValue).length <= 30}
+                          >
+                            <Text
+                              fontSize="sm"
+                              color={valueColor}
+                              whiteSpace="pre-wrap"
+                              overflow="visible"
+                              maxW="220px"
+                            >
+                              {displayValue}
+                            </Text>
+                          </Tooltip>
+                        </Flex>
+                      );
+                    }
+
+                    // Default rendering for other fields
                     return (
                       <Flex
                         key={key}
@@ -326,9 +444,9 @@ const ClientDetail = () => {
                         gap={2}
                       >
                         <Tooltip
-                          label={prettyValue(rawValue)}
+                          label={displayValue}
                           hasArrow
-                          isDisabled={!prettyValue(rawValue) || String(prettyValue(rawValue)).length <= 30}
+                          isDisabled={!displayValue || String(displayValue).length <= 30}
                         >
                           <Text
                             fontSize="sm"
@@ -338,7 +456,7 @@ const ClientDetail = () => {
                             textOverflow="ellipsis"
                             maxW="220px"
                           >
-                            {prettyValue(rawValue)}
+                            {displayValue}
                           </Text>
                         </Tooltip>
                       </Flex>
@@ -399,9 +517,9 @@ const ClientDetail = () => {
                                   <Text
                                     fontSize="sm"
                                     color={valueColor}
-                                    whiteSpace="nowrap"
-                                    overflow="hidden"
-                                    textOverflow="ellipsis"
+                                    whiteSpace={column.key === "remarks" ? "pre-wrap" : "nowrap"}
+                                    overflow={column.key === "remarks" ? "visible" : "hidden"}
+                                    textOverflow={column.key === "remarks" ? "clip" : "ellipsis"}
                                     maxW="220px"
                                   >
                                     {prettyValue(person[column.key])}
