@@ -361,10 +361,10 @@ const VesselDetail = () => {
         </Card>
       </Box>
 
-      {/* File Preview Modal - A4 Size Friendly Viewer */}
+      {/* File Preview Modal - 65% viewing mode, A4 only when printing */}
       <Modal isOpen={isPreviewOpen} onClose={onPreviewClose} size="full">
         <ModalOverlay bg="rgba(0, 0, 0, 0.8)" />
-        <ModalContent maxW="210mm" maxH="297mm" m="auto" bg="white">
+        <ModalContent maxW="65vw" maxH="65vh" m="auto" bg="white">
           <ModalHeader bg="gray.100" borderBottom="1px" borderColor={borderColor}>
             <Flex justify="space-between" align="center">
               <Text fontSize="lg" fontWeight="600">
