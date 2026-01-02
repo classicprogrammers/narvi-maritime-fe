@@ -168,7 +168,6 @@ const routes = [
         path: "/stock-list/main-db",
         icon: <Icon as={MdStorage} width="20px" height="20px" color="inherit" />,
         component: StockList,
-        adminOnly: true, // Only show to admin users
       },
       {
         name: "Add Stock",

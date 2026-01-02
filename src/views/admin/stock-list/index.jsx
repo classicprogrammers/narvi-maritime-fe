@@ -27,7 +27,7 @@ import {
 import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select } from "@chakra-ui/react";
-import { useHistory, Redirect } from "react-router-dom";
+import { useHistory } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import { getVendorsApi } from "../../../api/vendor";
@@ -53,13 +53,27 @@ export default function StockList() {
 
     const { user } = useUser();
 
-    // Only admin users can access this page
-    const isAdmin = user?.user_type === "admin";
-
-    // Redirect non-admin users to dashboard
-    if (!isAdmin) {
-        return <Redirect to="/admin/default" />;
-    }
+    // Check if current user is authorized to edit (Igor or Martin only)
+    const isAuthorizedToEdit = React.useMemo(() => {
+        if (!user) return false;
+        
+        const userEmail = (user.email || "").toLowerCase().trim();
+        const userName = (user.name || "").toLowerCase().trim();
+        
+        // Check by email
+        const allowedEmails = [
+            "igor@narvimaritime.com",
+            "martin@narvimaritime.com"
+        ];
+        
+        // Check by name (case-insensitive)
+        const allowedNames = ["igor", "martin"];
+        
+        const emailMatch = allowedEmails.includes(userEmail);
+        const nameMatch = allowedNames.some(name => userName.includes(name));
+        
+        return emailMatch || nameMatch;
+    }, [user]);
 
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -1003,6 +1017,7 @@ export default function StockList() {
                             colorScheme="blue"
                             size="sm"
                             onClick={handleBulkEdit}
+                            isDisabled={!isAuthorizedToEdit}
                         >
                             Edit Selected
                         </Button>
@@ -1033,6 +1048,7 @@ export default function StockList() {
                                             isIndeterminate={selectedRows.size > 0 && selectedRows.size < filteredAndSortedStock.length}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             size="sm"
+                                            isDisabled={!isAuthorizedToEdit}
                                         />
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_item_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -1149,6 +1165,7 @@ export default function StockList() {
                                                 isChecked={selectedRows.has(item.id)}
                                                 onChange={(e) => handleRowSelect(item.id, e.target.checked)}
                                                 size="sm"
+                                                isDisabled={!isAuthorizedToEdit}
                                             />
                                         </Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
@@ -1246,6 +1263,8 @@ export default function StockList() {
                                                 colorScheme="blue"
                                                 aria-label="Edit"
                                                 onClick={() => handleEditItem(item)}
+                                                isDisabled={!isAuthorizedToEdit}
+                                                title={!isAuthorizedToEdit ? "Only Igor and Martin can edit" : "Edit item"}
                                             />
                                         </Td>
                                     </Tr>
