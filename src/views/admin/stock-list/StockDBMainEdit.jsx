@@ -841,7 +841,7 @@ export default function StockDBMainEdit() {
                 });
                 // Refresh stock list and go back
                 await getStockList();
-                history.push("/admin/stock-list/stocks");
+                history.goBack();
             } else {
                 throw new Error(result?.result?.message || result?.message || "Failed to update stock items");
             }
@@ -901,7 +901,7 @@ export default function StockDBMainEdit() {
                         size="sm"
                         variant="ghost"
                         aria-label="Back"
-                        onClick={() => history.push("/admin/stock-list/main-db")}
+                        onClick={() => history.goBack()}
                     />
                     <Text fontSize="xl" fontWeight="600" color={textColor}>
                         {isBulkEdit
