@@ -451,6 +451,19 @@ export default function Stocks() {
         });
     };
 
+    // Handle navigate to edit page with selected items
+    const handleNavigateToEdit = () => {
+        const selectedIds = Array.from(selectedRows);
+        if (selectedIds.length > 0) {
+            // Filter the full data objects from filtered stock for selected items
+            const selectedItemsData = getFilteredStockByStatus().filter(item => selectedIds.includes(item.id));
+            history.push({
+                pathname: '/admin/stock-list/main-db-edit',
+                state: { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1 }
+            });
+        }
+    };
+
     // getUserName removed - PIC is now a free text field, display directly
 
     // Helper to get country name for origin field (with airport/state codes if available)
@@ -605,7 +618,7 @@ export default function Stocks() {
                 try {
                     const mimeType = attachment.mimetype || "application/octet-stream";
                     const base64Data = attachment.datas;
-                    
+
                     // Convert base64 to binary
                     const byteCharacters = atob(base64Data);
                     const byteNumbers = new Array(byteCharacters.length);
@@ -614,7 +627,7 @@ export default function Stocks() {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: mimeType });
-                    
+
                     // Create object URL from blob
                     fileUrl = URL.createObjectURL(blob);
                     window.open(fileUrl, '_blank');
@@ -956,13 +969,33 @@ export default function Stocks() {
             so_number_id: getFieldValue("so_number_id", "so_number", "stock_so_number"),
             shipping_instruction_id: getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction"),
             delivery_instruction_id: getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction"),
-            origin_id: getFieldValue("origin_id", "origin"),
+            origin_id: (() => {
+                // For inline editing, convert origin_id to country name text if possible
+                // Check origin_text first (new field), then origin (backward compatibility), then origin_id
+                const originValue = getFieldValue("origin_text") || getFieldValue("origin") || getFieldValue("origin_id");
+                // If it's already text (not a pure number), keep it
+                if (originValue && !/^\d+$/.test(String(originValue))) {
+                    return originValue;
+                }
+                // If we have countries loaded and it's an ID, convert to name
+                if (originValue && countries.length > 0) {
+                    const country = countries.find(c => {
+                        const cId = c.id || c.country_id;
+                        return String(cId) === String(originValue);
+                    });
+                    if (country) {
+                        return country.name || country.code || originValue;
+                    }
+                }
+                // Otherwise keep as-is (will be handled when countries load)
+                return originValue;
+            })(),
             ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
             destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
             currency_id: getFieldValue("currency_id", "currency"),
             // Ensure numeric fields are preserved as strings for input compatibility
-            item: item.item || item.items || item.item_id || item.stock_items_quantity || 1, // BOXES field
+            item: item.item || item.items || item.item_id || item.stock_items_quantity || "", // BOXES field
             items: item.items || item.item_id || item.stock_items_quantity || "",
             weight_kg: item.weight_kg !== undefined && item.weight_kg !== null ? String(item.weight_kg || item.weight_kgs || "") : "",
             volume_cbm: item.volume_cbm !== undefined && item.volume_cbm !== null ? String(item.volume_cbm) : "",
@@ -1109,11 +1142,11 @@ export default function Stocks() {
             { backend: "supplier_id", original: ["supplier_id", "supplier"], edited: ["supplier_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "pic_new", original: ["pic_new", "pic", "pic_id"], edited: ["pic_new"], transform: (v) => v ? String(v) : false },
-            { backend: "item", original: ["item"], edited: ["item"], transform: (v) => toNumber(v) || 1 }, // BOXES field - item count
+            { backend: "item", original: ["item"], edited: ["item"], transform: (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0 }, // BOXES field - item count
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "origin", original: ["origin_id", "origin"], edited: ["origin_id", "origin"], transform: (v) => toValue(toId(v), false) },
+            { backend: "origin_text", original: ["origin_id", "origin", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => v ? String(v) : "" },
             { backend: "ap_destination_new", original: ["ap_destination_new", "ap_destination_id", "ap_destination"], edited: ["ap_destination_new", "ap_destination"], transform: (v) => v || "" }, // Free text field
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
             { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
@@ -1146,7 +1179,7 @@ export default function Stocks() {
             { backend: "shipped_date", original: ["shipped_date"], edited: ["shipped_date"], transform: (v) => toValue(v, false) },
             { backend: "delivered_date", original: ["delivered_date"], edited: ["delivered_date"], transform: (v) => toValue(v, false) },
             { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
-            { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => toNumber(v) || 1 },
+            { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0 },
             { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
             {
                 backend: "lwh_text_array", original: ["lwh_text_array"], edited: ["lwh_text"], transform: (v) => {
@@ -1406,48 +1439,25 @@ export default function Stocks() {
             );
         }
 
-        // Handle searchable select for origin field - use countries
-        if (field.includes("origin_id") || field === "origin") {
-            const countryOptions = countries
-                .filter(c => c && (c.id || c.country_id)) // Filter out invalid entries
-                .map(c => {
-                    const countryId = c.id || c.country_id;
-                    const name = c.name || c.code || `Country ${countryId}`;
-                    const code = c.code || "";
-                    const stateCodes = Array.isArray(c.states)
-                        ? c.states
-                            .map((s) => s.code)
-                            .filter(Boolean)
-                            .join(", ")
-                        : "";
-                    const base = code ? `${name} (${code})` : name;
-                    const label = stateCodes ? `${base} - ${stateCodes}` : base;
-                    return {
-                        value: String(countryId),
-                        label,
-                    };
-                });
-
-            // Debug logging
-            if (countryOptions.length === 0 && countries.length > 0) {
-                console.log('No country options found. Countries data:', countries.slice(0, 3));
-            }
-
+        // Handle origin field as free text input with country suggestions
+        if (field.includes("origin_id") || field === "origin" || field === "origin_text") {
             return (
-                <Box position="relative" zIndex={10}>
-                    <SimpleSearchableSelect
-                        value={currentValue ? String(currentValue) : ""}
-                        onChange={(val) => handleChange(val)}
-                        options={countryOptions}
-                        placeholder={countryOptions.length === 0 ? "No countries available" : "Select Country..."}
-                        displayKey="label"
-                        valueKey="value"
-                        formatOption={(option) => option.label || `Country ${option.value}`}
-                        isLoading={false}
+                <Box position="relative">
+                    <Input
+                        list={`origin-countries-${item.id}`}
+                        value={currentValue || ""}
+                        onChange={(e) => handleChange(e.target.value)}
+                        placeholder="Type or select country..."
+                        size="sm"
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
                     />
+                    <datalist id={`origin-countries-${item.id}`}>
+                        {countries.map((country) => (
+                            <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                        ))}
+                    </datalist>
                 </Box>
             );
         }
@@ -1643,7 +1653,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -1679,7 +1689,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <Text {...cellText}>{renderText(item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || 1, "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
@@ -1865,7 +1875,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || 1, "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
+                            {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
@@ -1880,7 +1890,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_id || item.origin, "searchable") : <Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -2375,11 +2385,72 @@ export default function Stocks() {
                                     </Flex>
                                 </Card>
 
+                                {/* Bulk Action Buttons */}
+                                {selectedRows.size > 0 && (
+                                    <Flex px="25px" mb="20px" align="center" gap="3">
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            {selectedRows.size} item(s) selected
+                                        </Text>
+                                        <Button
+                                            leftIcon={<Icon as={MdEdit} />}
+                                            colorScheme="blue"
+                                            size="sm"
+                                            onClick={handleNavigateToEdit}
+                                        >
+                                            Edit Selected
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setSelectedRows(new Set())}
+                                        >
+                                            Clear Selection
+                                        </Button>
+                                    </Flex>
+                                )}
+
                                 {/* Table with fields in exact order from image */}
                                 <Box overflowX="auto">
                                     <Table size="sm" minW="6000px">
                                         <Thead bg={tableHeaderBg}>
                                             <Tr>
+                                                <Th
+                                                    borderRight="1px"
+                                                    borderColor={tableBorderColor}
+                                                    py="12px"
+                                                    px="8px"
+                                                    fontSize="12px"
+                                                    fontWeight="600"
+                                                    textTransform="uppercase"
+                                                    width="40px"
+                                                    minW="40px"
+                                                    maxW="40px"
+                                                    color={tableTextColor}
+                                                >
+                                                    <Checkbox
+                                                        isChecked={getFilteredStockByStatus().length > 0 && getFilteredStockByStatus().every(item => selectedRows.has(item.id))}
+                                                        isIndeterminate={getFilteredStockByStatus().some(item => selectedRows.has(item.id)) && !getFilteredStockByStatus().every(item => selectedRows.has(item.id))}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedRows(new Set(getFilteredStockByStatus().map(item => item.id)));
+                                                            } else {
+                                                                setSelectedRows(new Set());
+                                                            }
+                                                        }}
+                                                        size="sm"
+                                                        borderColor="gray.600"
+                                                        colorScheme="blue"
+                                                        sx={{
+                                                            "& .chakra-checkbox__control": {
+                                                                borderColor: "gray.600",
+                                                                _checked: {
+                                                                    borderColor: "blue.500",
+                                                                    bg: "blue.500",
+                                                                },
+                                                            },
+                                                        }}
+                                                    />
+                                                </Th>
                                                 <Th {...headerProps}>VESSEL</Th>
                                                 <Th {...headerProps}>STOCKITEMID</Th>
                                                 <Th {...headerProps}>SUPPLIER</Th>
@@ -2424,6 +2495,31 @@ export default function Stocks() {
                                                 const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                 return (
                                                     <Tr key={item.id} bg={rowBg}>
+                                                        <Td
+                                                            borderRight="1px"
+                                                            borderColor={tableBorderColor}
+                                                            py="12px"
+                                                            px="8px"
+                                                            width="40px"
+                                                            minW="40px"
+                                                            maxW="40px"
+                                                        >
+                                                            <Checkbox
+                                                                isChecked={selectedRows.has(item.id)}
+                                                                onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                                                                size="sm"
+                                                                borderColor="gray.600"
+                                                                sx={{
+                                                                    "& .chakra-checkbox__control": {
+                                                                        borderColor: "gray.600",
+                                                                        _checked: {
+                                                                            borderColor: "blue.500",
+                                                                            bg: "blue.500",
+                                                                        },
+                                                                    },
+                                                                }}
+                                                            />
+                                                        </Td>
                                                         <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
@@ -2437,7 +2533,7 @@ export default function Stocks() {
                                                                 {renderText(item.stock_status)}
                                                             </Badge>
                                                         </Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
@@ -2616,7 +2712,7 @@ export default function Stocks() {
                                                                 {renderText(item.stock_status)}
                                                             </Badge>
                                                         </Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>

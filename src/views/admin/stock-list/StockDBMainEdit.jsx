@@ -127,7 +127,7 @@ export default function StockDBMainEdit() {
         supplier: "",
         poNumber: "",
         extra2: "",
-        origin: "",
+        origin_text: "",
         viaHub1: "",
         viaHub2: "",
         apDestination: "",
@@ -164,7 +164,7 @@ export default function StockDBMainEdit() {
         // Internal fields for API payload
         vesselDestination: "",
         itemId: "",
-        item: 1,
+        item: "",
     });
 
     // Form state - array of rows
@@ -248,7 +248,18 @@ export default function StockDBMainEdit() {
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             extra2: getFieldValue(stock.extra_2) || getFieldValue(stock.extra) || "",
-            origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
+            origin_text: (() => {
+                // If origin_text is already text (from previous saves), use it directly
+                if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
+                    return stock.origin_text;
+                }
+                // Backward compatibility: check origin field
+                if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
+                    return stock.origin;
+                }
+                // Otherwise, keep as ID - will be converted to name in useEffect
+                return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
+            })(),
             viaHub1: getFieldValue(stock.via_hub, ""),
             viaHub2: getFieldValue(stock.via_hub2, ""),
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
@@ -263,7 +274,7 @@ export default function StockDBMainEdit() {
             deliveredDate: getFieldValue(stock.delivered_date) || "",
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc) || "",
             items: getFieldValue(stock.items) || getFieldValue(stock.item_id) || getFieldValue(stock.stock_items_quantity) || "",
-            item: toNumber(stock.item) || toNumber(stock.items) || toNumber(stock.item_id) || toNumber(stock.stock_items_quantity) || 1,
+            item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
             lengthCm: getFieldValue(stock.length_cm, ""),
             widthCm: getFieldValue(stock.width_cm, ""),
@@ -442,6 +453,32 @@ export default function StockDBMainEdit() {
 
         fetchLookupData();
     }, []);
+
+    // Convert origin ID to country name text when countries are loaded
+    useEffect(() => {
+        if (!countries.length) return;
+        setFormRows((prevRows) =>
+            prevRows.map((row) => {
+                if (!row.origin_text) {
+                    return row;
+                }
+                const normalizedValue = String(row.origin_text);
+                // If it's already text (not a pure number), keep it
+                if (!/^\d+$/.test(normalizedValue)) {
+                    return row;
+                }
+                // Try to find country by ID and convert to name
+                const country = countries.find((c) => {
+                    const cId = c.id || c.country_id;
+                    return String(cId) === normalizedValue;
+                });
+                if (country) {
+                    return { ...row, origin_text: country.name || country.code || normalizedValue };
+                }
+                return row;
+            })
+        );
+    }, [countries]);
 
     // Handle file upload for attachments
     const handleFileUpload = (rowIndex, files) => {
@@ -687,7 +724,7 @@ export default function StockDBMainEdit() {
             ["itemId", "item_id", (v) => v ? String(v) : ""],
             ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
             ["currency", "currency_id", (v) => v ? String(v) : ""],
-            ["origin", "origin", (v) => v ? String(v) : ""],
+            ["origin_text", "origin_text", (v) => v ? String(v) : ""],
             ["apDestination", "ap_destination_new", (v) => v || ""], // Free text field
             ["viaHub1", "via_hub", (v) => v || ""],
             ["viaHub2", "via_hub2", (v) => v || ""],
@@ -715,7 +752,7 @@ export default function StockDBMainEdit() {
             ["shippedDate", "shipped_date", (v) => v || null],
             ["deliveredDate", "delivered_date", (v) => v || ""],
             ["details", "details", (v) => v || ""],
-            ["item", "item", (v) => toNumber(v) || 1],
+            ["item", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["vesselDestination", "vessel_destination", (v) => v || ""],
             ["vesselEta", "vessel_eta", (v) => v || ""],
             ["soNumber", "stock_so_number", (v) => v ? String(v) : ""],
@@ -1164,26 +1201,24 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.origin}
-                                            onChange={(value) => handleInputChange(rowIndex, "origin", value)}
-                                            options={countries.filter(c => c && (c.id || c.country_id)).map(c => {
-                                                const countryId = c.id || c.country_id;
-                                                return {
-                                                    id: String(countryId),
-                                                    name: c.name || c.code || `Country ${countryId}`
-                                                };
-                                            })}
-                                            placeholder="Select Origin"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || `Country ${option.id}`}
-                                            isLoading={isLoadingCountries}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps}>
+                                        <Box position="relative">
+                                            <Input
+                                                list={`origin-countries-${rowIndex}`}
+                                                value={row.origin_text || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                placeholder="Type or select country..."
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                            <datalist id={`origin-countries-${rowIndex}`}>
+                                                {countries.map((country) => (
+                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                ))}
+                                            </datalist>
+                                        </Box>
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
@@ -1342,7 +1377,7 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <NumberInput
-                                            value={row.items || 0}
+                                            value={row.items || ""}
                                             onChange={(value) => handleInputChange(rowIndex, "items", value)}
                                             min={0}
                                             precision={0}

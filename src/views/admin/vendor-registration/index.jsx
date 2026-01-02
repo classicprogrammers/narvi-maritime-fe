@@ -32,6 +32,9 @@ import {
     Checkbox,
     Textarea,
     Tooltip,
+    Alert,
+    AlertIcon,
+    Badge,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack, MdOpenInNew, MdContentCopy } from "react-icons/md";
@@ -307,6 +310,10 @@ function VendorRegistration() {
     const rowEvenBg = useColorModeValue("gray.50", "whiteAlpha.100");
     const gridInputWidth = { base: "60%", md: "60%" };
     const idInputBg = useColorModeValue("gray.100", "gray.700");
+    // Edit mode colors - very distinct background
+    const editModeBg = useColorModeValue("blue.50", "blue.900");
+    const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
+    const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
 
     const toast = useToast();
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
@@ -1045,11 +1052,65 @@ function VendorRegistration() {
                 w="100%"
                 px="0px"
                 overflowX={{ sm: "scroll", lg: "hidden" }}
+                bg={isEditMode ? editModeBg : undefined}
+                border={isEditMode ? `3px solid ${editModeBorderColor}` : undefined}
+                borderRadius={isEditMode ? "lg" : undefined}
+                boxShadow={isEditMode ? "0 0 0 1px rgba(66, 153, 225, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)" : undefined}
             >
+                {/* Prominent EDIT MODE Banner */}
+                {isEditMode && (
+                    <Alert
+                        status="info"
+                        bg={editModeAlertBg}
+                        borderBottom="2px solid"
+                        borderColor={editModeBorderColor}
+                        borderRadius="0"
+                        py={3}
+                        px={6}
+                        mb={4}
+                    >
+                        <AlertIcon boxSize="24px" color={editModeBorderColor} />
+                        <Flex align="center" gap={3} flex={1}>
+                            <Badge
+                                colorScheme="blue"
+                                fontSize="md"
+                                px={3}
+                                py={1}
+                                borderRadius="full"
+                                fontWeight="bold"
+                                textTransform="uppercase"
+                            >
+                                EDIT MODE
+                            </Badge>
+                            <Text
+                                fontSize="md"
+                                fontWeight="600"
+                                color={textColor}
+                                flex={1}
+                            >
+                                You are currently editing agent: <strong>{formData.name || formData.agentsdb_id || "Agent"}</strong>
+                            </Text>
+                        </Flex>
+                    </Alert>
+                )}
                 <Flex px="25px" justify="space-between" mb="20px" align="center">
-                    <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
-                        {isEditMode ? "Edit Agent" : "Agent Registration"}
-                    </Text>
+                    <Flex align="center" gap={3}>
+                        <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
+                            {isEditMode ? "Edit Agent" : "Agent Registration"}
+                        </Text>
+                        {isEditMode && (
+                            <Badge
+                                colorScheme="blue"
+                                fontSize="sm"
+                                px={2}
+                                py={1}
+                                borderRadius="md"
+                                fontWeight="bold"
+                            >
+                                EDITING
+                            </Badge>
+                        )}
+                    </Flex>
                     <Button leftIcon={<Icon as={MdArrowBack} />} size="sm" onClick={handleBackToVendors}>
                         Back to Agents
                     </Button>
@@ -1586,7 +1647,7 @@ function VendorRegistration() {
                                                             value={row.cnee_type_text || ""}
                                                             onChange={(e) => updateCneeRow(rowIndex, "cnee_type_text", e.target.value)}
                                                             placeholder="Type or select CNEE type..."
-                                                            size="sm"
+                                                        size="sm"
                                                             w="100%"
                                                         />
                                                         <datalist id={`cnee-type-${rowIndex}`}>
@@ -1687,7 +1748,14 @@ function VendorRegistration() {
                 </Box>
             </Card>
 
-            <Card p="6" mt={6} borderRadius="lg" border="1px" borderColor={borderColor}>
+            <Card
+                p="6"
+                mt={6}
+                borderRadius="lg"
+                border={isEditMode ? `2px solid ${editModeBorderColor}` : "1px"}
+                borderColor={isEditMode ? editModeBorderColor : borderColor}
+                bg={isEditMode ? editModeBg : undefined}
+            >
                 <VStack spacing={4} align="stretch">
                     <Flex justify="space-between" align="center">
                         <Heading

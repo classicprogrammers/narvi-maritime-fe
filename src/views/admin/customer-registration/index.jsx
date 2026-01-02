@@ -31,6 +31,9 @@ import {
     Textarea,
     Tooltip,
     Checkbox,
+    Alert,
+    AlertIcon,
+    Badge,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
 // Custom components
@@ -152,6 +155,10 @@ function CustomerRegistration() {
     const rowEvenBg = useColorModeValue("gray.50", "gray.700");
     const headingColor = useColorModeValue("secondaryGray.900", "white");
     const gridInputWidth = { base: "60%", md: "60%" };
+    // Edit mode colors - very distinct background
+    const editModeBg = useColorModeValue("blue.50", "blue.900");
+    const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
+    const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
 
     // If a client is passed via navigation state, or clientId is provided, we are editing
     const editingClient = React.useMemo(() => {
@@ -788,15 +795,69 @@ function CustomerRegistration() {
                     direction='column'
                     w='100%'
                     px='0px'
-                    overflowX={{ sm: "scroll", lg: "hidden" }}>
+                    overflowX={{ sm: "scroll", lg: "hidden" }}
+                    bg={editingClient ? editModeBg : undefined}
+                    border={editingClient ? `3px solid ${editModeBorderColor}` : undefined}
+                    borderRadius={editingClient ? "lg" : undefined}
+                    boxShadow={editingClient ? "0 0 0 1px rgba(66, 153, 225, 0.2), 0 4px 6px rgba(0, 0, 0, 0.1)" : undefined}>
+                    {/* Prominent EDIT MODE Banner */}
+                    {editingClient && (
+                        <Alert
+                            status="info"
+                            bg={editModeAlertBg}
+                            borderBottom="2px solid"
+                            borderColor={editModeBorderColor}
+                            borderRadius="0"
+                            py={3}
+                            px={6}
+                            mb={4}
+                        >
+                            <AlertIcon boxSize="24px" color={editModeBorderColor} />
+                            <Flex align="center" gap={3} flex={1}>
+                                <Badge
+                                    colorScheme="blue"
+                                    fontSize="md"
+                                    px={3}
+                                    py={1}
+                                    borderRadius="full"
+                                    fontWeight="bold"
+                                    textTransform="uppercase"
+                                >
+                                    EDIT MODE
+                                </Badge>
+                                <Text
+                                    fontSize="md"
+                                    fontWeight="600"
+                                    color={textColor}
+                                    flex={1}
+                                >
+                                    You are currently editing client: <strong>{editingClient.name || editingClient.client_code || "Client"}</strong>
+                                </Text>
+                            </Flex>
+                        </Alert>
+                    )}
                     <Flex px='25px' justify='space-between' mb='20px' align='center'>
-                        <Text
-                            color={textColor}
-                            fontSize='22px'
-                            fontWeight='700'
-                            lineHeight='100%'>
-                            {editingClient ? "Edit Client" : "Client Registration"}
-                        </Text>
+                        <Flex align="center" gap={3}>
+                            <Text
+                                color={textColor}
+                                fontSize='22px'
+                                fontWeight='700'
+                                lineHeight='100%'>
+                                {editingClient ? "Edit Client" : "Client Registration"}
+                            </Text>
+                            {editingClient && (
+                                <Badge
+                                    colorScheme="blue"
+                                    fontSize="sm"
+                                    px={2}
+                                    py={1}
+                                    borderRadius="md"
+                                    fontWeight="bold"
+                                >
+                                    EDITING
+                                </Badge>
+                            )}
+                        </Flex>
                         <Button
                             leftIcon={<Icon as={MdArrowBack} />}
                             size="sm"

@@ -282,12 +282,12 @@ export default function VendorsTable(props) {
 
         cneeCount = cneeWithCnee1.length;
         cneeWithCnee1.forEach((cneeItem, index) => {
-          const cneeText = cneeItem.cnee_text ? String(cneeItem.cnee_text).trim() : "";
+          const cnee1 = cneeItem.cnee1 ? String(cneeItem.cnee1).trim() : "";
           const cneeNumber = index + 1;
 
-          // Format: "CNEE 1: CNEE text" or just "CNEE 1" if no text
-          if (cneeText) {
-            cneeDisplay.push(`CNEE ${cneeNumber}: ${cneeText}`);
+          // Format: "CNEE 1: CNEE1" or just "CNEE 1" if no cnee1
+          if (cnee1) {
+            cneeDisplay.push(`CNEE ${cneeNumber}: ${cnee1}`);
           } else {
             cneeDisplay.push(`CNEE ${cneeNumber}`);
           }

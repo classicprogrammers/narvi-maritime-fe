@@ -100,7 +100,7 @@ export default function StockForm() {
         details: "",
         value: "",
         currency: "",
-        origin: "",
+        origin_text: "",
         viaHub: "", // Free text field
         viaHub2: "", // Free text field
         expReadyInStock: "", // Date field
@@ -113,7 +113,7 @@ export default function StockForm() {
         destination: "", // Auto-filled from vessel (destination field)
         apDestination: "", // AP Destination - Free text
         itemId: "",
-        item: 1,
+        item: "",
         volumeCbm: "",
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
@@ -348,26 +348,28 @@ export default function StockForm() {
         );
     }, [currencies]);
 
+    // Convert origin ID to country name text when countries are loaded
     useEffect(() => {
         if (!countries.length) return;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.origin) {
+                if (!row.origin_text) {
                     return row;
                 }
-                const normalizedValue = String(row.origin);
-                // Try exact ID match first
-                const exactMatch = countries.find((country) => String(country.id) === normalizedValue);
-                if (exactMatch) {
-                    return { ...row, origin: String(exactMatch.id) };
+                const normalizedValue = String(row.origin_text);
+                // If it's already text (not a pure number), keep it
+                if (!/^\d+$/.test(normalizedValue)) {
+                    return row;
                 }
-                // Try fallback matching by name/code
-                const fallbackMatch = countries.find(
-                    (country) =>
-                        String(country.name)?.toLowerCase() === normalizedValue.toLowerCase() ||
-                        String(country.code)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                return fallbackMatch ? { ...row, origin: String(fallbackMatch.id) } : row;
+                // Try to find country by ID and convert to name
+                const country = countries.find((c) => {
+                    const cId = c.id || c.country_id;
+                    return String(cId) === normalizedValue;
+                });
+                if (country) {
+                    return { ...row, origin_text: country.name || country.code || normalizedValue };
+                }
+                return row;
             })
         );
     }, [countries]);
@@ -491,6 +493,31 @@ export default function StockForm() {
         );
     }, [clients]);
 
+    // Convert origin ID to country name text when countries are loaded
+    useEffect(() => {
+        if (!countries.length) return;
+        setFormRows((prevRows) =>
+            prevRows.map((row) => {
+                if (!row.origin_text) {
+                    return row;
+                }
+                const normalizedValue = String(row.origin_text);
+                // If it's already text (not a pure number), keep it
+                if (!/^\d+$/.test(normalizedValue)) {
+                    return row;
+                }
+                // Try to find country by ID and convert to name
+                const country = countries.find((c) => {
+                    const cId = c.id || c.country_id;
+                    return String(cId) === normalizedValue;
+                });
+                if (country) {
+                    return { ...row, origin_text: country.name || country.code || normalizedValue };
+                }
+                return row;
+            })
+        );
+    }, [countries]);
 
     const toNumber = (value) => {
         if (value === "" || value === null || value === undefined) {
@@ -539,7 +566,18 @@ export default function StockForm() {
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
             value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
-            origin: normalizeId(stock.origin_id) || normalizeId(stock.origin) || "",
+            origin_text: (() => {
+                // If origin_text is already text (from previous saves), use it directly
+                if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
+                    return stock.origin_text;
+                }
+                // Backward compatibility: check origin field
+                if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
+                    return stock.origin;
+                }
+                // Otherwise, keep as ID - will be converted to name in useEffect after countries load
+                return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
+            })(),
             viaHub: getFieldValue(stock.via_hub, ""),
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
@@ -555,7 +593,7 @@ export default function StockForm() {
             destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
             itemId: normalizeId(stock.item_id) || "",
-            item: toNumber(stock.item) || 1,
+            item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
             volumeCbm: getFieldValue(stock.volume_cbm, ""),
         };
 
@@ -728,9 +766,9 @@ export default function StockForm() {
             po_text: rowData.poNumber || "",
             pic_new: rowData.pic ? String(rowData.pic) : false,
             item_id: rowData.itemId ? String(rowData.itemId) : "",
-            item: toNumber(rowData.item) || 1,
+            item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
-            origin: rowData.origin ? String(rowData.origin) : "",
+            origin_text: rowData.origin_text ? String(rowData.origin_text) : "",
             ap_destination_new: rowData.apDestination || "",
             via_hub: rowData.viaHub || "", // Free text field
             attachments: rowData.attachments || [], // Include attachments in payload
@@ -1225,7 +1263,7 @@ export default function StockForm() {
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <NumberInput
-                                            value={row.items || 0}
+                                            value={row.items || ""}
                                             onChange={(value) => handleInputChange(rowIndex, "items", value)}
                                             min={0}
                                             precision={0}
@@ -1341,31 +1379,24 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.origin}
-                                            onChange={(value) => handleInputChange(rowIndex, "origin", value)}
-                                            options={countries}
-                                            placeholder="Select Country"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => {
-                                                const name = option.name || `Country ${option.id}`;
-                                                const code = option.code || "";
-                                                const stateCodes = Array.isArray(option.states)
-                                                    ? option.states
-                                                        .map((s) => s.code)
-                                                        .filter(Boolean)
-                                                        .join(", ")
-                                                    : "";
-                                                const base = code ? `${name} (${code})` : name;
-                                                return stateCodes ? `${base} - ${stateCodes}` : base;
-                                            }}
-                                            isLoading={isLoadingCountries}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Box position="relative">
+                                            <Input
+                                                list={`origin-countries-${rowIndex}`}
+                                                value={row.origin_text || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                placeholder="Type or select country..."
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                            <datalist id={`origin-countries-${rowIndex}`}>
+                                                {countries.map((country) => (
+                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                ))}
+                                            </datalist>
+                                        </Box>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <Input
