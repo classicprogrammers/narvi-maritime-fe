@@ -65,7 +65,52 @@ export function SidebarLinks(props) {
 
   // verifies if routeName is the one active (in browser input)
   const activeRoute = (routeName) => {
-    return location.pathname.includes(routeName);
+    const pathname = location.pathname.toLowerCase();
+    const normalizedRoute = routeName.toLowerCase();
+    const fullRoute = '/admin' + normalizedRoute;
+    // Get source page from location.state or sessionStorage (for persistence)
+    const sourcePage = location.state?.sourcePage || (typeof window !== 'undefined' ? sessionStorage.getItem('stockEditSourcePage') : null);
+    
+    // Special handling for edit-stock page: highlight the source page tab
+    if (pathname === '/admin/stock-list/edit-stock' || pathname === '/admin/stock-list/edit-stock/') {
+      if (sourcePage === 'main-db' && normalizedRoute === '/stock-list/main-db') {
+        return true;
+      }
+      if (sourcePage === 'stocks' && normalizedRoute === '/stock-list/stocks') {
+        return true;
+      }
+      // If on edit page but no source page specified, don't highlight anything
+      return false;
+    }
+    
+    // Check for exact match
+    if (pathname === fullRoute || pathname === fullRoute + '/') {
+      return true;
+    }
+    
+    // Check if pathname starts with the route
+    if (pathname.startsWith(fullRoute)) {
+      const remainingPath = pathname.substring(fullRoute.length);
+      // If remaining path starts with a hyphen, it's a different route (e.g., "main-db-edit")
+      if (remainingPath.startsWith('-')) {
+        return false;
+      }
+      // If remaining path is empty, starts with '/', or starts with '?' (query params), it's a match
+      if (remainingPath === '' || remainingPath.startsWith('/') || remainingPath.startsWith('?')) {
+        return true;
+      }
+    }
+    
+    // Fallback to includes check for other routes (but exclude hyphenated variants)
+    if (pathname.includes(normalizedRoute)) {
+      // Special case: prevent "main-db" from matching "main-db-edit"
+      if (normalizedRoute === '/stock-list/main-db' && pathname.includes('/stock-list/main-db-')) {
+        return false;
+      }
+      return true;
+    }
+    
+    return false;
   };
 
   // Toggle submenu open/closed state

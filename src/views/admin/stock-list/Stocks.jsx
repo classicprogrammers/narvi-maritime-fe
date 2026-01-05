@@ -602,8 +602,8 @@ export default function Stocks() {
             stockViewCurrency
         };
         history.push({
-            pathname: '/admin/stock-list/main-db-edit',
-            state: { selectedItems: [item], isBulkEdit: false, filterState }
+            pathname: '/admin/stock-list/edit-stock',
+            state: { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' }
         });
     };
 
@@ -629,8 +629,8 @@ export default function Stocks() {
                 stockViewCurrency
             };
             history.push({
-                pathname: '/admin/stock-list/main-db-edit',
-                state: { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState }
+                pathname: '/admin/stock-list/edit-stock',
+                state: { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' }
             });
         }
     };

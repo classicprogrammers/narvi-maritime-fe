@@ -71,9 +71,22 @@ export default function StockDBMainEdit() {
     const selectedItemsFromState = stateData.selectedItems || [];
     const isBulkEdit = selectedItemsFromState.length > 1;
     const filterState = stateData.filterState || null; // Store filter state to restore on navigation back
+    const sourcePage = stateData.sourcePage || null; // Store source page to highlight correct tab
+    
+    // Store source page in sessionStorage for persistence
+    useEffect(() => {
+        if (sourcePage) {
+            sessionStorage.setItem('stockEditSourcePage', sourcePage);
+        }
+    }, [sourcePage]);
 
     const [isLoading, setIsLoading] = useState(false);
+    const [isAutoSaving, setIsAutoSaving] = useState(false);
+    const [lastAutoSaveTime, setLastAutoSaveTime] = useState(null);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
+    const [isSavingBeforeNavigation, setIsSavingBeforeNavigation] = useState(false);
+    const [pendingNavigation, setPendingNavigation] = useState(null);
+    const autoSaveTimeoutRef = React.useRef(null);
 
     // Modal state for LWH Text field
     const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
@@ -740,6 +753,235 @@ export default function StockDBMainEdit() {
         return payload;
     };
 
+    // Check if there are unsaved changes
+    const hasUnsavedChanges = useCallback(() => {
+        if (formRows.length === 0 || originalRows.length === 0) {
+            return false;
+        }
+        return formRows.some((row, index) => {
+            if (!row.stockId) return false;
+            const originalRow = originalRows[index] || {};
+            const payload = getPayload(row, originalRow, true);
+            return Object.keys(payload).filter(key =>
+                key !== 'stock_id' && key !== 'stock_item_id'
+            ).length > 0;
+        });
+    }, [formRows, originalRows]);
+
+    // Auto-save function (saves without navigation)
+    const handleAutoSave = useCallback(async (silent = false) => {
+        if (formRows.length === 0) {
+            return;
+        }
+
+        // Check if there are any changes
+        const lines = formRows.map((row, index) => {
+            if (!row.stockId) {
+                return null;
+            }
+            const originalRow = originalRows[index] || {};
+            const payload = getPayload(row, originalRow, true);
+            const hasChanges = Object.keys(payload).filter(key =>
+                key !== 'stock_id' && key !== 'stock_item_id'
+            ).length > 0;
+            return hasChanges ? payload : null;
+        }).filter(line => line !== null);
+
+        if (lines.length === 0) {
+            return; // No changes to save
+        }
+
+        setIsAutoSaving(true);
+        try {
+            const payload = { lines };
+            const result = await updateStockItemApi(formRows[0]?.stockId, payload);
+
+            if (result && result.result && result.result.status === 'success') {
+                // Update originalRows to reflect saved state
+                setOriginalRows(formRows.map(row => ({ ...row })));
+                setLastAutoSaveTime(new Date());
+
+                if (!silent) {
+                    toast({
+                        title: 'Auto-saved',
+                        description: `Your changes have been automatically saved`,
+                        status: 'success',
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                }
+            } else {
+                throw new Error(result?.result?.message || result?.message || "Failed to auto-save");
+            }
+        } catch (error) {
+            console.error("Failed to auto-save stock items:", error);
+            if (!silent) {
+                toast({
+                    title: "Auto-save failed",
+                    description: error.message || "Failed to auto-save changes. Please save manually.",
+                    status: "warning",
+                    duration: 3000,
+                    isClosable: true,
+                });
+            }
+        } finally {
+            setIsAutoSaving(false);
+        }
+    }, [formRows, originalRows, updateStockItemApi, toast]);
+
+    // Save before navigation (blocking save with modal)
+    const saveBeforeNavigation = useCallback(async (navigationCallback) => {
+        if (!hasUnsavedChanges()) {
+            // No changes, proceed with navigation
+            if (navigationCallback) navigationCallback();
+            return;
+        }
+
+        setIsSavingBeforeNavigation(true);
+        try {
+            const lines = formRows.map((row, index) => {
+                if (!row.stockId) {
+                    return null;
+                }
+                const originalRow = originalRows[index] || {};
+                const payload = getPayload(row, originalRow, true);
+                const hasChanges = Object.keys(payload).filter(key =>
+                    key !== 'stock_id' && key !== 'stock_item_id'
+                ).length > 0;
+                return hasChanges ? payload : null;
+            }).filter(line => line !== null);
+
+            if (lines.length > 0) {
+                const payload = { lines };
+                const result = await updateStockItemApi(formRows[0]?.stockId, payload);
+
+                if (result && result.result && result.result.status === 'success') {
+                    setOriginalRows(formRows.map(row => ({ ...row })));
+                    setLastAutoSaveTime(new Date());
+                    toast({
+                        title: 'Saved',
+                        description: 'Your changes have been saved before leaving the page',
+                        status: 'success',
+                        duration: 2000,
+                        isClosable: true,
+                    });
+                    // Proceed with navigation after successful save
+                    if (navigationCallback) navigationCallback();
+                } else {
+                    throw new Error(result?.result?.message || result?.message || "Failed to save");
+                }
+            } else {
+                // No changes to save, proceed with navigation
+                if (navigationCallback) navigationCallback();
+            }
+        } catch (error) {
+            console.error("Failed to save before navigation:", error);
+            toast({
+                title: "Save failed",
+                description: error.message || "Failed to save changes. Please try again.",
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+            // Don't navigate if save failed
+        } finally {
+            setIsSavingBeforeNavigation(false);
+        }
+    }, [formRows, originalRows, hasUnsavedChanges, updateStockItemApi, toast]);
+
+    // Auto-save on form changes (debounced)
+    useEffect(() => {
+        // Clear existing timeout
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
+
+        // Only auto-save if there are changes and formRows are loaded
+        if (formRows.length === 0 || originalRows.length === 0) {
+            return;
+        }
+
+        // Check if there are any changes
+        const hasChanges = formRows.some((row, index) => {
+            if (!row.stockId) return false;
+            const originalRow = originalRows[index] || {};
+            const payload = getPayload(row, originalRow, true);
+            return Object.keys(payload).filter(key =>
+                key !== 'stock_id' && key !== 'stock_item_id'
+            ).length > 0;
+        });
+
+        if (!hasChanges) {
+            return;
+        }
+
+        // Debounce auto-save: wait 3 seconds after last change
+        autoSaveTimeoutRef.current = setTimeout(() => {
+            // Show toast notification when auto-saving
+            toast({
+                title: 'Auto-saving...',
+                description: 'Your changes are being saved automatically',
+                status: 'info',
+                duration: 2000,
+                isClosable: true,
+            });
+            handleAutoSave(false); // Show toast on success
+        }, 3000);
+
+        // Cleanup timeout on unmount or when formRows change
+        return () => {
+            if (autoSaveTimeoutRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    }, [formRows, originalRows, handleAutoSave]);
+
+    // Auto-save on page unload/beforeunload (show warning and attempt to save)
+    useEffect(() => {
+        const handleBeforeUnload = async (e) => {
+            if (hasUnsavedChanges()) {
+                // Show browser warning
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. They will be saved automatically.';
+
+                // Attempt to save synchronously (limited by browser, but we try)
+                // Note: Modern browsers limit what can be done in beforeunload
+                // The actual save will happen via the visibility change handler if possible
+                return e.returnValue;
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [hasUnsavedChanges]);
+
+    // Auto-save when page becomes hidden (user switches tabs, minimizes, etc.)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && hasUnsavedChanges()) {
+                // Show toast and trigger auto-save when page becomes hidden
+                toast({
+                    title: 'Saving changes...',
+                    description: 'Your changes are being saved automatically',
+                    status: 'info',
+                    duration: 2000,
+                    isClosable: true,
+                });
+                handleAutoSave(true);
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [hasUnsavedChanges, handleAutoSave, toast]);
+
+
     // Handle save
     const handleSave = async () => {
         if (formRows.length === 0) {
@@ -861,6 +1103,24 @@ export default function StockDBMainEdit() {
 
     return (
         <Box p={{ base: "4", md: "6" }} mt={{ base: "80px", md: "80px", xl: "70px" }}>
+            {/* Saving Modal Overlay */}
+            {isSavingBeforeNavigation && (
+                <Modal isOpen={true} onClose={() => { }} closeOnOverlayClick={false} closeOnEsc={false} isCentered>
+                    <ModalOverlay bg="blackAlpha.600" />
+                    <ModalContent>
+                        <ModalBody py={6} textAlign="center">
+                            <Spinner size="xl" color="blue.500" mb={4} />
+                            <Text fontSize="lg" fontWeight="600" color={textColor} mb={2}>
+                                Saving your changes...
+                            </Text>
+                            <Text fontSize="sm" color="gray.500">
+                                Please wait while we save your data to prevent any loss.
+                            </Text>
+                        </ModalBody>
+                    </ModalContent>
+                </Modal>
+            )}
+
             {/* Header */}
             <Flex justify="space-between" align="center" mb="6">
                 <HStack spacing="4">
@@ -870,28 +1130,43 @@ export default function StockDBMainEdit() {
                         variant="ghost"
                         aria-label="Back"
                         onClick={() => {
-                            if (filterState) {
-                                // Determine source page based on filterState structure
-                                // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
-                                // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
-                                const sourcePath = filterState.activeTab !== undefined
-                                    ? '/admin/stock-list/stocks'
-                                    : '/admin/stock-list/main-db';
-                                // Navigate back with filter state to restore filters
-                                history.push({
-                                    pathname: sourcePath,
-                                    state: { filterState }
-                                });
-                            } else {
-                                history.goBack();
-                            }
+                            saveBeforeNavigation(() => {
+                                if (filterState) {
+                                    // Determine source page based on filterState structure
+                                    // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
+                                    // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
+                                    const sourcePath = filterState.activeTab !== undefined
+                                        ? '/admin/stock-list/stocks'
+                                        : '/admin/stock-list/main-db';
+                                    // Navigate back with filter state to restore filters
+                                    history.push({
+                                        pathname: sourcePath,
+                                        state: { filterState }
+                                    });
+                                } else {
+                                    history.goBack();
+                                }
+                            });
                         }}
+                        isDisabled={isSavingBeforeNavigation}
                     />
-                    <Text fontSize="xl" fontWeight="600" color={textColor}>
-                        {isBulkEdit
-                            ? `Edit Stock Items (${currentItemIndex + 1} of ${formRows.length})`
-                            : "Edit Stock Item"}
-                    </Text>
+                    <VStack align="start" spacing={0}>
+                        <Text fontSize="xl" fontWeight="600" color={textColor}>
+                            {isBulkEdit
+                                ? `Edit Stock Items (${currentItemIndex + 1} of ${formRows.length})`
+                                : "Edit Stock Item"}
+                        </Text>
+                        {isAutoSaving && (
+                            <Text fontSize="xs" color="blue.500" mt={1}>
+                                Auto-saving...
+                            </Text>
+                        )}
+                        {lastAutoSaveTime && !isAutoSaving && (
+                            <Text fontSize="xs" color="green.500" mt={1}>
+                                Last saved: {lastAutoSaveTime.toLocaleTimeString()}
+                            </Text>
+                        )}
+                    </VStack>
                 </HStack>
                 <HStack spacing="3">
                     <Button

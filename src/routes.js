@@ -409,9 +409,9 @@ const hiddenRoutes = [
     component: StockForm,
   },
   {
-    name: "StockDB Main Edit",
+    name: "Stock Items Edit",
     layout: "/admin",
-    path: "/stock-list/main-db-edit",
+    path: "/stock-list/edit-stock",
     component: StockDBMainEdit,
   },
   {

@@ -408,10 +408,10 @@ export default function StockList() {
                 selectedWarehouse,
                 selectedCurrency
             };
-            history.push({
-                pathname: '/admin/stock-list/main-db-edit',
-                state: { selectedItems: selectedItemsData, isBulkEdit: true, filterState }
-            });
+        history.push({
+            pathname: '/admin/stock-list/edit-stock',
+            state: { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' }
+        });
         }
     };
 
@@ -427,8 +427,8 @@ export default function StockList() {
             selectedCurrency
         };
         history.push({
-            pathname: '/admin/stock-list/main-db-edit',
-            state: { selectedItems: [item], isBulkEdit: false, filterState }
+            pathname: '/admin/stock-list/edit-stock',
+            state: { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' }
         });
     };
 
