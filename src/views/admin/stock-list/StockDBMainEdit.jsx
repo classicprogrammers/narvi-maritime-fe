@@ -57,10 +57,11 @@ export default function StockDBMainEdit() {
     const toast = useToast();
     const { getStockList, updateLoading } = useStock();
 
-    // Get selected items from state
+    // Get selected items and filter state from location.state
     const stateData = location.state || {};
     const selectedItemsFromState = stateData.selectedItems || [];
     const isBulkEdit = selectedItemsFromState.length > 1;
+    const filterState = stateData.filterState || null; // Store filter state to restore on navigation back
 
     const [isLoading, setIsLoading] = useState(false);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -839,9 +840,23 @@ export default function StockDBMainEdit() {
                     duration: 3000,
                     isClosable: true,
                 });
-                // Refresh stock list and go back
+                // Refresh stock list and navigate back with filter state preserved
                 await getStockList();
-                history.goBack();
+                if (filterState) {
+                    // Determine source page based on filterState structure
+                    // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
+                    // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
+                    const sourcePath = filterState.activeTab !== undefined 
+                        ? '/admin/stock-list/stocks'
+                        : '/admin/stock-list/main-db';
+                    // Navigate back with filter state to restore filters
+                    history.push({
+                        pathname: sourcePath,
+                        state: { filterState }
+                    });
+                } else {
+                    history.goBack();
+                }
             } else {
                 throw new Error(result?.result?.message || result?.message || "Failed to update stock items");
             }
@@ -901,7 +916,23 @@ export default function StockDBMainEdit() {
                         size="sm"
                         variant="ghost"
                         aria-label="Back"
-                        onClick={() => history.goBack()}
+                        onClick={() => {
+                            if (filterState) {
+                                // Determine source page based on filterState structure
+                                // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
+                                // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
+                                const sourcePath = filterState.activeTab !== undefined 
+                                    ? '/admin/stock-list/stocks'
+                                    : '/admin/stock-list/main-db';
+                                // Navigate back with filter state to restore filters
+                                history.push({
+                                    pathname: sourcePath,
+                                    state: { filterState }
+                                });
+                            } else {
+                                history.goBack();
+                            }
+                        }}
                     />
                     <Text fontSize="xl" fontWeight="600" color={textColor}>
                         {isBulkEdit

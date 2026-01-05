@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
     Box,
     Flex,
@@ -27,7 +27,7 @@ import {
 import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select } from "@chakra-ui/react";
-import { useHistory } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import { getVendorsApi } from "../../../api/vendor";
@@ -39,6 +39,7 @@ import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSe
 
 export default function StockList() {
     const history = useHistory();
+    const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
 
     const toast = useToast();
@@ -105,6 +106,10 @@ export default function StockList() {
     const [sortField, setSortField] = useState(null);
     const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
+
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
@@ -142,6 +147,21 @@ export default function StockList() {
     useEffect(() => {
         getStockList();
     }, [getStockList]);
+
+    // Restore filter state from location.state when returning from edit mode
+    useEffect(() => {
+        if (location.state && location.state.filterState) {
+            const { filterState } = location.state;
+            if (filterState.selectedClient !== undefined) setSelectedClient(filterState.selectedClient);
+            if (filterState.selectedVessel !== undefined) setSelectedVessel(filterState.selectedVessel);
+            if (filterState.selectedSupplier !== undefined) setSelectedSupplier(filterState.selectedSupplier);
+            if (filterState.selectedStatus !== undefined) setSelectedStatus(filterState.selectedStatus);
+            if (filterState.selectedWarehouse !== undefined) setSelectedWarehouse(filterState.selectedWarehouse);
+            if (filterState.selectedCurrency !== undefined) setSelectedCurrency(filterState.selectedCurrency);
+            // Clear location.state to prevent restoring on subsequent renders
+            history.replace(location.pathname, {});
+        }
+    }, [location.state, history, location.pathname]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -318,18 +338,36 @@ export default function StockList() {
         if (selectedIds.length > 0) {
             // Filter the full data objects from stockList for selected items
             const selectedItemsData = stockList.filter(item => selectedIds.includes(item.id));
+            // Pass current filter state so it can be restored when navigating back
+            const filterState = {
+                selectedClient,
+                selectedVessel,
+                selectedSupplier,
+                selectedStatus,
+                selectedWarehouse,
+                selectedCurrency
+            };
             history.push({
                 pathname: '/admin/stock-list/main-db-edit',
-                state: { selectedItems: selectedItemsData, isBulkEdit: true }
+                state: { selectedItems: selectedItemsData, isBulkEdit: true, filterState }
             });
         }
     };
 
     // Handle single item edit - navigate to StockDB Main edit page with item's full data
     const handleEditItem = (item) => {
+        // Pass current filter state so it can be restored when navigating back
+        const filterState = {
+            selectedClient,
+            selectedVessel,
+            selectedSupplier,
+            selectedStatus,
+            selectedWarehouse,
+            selectedCurrency
+        };
         history.push({
             pathname: '/admin/stock-list/main-db-edit',
-            state: { selectedItems: [item], isBulkEdit: false }
+            state: { selectedItems: [item], isBulkEdit: false, filterState }
         });
     };
 
@@ -347,12 +385,18 @@ export default function StockList() {
         });
     };
 
-    // Handle select all
+    // Handle select all (only for current page)
     const handleSelectAll = (isSelected) => {
         if (isSelected) {
-            setSelectedRows(new Set(filteredAndSortedStock.map(item => item.id)));
+            const pageIds = paginatedStock.map(item => item.id);
+            setSelectedRows(prev => new Set([...prev, ...pageIds]));
         } else {
-            setSelectedRows(new Set());
+            const pageIds = paginatedStock.map(item => item.id);
+            setSelectedRows(prev => {
+                const newSet = new Set(prev);
+                pageIds.forEach(id => newSet.delete(id));
+                return newSet;
+            });
         }
     };
 
@@ -1044,8 +1088,8 @@ export default function StockList() {
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
                                         <Checkbox
-                                            isChecked={selectedRows.size > 0 && selectedRows.size === filteredAndSortedStock.length}
-                                            isIndeterminate={selectedRows.size > 0 && selectedRows.size < filteredAndSortedStock.length}
+                                            isChecked={paginatedStock.length > 0 && paginatedStock.every(item => selectedRows.has(item.id))}
+                                            isIndeterminate={paginatedStock.some(item => selectedRows.has(item.id)) && !paginatedStock.every(item => selectedRows.has(item.id))}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             size="sm"
                                             isDisabled={!isAuthorizedToEdit}
@@ -1153,7 +1197,7 @@ export default function StockList() {
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {filteredAndSortedStock.map((item, index) => (
+                                {paginatedStock.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
@@ -1287,12 +1331,99 @@ export default function StockList() {
                     )}
                 </Box>
 
-                {/* Results Summary */}
+                {/* Results Summary and Pagination */}
                 {filteredAndSortedStock.length > 0 && (
-                    <Flex px="25px" justify="space-between" align="center" py="20px">
-                        <Text fontSize="sm" color={tableTextColorSecondary}>
-                            Showing {filteredAndSortedStock.length} of {stockList.length} stock items
-                        </Text>
+                    <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
+                        {/* Records per page selector and info */}
+                        <HStack spacing={3}>
+                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                Records per page:
+                            </Text>
+                            <Select
+                                size="sm"
+                                w="80px"
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                                bg={inputBg}
+                                color={inputText}
+                                borderColor={borderColor}
+                            >
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </Select>
+                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
+                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency) && " (filtered)"}
+                                {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
+                            </Text>
+                        </HStack>
+
+                        {/* Pagination buttons */}
+                        <HStack spacing={2}>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setCurrentPage(1)}
+                                isDisabled={currentPage === 1}
+                            >
+                                First
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                isDisabled={currentPage === 1}
+                            >
+                                Previous
+                            </Button>
+
+                            {/* Page numbers */}
+                            <HStack spacing={1}>
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) {
+                                        pageNum = i + 1;
+                                    } else if (currentPage <= 3) {
+                                        pageNum = i + 1;
+                                    } else if (currentPage >= totalPages - 2) {
+                                        pageNum = totalPages - 4 + i;
+                                    } else {
+                                        pageNum = currentPage - 2 + i;
+                                    }
+
+                                    return (
+                                        <Button
+                                            key={pageNum}
+                                            size="sm"
+                                            variant={currentPage === pageNum ? "solid" : "outline"}
+                                            colorScheme={currentPage === pageNum ? "blue" : "gray"}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                        >
+                                            {pageNum}
+                                        </Button>
+                                    );
+                                })}
+                            </HStack>
+
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                isDisabled={currentPage >= totalPages}
+                            >
+                                Next
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setCurrentPage(totalPages)}
+                                isDisabled={currentPage === totalPages}
+                            >
+                                Last
+                            </Button>
+                        </HStack>
                     </Flex>
                 )}
             </Card>

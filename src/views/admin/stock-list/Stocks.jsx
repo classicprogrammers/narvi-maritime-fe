@@ -40,7 +40,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi } from "../../../api/stock";
-import { useHistory } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
@@ -153,6 +153,7 @@ const STATUS_VARIATIONS = {
 
 export default function Stocks() {
     const history = useHistory();
+    const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
     const [activeTab, setActiveTab] = useState(0); // 0: Stock View / Edit, 1: Stocklist view for clients
     const [editingRowIds, setEditingRowIds] = useState(new Set()); // Set of row IDs being edited
@@ -198,7 +199,7 @@ export default function Stocks() {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -338,6 +339,21 @@ export default function Stocks() {
         fetchLookupData();
     }, []); // Empty dependency array - only fetch once on mount
 
+    // Restore filter state from location.state when returning from edit mode
+    useEffect(() => {
+        if (location.state && location.state.filterState) {
+            const { filterState } = location.state;
+            if (filterState.activeTab !== undefined) setActiveTab(filterState.activeTab);
+            if (filterState.vesselViewClient !== undefined) setVesselViewClient(filterState.vesselViewClient);
+            if (filterState.vesselViewVessel !== undefined) setVesselViewVessel(filterState.vesselViewVessel);
+            if (filterState.vesselViewStatuses !== undefined) setVesselViewStatuses(new Set(filterState.vesselViewStatuses)); // Convert Array back to Set
+            if (filterState.clientViewClient !== undefined) setClientViewClient(filterState.clientViewClient);
+            if (filterState.clientViewStatuses !== undefined) setClientViewStatuses(new Set(filterState.clientViewStatuses)); // Convert Array back to Set
+            // Clear location.state to prevent restoring on subsequent renders
+            history.replace(location.pathname, {});
+        }
+    }, [location.state, history, location.pathname]);
+
     // Track refresh state after updates
     useEffect(() => {
         if (isLoading && stockList.length > 0) {
@@ -445,9 +461,18 @@ export default function Stocks() {
     };
 
     const handleEditItem = (item) => {
+        // Pass current filter state so it can be restored when navigating back
+        const filterState = {
+            activeTab,
+            vesselViewClient,
+            vesselViewVessel,
+            vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
+            clientViewClient,
+            clientViewStatuses: Array.from(clientViewStatuses) // Convert Set to Array for serialization
+        };
         history.push({
             pathname: '/admin/stock-list/main-db-edit',
-            state: { selectedItems: [item], isBulkEdit: false }
+            state: { selectedItems: [item], isBulkEdit: false, filterState }
         });
     };
 
@@ -457,9 +482,18 @@ export default function Stocks() {
         if (selectedIds.length > 0) {
             // Filter the full data objects from filtered stock for selected items
             const selectedItemsData = getFilteredStockByStatus().filter(item => selectedIds.includes(item.id));
+            // Pass current filter state so it can be restored when navigating back
+            const filterState = {
+                activeTab,
+                vesselViewClient,
+                vesselViewVessel,
+                vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
+                clientViewClient,
+                clientViewStatuses: Array.from(clientViewStatuses) // Convert Set to Array for serialization
+            };
             history.push({
                 pathname: '/admin/stock-list/main-db-edit',
-                state: { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1 }
+                state: { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState }
             });
         }
     };
@@ -854,10 +888,10 @@ export default function Stocks() {
     const endIndex = startIndex + itemsPerPage;
     const paginatedStock = filteredAndSortedStock.slice(startIndex, endIndex);
 
-    // Reset to page 1 when filters change
+    // Reset to page 1 when filters change or items per page changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [vesselViewVessel, vesselViewClient, vesselViewStatuses.size, clientViewClient, clientViewStatuses.size, activeTab]);
+    }, [vesselViewVessel, vesselViewClient, vesselViewStatuses.size, clientViewClient, clientViewStatuses.size, activeTab, itemsPerPage]);
 
     // Handle status checkbox toggle for By Vessel view
     const handleVesselViewStatusToggle = (status) => {
@@ -2979,37 +3013,101 @@ export default function Stocks() {
                         {/* Results Summary and Pagination */}
                         {filteredAndSortedStock.length > 0 && (
                             <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
-                                <Text fontSize="sm" color={tableTextColorSecondary}>
-                                    Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
-                                    {(() => {
-                                        if (activeTab === 0) {
-                                            return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
-                                        } else {
-                                            return (clientViewClient || clientViewStatuses.size > 0) ? " (filtered)" : "";
-                                        }
-                                    })()}
-                                    {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
-                                </Text>
-                                <HStack spacing="2">
-                                    <IconButton
-                                        icon={<ChevronLeftIcon />}
-                                        aria-label="Previous page"
-                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                        isDisabled={currentPage === 1}
-                                        size="sm"
-                                        variant="outline"
-                                    />
-                                    <Text fontSize="sm" color={tableTextColor} px="2">
-                                        Page {currentPage} of {totalPages || 1}
+                                {/* Records per page selector and info */}
+                                <HStack spacing={3}>
+                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                        Records per page:
                                     </Text>
-                                    <IconButton
-                                        icon={<ChevronRightIcon />}
-                                        aria-label="Next page"
-                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                        isDisabled={currentPage >= totalPages}
+                                    <Select
+                                        size="sm"
+                                        w="80px"
+                                        value={itemsPerPage}
+                                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                    </Select>
+                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                        Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
+                                        {(() => {
+                                            if (activeTab === 0) {
+                                                return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
+                                            } else {
+                                                return (clientViewClient || clientViewStatuses.size > 0) ? " (filtered)" : "";
+                                            }
+                                        })()}
+                                        {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
+                                    </Text>
+                                </HStack>
+
+                                {/* Pagination buttons */}
+                                <HStack spacing={2}>
+                                    <Button
                                         size="sm"
                                         variant="outline"
-                                    />
+                                        onClick={() => setCurrentPage(1)}
+                                        isDisabled={currentPage === 1}
+                                    >
+                                        First
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                        isDisabled={currentPage === 1}
+                                    >
+                                        Previous
+                                    </Button>
+
+                                    {/* Page numbers */}
+                                    <HStack spacing={1}>
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                            let pageNum;
+                                            if (totalPages <= 5) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage <= 3) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage >= totalPages - 2) {
+                                                pageNum = totalPages - 4 + i;
+                                            } else {
+                                                pageNum = currentPage - 2 + i;
+                                            }
+
+                                            return (
+                                                <Button
+                                                    key={pageNum}
+                                                    size="sm"
+                                                    variant={currentPage === pageNum ? "solid" : "outline"}
+                                                    colorScheme={currentPage === pageNum ? "blue" : "gray"}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                >
+                                                    {pageNum}
+                                                </Button>
+                                            );
+                                        })}
+                                    </HStack>
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                        isDisabled={currentPage >= totalPages}
+                                    >
+                                        Next
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        isDisabled={currentPage === totalPages}
+                                    >
+                                        Last
+                                    </Button>
                                 </HStack>
                             </Flex>
                         )}
