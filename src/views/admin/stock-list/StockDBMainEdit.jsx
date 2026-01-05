@@ -38,6 +38,12 @@ import {
     ModalBody,
     ModalCloseButton,
     useDisclosure,
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogContent,
+    AlertDialogOverlay,
 } from "@chakra-ui/react";
 import {
     MdChevronLeft,
@@ -72,7 +78,7 @@ export default function StockDBMainEdit() {
     const isBulkEdit = selectedItemsFromState.length > 1;
     const filterState = stateData.filterState || null; // Store filter state to restore on navigation back
     const sourcePage = stateData.sourcePage || null; // Store source page to highlight correct tab
-    
+
     // Store source page in sessionStorage for persistence
     useEffect(() => {
         if (sourcePage) {
@@ -89,6 +95,10 @@ export default function StockDBMainEdit() {
     const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
     const [lwhModalRowIndex, setLwhModalRowIndex] = useState(null);
     const [lwhModalValue, setLwhModalValue] = useState("");
+
+    // Confirmation dialog for back button
+    const { isOpen: isBackConfirmOpen, onOpen: onBackConfirmOpen, onClose: onBackConfirmClose } = useDisclosure();
+    const cancelRef = React.useRef();
     const [clients, setClients] = useState([]);
     const [vessels, setVessels] = useState([]);
     const [suppliers, setSuppliers] = useState([]);
@@ -277,7 +287,7 @@ export default function StockDBMainEdit() {
             // Try to restore from localStorage first
             const storageKey = `stockEditFormData_${selectedItemsFromState[0]?.id || 'new'}`;
             const savedData = sessionStorage.getItem(storageKey);
-            
+
             if (savedData) {
                 try {
                     const parsed = JSON.parse(savedData);
@@ -299,7 +309,7 @@ export default function StockDBMainEdit() {
                     console.error("Failed to restore from localStorage:", error);
                 }
             }
-            
+
             // If no saved data, load from API
             const rows = selectedItemsFromState.map((item) => {
                 return loadFormDataFromStock(item, true);
@@ -811,13 +821,6 @@ export default function StockDBMainEdit() {
         }
     }, [formRows, currentItemIndex]);
 
-    // Save to localStorage before navigation (no API call)
-    const saveBeforeNavigation = useCallback((navigationCallback) => {
-        // Save to localStorage before navigating
-        saveToLocalStorage();
-        // Proceed with navigation immediately
-        if (navigationCallback) navigationCallback();
-    }, [saveToLocalStorage]);
 
     // Save to localStorage on form changes (debounced)
     useEffect(() => {
@@ -932,7 +935,7 @@ export default function StockDBMainEdit() {
                     const storageKey = `stockEditFormData_${formRows[0].stockId}`;
                     sessionStorage.removeItem(storageKey);
                 }
-                
+
                 toast({
                     title: 'Success',
                     description: `${lines.length} stock item(s) updated successfully (${formRows.length - lines.length} item(s) had no changes)`,
@@ -1020,28 +1023,7 @@ export default function StockDBMainEdit() {
                         size="sm"
                         variant="ghost"
                         aria-label="Back"
-                        onClick={() => {
-                            saveBeforeNavigation(() => {
-                                if (filterState) {
-                                    // Determine source page based on filterState structure
-                                    // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
-                                    // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
-                                    const sourcePath = filterState.activeTab !== undefined
-                                        ? '/admin/stock-list/stocks'
-                                        : '/admin/stock-list/main-db';
-                                    // Clear saved edit state since we're navigating back
-                                    sessionStorage.removeItem('stockEditState');
-                                    // Navigate back with filter state to restore filters
-                                    // Mark as fromEdit to prevent restoring edit state
-                                    history.push({
-                                        pathname: sourcePath,
-                                        state: { filterState, fromEdit: true }
-                                    });
-                                } else {
-                                    history.goBack();
-                                }
-                            });
-                        }}
+                        onClick={onBackConfirmOpen}
                     />
                     <VStack align="start" spacing={0}>
                         <Text fontSize="xl" fontWeight="600" color={textColor}>
@@ -1853,6 +1835,70 @@ export default function StockDBMainEdit() {
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+
+            {/* Back Confirmation Dialog */}
+            <AlertDialog
+                isOpen={isBackConfirmOpen}
+                leastDestructiveRef={cancelRef}
+                onClose={onBackConfirmClose}
+            >
+                <AlertDialogOverlay>
+                    <AlertDialogContent>
+                        <AlertDialogHeader fontSize="lg" fontWeight="bold">
+                            Discard Changes?
+                        </AlertDialogHeader>
+
+                        <AlertDialogBody>
+                            Are you sure you want to go back? All entered data will be removed from local storage and you will lose any unsaved changes.
+                        </AlertDialogBody>
+
+                        <AlertDialogFooter>
+                            <Button ref={cancelRef} onClick={onBackConfirmClose}>
+                                Cancel
+                            </Button>
+                            <Button
+                                colorScheme="red"
+                                onClick={() => {
+                                    // Clear all localStorage data related to this edit
+                                    // Clear the specific storage key for this stock
+                                    if (formRows[0]?.stockId) {
+                                        const storageKey = `stockEditFormData_${formRows[0].stockId}`;
+                                        sessionStorage.removeItem(storageKey);
+                                    }
+                                    // Also clear the 'new' key if it exists
+                                    sessionStorage.removeItem('stockEditFormData_new');
+                                    // Clear saved edit state
+                                    sessionStorage.removeItem('stockEditState');
+                                    // Clear source page info
+                                    sessionStorage.removeItem('stockEditSourcePage');
+                                    // Close dialog
+                                    onBackConfirmClose();
+                                    // Navigate back
+                                    if (filterState) {
+                                        // Determine source page based on filterState structure
+                                        // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
+                                        // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
+                                        const sourcePath = filterState.activeTab !== undefined
+                                            ? '/admin/stock-list/stocks'
+                                            : '/admin/stock-list/main-db';
+                                        // Navigate back with filter state to restore filters
+                                        // Mark as fromEdit to prevent restoring edit state
+                                        history.push({
+                                            pathname: sourcePath,
+                                            state: { filterState, fromEdit: true }
+                                        });
+                                    } else {
+                                        history.goBack();
+                                    }
+                                }}
+                                ml={3}
+                            >
+                                Yes, Remove Data
+                            </Button>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialogOverlay>
+            </AlertDialog>
         </Box>
     );
 }
