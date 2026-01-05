@@ -154,10 +154,22 @@ const STATUS_VARIATIONS = {
 export default function Stocks() {
     const history = useHistory();
     const location = useLocation();
-    const [selectedRows, setSelectedRows] = useState(new Set());
-    const [activeTab, setActiveTab] = useState(0); // 0: Stock View / Edit, 1: Stocklist view for clients
-    const [editingRowIds, setEditingRowIds] = useState(new Set()); // Set of row IDs being edited
-    const [editingRowData, setEditingRowData] = useState({}); // Map of row ID -> editing data
+    const [selectedRows, setSelectedRows] = useState(() => {
+        const stored = sessionStorage.getItem('stocksSelectedRows');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    });
+    const [activeTab, setActiveTab] = useState(() => {
+        const stored = sessionStorage.getItem('stocksActiveTab');
+        return stored ? Number(stored) : 0;
+    });
+    const [editingRowIds, setEditingRowIds] = useState(() => {
+        const stored = sessionStorage.getItem('stocksEditingRowIds');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    });
+    const [editingRowData, setEditingRowData] = useState(() => {
+        const stored = sessionStorage.getItem('stocksEditingRowData');
+        return stored ? JSON.parse(stored) : {};
+    });
 
     const toast = useToast();
 
@@ -172,15 +184,30 @@ export default function Stocks() {
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Filters - separate for each view
+    // Filters - separate for each view - initialize from sessionStorage
     // By Vessel view filters
-    const [vesselViewClient, setVesselViewClient] = useState(null);
-    const [vesselViewVessel, setVesselViewVessel] = useState(null);
-    const [vesselViewStatuses, setVesselViewStatuses] = useState(new Set());
+    const [vesselViewClient, setVesselViewClient] = useState(() => {
+        const stored = sessionStorage.getItem('stocksVesselViewClient');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [vesselViewVessel, setVesselViewVessel] = useState(() => {
+        const stored = sessionStorage.getItem('stocksVesselViewVessel');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [vesselViewStatuses, setVesselViewStatuses] = useState(() => {
+        const stored = sessionStorage.getItem('stocksVesselViewStatuses');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    });
 
     // By Client view filters
-    const [clientViewClient, setClientViewClient] = useState(null);
-    const [clientViewStatuses, setClientViewStatuses] = useState(new Set());
+    const [clientViewClient, setClientViewClient] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewClient');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [clientViewStatuses, setClientViewStatuses] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewStatuses');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    });
 
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -197,9 +224,6 @@ export default function Stocks() {
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
     // Users state removed - PIC is now a free text field, no need to fetch users
 
-    // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -317,11 +341,9 @@ export default function Stocks() {
                             setLocations(data?.locations || data || []);
                             break;
                         case 'countries':
-                            console.log('Countries fetched:', data);
                             setCountries(data || []);
                             break;
                         case 'shippingOrders':
-                            console.log('Shipping orders fetched:', data);
                             setShippingOrders(data || []);
                             break;
                         // Users case removed - PIC is now free text, no need to fetch users
@@ -353,6 +375,43 @@ export default function Stocks() {
             history.replace(location.pathname, {});
         }
     }, [location.state, history, location.pathname]);
+
+    // Persist state to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stocksSelectedRows', JSON.stringify(Array.from(selectedRows)));
+    }, [selectedRows]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksActiveTab', activeTab.toString());
+    }, [activeTab]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksEditingRowIds', JSON.stringify(Array.from(editingRowIds)));
+    }, [editingRowIds]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksEditingRowData', JSON.stringify(editingRowData));
+    }, [editingRowData]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksVesselViewClient', vesselViewClient || 'null');
+    }, [vesselViewClient]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksVesselViewVessel', vesselViewVessel || 'null');
+    }, [vesselViewVessel]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksVesselViewStatuses', JSON.stringify(Array.from(vesselViewStatuses)));
+    }, [vesselViewStatuses]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewClient', clientViewClient || 'null');
+    }, [clientViewClient]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewStatuses', JSON.stringify(Array.from(clientViewStatuses)));
+    }, [clientViewStatuses]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -532,10 +591,6 @@ export default function Stocks() {
             return stateCodes ? `${base} - ${stateCodes}` : base;
         }
 
-        // Debug logging if country not found
-        if (countries.length > 0) {
-            console.log(`Country ${countryId} not found. Available countries sample:`, countries.slice(0, 5).map(c => ({ id: c.id, country_id: c.country_id, name: c.name })));
-        }
 
         return `Country ${countryId}`;
     };
@@ -882,17 +937,6 @@ export default function Stocks() {
 
     const filteredAndSortedStock = getFlattenedStock();
 
-    // Pagination calculations
-    const totalPages = Math.ceil(filteredAndSortedStock.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedStock = filteredAndSortedStock.slice(startIndex, endIndex);
-
-    // Reset to page 1 when filters change or items per page changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [vesselViewVessel, vesselViewClient, vesselViewStatuses.size, clientViewClient, clientViewStatuses.size, activeTab, itemsPerPage]);
-
     // Handle status checkbox toggle for By Vessel view
     const handleVesselViewStatusToggle = (status) => {
         setVesselViewStatuses(prev => {
@@ -938,24 +982,19 @@ export default function Stocks() {
         });
     };
 
-    // Handle select all (only for current page)
+    // Handle select all
     const handleSelectAll = (isSelected) => {
         if (isSelected) {
-            const pageIds = paginatedStock.map(item => item.id);
-            setSelectedRows(prev => new Set([...prev, ...pageIds]));
+            const allIds = filteredAndSortedStock.map(item => item.id);
+            setSelectedRows(new Set(allIds));
         } else {
-            const pageIds = paginatedStock.map(item => item.id);
-            setSelectedRows(prev => {
-                const newSet = new Set(prev);
-                pageIds.forEach(id => newSet.delete(id));
-                return newSet;
-            });
+            setSelectedRows(new Set());
         }
     };
 
-    // Check if all items on current page are selected
-    const allPageItemsSelected = paginatedStock.length > 0 && paginatedStock.every(item => selectedRows.has(item.id));
-    const somePageItemsSelected = paginatedStock.some(item => selectedRows.has(item.id));
+    // Check if all items are selected
+    const allItemsSelected = filteredAndSortedStock.length > 0 && filteredAndSortedStock.every(item => selectedRows.has(item.id));
+    const someItemsSelected = filteredAndSortedStock.some(item => selectedRows.has(item.id));
 
 
     // Handle inline edit start - for single row
@@ -2462,15 +2501,9 @@ export default function Stocks() {
                                                     color={tableTextColor}
                                                 >
                                                     <Checkbox
-                                                        isChecked={getFilteredStockByStatus().length > 0 && getFilteredStockByStatus().every(item => selectedRows.has(item.id))}
-                                                        isIndeterminate={getFilteredStockByStatus().some(item => selectedRows.has(item.id)) && !getFilteredStockByStatus().every(item => selectedRows.has(item.id))}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedRows(new Set(getFilteredStockByStatus().map(item => item.id)));
-                                                            } else {
-                                                                setSelectedRows(new Set());
-                                                            }
-                                                        }}
+                                                        isChecked={allItemsSelected}
+                                                        isIndeterminate={someItemsSelected && !allItemsSelected}
+                                                        onChange={(e) => handleSelectAll(e.target.checked)}
                                                         size="sm"
                                                         borderColor="gray.600"
                                                         colorScheme="blue"

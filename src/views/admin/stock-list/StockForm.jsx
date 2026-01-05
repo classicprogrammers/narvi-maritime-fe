@@ -164,12 +164,10 @@ export default function StockForm() {
                         throw new Error("Selected stock items were not found.");
                     }
 
-                    console.log("Loading stock items for bulk edit:", items);
                     setSelectedItems(items);
                     // Load all selected items as separate rows for bulk edit
                     const rows = items.map((item) => {
                         const rowData = loadFormDataFromStock(item, true);
-                        console.log("Mapped row data:", rowData);
                         return rowData;
                     });
                     setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
@@ -182,7 +180,6 @@ export default function StockForm() {
                         throw new Error("Stock item could not be found.");
                     }
 
-                    console.log("Loading stock item for edit:", match);
                     loadFormDataFromStock(match);
                 }
             } catch (error) {
@@ -394,10 +391,8 @@ export default function StockForm() {
                     (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
                 );
                 if (fallbackMatch) {
-                    console.log("Found client fallback match:", fallbackMatch.id, "for value:", normalizedValue);
                     return { ...row, client: String(fallbackMatch.id) };
                 }
-                console.log("No client match found for value:", normalizedValue, "Available clients:", clients.map(c => ({ id: c.id, name: c.name })));
                 return row;
             })
         );
@@ -415,7 +410,6 @@ export default function StockForm() {
                 // Try exact ID match first
                 const exactMatch = vessels.find((vessel) => String(vessel.id) === normalizedValue);
                 if (exactMatch) {
-                    console.log("Found vessel match:", exactMatch.id, "for value:", normalizedValue);
                     const updatedRow = { ...row, vessel: String(exactMatch.id) };
                     // Auto-fill destination, vessel_destination, and ap_destination from vessel data
                     const vesselDestId = exactMatch.destination_id || exactMatch.destination;
@@ -439,7 +433,6 @@ export default function StockForm() {
                     (vessel) => String(vessel.name)?.toLowerCase() === normalizedValue.toLowerCase()
                 );
                 if (fallbackMatch) {
-                    console.log("Found vessel fallback match:", fallbackMatch.id, "for value:", normalizedValue);
                     const updatedRow = { ...row, vessel: String(fallbackMatch.id) };
                     // Auto-fill destination, vessel_destination, and ap_destination from vessel data
                     const vesselDestId = fallbackMatch.destination_id || fallbackMatch.destination;
@@ -458,7 +451,6 @@ export default function StockForm() {
                     }
                     return updatedRow;
                 }
-                console.log("No vessel match found for value:", normalizedValue);
                 return row;
             })
         );
@@ -476,7 +468,6 @@ export default function StockForm() {
                 // Try exact ID match first
                 const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
                 if (exactMatch) {
-                    console.log("Found supplier match:", exactMatch.id, "for value:", normalizedValue);
                     return { ...row, supplier: String(exactMatch.id) };
                 }
                 // Try fallback matching by name
@@ -484,10 +475,8 @@ export default function StockForm() {
                     (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
                 );
                 if (fallbackMatch) {
-                    console.log("Found supplier fallback match:", fallbackMatch.id, "for value:", normalizedValue);
                     return { ...row, supplier: String(fallbackMatch.id) };
                 }
-                console.log("No supplier match found for value:", normalizedValue, "Available clients:", clients.map(c => ({ id: c.id, name: c.name })));
                 return row;
             })
         );

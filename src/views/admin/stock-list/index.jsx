@@ -40,7 +40,10 @@ import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSe
 export default function StockList() {
     const history = useHistory();
     const location = useLocation();
-    const [selectedRows, setSelectedRows] = useState(new Set());
+    const [selectedRows, setSelectedRows] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedRows');
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    });
 
     const toast = useToast();
 
@@ -57,22 +60,22 @@ export default function StockList() {
     // Check if current user is authorized to edit (Igor or Martin only)
     const isAuthorizedToEdit = React.useMemo(() => {
         if (!user) return false;
-        
+
         const userEmail = (user.email || "").toLowerCase().trim();
         const userName = (user.name || "").toLowerCase().trim();
-        
+
         // Check by email
         const allowedEmails = [
             "igor@narvimaritime.com",
             "martin@narvimaritime.com"
         ];
-        
+
         // Check by name (case-insensitive)
         const allowedNames = ["igor", "martin"];
-        
+
         const emailMatch = allowedEmails.includes(userEmail);
         const nameMatch = allowedNames.some(name => userName.includes(name));
-        
+
         return emailMatch || nameMatch;
     }, [user]);
 
@@ -89,26 +92,45 @@ export default function StockList() {
     const [countries, setCountries] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
-    // Filters state
-    const [selectedClient, setSelectedClient] = useState(null);
-    const [selectedVessel, setSelectedVessel] = useState(null);
-    const [selectedSupplier, setSelectedSupplier] = useState(null);
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const [selectedWarehouse, setSelectedWarehouse] = useState(null);
-    const [selectedCurrency, setSelectedCurrency] = useState(null);
+    // Filters state - initialize from sessionStorage
+    const [selectedClient, setSelectedClient] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedClient');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [selectedVessel, setSelectedVessel] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedVessel');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [selectedSupplier, setSelectedSupplier] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedSupplier');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [selectedStatus, setSelectedStatus] = useState(() => {
+        return sessionStorage.getItem('stockListMainSelectedStatus') || "";
+    });
+    const [selectedWarehouse, setSelectedWarehouse] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedWarehouse');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [selectedCurrency, setSelectedCurrency] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedCurrency');
+        return stored && stored !== 'null' ? stored : null;
+    });
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
-    // Sorting state
-    const [sortField, setSortField] = useState(null);
-    const [sortDirection, setSortDirection] = useState("asc"); // "asc" or "desc"
+    // Sorting state - initialize from sessionStorage
+    const [sortField, setSortField] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSortField');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [sortDirection, setSortDirection] = useState(() => {
+        return sessionStorage.getItem('stockListMainSortDirection') || "asc";
+    });
 
-    // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -171,6 +193,45 @@ export default function StockList() {
             setIsRefreshing(false);
         }
     }, [isLoading, stockList.length]);
+
+    // Persist filter states to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedClient', selectedClient || 'null');
+    }, [selectedClient]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedVessel', selectedVessel || 'null');
+    }, [selectedVessel]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedSupplier', selectedSupplier || 'null');
+    }, [selectedSupplier]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedStatus', selectedStatus || '');
+    }, [selectedStatus]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedWarehouse', selectedWarehouse || 'null');
+    }, [selectedWarehouse]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedCurrency', selectedCurrency || 'null');
+    }, [selectedCurrency]);
+
+    // Persist sorting state to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSortField', sortField || 'null');
+    }, [sortField]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSortDirection', sortDirection || 'asc');
+    }, [sortDirection]);
+
+    // Persist selected rows to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedRows', JSON.stringify(Array.from(selectedRows)));
+    }, [selectedRows]);
 
     // Track if lookup data has been fetched
     const hasFetchedLookupData = useRef(false);
@@ -385,18 +446,13 @@ export default function StockList() {
         });
     };
 
-    // Handle select all (only for current page)
+    // Handle select all
     const handleSelectAll = (isSelected) => {
         if (isSelected) {
-            const pageIds = paginatedStock.map(item => item.id);
-            setSelectedRows(prev => new Set([...prev, ...pageIds]));
+            const allIds = filteredAndSortedStock.map(item => item.id);
+            setSelectedRows(new Set(allIds));
         } else {
-            const pageIds = paginatedStock.map(item => item.id);
-            setSelectedRows(prev => {
-                const newSet = new Set(prev);
-                pageIds.forEach(id => newSet.delete(id));
-                return newSet;
-            });
+            setSelectedRows(new Set());
         }
     };
 
@@ -606,7 +662,7 @@ export default function StockList() {
                 try {
                     const mimeType = attachment.mimetype || "application/octet-stream";
                     const base64Data = attachment.datas;
-                    
+
                     // Convert base64 to binary
                     const byteCharacters = atob(base64Data);
                     const byteNumbers = new Array(byteCharacters.length);
@@ -615,7 +671,7 @@ export default function StockList() {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: mimeType });
-                    
+
                     // Create object URL from blob
                     fileUrl = URL.createObjectURL(blob);
                     window.open(fileUrl, '_blank');
@@ -1088,8 +1144,8 @@ export default function StockList() {
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
                                         <Checkbox
-                                            isChecked={paginatedStock.length > 0 && paginatedStock.every(item => selectedRows.has(item.id))}
-                                            isIndeterminate={paginatedStock.some(item => selectedRows.has(item.id)) && !paginatedStock.every(item => selectedRows.has(item.id))}
+                                            isChecked={filteredAndSortedStock.length > 0 && filteredAndSortedStock.every(item => selectedRows.has(item.id))}
+                                            isIndeterminate={filteredAndSortedStock.some(item => selectedRows.has(item.id)) && !filteredAndSortedStock.every(item => selectedRows.has(item.id))}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             size="sm"
                                             isDisabled={!isAuthorizedToEdit}
@@ -1197,7 +1253,7 @@ export default function StockList() {
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {paginatedStock.map((item, index) => (
+                                {filteredAndSortedStock.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
@@ -1331,101 +1387,6 @@ export default function StockList() {
                     )}
                 </Box>
 
-                {/* Results Summary and Pagination */}
-                {filteredAndSortedStock.length > 0 && (
-                    <Flex px="25px" justify="space-between" align="center" py="20px" wrap="wrap" gap="4">
-                        {/* Records per page selector and info */}
-                        <HStack spacing={3}>
-                            <Text fontSize="sm" color={tableTextColorSecondary}>
-                                Records per page:
-                            </Text>
-                            <Select
-                                size="sm"
-                                w="80px"
-                                value={itemsPerPage}
-                                onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                                bg={inputBg}
-                                color={inputText}
-                                borderColor={borderColor}
-                            >
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </Select>
-                            <Text fontSize="sm" color={tableTextColorSecondary}>
-                                Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
-                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency) && " (filtered)"}
-                                {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
-                            </Text>
-                        </HStack>
-
-                        {/* Pagination buttons */}
-                        <HStack spacing={2}>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setCurrentPage(1)}
-                                isDisabled={currentPage === 1}
-                            >
-                                First
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                isDisabled={currentPage === 1}
-                            >
-                                Previous
-                            </Button>
-
-                            {/* Page numbers */}
-                            <HStack spacing={1}>
-                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    let pageNum;
-                                    if (totalPages <= 5) {
-                                        pageNum = i + 1;
-                                    } else if (currentPage <= 3) {
-                                        pageNum = i + 1;
-                                    } else if (currentPage >= totalPages - 2) {
-                                        pageNum = totalPages - 4 + i;
-                                    } else {
-                                        pageNum = currentPage - 2 + i;
-                                    }
-
-                                    return (
-                                        <Button
-                                            key={pageNum}
-                                            size="sm"
-                                            variant={currentPage === pageNum ? "solid" : "outline"}
-                                            colorScheme={currentPage === pageNum ? "blue" : "gray"}
-                                            onClick={() => setCurrentPage(pageNum)}
-                                        >
-                                            {pageNum}
-                                        </Button>
-                                    );
-                                })}
-                            </HStack>
-
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                                isDisabled={currentPage >= totalPages}
-                            >
-                                Next
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setCurrentPage(totalPages)}
-                                isDisabled={currentPage === totalPages}
-                            >
-                                Last
-                            </Button>
-                        </HStack>
-                    </Flex>
-                )}
             </Card>
         </Box>
     );

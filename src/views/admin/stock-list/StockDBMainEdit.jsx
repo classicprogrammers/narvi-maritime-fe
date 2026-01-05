@@ -309,7 +309,6 @@ export default function StockDBMainEdit() {
     // Load selected items into form
     useEffect(() => {
         if (selectedItemsFromState.length > 0) {
-            console.log("Loading stock items from state:", selectedItemsFromState);
             const rows = selectedItemsFromState.map((item) => {
                 return loadFormDataFromStock(item, true);
             });
