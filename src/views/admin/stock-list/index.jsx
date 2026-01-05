@@ -358,9 +358,9 @@ export default function StockList() {
                 } else if (sortField === 'so_number_id' || sortField === 'so_number') {
                     aVal = a.so_number_id ? getSoNumberName(a.so_number_id) : (a.so_number || a.stock_so_number || "");
                     bVal = b.so_number_id ? getSoNumberName(b.so_number_id) : (b.so_number || b.stock_so_number || "");
-                } else if (sortField === 'origin_id' || sortField === 'origin') {
-                    aVal = getCountryName(a.origin_id || a.origin);
-                    bVal = getCountryName(b.origin_id || b.origin);
+                } else if (sortField === 'origin_id' || sortField === 'origin_text') {
+                    aVal = a.origin_text || getCountryName(a.origin_id);
+                    bVal = b.origin_text || getCountryName(b.origin_id);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
                     aVal = String(a.ap_destination_id || a.ap_destination || "");
                     bVal = String(b.ap_destination_id || b.ap_destination || "");
@@ -1202,7 +1202,7 @@ export default function StockList() {
                                         DATE ON STOCK {sortField === "date_on_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("exp_ready_in_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        EXP READY IN STOCK {sortField === "exp_ready_in_stock" && (sortDirection === "asc" ? "↑" : "↓")}
+                                        EXP READY FROM SUPPLIER {sortField === "exp_ready_in_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("shipped_date")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SHIPPED DATE {sortField === "shipped_date" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -1284,7 +1284,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getCountryName(item.origin_id || item.origin)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>

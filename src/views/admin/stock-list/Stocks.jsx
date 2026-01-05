@@ -37,7 +37,7 @@ import {
     Textarea,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -209,9 +209,37 @@ export default function Stocks() {
         return stored ? new Set(JSON.parse(stored)) : new Set();
     });
 
+    // Stock View / Edit tab filters (similar to index.jsx)
+    const [stockViewClient, setStockViewClient] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewClient');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [stockViewVessel, setStockViewVessel] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewVessel');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [stockViewSupplier, setStockViewSupplier] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewSupplier');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [stockViewStatus, setStockViewStatus] = useState(() => {
+        return sessionStorage.getItem('stocksStockViewStatus') || "";
+    });
+    const [stockViewWarehouse, setStockViewWarehouse] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewWarehouse');
+        return stored && stored !== 'null' ? stored : null;
+    });
+    const [stockViewCurrency, setStockViewCurrency] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewCurrency');
+        return stored && stored !== 'null' ? stored : null;
+    });
+
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
+    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+    const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
+    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
     // Lookup data for IDs -> Names
     const [vessels, setVessels] = useState([]);
@@ -284,6 +312,9 @@ export default function Stocks() {
                 hasFetchedLookupData.current = true;
                 setIsLoadingClients(true);
                 setIsLoadingVessels(true);
+                setIsLoadingSuppliers(true);
+                setIsLoadingWarehouses(true);
+                setIsLoadingCurrencies(true);
 
                 // Fetch all lookup data in parallel (excluding users if not needed)
                 // Users are only needed for PIC field display
@@ -355,6 +386,9 @@ export default function Stocks() {
             } finally {
                 setIsLoadingClients(false);
                 setIsLoadingVessels(false);
+                setIsLoadingSuppliers(false);
+                setIsLoadingWarehouses(false);
+                setIsLoadingCurrencies(false);
                 setIsLoadingShippingOrders(false);
             }
         };
@@ -371,6 +405,13 @@ export default function Stocks() {
             if (filterState.vesselViewStatuses !== undefined) setVesselViewStatuses(new Set(filterState.vesselViewStatuses)); // Convert Array back to Set
             if (filterState.clientViewClient !== undefined) setClientViewClient(filterState.clientViewClient);
             if (filterState.clientViewStatuses !== undefined) setClientViewStatuses(new Set(filterState.clientViewStatuses)); // Convert Array back to Set
+            // Restore Stock View / Edit filters
+            if (filterState.stockViewClient !== undefined) setStockViewClient(filterState.stockViewClient);
+            if (filterState.stockViewVessel !== undefined) setStockViewVessel(filterState.stockViewVessel);
+            if (filterState.stockViewSupplier !== undefined) setStockViewSupplier(filterState.stockViewSupplier);
+            if (filterState.stockViewStatus !== undefined) setStockViewStatus(filterState.stockViewStatus);
+            if (filterState.stockViewWarehouse !== undefined) setStockViewWarehouse(filterState.stockViewWarehouse);
+            if (filterState.stockViewCurrency !== undefined) setStockViewCurrency(filterState.stockViewCurrency);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
         }
@@ -412,6 +453,31 @@ export default function Stocks() {
     useEffect(() => {
         sessionStorage.setItem('stocksClientViewStatuses', JSON.stringify(Array.from(clientViewStatuses)));
     }, [clientViewStatuses]);
+
+    // Persist Stock View / Edit filter states to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewClient', stockViewClient || 'null');
+    }, [stockViewClient]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewVessel', stockViewVessel || 'null');
+    }, [stockViewVessel]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewSupplier', stockViewSupplier || 'null');
+    }, [stockViewSupplier]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewStatus', stockViewStatus || '');
+    }, [stockViewStatus]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewWarehouse', stockViewWarehouse || 'null');
+    }, [stockViewWarehouse]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewCurrency', stockViewCurrency || 'null');
+    }, [stockViewCurrency]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -527,7 +593,13 @@ export default function Stocks() {
             vesselViewVessel,
             vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
             clientViewClient,
-            clientViewStatuses: Array.from(clientViewStatuses) // Convert Set to Array for serialization
+            clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
+            stockViewClient,
+            stockViewVessel,
+            stockViewSupplier,
+            stockViewStatus,
+            stockViewWarehouse,
+            stockViewCurrency
         };
         history.push({
             pathname: '/admin/stock-list/main-db-edit',
@@ -548,7 +620,13 @@ export default function Stocks() {
                 vesselViewVessel,
                 vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
                 clientViewClient,
-                clientViewStatuses: Array.from(clientViewStatuses) // Convert Set to Array for serialization
+                clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
+                stockViewClient,
+                stockViewVessel,
+                stockViewSupplier,
+                stockViewStatus,
+                stockViewWarehouse,
+                stockViewCurrency
             };
             history.push({
                 pathname: '/admin/stock-list/main-db-edit',
@@ -852,9 +930,50 @@ export default function Stocks() {
         });
     };
 
-    // Filter stock list by status checkboxes only
+    // Filter stock list by status checkboxes and basic filters for Stock View / Edit tab
     const getFilteredStockByStatus = () => {
         let filtered = [...stockList];
+
+        // Apply basic filters (same as index.jsx)
+        if (stockViewClient) {
+            filtered = filtered.filter(item =>
+                String(item.client_id || item.client) === String(stockViewClient)
+            );
+        }
+
+        if (stockViewVessel) {
+            filtered = filtered.filter(item =>
+                String(item.vessel_id || item.vessel) === String(stockViewVessel)
+            );
+        }
+
+        if (stockViewSupplier) {
+            filtered = filtered.filter(item =>
+                String(item.supplier_id || item.supplier) === String(stockViewSupplier)
+            );
+        }
+
+        if (stockViewStatus) {
+            filtered = filtered.filter(item => {
+                const normalized = normalizeStatus(item.stock_status);
+                return normalized === stockViewStatus.toLowerCase() || 
+                       normalized.includes(stockViewStatus.toLowerCase()) ||
+                       stockViewStatus.toLowerCase().includes(normalized);
+            });
+        }
+
+        if (stockViewWarehouse) {
+            filtered = filtered.filter(item => {
+                const warehouseValue = item.warehouse_new || item.warehouse_id || item.stock_warehouse || "";
+                return String(warehouseValue) === String(stockViewWarehouse);
+            });
+        }
+
+        if (stockViewCurrency) {
+            filtered = filtered.filter(item =>
+                String(item.currency_id || item.currency) === String(stockViewCurrency)
+            );
+        }
 
         // Filter by selected statuses using the matchesStatus helper
         filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
@@ -1044,8 +1163,8 @@ export default function Stocks() {
             delivery_instruction_id: getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction"),
             origin_id: (() => {
                 // For inline editing, convert origin_id to country name text if possible
-                // Check origin_text first (new field), then origin (backward compatibility), then origin_id
-                const originValue = getFieldValue("origin_text") || getFieldValue("origin") || getFieldValue("origin_id");
+                // Check origin_text first (new field), then origin_id
+                const originValue = getFieldValue("origin_text") || getFieldValue("origin_id");
                 // If it's already text (not a pure number), keep it
                 if (originValue && !/^\d+$/.test(String(originValue))) {
                     return originValue;
@@ -1219,7 +1338,7 @@ export default function Stocks() {
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "origin_text", original: ["origin_id", "origin", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => v ? String(v) : "" },
+            { backend: "origin_text", original: ["origin_id", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => v ? String(v) : "" },
             { backend: "ap_destination_new", original: ["ap_destination_new", "ap_destination_id", "ap_destination"], edited: ["ap_destination_new", "ap_destination"], transform: (v) => v || "" }, // Free text field
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
             { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
@@ -1513,7 +1632,7 @@ export default function Stocks() {
         }
 
         // Handle origin field as free text input with country suggestions
-        if (field.includes("origin_id") || field === "origin" || field === "origin_text") {
+        if (field.includes("origin_id") || field === "origin_text") {
             return (
                 <Box position="relative">
                     <Input
@@ -1726,7 +1845,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -1963,7 +2082,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -2413,6 +2532,234 @@ export default function Stocks() {
                         <TabPanels>
                             {/* Tab 1: Stock View / Edit */}
                             <TabPanel px="0" pt="20px">
+                                {/* Basic Filters Section */}
+                                <Box px="25px" mb="20px">
+                                    <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
+                                        <VStack spacing="4" align="stretch">
+                                            {/* Basic Filters */}
+                                            <Box>
+                                                <HStack mb="2">
+                                                    <Icon as={MdFilterList} color={textColor} />
+                                                    <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
+                                                </HStack>
+                                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                    {/* Client Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <SimpleSearchableSelect
+                                                            value={stockViewClient}
+                                                            onChange={(value) => setStockViewClient(value)}
+                                                            options={clients}
+                                                            placeholder="Filter by Client"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Client ${option.id}`}
+                                                            isLoading={isLoadingClients}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewClient && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewClient(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Vessel Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <SimpleSearchableSelect
+                                                            value={stockViewVessel}
+                                                            onChange={(value) => setStockViewVessel(value)}
+                                                            options={vessels}
+                                                            placeholder="Filter by Vessel"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                            isLoading={isLoadingVessels}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewVessel && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewVessel(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Supplier Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <SimpleSearchableSelect
+                                                            value={stockViewSupplier}
+                                                            onChange={(value) => setStockViewSupplier(value)}
+                                                            options={vendors}
+                                                            placeholder="Filter by Supplier"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Supplier ${option.id}`}
+                                                            isLoading={isLoadingSuppliers}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewSupplier && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewSupplier(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Status Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <Select
+                                                            value={stockViewStatus}
+                                                            onChange={(e) => setStockViewStatus(e.target.value)}
+                                                            placeholder="Filter by Status"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        >
+                                                            <option value="">All Statuses</option>
+                                                            <option value="pending">Pending</option>
+                                                            <option value="in_stock">In Stock</option>
+                                                            <option value="on_shipping">On Shipping Instr</option>
+                                                            <option value="on_delivery">On Delivery Instr</option>
+                                                            <option value="in_transit">In Transit</option>
+                                                            <option value="arrived">Arrived Dest</option>
+                                                            <option value="shipped">Shipped</option>
+                                                            <option value="delivered">Delivered</option>
+                                                            <option value="irregular">Irregularities</option>
+                                                            <option value="cancelled">Cancelled</option>
+                                                        </Select>
+                                                        {stockViewStatus && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewStatus("")}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Warehouse Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <SimpleSearchableSelect
+                                                            value={stockViewWarehouse}
+                                                            onChange={(value) => setStockViewWarehouse(value)}
+                                                            options={locations}
+                                                            placeholder="Filter by Warehouse"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
+                                                            isLoading={isLoadingWarehouses}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewWarehouse && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewWarehouse(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Currency Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <SimpleSearchableSelect
+                                                            value={stockViewCurrency}
+                                                            onChange={(value) => setStockViewCurrency(value)}
+                                                            options={currencies}
+                                                            placeholder="Filter by Currency"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => {
+                                                                const code = option.name || option.code || option.symbol || "";
+                                                                const fullName = option.full_name || option.description || "";
+                                                                return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
+                                                            }}
+                                                            isLoading={isLoadingCurrencies}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewCurrency && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewCurrency(null)}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+                                                </Flex>
+
+                                                {/* Clear All Filters Button */}
+                                                {(stockViewClient || stockViewVessel || stockViewSupplier || stockViewStatus || stockViewWarehouse || stockViewCurrency) && (
+                                                    <Button
+                                                        size="sm"
+                                                        mt="3"
+                                                        leftIcon={<Icon as={MdClose} />}
+                                                        colorScheme="red"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            setStockViewClient(null);
+                                                            setStockViewVessel(null);
+                                                            setStockViewSupplier(null);
+                                                            setStockViewStatus("");
+                                                            setStockViewWarehouse(null);
+                                                            setStockViewCurrency(null);
+                                                        }}
+                                                    >
+                                                        Clear All Filters
+                                                    </Button>
+                                                )}
+                                            </Box>
+
+                                            {/* Results Count */}
+                                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
+                                                {(stockViewClient || stockViewVessel || stockViewSupplier || stockViewStatus || stockViewWarehouse || stockViewCurrency || vesselViewStatuses.size > 0) && " (filtered)"}
+                                            </Text>
+                                        </VStack>
+                                    </Card>
+                                </Box>
+
                                 {/* Status Filter Checkboxes Section */}
                                 <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
                                     <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
@@ -2533,7 +2880,7 @@ export default function Stocks() {
                                                 <Th {...headerProps}>AP DESTINATION</Th>
                                                 <Th {...headerProps}>DESTINATION</Th>
                                                 <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                 <Th {...headerProps}>DATE ON STOCK</Th>
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
@@ -2745,7 +3092,7 @@ export default function Stocks() {
                                                 <Th {...headerProps}>AP DESTINATION</Th>
                                                 <Th {...headerProps}>DESTINATION</Th>
                                                 <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                 <Th {...headerProps}>DATE ON STOCK</Th>
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
@@ -2960,7 +3307,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>AP DESTINATION</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                    <Th {...headerProps}>READY EX SUPPLIER</Th>
+                                                    <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                     <Th {...headerProps}>FILES</Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>

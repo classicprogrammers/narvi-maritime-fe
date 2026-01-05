@@ -794,6 +794,8 @@ const AgentDetail = () => {
 
                     // Special handling for remarks field - preserve line breaks for numbered lists
                     if (key === "remarks") {
+                      const remarksValue = String(displayValue || "");
+                      const hasLongText = remarksValue.length > 50 || remarksValue.includes("\n");
                       return (
                         <Flex
                           key={key}
@@ -805,16 +807,36 @@ const AgentDetail = () => {
                           gap={2}
                         >
                           <Tooltip
-                            label={displayValue}
+                            label={
+                              <Box
+                                p={2}
+                                maxW="400px"
+                                whiteSpace="pre-wrap"
+                                fontSize="sm"
+                                lineHeight="1.5"
+                              >
+                                {remarksValue}
+                              </Box>
+                            }
                             hasArrow
-                            isDisabled={!displayValue || String(displayValue).length <= 30}
+                            placement="top"
+                            bg="gray.800"
+                            color="white"
+                            borderRadius="md"
+                            px={3}
+                            py={2}
+                            maxW="400px"
+                            isDisabled={!displayValue}
+                            openDelay={300}
                           >
                             <Text
                               fontSize="sm"
                               color={valueColor}
                               whiteSpace="pre-wrap"
                               overflow="visible"
-                              maxW="220px"
+                              wordBreak="break-word"
+                              maxW="400px"
+                              lineHeight="1.6"
                             >
                               {displayValue}
                             </Text>
@@ -1058,26 +1080,57 @@ const AgentDetail = () => {
                       ) : (
                         agentPeople.map((person, rowIndex) => (
                           <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
-                            {peopleTableColumns.map((column) => (
-                              <Td key={column.key} minW="170px" px={3} py={2}>
-                                <Tooltip
-                                  label={prettyValue(person[column.key])}
-                                  hasArrow
-                                  isDisabled={!prettyValue(person[column.key])}
-                                >
-                                  <Text
-                                    fontSize="sm"
-                                    color={valueColor}
-                                    whiteSpace={column.key === "remarks" ? "pre-wrap" : "nowrap"}
-                                    overflow={column.key === "remarks" ? "visible" : "hidden"}
-                                    textOverflow={column.key === "remarks" ? "clip" : "ellipsis"}
-                                    maxW="220px"
+                            {peopleTableColumns.map((column) => {
+                              const cellValue = prettyValue(person[column.key]);
+                              const isRemarks = column.key === "remarks";
+                              const cellValueStr = String(cellValue || "");
+                              const hasLongText = isRemarks && (cellValueStr.length > 50 || cellValueStr.includes("\n"));
+                              
+                              return (
+                                <Td key={column.key} minW="170px" px={3} py={2}>
+                                  <Tooltip
+                                    label={
+                                      isRemarks ? (
+                                        <Box
+                                          p={2}
+                                          maxW="400px"
+                                          whiteSpace="pre-wrap"
+                                          fontSize="sm"
+                                          lineHeight="1.5"
+                                        >
+                                          {cellValueStr}
+                                        </Box>
+                                      ) : (
+                                        cellValueStr
+                                      )
+                                    }
+                                    hasArrow
+                                    placement="top"
+                                    bg={isRemarks ? "gray.800" : undefined}
+                                    color={isRemarks ? "white" : undefined}
+                                    borderRadius="md"
+                                    px={isRemarks ? 3 : undefined}
+                                    py={isRemarks ? 2 : undefined}
+                                    maxW={isRemarks ? "400px" : undefined}
+                                    isDisabled={!cellValue}
+                                    openDelay={300}
                                   >
-                                    {prettyValue(person[column.key])}
-                                  </Text>
-                                </Tooltip>
-                              </Td>
-                            ))}
+                                    <Text
+                                      fontSize="sm"
+                                      color={valueColor}
+                                      whiteSpace={isRemarks ? "pre-wrap" : "nowrap"}
+                                      overflow={isRemarks ? "visible" : "hidden"}
+                                      textOverflow={isRemarks ? "clip" : "ellipsis"}
+                                      wordBreak={isRemarks ? "break-word" : "normal"}
+                                      maxW={isRemarks ? "400px" : "220px"}
+                                      lineHeight={isRemarks ? "1.6" : "normal"}
+                                    >
+                                      {cellValue}
+                                    </Text>
+                                  </Tooltip>
+                                </Td>
+                              );
+                            })}
                           </Tr>
                         ))
                       )}

@@ -30,6 +30,14 @@ import {
     Card,
     IconButton,
     Checkbox,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
 } from "@chakra-ui/react";
 import {
     MdChevronLeft,
@@ -39,11 +47,12 @@ import {
     MdClose as MdRemove,
     MdVisibility,
     MdDownload,
+    MdFullscreen,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
-import { getVendorsApi } from "../../../api/vendor";
+import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
 import locationsAPI from "../../../api/locations";
@@ -65,14 +74,19 @@ export default function StockDBMainEdit() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
+
+    // Modal state for LWH Text field
+    const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
+    const [lwhModalRowIndex, setLwhModalRowIndex] = useState(null);
+    const [lwhModalValue, setLwhModalValue] = useState("");
     const [clients, setClients] = useState([]);
     const [vessels, setVessels] = useState([]);
-    const [vendors, setVendors] = useState([]);
+    const [suppliers, setSuppliers] = useState([]);
     const [destinations, setDestinations] = useState([]);
     const [locations, setLocations] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
-    const [isLoadingVendors, setIsLoadingVendors] = useState(false);
+    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
     const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
     const [currencies, setCurrencies] = useState([]);
@@ -90,7 +104,7 @@ export default function StockDBMainEdit() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
-    
+
     // Cell props for consistent styling
     const cellProps = {
         borderRight: "1px",
@@ -119,7 +133,6 @@ export default function StockDBMainEdit() {
         // Editable fields - all from main DB table
         client: "",
         vessel: "",
-        vesselsProspects: "",
         soNumber: "",
         siNumber: "",
         siCombined: "",
@@ -127,7 +140,6 @@ export default function StockDBMainEdit() {
         stockStatus: "",
         supplier: "",
         poNumber: "",
-        extra2: "",
         origin_text: "",
         viaHub1: "",
         viaHub2: "",
@@ -155,12 +167,9 @@ export default function StockDBMainEdit() {
         currency: "",
         clientAccess: false,
         pic: null, // PIC ID
-        soStatus: "",
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
         existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
-        vesselDest: "",
-        vesselEta: "",
         blank: "",
         // Internal fields for API payload
         vesselDestination: "",
@@ -172,46 +181,6 @@ export default function StockDBMainEdit() {
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     // Store original data for comparison
     const [originalRows, setOriginalRows] = useState([]);
-
-    // Helper to get SO status from shipping order
-    const getSoStatusFromShippingOrder = useCallback((stock) => {
-        // Try to find shipping order by so_number_id
-        if (stock.so_number_id) {
-            const so = shippingOrders.find(s => String(s.id) === String(stock.so_number_id));
-            if (so && so.done) {
-                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
-            }
-        }
-        // Try to find by stock_so_number
-        if (stock.stock_so_number) {
-            const so = shippingOrders.find(s =>
-                String(s.so_number || s.name || "") === String(stock.stock_so_number) ||
-                String(s.id) === String(stock.stock_so_number)
-            );
-            if (so && so.done) {
-                return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
-            }
-        }
-        return stock.so_status || "";
-    }, [shippingOrders]);
-
-    // Helper to get vessel destination and ETA from vessel
-    const getVesselData = useCallback((stock) => {
-        const vesselId = stock.vessel_id || stock.vessel;
-        if (vesselId) {
-            const vessel = vessels.find(v => String(v.id) === String(vesselId));
-            if (vessel) {
-                return {
-                    destination: vessel.destination || stock.vessel_destination || stock.vessel_destination_text || stock.destination || "",
-                    eta: vessel.eta || stock.vessel_eta || ""
-                };
-            }
-        }
-        return {
-            destination: stock.vessel_destination || stock.vessel_destination_text || stock.destination || "",
-            eta: stock.vessel_eta || ""
-        };
-    }, [vessels]);
 
     // Load form data from stock item
     const loadFormDataFromStock = useCallback((stock, returnData = false) => {
@@ -225,11 +194,6 @@ export default function StockDBMainEdit() {
             return value || fallback;
         };
 
-        // Get vessel data
-        const vesselData = getVesselData(stock);
-        // Get SO status
-        const soStatusValue = getSoStatusFromShippingOrder(stock);
-
         const rowData = {
             id: stock.id || Date.now() + Math.random(),
             stockId: stock.id || null,
@@ -240,7 +204,6 @@ export default function StockDBMainEdit() {
             // Editable fields - all from main DB table
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            vesselsProspects: getFieldValue(stock.vessels_prospects, ""),
             soNumber: normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || "",
             siNumber: normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || "",
             siCombined: getFieldValue(stock.si_combined) || "",
@@ -248,18 +211,13 @@ export default function StockDBMainEdit() {
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
-            extra2: getFieldValue(stock.extra_2) || getFieldValue(stock.extra) || "",
             origin_text: (() => {
                 // If origin_text is already text (from previous saves), use it directly
                 if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
                     return stock.origin_text;
                 }
-                // Backward compatibility: check origin field
-                if (stock.origin && typeof stock.origin === 'string' && !/^\d+$/.test(stock.origin)) {
-                    return stock.origin;
-                }
                 // Otherwise, keep as ID - will be converted to name in useEffect
-                return normalizeId(stock.origin_id) || normalizeId(stock.origin) || "";
+                return normalizeId(stock.origin_id) || "";
             })(),
             viaHub1: getFieldValue(stock.via_hub, ""),
             viaHub2: getFieldValue(stock.via_hub2, ""),
@@ -288,12 +246,9 @@ export default function StockDBMainEdit() {
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
             clientAccess: Boolean(stock.client_access),
             pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
-            soStatus: soStatusValue,
-            vesselDest: vesselData.destination,
-            vesselEta: vesselData.eta,
             blank: getFieldValue(stock.blank, ""),
             // Internal fields
-            vesselDestination: vesselData.destination,
+            vesselDestination: getFieldValue(stock.vessel_destination) || getFieldValue(stock.vessel_destination_text) || "",
             itemId: normalizeId(stock.item_id) || "",
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
@@ -304,7 +259,7 @@ export default function StockDBMainEdit() {
             return rowData;
         }
         setFormRows([rowData]);
-    }, [getVesselData, getSoStatusFromShippingOrder]);
+    }, []);
 
     // Load selected items into form
     useEffect(() => {
@@ -352,16 +307,18 @@ export default function StockDBMainEdit() {
             }
 
             try {
-                setIsLoadingVendors(true);
-                const vendorsResponse = await getVendorsApi();
-                const vendorsData = (vendorsResponse && Array.isArray(vendorsResponse.vendors))
-                    ? vendorsResponse.vendors
-                    : (Array.isArray(vendorsResponse) ? vendorsResponse : []);
-                setVendors(vendorsData || []);
+                setIsLoadingSuppliers(true);
+                const suppliersResponse = await api.get('/api/suppliers');
+                const suppliersData = (suppliersResponse.data && Array.isArray(suppliersResponse.data.suppliers))
+                    ? suppliersResponse.data.suppliers
+                    : (suppliersResponse.data && Array.isArray(suppliersResponse.data))
+                        ? suppliersResponse.data
+                        : (Array.isArray(suppliersResponse) ? suppliersResponse : []);
+                setSuppliers(suppliersData || []);
             } catch (error) {
-                console.error('Failed to fetch vendors:', error);
+                console.error('Failed to fetch suppliers:', error);
             } finally {
-                setIsLoadingVendors(false);
+                setIsLoadingSuppliers(false);
             }
 
             try {
@@ -489,10 +446,10 @@ export default function StockDBMainEdit() {
                 const result = reader.result || '';
                 // Extract base64 data without data URL prefix
                 const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
-                resolve({ 
-                    filename: file.name, 
-                    datas: base64data, 
-                    mimetype: file.type || 'application/octet-stream' 
+                resolve({
+                    filename: file.name,
+                    datas: base64data,
+                    mimetype: file.type || 'application/octet-stream'
                 });
             };
             reader.readAsDataURL(file);
@@ -530,8 +487,8 @@ export default function StockDBMainEdit() {
                 const existingAttachments = [...(row.existingAttachments || [])];
                 const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
                 const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
-                return { 
-                    ...row, 
+                return {
+                    ...row,
                     existingAttachments: updatedAttachments,
                     attachmentsToDelete: attachmentsToDelete
                 };
@@ -562,7 +519,7 @@ export default function StockDBMainEdit() {
                 try {
                     const mimeType = attachment.mimetype || "application/octet-stream";
                     const base64Data = attachment.datas;
-                    
+
                     // Convert base64 to binary
                     const byteCharacters = atob(base64Data);
                     const byteNumbers = new Array(byteCharacters.length);
@@ -571,7 +528,7 @@ export default function StockDBMainEdit() {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: mimeType });
-                    
+
                     // Create object URL from blob
                     fileUrl = URL.createObjectURL(blob);
                     window.open(fileUrl, '_blank');
@@ -718,7 +675,6 @@ export default function StockDBMainEdit() {
             ["client", "client_id", (v) => v ? String(v) : ""],
             ["supplier", "supplier_id", (v) => v ? String(v) : ""],
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
-            ["vesselsProspects", "vessels_prospects", (v) => v || ""],
             ["poNumber", "po_text", (v) => v || ""],
             ["pic", "pic_new", (v) => v ? String(v) : false],
             ["itemId", "item_id", (v) => v ? String(v) : ""],
@@ -739,7 +695,6 @@ export default function StockDBMainEdit() {
             ["lwhText", "lwh_text", (v) => v || ""],
             ["cwAirfreight", "cw_freight", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
-            ["extra2", "extra", (v) => v || ""],
             ["destination", "destination_new", (v) => v || ""],
             // Attachments
             ["attachments", "attachments", (v) => v || []],
@@ -754,7 +709,6 @@ export default function StockDBMainEdit() {
             ["details", "details", (v) => v || ""],
             ["item", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["vesselDestination", "vessel_destination", (v) => v || ""],
-            ["vesselEta", "vessel_eta", (v) => v || ""],
             ["soNumber", "stock_so_number", (v) => v ? String(v) : ""],
             ["siNumber", "stock_shipping_instruction", (v) => v ? String(v) : ""],
             ["diNumber", "stock_delivery_instruction", (v) => v ? String(v) : ""],
@@ -845,7 +799,7 @@ export default function StockDBMainEdit() {
                     // Determine source page based on filterState structure
                     // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
                     // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
-                    const sourcePath = filterState.activeTab !== undefined 
+                    const sourcePath = filterState.activeTab !== undefined
                         ? '/admin/stock-list/stocks'
                         : '/admin/stock-list/main-db';
                     // Navigate back with filter state to restore filters
@@ -920,7 +874,7 @@ export default function StockDBMainEdit() {
                                 // Determine source page based on filterState structure
                                 // If filterState has activeTab, user came from Stocks.jsx (/admin/stock-list/stocks)
                                 // Otherwise, user came from index.jsx (/admin/stock-list/main-db)
-                                const sourcePath = filterState.activeTab !== undefined 
+                                const sourcePath = filterState.activeTab !== undefined
                                     ? '/admin/stock-list/stocks'
                                     : '/admin/stock-list/main-db';
                                 // Navigate back with filter state to restore filters
@@ -1018,7 +972,6 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SL Create Date</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessels Prospects</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
@@ -1026,7 +979,6 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Extra 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
@@ -1037,7 +989,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on stock</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Exp ready in stock</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Exp ready from supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipped Date</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Delivered Date</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
@@ -1055,9 +1007,6 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO Status</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel Dest</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel ETA</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SL Create Date Timestamp</Th>
                             </Tr>
@@ -1110,19 +1059,6 @@ export default function StockDBMainEdit() {
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Vessel ${option.id}`}
                                             isLoading={isLoadingVessels}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Textarea
-                                            value={row.vesselsProspects || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "vesselsProspects", e.target.value)}
-                                            placeholder="ETB&#10;ETA&#10;ETD"
-                                            size="sm"
-                                            rows={3}
-                                            resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1198,12 +1134,12 @@ export default function StockDBMainEdit() {
                                         <SimpleSearchableSelect
                                             value={row.supplier}
                                             onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
-                                            options={vendors}
+                                            options={suppliers}
                                             placeholder="Select Supplier"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                            isLoading={isLoadingVendors}
+                                            isLoading={isLoadingSuppliers}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1213,17 +1149,6 @@ export default function StockDBMainEdit() {
                                         <Input
                                             value={row.poNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.extra2 || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "extra2", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}
@@ -1483,15 +1408,34 @@ export default function StockDBMainEdit() {
                                         </NumberInput>
                                     </Td>
                                     <Td {...cellProps}>
-                                        <Input
-                                            value={row.lwhText || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        <VStack spacing={2} align="stretch">
+                                            <Textarea
+                                                value={row.lwhText || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "lwhText", e.target.value)}
+                                                placeholder="Enter LWH text (supports multiple lines)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                rows={5}
+                                                resize="vertical"
+                                                minH="100px"
+                                            />
+                                            <Button
+                                                size="xs"
+                                                leftIcon={<Icon as={MdFullscreen} />}
+                                                colorScheme="blue"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setLwhModalRowIndex(rowIndex);
+                                                    setLwhModalValue(row.lwhText || "");
+                                                    onLWHModalOpen();
+                                                }}
+                                                w="100%"
+                                            >
+                                                View/Edit Full Text
+                                            </Button>
+                                        </VStack>
                                     </Td>
                                     <Td {...cellProps}>
                                         <NumberInput
@@ -1568,13 +1512,13 @@ export default function StockDBMainEdit() {
                                                     Upload Files
                                                 </Button>
                                             </label>
-                                            
+
                                             {/* Display existing attachments */}
                                             {(row.existingAttachments || []).map((att, attIdx) => (
                                                 <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
-                                                    <Text 
-                                                        isTruncated 
-                                                        flex={1} 
+                                                    <Text
+                                                        isTruncated
+                                                        flex={1}
                                                         title={att.filename || att.name}
                                                         cursor="pointer"
                                                         color="blue.500"
@@ -1611,13 +1555,13 @@ export default function StockDBMainEdit() {
                                                     </HStack>
                                                 </Flex>
                                             ))}
-                                            
+
                                             {/* Display newly uploaded attachments */}
                                             {(row.attachments || []).map((att, attIdx) => (
                                                 <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
-                                                    <Text 
-                                                        isTruncated 
-                                                        flex={1} 
+                                                    <Text
+                                                        isTruncated
+                                                        flex={1}
                                                         title={att.filename}
                                                         cursor="pointer"
                                                         color="blue.500"
@@ -1677,43 +1621,6 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
-                                            value={row.soStatus || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "soStatus", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.vesselDest || row.vesselDestination || ""}
-                                            onChange={(e) => {
-                                                handleInputChange(rowIndex, "vesselDest", e.target.value);
-                                                handleInputChange(rowIndex, "vesselDestination", e.target.value);
-                                            }}
-                                            placeholder="Enter Vessel Destination"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="date"
-                                            value={row.vesselEta || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "vesselEta", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
                                             value={row.blank || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "blank", e.target.value)}
                                             placeholder=""
@@ -1738,6 +1645,46 @@ export default function StockDBMainEdit() {
                     </Table>
                 </Card>
             </Box>
+
+            {/* LWH Text Modal */}
+            <Modal isOpen={isLWHModalOpen} onClose={onLWHModalClose} size="xl">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Edit LWH Text</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <Textarea
+                            value={lwhModalValue}
+                            onChange={(e) => setLwhModalValue(e.target.value)}
+                            placeholder="Enter LWH text (supports multiple lines)"
+                            size="md"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                            rows={12}
+                            resize="vertical"
+                            fontSize="sm"
+                        />
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button
+                            colorScheme="blue"
+                            mr={3}
+                            onClick={() => {
+                                if (lwhModalRowIndex !== null) {
+                                    handleInputChange(lwhModalRowIndex, "lwhText", lwhModalValue);
+                                }
+                                onLWHModalClose();
+                            }}
+                        >
+                            Save
+                        </Button>
+                        <Button variant="ghost" onClick={onLWHModalClose}>
+                            Cancel
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 }

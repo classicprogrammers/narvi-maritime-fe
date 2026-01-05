@@ -21,8 +21,10 @@ import {
   ModalBody,
   useDisclosure,
   Badge,
+  Spinner,
+  Center,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy, MdArrowBack, MdEdit, MdVisibility } from "react-icons/md";
+import { MdPrint, MdContentCopy, MdArrowBack, MdEdit, MdVisibility, MdDownload } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -43,6 +45,7 @@ const VesselDetail = () => {
   const [vessel, setVessel] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const { isOpen: isPreviewOpen, onOpen: onPreviewOpen, onClose: onPreviewClose } = useDisclosure();
 
@@ -68,6 +71,8 @@ const VesselDetail = () => {
         if (location.state?.vessel) {
           setVessel(location.state.vessel);
           setIsLoading(false);
+          // Still fetch attachments separately if vessel came from state
+          loadVesselAttachments(id);
           return;
         }
 
@@ -75,6 +80,9 @@ const VesselDetail = () => {
         const vesselData = await vesselsAPI.getVessel(id);
         const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
         setVessel(vesselInfo);
+        
+        // Fetch attachments separately to ensure they're loaded
+        loadVesselAttachments(id);
       } catch (error) {
         console.error("Error loading vessel:", error);
         toast({
@@ -86,6 +94,39 @@ const VesselDetail = () => {
         });
       } finally {
         setIsLoading(false);
+      }
+    };
+
+    const loadVesselAttachments = async (vesselId) => {
+      try {
+        setIsLoadingAttachments(true);
+        // Fetch vessel details with attachments
+        const vesselData = await vesselsAPI.getVessel(vesselId);
+        const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
+        
+        // Update vessel with attachments if they exist
+        if (vesselInfo) {
+          setVessel(prevVessel => {
+            if (!prevVessel) {
+              return vesselInfo;
+            }
+            return {
+              ...prevVessel,
+              attachments: vesselInfo.attachments || prevVessel.attachments || []
+            };
+          });
+        }
+      } catch (error) {
+        console.error("Error loading vessel attachments:", error);
+        toast({
+          title: "Warning",
+          description: `Failed to load attachments: ${error.message}`,
+          status: "warning",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsLoadingAttachments(false);
       }
     };
 
@@ -126,7 +167,12 @@ const VesselDetail = () => {
       const mimeType = file.mimetype || "application/octet-stream";
       fileUrl = `data:${mimeType};base64,${file.datas}`;
     }
-    // Case 4: fallback path
+    // Case 4: construct URL from attachment ID
+    else if (file.id) {
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+      fileUrl = `${baseUrl}/web/content/${file.id}`;
+    }
+    // Case 5: fallback path
     else if (file.path) {
       fileUrl = file.path;
     }
@@ -145,6 +191,63 @@ const VesselDetail = () => {
         title: "Error",
         description: "Unable to preview file",
         status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleDownloadFile = (file) => {
+    try {
+      let fileUrl = null;
+      let fileName = file.filename || file.name || 'download';
+
+      // Case 1: actual uploaded file
+      if (file instanceof File || file instanceof Blob) {
+        fileUrl = URL.createObjectURL(file);
+      }
+      // Case 2: backend URL
+      else if (file.url) {
+        fileUrl = file.url;
+      }
+      // Case 3: base64 data
+      else if (file.datas) {
+        const mimeType = file.mimetype || "application/octet-stream";
+        fileUrl = `data:${mimeType};base64,${file.datas}`;
+      }
+      // Case 4: construct URL from attachment ID
+      else if (file.id) {
+        const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+        fileUrl = `${baseUrl}/web/content/${file.id}?download=true`;
+      }
+      // Case 5: fallback path
+      else if (file.path) {
+        fileUrl = file.path;
+      }
+
+      if (fileUrl) {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Unable to download file. File data not available.',
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to download file',
+        status: 'error',
         duration: 3000,
         isClosable: true,
       });
@@ -329,33 +432,77 @@ const VesselDetail = () => {
               </Grid>
 
               {/* Attachments Section */}
-              {attachments.length > 0 && (
-                <Box>
-                  <Heading size="md" color={headingColor} mb={4}>
-                    Attachments
-                  </Heading>
-                  <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={4}>
+              <Box>
+                <Heading size="md" color={headingColor} mb={4}>
+                  Attachments {!isLoadingAttachments && attachments.length > 0 && `(${attachments.length})`}
+                </Heading>
+                {isLoadingAttachments ? (
+                  <Center p={8}>
+                    <Flex direction="column" align="center" gap={4}>
+                      <Spinner size="xl" color="blue.500" thickness="4px" />
+                      <Text color={labelColor} fontSize="sm">
+                        Loading attachments...
+                      </Text>
+                    </Flex>
+                  </Center>
+                ) : attachments.length > 0 ? (
+                  <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
                     {attachments.map((file, index) => (
-                      <Card key={index} p={4} border="1px" borderColor={borderColor}>
-                        <Flex justify="space-between" align="center" mb={2}>
-                          <Text fontSize="sm" fontWeight="600" color={valueColor} isTruncated>
-                            {file.filename || `File ${index + 1}`}
-                          </Text>
-                          <Button
-                            size="sm"
-                            colorScheme="blue"
-                            variant="outline"
-                            onClick={() => handleViewFile(file)}
-                            leftIcon={<Icon as={MdVisibility} />}
-                          >
-                            View
-                          </Button>
+                      <Card key={index} p={4} border="1px" borderColor={borderColor} _hover={{ borderColor: "blue.400", boxShadow: "md" }}>
+                        <Flex direction="column" gap={3}>
+                          <Flex justify="space-between" align="center">
+                            <Text 
+                              fontSize="sm" 
+                              fontWeight="600" 
+                              color={valueColor} 
+                              isTruncated
+                              flex={1}
+                              title={file.filename || file.name || `File ${index + 1}`}
+                            >
+                              {file.filename || file.name || `File ${index + 1}`}
+                            </Text>
+                          </Flex>
+                          {file.mimetype && (
+                            <Text fontSize="xs" color={labelColor}>
+                              Type: {file.mimetype}
+                            </Text>
+                          )}
+                          <Flex gap={2} flexWrap="wrap">
+                            <Button
+                              size="sm"
+                              colorScheme="blue"
+                              variant="outline"
+                              onClick={() => handleViewFile(file)}
+                              leftIcon={<Icon as={MdVisibility} />}
+                              flex={1}
+                              minW="100px"
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              colorScheme="green"
+                              variant="outline"
+                              onClick={() => handleDownloadFile(file)}
+                              leftIcon={<Icon as={MdDownload} />}
+                              flex={1}
+                              minW="100px"
+                            >
+                              Download
+                            </Button>
+                          </Flex>
                         </Flex>
                       </Card>
                     ))}
                   </Grid>
-                </Box>
-              )}
+                ) : (
+                  <Box p={6} textAlign="center" border="1px dashed" borderColor={borderColor} borderRadius="md">
+                    <Text color={labelColor} fontSize="sm">
+                      No attachments available for this vessel
+                    </Text>
+                  </Box>
+                )}
+              </Box>
             </Stack>
           )}
         </Card>
