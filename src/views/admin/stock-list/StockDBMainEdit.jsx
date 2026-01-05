@@ -1044,10 +1044,13 @@ export default function StockDBMainEdit() {
                     const sourcePath = filterState.activeTab !== undefined
                         ? '/admin/stock-list/stocks'
                         : '/admin/stock-list/main-db';
+                    // Clear saved edit state since we're navigating back
+                    sessionStorage.removeItem('stockEditState');
                     // Navigate back with filter state to restore filters
+                    // Mark as fromEdit to prevent restoring edit state
                     history.push({
                         pathname: sourcePath,
-                        state: { filterState }
+                        state: { filterState, fromEdit: true }
                     });
                 } else {
                     history.goBack();
@@ -1138,10 +1141,13 @@ export default function StockDBMainEdit() {
                                     const sourcePath = filterState.activeTab !== undefined
                                         ? '/admin/stock-list/stocks'
                                         : '/admin/stock-list/main-db';
+                                    // Clear saved edit state since we're navigating back
+                                    sessionStorage.removeItem('stockEditState');
                                     // Navigate back with filter state to restore filters
+                                    // Mark as fromEdit to prevent restoring edit state
                                     history.push({
                                         pathname: sourcePath,
-                                        state: { filterState }
+                                        state: { filterState, fromEdit: true }
                                     });
                                 } else {
                                     history.goBack();

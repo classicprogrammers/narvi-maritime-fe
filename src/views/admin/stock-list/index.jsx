@@ -185,6 +185,33 @@ export default function StockList() {
         }
     }, [location.state, history, location.pathname]);
 
+    // Restore edit page when returning to this page from another tab
+    useEffect(() => {
+        // Only restore if we're on the main-db list page (not edit page) and not coming from edit page
+        const isOnMainDbPage = location.pathname === '/admin/stock-list/main-db' || location.pathname === '/admin/stock-list/main-db/';
+        const isComingFromEdit = location.state?.fromEdit === true;
+        
+        if (isOnMainDbPage && !isComingFromEdit) {
+            const savedEditState = sessionStorage.getItem('stockEditState');
+            if (savedEditState) {
+                try {
+                    const editState = JSON.parse(savedEditState);
+                    // Only restore if the saved state is for 'main-db' source page
+                    if (editState.sourcePage === 'main-db') {
+                        // Navigate to edit page with saved state
+                        history.replace({
+                            pathname: '/admin/stock-list/edit-stock',
+                            state: editState
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to parse saved edit state:', error);
+                    sessionStorage.removeItem('stockEditState');
+                }
+            }
+        }
+    }, [location.pathname, location.state, history]);
+
     // Track refresh state after updates
     useEffect(() => {
         if (isLoading && stockList.length > 0) {
@@ -408,9 +435,12 @@ export default function StockList() {
                 selectedWarehouse,
                 selectedCurrency
             };
+        const editState = { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' };
+        // Save edit state to sessionStorage for restoration when switching tabs
+        sessionStorage.setItem('stockEditState', JSON.stringify(editState));
         history.push({
             pathname: '/admin/stock-list/edit-stock',
-            state: { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' }
+            state: editState
         });
         }
     };
@@ -426,9 +456,12 @@ export default function StockList() {
             selectedWarehouse,
             selectedCurrency
         };
+        const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' };
+        // Save edit state to sessionStorage for restoration when switching tabs
+        sessionStorage.setItem('stockEditState', JSON.stringify(editState));
         history.push({
             pathname: '/admin/stock-list/edit-stock',
-            state: { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' }
+            state: editState
         });
     };
 
