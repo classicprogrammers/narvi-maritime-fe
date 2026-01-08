@@ -1898,7 +1898,7 @@ export default function Stocks() {
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <Text {...cellText}>{formatDate(item.date_on_stock)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
+                        <Td {...cellProps} textAlign="center">
                             <Text {...cellText}>{renderText(item.days_on_stock)}</Text>
                         </Td>
                         <Td {...cellProps}>
@@ -2082,7 +2082,7 @@ export default function Stocks() {
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "date_on_stock", item.date_on_stock, "date") : <Text {...cellText}>{formatDate(item.date_on_stock)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
+                        <Td {...cellProps} textAlign="center">
                             <Text {...cellText}>{renderText(item.days_on_stock)}</Text>
                         </Td>
                         <Td {...cellProps}>
@@ -2921,7 +2921,7 @@ export default function Stocks() {
                                                 <Th {...headerProps}>WAREHOUSE ID</Th>
                                                 <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                 <Th {...headerProps}>DATE ON STOCK</Th>
-                                                <Th {...headerProps}>DAYS ON STOCK</Th>
+                                                <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
                                                 <Th {...headerProps}>SHIPPING DOCS</Th>
@@ -2995,7 +2995,7 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
+                                                        <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
@@ -3135,7 +3135,7 @@ export default function Stocks() {
                                                 <Th {...headerProps}>WAREHOUSE ID</Th>
                                                 <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
                                                 <Th {...headerProps}>DATE ON STOCK</Th>
-                                                <Th {...headerProps}>DAYS ON STOCK</Th>
+                                                <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
                                                 <Th {...headerProps}>SHIPPING DOCS</Th>
@@ -3176,7 +3176,7 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
+                                                        <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
@@ -3360,7 +3360,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>STOCK STATUS</Th>
                                                     <Th {...headerProps}>EXPECTED READY</Th>
                                                     <Th {...headerProps}>DATE ON STOCK</Th>
-                                                    <Th {...headerProps}>DAYS ON STOCK</Th>
+                                                    <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
                                                     <Th {...headerProps}>SHIPPED DATE</Th>
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>

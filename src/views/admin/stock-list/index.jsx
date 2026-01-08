@@ -1239,7 +1239,7 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("date_on_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         DATE ON STOCK {sortField === "date_on_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("days_on_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("days_on_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }} textAlign="center">
                                         DAYS ON STOCK {sortField === "days_on_stock" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("exp_ready_in_stock")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -1335,7 +1335,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
+                                        <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
