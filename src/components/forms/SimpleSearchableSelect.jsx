@@ -96,7 +96,8 @@ const SimpleSearchableSelect = ({
 
   const handleFocus = () => {
     setIsOpen(true);
-    setSearchValue("");
+    // Initialize searchValue with current display value to preserve it
+    setSearchValue(displayValue);
   };
 
   // Calculate dropdown position when open

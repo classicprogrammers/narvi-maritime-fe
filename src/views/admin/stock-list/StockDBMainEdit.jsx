@@ -142,6 +142,80 @@ export default function StockDBMainEdit() {
         return isNaN(num) ? 0 : num;
     };
 
+    // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+    const addSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SO-")) return str;
+        const withoutPrefix = str.startsWith("SO-") ? str.substring(3) : str;
+        return `SO-${withoutPrefix}`;
+    };
+
+    const removeSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SO-")) return str.substring(3);
+        return str;
+    };
+
+    const addSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SI-")) return str;
+        const withoutPrefix = str.startsWith("SI-") ? str.substring(3) : str;
+        return `SI-${withoutPrefix}`;
+    };
+
+    const removeSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SIC-")) return str;
+        let withoutPrefix = str;
+        if (str.startsWith("SIC-")) {
+            withoutPrefix = str.substring(4);
+        } else if (str.startsWith("SI-C-")) {
+            withoutPrefix = str.substring(5);
+        } else if (str.startsWith("SI-")) {
+            withoutPrefix = str.substring(3);
+        }
+        return `SIC-${withoutPrefix}`;
+    };
+
+    const removeSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SIC-")) return str.substring(4);
+        if (str.startsWith("SI-C-")) return str.substring(5);
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("DI-")) return str;
+        const withoutPrefix = str.startsWith("DI-") ? str.substring(3) : str;
+        return `DI-${withoutPrefix}`;
+    };
+
+    const removeDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("DI-")) return str.substring(3);
+        return str;
+    };
+
     // Default empty row template – all fields from main DB table (all editable except IDs)
     const getEmptyRow = () => ({
         id: Date.now() + Math.random(),
@@ -168,7 +242,9 @@ export default function StockDBMainEdit() {
         warehouseId: "",
         shippingDoc: "",
         exportDoc: "",
+        exportDoc2: "",
         remarks: "",
+        internalRemark: "",
         dateOnStock: "",
         expReadyInStock: "",
         shippedDate: "",
@@ -185,6 +261,7 @@ export default function StockDBMainEdit() {
         cwAirfreight: "",
         value: "",
         currency: "",
+        dgUn: "",
         clientAccess: false,
         pic: null, // PIC ID
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
@@ -224,10 +301,10 @@ export default function StockDBMainEdit() {
             // Editable fields - all from main DB table
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            soNumber: normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || "",
-            siNumber: normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || "",
-            siCombined: getFieldValue(stock.si_combined) || "",
-            diNumber: normalizeId(stock.delivery_instruction_id) || normalizeId(stock.di_number) || normalizeId(stock.stock_delivery_instruction) || "",
+            soNumber: addSOPrefix(normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || ""),
+            siNumber: addSIPrefix(normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || ""),
+            siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
+            diNumber: addDIPrefix(normalizeId(stock.delivery_instruction_id) || normalizeId(stock.di_number) || normalizeId(stock.stock_delivery_instruction) || ""),
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
@@ -246,24 +323,27 @@ export default function StockDBMainEdit() {
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             shippingDoc: getFieldValue(stock.shipping_doc) || "",
             exportDoc: getFieldValue(stock.export_doc) || "",
+            exportDoc2: getFieldValue(stock.export_doc_2) || "",
             remarks: getFieldValue(stock.remarks) || "",
+            internalRemark: getFieldValue(stock.internal_remark) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             shippedDate: getFieldValue(stock.shipped_date) || "",
             deliveredDate: getFieldValue(stock.delivered_date) || "",
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc) || "",
-            items: getFieldValue(stock.items) || getFieldValue(stock.item_id) || getFieldValue(stock.stock_items_quantity) || "",
+            items: String(getFieldValue(stock.item) || getFieldValue(stock.items) || getFieldValue(stock.item_id) || getFieldValue(stock.stock_items_quantity) || ""),
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
-            weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
-            lengthCm: getFieldValue(stock.length_cm, ""),
-            widthCm: getFieldValue(stock.width_cm, ""),
-            heightCm: getFieldValue(stock.height_cm, ""),
-            volumeNoDim: getFieldValue(stock.volume_no_dim ?? stock.volume_dim, ""),
-            volumeCbm: getFieldValue(stock.volume_cbm, ""),
+            weightKgs: String(getFieldValue(stock.weight_kg ?? stock.weight_kgs, "") || ""),
+            lengthCm: String(getFieldValue(stock.length_cm, "") || ""),
+            widthCm: String(getFieldValue(stock.width_cm, "") || ""),
+            heightCm: String(getFieldValue(stock.height_cm, "") || ""),
+            volumeNoDim: String(getFieldValue(stock.volume_no_dim ?? stock.volume_dim, "") || ""),
+            volumeCbm: String(getFieldValue(stock.volume_cbm, "") || ""),
             lwhText: getFieldValue(stock.lwh_text) || "",
-            cwAirfreight: getFieldValue(stock.cw_freight ?? stock.cw_airfreight, ""),
-            value: getFieldValue(stock.value, ""),
+            cwAirfreight: String(getFieldValue(stock.cw_air_freight_new ?? stock.cw_freight ?? stock.cw_airfreight, "") || ""),
+            value: String(getFieldValue(stock.value, "") || ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || "",
+            dgUn: getFieldValue(stock.dg_un) || "",
             clientAccess: Boolean(stock.client_access),
             pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
             blank: getFieldValue(stock.blank, ""),
@@ -315,8 +395,21 @@ export default function StockDBMainEdit() {
                 return loadFormDataFromStock(item, true);
             });
             setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
-            // Store original data for comparison
-            setOriginalRows(rows.length > 0 ? rows.map(row => ({ ...row })) : [getEmptyRow()]);
+            // Store original data for comparison - deep copy and normalize types
+            setOriginalRows(rows.length > 0 ? rows.map(row => {
+                const normalized = { ...row };
+                // Normalize numeric fields to strings to match NumberInput output
+                if (normalized.items !== undefined) normalized.items = String(normalized.items || "");
+                if (normalized.weightKgs !== undefined) normalized.weightKgs = String(normalized.weightKgs || "");
+                if (normalized.lengthCm !== undefined) normalized.lengthCm = String(normalized.lengthCm || "");
+                if (normalized.widthCm !== undefined) normalized.widthCm = String(normalized.widthCm || "");
+                if (normalized.heightCm !== undefined) normalized.heightCm = String(normalized.heightCm || "");
+                if (normalized.volumeNoDim !== undefined) normalized.volumeNoDim = String(normalized.volumeNoDim || "");
+                if (normalized.volumeCbm !== undefined) normalized.volumeCbm = String(normalized.volumeCbm || "");
+                if (normalized.cwAirfreight !== undefined) normalized.cwAirfreight = String(normalized.cwAirfreight || "");
+                if (normalized.value !== undefined) normalized.value = String(normalized.value || "");
+                return normalized;
+            }) : [getEmptyRow()]);
         } else {
             // If no items, redirect back
             toast({
@@ -683,9 +776,39 @@ export default function StockDBMainEdit() {
     const handleInputChange = (rowIndex, field, value) => {
         setFormRows(prev => {
             const newRows = [...prev];
+            let processedValue = value;
+
+            // Handle prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+            if (field === "soNumber") {
+                if (value && value !== "") {
+                    processedValue = addSOPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "siNumber") {
+                // If user types without prefix, add it; if empty, keep empty
+                if (value && value !== "") {
+                    processedValue = addSIPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "siCombined") {
+                if (value && value !== "") {
+                    processedValue = addSICombinedPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "diNumber") {
+                if (value && value !== "") {
+                    processedValue = addDIPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            }
+
             newRows[rowIndex] = {
                 ...newRows[rowIndex],
-                [field]: value
+                [field]: processedValue
             };
             return newRows;
         });
@@ -693,14 +816,29 @@ export default function StockDBMainEdit() {
 
     // Helper to compare values (handles different data types)
     const valuesAreEqual = (val1, val2) => {
-        // Handle null/undefined/empty
-        if ((!val1 || val1 === false || val1 === "") && (!val2 || val2 === false || val2 === "")) return true;
-        // Handle numbers - compare as numbers
-        if (typeof val1 === "number" && typeof val2 === "number") return val1 === val2;
+        // Handle null/undefined/empty/false
+        const isEmpty1 = val1 === null || val1 === undefined || val1 === false || val1 === "";
+        const isEmpty2 = val2 === null || val2 === undefined || val2 === false || val2 === "";
+        if (isEmpty1 && isEmpty2) return true;
+
+        // Convert both to numbers if they're numeric strings or numbers
+        const num1 = Number(val1);
+        const num2 = Number(val2);
+        const isNum1 = !isNaN(num1) && val1 !== "" && val1 !== null && val1 !== undefined;
+        const isNum2 = !isNaN(num2) && val2 !== "" && val2 !== null && val2 !== undefined;
+
+        // If both are numbers, compare as numbers
+        if (isNum1 && isNum2) {
+            return num1 === num2;
+        }
+
         // Handle booleans
         if (typeof val1 === "boolean" && typeof val2 === "boolean") return val1 === val2;
-        // Convert both to strings for comparison
-        return String(val1 || "") === String(val2 || "");
+
+        // Convert both to strings for comparison (trim whitespace)
+        const str1 = String(val1 || "").trim();
+        const str2 = String(val2 || "").trim();
+        return str1 === str2;
     };
 
     // Get payload for API - only include changed fields
@@ -724,6 +862,7 @@ export default function StockDBMainEdit() {
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
             ["poNumber", "po_text", (v) => v || ""],
             ["pic", "pic_new", (v) => v ? String(v) : false],
+            ["items", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["itemId", "item_id", (v) => v ? String(v) : ""],
             ["itemId", "stock_items_quantity", (v) => v ? String(v) : ""],
             ["currency", "currency_id", (v) => v ? String(v) : ""],
@@ -733,6 +872,7 @@ export default function StockDBMainEdit() {
             ["viaHub2", "via_hub2", (v) => v || ""],
             ["clientAccess", "client_access", (v) => Boolean(v)],
             ["remarks", "remarks", (v) => v || ""],
+            ["internalRemark", "internal_remark", (v) => v || ""],
             ["weightKgs", "weight_kg", (v) => toNumber(v) || 0],
             ["widthCm", "width_cm", (v) => toNumber(v) || 0],
             ["lengthCm", "length_cm", (v) => toNumber(v) || 0],
@@ -740,7 +880,7 @@ export default function StockDBMainEdit() {
             ["volumeNoDim", "volume_dim", (v) => toNumber(v) || 0],
             ["volumeCbm", "volume_cbm", (v) => toNumber(v) || 0],
             ["lwhText", "lwh_text", (v) => v || ""],
-            ["cwAirfreight", "cw_freight", (v) => toNumber(v) || 0],
+            ["cwAirfreight", "cw_air_freight_new", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
             ["destination", "destination_new", (v) => v || ""],
             // Attachments
@@ -749,6 +889,7 @@ export default function StockDBMainEdit() {
             ["warehouseId", "warehouse_new", (v) => v || ""],
             ["shippingDoc", "shipping_doc", (v) => v || ""],
             ["exportDoc", "export_doc", (v) => v || ""],
+            ["exportDoc2", "export_doc_2", (v) => v || ""],
             ["dateOnStock", "date_on_stock", (v) => v || ""],
             ["expReadyInStock", "exp_ready_in_stock", (v) => v || ""],
             ["shippedDate", "shipped_date", (v) => v || null],
@@ -756,10 +897,16 @@ export default function StockDBMainEdit() {
             ["details", "details", (v) => v || ""],
             ["item", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["vesselDestination", "vessel_destination", (v) => v || ""],
-            ["soNumber", "stock_so_number", (v) => v ? String(v) : ""],
-            ["siNumber", "stock_shipping_instruction", (v) => v ? String(v) : ""],
-            ["diNumber", "stock_delivery_instruction", (v) => v ? String(v) : ""],
+            ["soNumber", "stock_so_number", (v) => v ? removeSOPrefix(String(v)) : ""],
+            ["siNumber", "stock_shipping_instruction", (v) => v ? removeSIPrefix(String(v)) : ""],
+            ["siCombined", "si_combined", (v) => {
+                const cleaned = v ? removeSICombinedPrefix(String(v)) : "";
+                // If empty, send false (as per backend requirement)
+                return cleaned === "" ? false : cleaned;
+            }],
+            ["diNumber", "stock_delivery_instruction", (v) => v ? removeDIPrefix(String(v)) : ""],
             ["vesselDestination", "vessel_destination_text", (v) => v || ""],
+            ["dgUn", "dg_un", (v) => v || ""],
         ];
 
         // Only include changed fields
@@ -1136,8 +1283,10 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Internal Remark</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Exp ready from supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipped Date</Th>
@@ -1398,7 +1547,7 @@ export default function StockDBMainEdit() {
                                         />
                                     </Td>
                                     <Td {...cellProps}>
-                                        <Input
+                                        <Textarea
                                             value={row.exportDoc || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
                                             placeholder=""
@@ -1406,12 +1555,37 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            rows={2}
+                                        />
+                                    </Td>
+                                    <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.exportDoc2 || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "exportDoc2", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            rows={2}
                                         />
                                     </Td>
                                     <Td {...cellProps}>
                                         <Textarea
                                             value={row.remarks || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                            rows={2}
+                                        />
+                                    </Td>
+                                    <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.internalRemark || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}
@@ -1461,6 +1635,17 @@ export default function StockDBMainEdit() {
                                             type="date"
                                             value={row.deliveredDate || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td {...cellProps}>
+                                        <Input
+                                            value={row.dgUn || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}

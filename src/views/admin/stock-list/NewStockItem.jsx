@@ -113,7 +113,7 @@ export default function StockForm() {
         heightCm: "", // Height cm - numbers
         volumeNoDim: "", // Volume no dim - numbers
         lwhText: "", // LWH Text Details - Free text + textarea
-        dgUnNumber: "", // DG/UN Number - Free text + textarea
+        dgUn: "", // DG/UN Number - Free text
         value: "", // Value - numbers
         currency: null, // Currency ID
         origin_text: "", // Origin - Airport code or Country
@@ -122,8 +122,10 @@ export default function StockForm() {
         apDestination: "", // AP Destination - Free text
         destination: "", // Destination - Free text
         shippingDoc: "", // Shipping Docs - Free text + textarea
-        exportDoc: "", // Export docs - Free text + textarea
+        exportDoc: "", // Export doc 1 - Free text + textarea
+        exportDoc2: "", // Export doc 2 - Free text + textarea
         remarks: "", // Remarks - Free text + textarea
+        internalRemark: "", // Internal Remark - Free text + textarea
         soNumber: "", // SO - (no data type specified)
         siNumber: "", // SI Number - (no data type specified)
         siCombined: "", // SI Combined - (no data type specified)
@@ -529,6 +531,80 @@ export default function StockForm() {
         );
     }, [suppliers]);
 
+    // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+    const addSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SO-")) return str;
+        const withoutPrefix = str.startsWith("SO-") ? str.substring(3) : str;
+        return `SO-${withoutPrefix}`;
+    };
+
+    const removeSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SO-")) return str.substring(3);
+        return str;
+    };
+
+    const addSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SI-")) return str;
+        const withoutPrefix = str.startsWith("SI-") ? str.substring(3) : str;
+        return `SI-${withoutPrefix}`;
+    };
+
+    const removeSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SIC-")) return str;
+        let withoutPrefix = str;
+        if (str.startsWith("SIC-")) {
+            withoutPrefix = str.substring(4);
+        } else if (str.startsWith("SI-C-")) {
+            withoutPrefix = str.substring(5);
+        } else if (str.startsWith("SI-")) {
+            withoutPrefix = str.substring(3);
+        }
+        return `SIC-${withoutPrefix}`;
+    };
+
+    const removeSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SIC-")) return str.substring(4);
+        if (str.startsWith("SI-C-")) return str.substring(5);
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("DI-")) return str;
+        const withoutPrefix = str.startsWith("DI-") ? str.substring(3) : str;
+        return `DI-${withoutPrefix}`;
+    };
+
+    const removeDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("DI-")) return str.substring(3);
+        return str;
+    };
+
     const toNumber = (value) => {
         if (value === "" || value === null || value === undefined) {
             return 0;
@@ -571,7 +647,7 @@ export default function StockForm() {
             heightCm: getFieldValue(stock.height_cm, ""),
             volumeNoDim: getFieldValue(stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm, ""),
             lwhText: getFieldValue(stock.lwh_text),
-            dgUnNumber: getFieldValue(stock.dg_un_number) || getFieldValue(stock.dg_un) || getFieldValue(stock.un_number) || "",
+            dgUn: getFieldValue(stock.dg_un) || "",
             value: getFieldValue(stock.value, ""),
             currency: normalizeId(stock.currency_id) || normalizeId(stock.currency) || null, // Currency ID
             origin_text: (() => {
@@ -592,11 +668,13 @@ export default function StockForm() {
             destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             exportDoc: getFieldValue(stock.export_doc),
+            exportDoc2: getFieldValue(stock.export_doc_2),
             remarks: getFieldValue(stock.remarks),
-            soNumber: getFieldValue(stock.so_number) || getFieldValue(stock.stock_so_number) || "",
-            siNumber: getFieldValue(stock.si_number) || getFieldValue(stock.stock_shipping_instruction) || "",
-            siCombined: getFieldValue(stock.si_combined) || "",
-            diNumber: getFieldValue(stock.di_number) || getFieldValue(stock.stock_delivery_instruction) || "",
+            internalRemark: getFieldValue(stock.internal_remark),
+            soNumber: addSOPrefix(getFieldValue(stock.so_number) || getFieldValue(stock.stock_so_number) || ""),
+            siNumber: addSIPrefix(getFieldValue(stock.si_number) || getFieldValue(stock.stock_shipping_instruction) || ""),
+            siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
+            diNumber: addDIPrefix(getFieldValue(stock.di_number) || getFieldValue(stock.stock_delivery_instruction) || ""),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
             vesselDestination: getFieldValue(stock.vessel_destination) || "",
@@ -679,9 +757,38 @@ export default function StockForm() {
     const handleInputChange = (rowIndex, field, value) => {
         setFormRows(prev => {
             const newRows = [...prev];
+            let processedValue = value;
+            
+            // Handle prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+            if (field === "soNumber") {
+                if (value && value !== "") {
+                    processedValue = addSOPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "siNumber") {
+                if (value && value !== "") {
+                    processedValue = addSIPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "siCombined") {
+                if (value && value !== "") {
+                    processedValue = addSICombinedPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            } else if (field === "diNumber") {
+                if (value && value !== "") {
+                    processedValue = addDIPrefix(value);
+                } else {
+                    processedValue = "";
+                }
+            }
+            
             const updatedRow = {
                 ...newRows[rowIndex],
-                [field]: value
+                [field]: processedValue
             };
 
             // Auto-fill vessel-related fields when vessel is selected
@@ -793,6 +900,7 @@ export default function StockForm() {
             via_hub2: rowData.viaHub2 || "", // Free text field
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
+            internal_remark: rowData.internalRemark || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
             width_cm: toNumber(rowData.widthCm) || 0,
             length_cm: toNumber(rowData.lengthCm) || 0,
@@ -801,7 +909,7 @@ export default function StockForm() {
             volume_cbm: toNumber(rowData.volumeCbm) || 0,
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
-            cw_freight: toNumber(rowData.cwAirfreight) || 0,
+            cw_air_freight_new: toNumber(rowData.cwAirfreight) || 0,
             value: toNumber(rowData.value) || 0,
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
@@ -809,20 +917,24 @@ export default function StockForm() {
             warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",
+            export_doc_2: rowData.exportDoc2 || "",
             date_on_stock: rowData.dateOnStock || "",
             exp_ready_in_stock: rowData.expReadyInStock || "",
             shipped_date: rowData.shippedDate || null,
             delivered_date: rowData.deliveredDate || "",
             details: rowData.details || "",
-            dg_un_number: rowData.dgUnNumber || "", // DG/UN Number - Free text
+            dg_un: rowData.dgUn || "", // DG/UN Number - Free text
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
-            stock_so_number: rowData.soNumber ? String(rowData.soNumber) : "",
-            stock_shipping_instruction: rowData.siNumber ? String(rowData.siNumber) : "",
-            si_combined: rowData.siCombined || "", // SI Combined - Free text
-            stock_delivery_instruction: rowData.diNumber ? String(rowData.diNumber) : "",
+            stock_so_number: rowData.soNumber ? removeSOPrefix(String(rowData.soNumber)) : "",
+            stock_shipping_instruction: rowData.siNumber ? removeSIPrefix(String(rowData.siNumber)) : "",
+            si_combined: rowData.siCombined ? (() => {
+                const cleaned = removeSICombinedPrefix(String(rowData.siCombined));
+                return cleaned === "" ? false : cleaned;
+            })() : false, // SI Combined - Free text
+            stock_delivery_instruction: rowData.diNumber ? removeDIPrefix(String(rowData.diNumber)) : "",
             vessel_destination_text: rowData.vesselDestination || "", // Include vessel_destination_text
         };
 
@@ -1149,7 +1261,8 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Docs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export docs</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
@@ -1391,17 +1504,15 @@ export default function StockForm() {
                                         />
                                     </Td>
                                         <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.dgUnNumber || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "dgUnNumber", e.target.value)}
+                                            <Input
+                                                value={row.dgUn || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
                                                 placeholder="Enter DG/UN Number"
-                                    size="sm"
-                                                rows={3}
-                                                resize="vertical"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
                                     </Td>
                                         <Td {...cellProps}>
                                         <NumberInput
@@ -1525,6 +1636,20 @@ export default function StockForm() {
                                                 borderColor={borderColor}
                                             />
                                         </Td>
+                                        {/* Export doc 2 - Free text + textarea */}
+                                        <Td {...cellProps}>
+                                            <Textarea
+                                                value={row.exportDoc2 || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "exportDoc2", e.target.value)}
+                                                placeholder="Enter Export Doc 2"
+                                            size="sm"
+                                                rows={3}
+                                                resize="vertical"
+                                            bg={inputBg}
+                                            color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </Td>
                                         {/* Remarks - Free text + textarea */}
                                         <Td {...cellProps}>
                                             <Textarea
@@ -1536,9 +1661,37 @@ export default function StockForm() {
                                                 resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
-                                            borderColor={borderColor}
+                                                borderColor={borderColor}
+                                            />
+                                        </Td>
+                                        {/* Internal Remark - Free text + textarea */}
+                                        <Td {...cellProps}>
+                                            <Textarea
+                                                value={row.internalRemark || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
+                                                placeholder="Enter Internal Remark"
+                                            size="sm"
+                                                rows={3}
+                                                resize="vertical"
+                                            bg={inputBg}
+                                            color={inputText}
+                                                borderColor={borderColor}
                                         />
                                     </Td>
+                                        {/* Internal Remark - Free text + textarea */}
+                                        <Td {...cellProps}>
+                                            <Textarea
+                                                value={row.internalRemark || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
+                                                placeholder="Enter Internal Remark"
+                                            size="sm"
+                                                rows={3}
+                                                resize="vertical"
+                                            bg={inputBg}
+                                            color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </Td>
                                         {/* SO - Free text */}
                                         <Td {...cellProps}>
                                         <Input

@@ -218,20 +218,17 @@ export default function Stocks() {
         const stored = sessionStorage.getItem('stocksStockViewVessel');
         return stored && stored !== 'null' ? stored : null;
     });
-    const [stockViewSupplier, setStockViewSupplier] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewSupplier');
-        return stored && stored !== 'null' ? stored : null;
-    });
     const [stockViewStatus, setStockViewStatus] = useState(() => {
         return sessionStorage.getItem('stocksStockViewStatus') || "";
     });
-    const [stockViewWarehouse, setStockViewWarehouse] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewWarehouse');
-        return stored && stored !== 'null' ? stored : null;
+    const [stockViewStockItemId, setStockViewStockItemId] = useState(() => {
+        return sessionStorage.getItem('stocksStockViewStockItemId') || "";
     });
-    const [stockViewCurrency, setStockViewCurrency] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewCurrency');
-        return stored && stored !== 'null' ? stored : null;
+    const [stockViewDateOnStock, setStockViewDateOnStock] = useState(() => {
+        return sessionStorage.getItem('stocksStockViewDateOnStock') || "";
+    });
+    const [stockViewDaysOnStock, setStockViewDaysOnStock] = useState(() => {
+        return sessionStorage.getItem('stocksStockViewDaysOnStock') || "";
     });
 
     const [clients, setClients] = useState([]);
@@ -408,10 +405,10 @@ export default function Stocks() {
             // Restore Stock View / Edit filters
             if (filterState.stockViewClient !== undefined) setStockViewClient(filterState.stockViewClient);
             if (filterState.stockViewVessel !== undefined) setStockViewVessel(filterState.stockViewVessel);
-            if (filterState.stockViewSupplier !== undefined) setStockViewSupplier(filterState.stockViewSupplier);
             if (filterState.stockViewStatus !== undefined) setStockViewStatus(filterState.stockViewStatus);
-            if (filterState.stockViewWarehouse !== undefined) setStockViewWarehouse(filterState.stockViewWarehouse);
-            if (filterState.stockViewCurrency !== undefined) setStockViewCurrency(filterState.stockViewCurrency);
+            if (filterState.stockViewStockItemId !== undefined) setStockViewStockItemId(filterState.stockViewStockItemId);
+            if (filterState.stockViewDateOnStock !== undefined) setStockViewDateOnStock(filterState.stockViewDateOnStock);
+            if (filterState.stockViewDaysOnStock !== undefined) setStockViewDaysOnStock(filterState.stockViewDaysOnStock);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
         }
@@ -422,7 +419,7 @@ export default function Stocks() {
         // Only restore if we're on the stocks list page (not edit page) and not coming from edit page
         const isOnStocksPage = location.pathname === '/admin/stock-list/stocks' || location.pathname === '/admin/stock-list/stocks/';
         const isComingFromEdit = location.state?.fromEdit === true;
-        
+
         if (isOnStocksPage && !isComingFromEdit) {
             const savedEditState = sessionStorage.getItem('stockEditState');
             if (savedEditState) {
@@ -491,20 +488,20 @@ export default function Stocks() {
     }, [stockViewVessel]);
 
     useEffect(() => {
-        sessionStorage.setItem('stocksStockViewSupplier', stockViewSupplier || 'null');
-    }, [stockViewSupplier]);
-
-    useEffect(() => {
         sessionStorage.setItem('stocksStockViewStatus', stockViewStatus || '');
     }, [stockViewStatus]);
 
     useEffect(() => {
-        sessionStorage.setItem('stocksStockViewWarehouse', stockViewWarehouse || 'null');
-    }, [stockViewWarehouse]);
+        sessionStorage.setItem('stocksStockViewStockItemId', stockViewStockItemId || '');
+    }, [stockViewStockItemId]);
 
     useEffect(() => {
-        sessionStorage.setItem('stocksStockViewCurrency', stockViewCurrency || 'null');
-    }, [stockViewCurrency]);
+        sessionStorage.setItem('stocksStockViewDateOnStock', stockViewDateOnStock || '');
+    }, [stockViewDateOnStock]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewDaysOnStock', stockViewDaysOnStock || '');
+    }, [stockViewDaysOnStock]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -623,10 +620,10 @@ export default function Stocks() {
             clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
             stockViewClient,
             stockViewVessel,
-            stockViewSupplier,
             stockViewStatus,
-            stockViewWarehouse,
-            stockViewCurrency
+            stockViewStockItemId,
+            stockViewDateOnStock,
+            stockViewDaysOnStock
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
         // Save edit state to sessionStorage for restoration when switching tabs
@@ -653,10 +650,10 @@ export default function Stocks() {
                 clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
                 stockViewClient,
                 stockViewVessel,
-                stockViewSupplier,
                 stockViewStatus,
-                stockViewWarehouse,
-                stockViewCurrency
+                stockViewStockItemId,
+                stockViewDateOnStock,
+                stockViewDaysOnStock
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
             // Save edit state to sessionStorage for restoration when switching tabs
@@ -980,32 +977,35 @@ export default function Stocks() {
             );
         }
 
-        if (stockViewSupplier) {
-            filtered = filtered.filter(item =>
-                String(item.supplier_id || item.supplier) === String(stockViewSupplier)
-            );
-        }
-
         if (stockViewStatus) {
             filtered = filtered.filter(item => {
                 const normalized = normalizeStatus(item.stock_status);
-                return normalized === stockViewStatus.toLowerCase() || 
-                       normalized.includes(stockViewStatus.toLowerCase()) ||
-                       stockViewStatus.toLowerCase().includes(normalized);
+                return normalized === stockViewStatus.toLowerCase() ||
+                    normalized.includes(stockViewStatus.toLowerCase()) ||
+                    stockViewStatus.toLowerCase().includes(normalized);
             });
         }
 
-        if (stockViewWarehouse) {
+        if (stockViewStockItemId) {
             filtered = filtered.filter(item => {
-                const warehouseValue = item.warehouse_new || item.warehouse_id || item.stock_warehouse || "";
-                return String(warehouseValue) === String(stockViewWarehouse);
+                const stockItemId = item.stock_item_id || item.stock_id || "";
+                return String(stockItemId).toLowerCase().includes(String(stockViewStockItemId).toLowerCase());
             });
         }
 
-        if (stockViewCurrency) {
-            filtered = filtered.filter(item =>
-                String(item.currency_id || item.currency) === String(stockViewCurrency)
-            );
+        if (stockViewDateOnStock) {
+            filtered = filtered.filter(item => {
+                if (!item.date_on_stock) return false;
+                const itemDate = new Date(item.date_on_stock).toISOString().split('T')[0];
+                return itemDate === stockViewDateOnStock;
+            });
+        }
+
+        if (stockViewDaysOnStock) {
+            filtered = filtered.filter(item => {
+                const daysOnStock = item.days_on_stock || 0;
+                return String(daysOnStock) === String(stockViewDaysOnStock);
+            });
         }
 
         // Filter by selected statuses using the matchesStatus helper
@@ -1149,6 +1149,80 @@ export default function Stocks() {
     const someItemsSelected = filteredAndSortedStock.some(item => selectedRows.has(item.id));
 
 
+    // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+    const addSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SO-")) return str;
+        const withoutPrefix = str.startsWith("SO-") ? str.substring(3) : str;
+        return `SO-${withoutPrefix}`;
+    };
+
+    const removeSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SO-")) return str.substring(3);
+        return str;
+    };
+
+    const addSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SI-")) return str;
+        const withoutPrefix = str.startsWith("SI-") ? str.substring(3) : str;
+        return `SI-${withoutPrefix}`;
+    };
+
+    const removeSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("SIC-")) return str;
+        let withoutPrefix = str;
+        if (str.startsWith("SIC-")) {
+            withoutPrefix = str.substring(4);
+        } else if (str.startsWith("SI-C-")) {
+            withoutPrefix = str.substring(5);
+        } else if (str.startsWith("SI-")) {
+            withoutPrefix = str.substring(3);
+        }
+        return `SIC-${withoutPrefix}`;
+    };
+
+    const removeSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SIC-")) return str.substring(4);
+        if (str.startsWith("SI-C-")) return str.substring(5);
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const addDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str === "-") return "";
+        if (str.startsWith("DI-")) return str;
+        const withoutPrefix = str.startsWith("DI-") ? str.substring(3) : str;
+        return `DI-${withoutPrefix}`;
+    };
+
+    const removeDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("DI-")) return str.substring(3);
+        return str;
+    };
+
     // Handle inline edit start - for single row
     // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
     const extractId = (value, fallback = "") => {
@@ -1191,9 +1265,9 @@ export default function Stocks() {
             client_id: getFieldValue("client_id", "client"),
             // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || item.po_number || "",
-            so_number_id: getFieldValue("so_number_id", "so_number", "stock_so_number"),
-            shipping_instruction_id: getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction"),
-            delivery_instruction_id: getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction"),
+            so_number_id: addSOPrefix(getFieldValue("so_number_id", "so_number", "stock_so_number")),
+            shipping_instruction_id: addSIPrefix(getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction")),
+            delivery_instruction_id: addDIPrefix(getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction")),
             origin_id: (() => {
                 // For inline editing, convert origin_id to country name text if possible
                 // Check origin_text first (new field), then origin_id
@@ -1232,13 +1306,15 @@ export default function Stocks() {
             delivered_date: item.delivered_date && item.delivered_date !== false ? item.delivered_date : "",
             vessel_eta: item.vessel_eta && item.vessel_eta !== false ? item.vessel_eta : "",
             // Text fields
-            si_combined: item.si_combined || "",
+            si_combined: addSICombinedPrefix(item.si_combined === false ? "" : (item.si_combined || "")),
             details: item.details || item.item_desc || "",
+            dg_un: item.dg_un || "",
             remarks: item.remarks || "",
             via_hub: item.via_hub || "",
             via_hub2: item.via_hub2 || "",
             shipping_doc: item.shipping_doc || "",
             export_doc: item.export_doc || "",
+            export_doc_2: item.export_doc_2 || "",
             vessel_destination: item.vessel_destination || item.vessel_destination_text || "",
             stock_status: item.stock_status || "",
         };
@@ -1377,6 +1453,7 @@ export default function Stocks() {
             { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
             { backend: "remarks", original: ["remarks"], edited: ["remarks"], transform: (v) => v || "" },
+            { backend: "internal_remark", original: ["internal_remark"], edited: ["internal_remark"], transform: (v) => v || "" },
             { backend: "weight_kg", original: ["weight_kg", "weight_kgs"], edited: ["weight_kg"], transform: (v) => toNumber(v) },
             { backend: "width_cm", original: ["width_cm"], edited: ["width_cm"], transform: (v) => toNumber(v) },
             { backend: "length_cm", original: ["length_cm"], edited: ["length_cm"], transform: (v) => toNumber(v) },
@@ -1391,7 +1468,7 @@ export default function Stocks() {
                     return splitLines(val);
                 }
             },
-            { backend: "cw_freight", original: ["cw_freight", "cw_airfreight"], edited: ["cw_freight"], transform: (v) => toNumber(v) },
+            { backend: "cw_air_freight_new", original: ["cw_air_freight_new", "cw_freight", "cw_airfreight"], edited: ["cw_air_freight_new"], transform: (v) => toNumber(v) },
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
@@ -1399,11 +1476,13 @@ export default function Stocks() {
             { backend: "warehouse_new", original: ["warehouse_new", "warehouse_id", "stock_warehouse"], edited: ["warehouse_new", "warehouse_id"], transform: (v) => v || "" }, // Free text field
             { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
             { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
+            { backend: "export_doc_2", original: ["export_doc_2"], edited: ["export_doc_2"], transform: (v) => v || "" },
             { backend: "date_on_stock", original: ["date_on_stock"], edited: ["date_on_stock"], transform: (v) => toValue(v, false) },
             { backend: "exp_ready_in_stock", original: ["exp_ready_in_stock", "ready_ex_supplier"], edited: ["exp_ready_in_stock"], transform: (v) => toValue(v, false) },
             { backend: "shipped_date", original: ["shipped_date"], edited: ["shipped_date"], transform: (v) => toValue(v, false) },
             { backend: "delivered_date", original: ["delivered_date"], edited: ["delivered_date"], transform: (v) => toValue(v, false) },
             { backend: "details", original: ["details", "item_desc"], edited: ["details"], transform: (v) => v || "" },
+            { backend: "dg_un", original: ["dg_un"], edited: ["dg_un"], transform: (v) => v || "" },
             { backend: "item", original: ["item", "items"], edited: ["item", "items"], transform: (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0 },
             { backend: "lwh_text", original: ["lwh_text"], edited: ["lwh_text"], transform: (v) => v || "" },
             {
@@ -1414,11 +1493,16 @@ export default function Stocks() {
             },
             { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
             { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
-            { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => toValue(toId(v), false) },
-            { backend: "stock_shipping_instruction", original: ["shipping_instruction_id", "si_number", "stock_shipping_instruction"], edited: ["shipping_instruction_id", "stock_shipping_instruction"], transform: (v) => toValue(toId(v), false) },
-            { backend: "stock_delivery_instruction", original: ["delivery_instruction_id", "di_number", "stock_delivery_instruction"], edited: ["delivery_instruction_id", "stock_delivery_instruction"], transform: (v) => toValue(toId(v), false) },
+            { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => v ? removeSOPrefix(String(v)) : "" },
+            { backend: "stock_shipping_instruction", original: ["shipping_instruction_id", "si_number", "stock_shipping_instruction"], edited: ["shipping_instruction_id", "stock_shipping_instruction"], transform: (v) => v ? removeSIPrefix(String(v)) : "" },
+            { backend: "stock_delivery_instruction", original: ["delivery_instruction_id", "di_number", "stock_delivery_instruction"], edited: ["delivery_instruction_id", "stock_delivery_instruction"], transform: (v) => v ? removeDIPrefix(String(v)) : "" },
             { backend: "vessel_destination_text", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination", "vessel_destination_text"], transform: (v) => v || "" },
-            { backend: "si_combined", original: ["si_combined"], edited: ["si_combined"], transform: (v) => v || "" },
+            {
+                backend: "si_combined", original: ["si_combined"], edited: ["si_combined"], transform: (v) => {
+                    const cleaned = v ? removeSICombinedPrefix(String(v)) : "";
+                    return cleaned === "" ? false : cleaned;
+                }
+            },
         ];
 
         // Check each field for changes
@@ -1775,11 +1859,37 @@ export default function Stocks() {
                     />
                 );
             default:
+                // Handle prefixes for SI NUMBER, SI COMBINED, and DI NUMBER fields
+                let displayValue = currentValue || "";
+                let onChangeHandler = (e) => {
+                    let processedValue = e.target.value;
+                    if (field === "shipping_instruction_id") {
+                        if (processedValue && processedValue !== "") {
+                            processedValue = addSIPrefix(processedValue);
+                        } else {
+                            processedValue = "";
+                        }
+                    } else if (field === "si_combined") {
+                        if (processedValue && processedValue !== "") {
+                            processedValue = addSICombinedPrefix(processedValue);
+                        } else {
+                            processedValue = "";
+                        }
+                    } else if (field === "delivery_instruction_id") {
+                        if (processedValue && processedValue !== "") {
+                            processedValue = addDIPrefix(processedValue);
+                        } else {
+                            processedValue = "";
+                        }
+                    }
+                    handleChange(processedValue);
+                };
+
                 return (
                     <Input
                         size="sm"
-                        value={currentValue || ""}
-                        onChange={(e) => handleChange(e.target.value)}
+                        value={displayValue}
+                        onChange={onChangeHandler}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
@@ -1846,16 +1956,32 @@ export default function Stocks() {
                                 : renderMultiLineLabels(item.po_text || item.po_number)}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
+                                const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number);
+                                const prefixed = addSOPrefix(soValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{(() => {
+                                const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
+                                const prefixed = addSIPrefix(siValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{renderText(item.si_combined)}</Text>}
+                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
+                                const sicValue = renderText(item.si_combined);
+                                const prefixed = addSICombinedPrefix(sicValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text>}
+                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{(() => {
+                                const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
+                                const prefixed = addDIPrefix(diValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -1914,6 +2040,9 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "export_doc", item.export_doc, "textarea") : <Text {...cellText}>{renderText(item.export_doc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2, "textarea") : <Text {...cellText}>{renderText(item.export_doc_2)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "remarks", item.remarks, "textarea") : <Text {...cellText}>{renderText(item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
@@ -1950,7 +2079,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getClientName(item.client_id || item.client)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "internal_remarks", item.internal_remarks || item.remarks, "textarea") : <Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text>}
+                            {isEditing ? renderEditableCell(item, "internal_remark", item.internal_remark || "", "textarea") : <Text {...cellText}>{renderText(item.internal_remark || "")}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
@@ -2106,6 +2235,9 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <Text {...cellText}>{renderText(item.dg_un)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "item", item.item || item.items || item.item_id || item.stock_items_quantity || "", "number") : <Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
@@ -2142,22 +2274,41 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "export_doc", item.export_doc) : <Text {...cellText}>{renderText(item.export_doc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "export_doc_2", item.export_doc_2) : <Text {...cellText}>{renderText(item.export_doc_2)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "remarks", item.remarks) : <Text {...cellText}>{renderText(item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number)}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
+                                const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : renderText(item.so_number || item.stock_so_number);
+                                const prefixed = addSOPrefix(soValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text>}
+                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{(() => {
+                                const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
+                                const prefixed = addSIPrefix(siValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{renderText(item.si_combined)}</Text>}
+                            {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
+                                const sicValue = renderText(item.si_combined);
+                                const prefixed = addSICombinedPrefix(sicValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text>}
+                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{(() => {
+                                const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
+                                const prefixed = addDIPrefix(diValue);
+                                return prefixed || "-";
+                            })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
@@ -2582,6 +2733,30 @@ export default function Stocks() {
                                                     <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
                                                 </HStack>
                                                 <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                    {/* Stock Item ID Filter */}
+                                                    <Box flex="1" minW="200px">
+                                                        <Input
+                                                            value={stockViewStockItemId}
+                                                            onChange={(e) => setStockViewStockItemId(e.target.value)}
+                                                            placeholder="Filter by Stock Item ID"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                        {stockViewStockItemId && (
+                                                            <Button
+                                                                size="xs"
+                                                                mt="1"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => setStockViewStockItemId("")}
+                                                            >
+                                                                Clear
+                                                            </Button>
+                                                        )}
+                                                    </Box>
+
                                                     {/* Client Filter */}
                                                     <Box flex="1" minW="200px">
                                                         <SimpleSearchableSelect
@@ -2640,35 +2815,6 @@ export default function Stocks() {
                                                         )}
                                                     </Box>
 
-                                                    {/* Supplier Filter */}
-                                                    <Box flex="1" minW="200px">
-                                                        <SimpleSearchableSelect
-                                                            value={stockViewSupplier}
-                                                            onChange={(value) => setStockViewSupplier(value)}
-                                                            options={vendors}
-                                                            placeholder="Filter by Supplier"
-                                                            displayKey="name"
-                                                            valueKey="id"
-                                                            formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                            isLoading={isLoadingSuppliers}
-                                                            bg={inputBg}
-                                                            color={inputText}
-                                                            borderColor={borderColor}
-                                                        />
-                                                        {stockViewSupplier && (
-                                                            <Button
-                                                                size="xs"
-                                                                mt="1"
-                                                                leftIcon={<Icon as={MdClose} />}
-                                                                colorScheme="red"
-                                                                variant="ghost"
-                                                                onClick={() => setStockViewSupplier(null)}
-                                                            >
-                                                                Clear
-                                                            </Button>
-                                                        )}
-                                                    </Box>
-
                                                     {/* Status Filter */}
                                                     <Box flex="1" minW="200px">
                                                         <Select
@@ -2705,62 +2851,50 @@ export default function Stocks() {
                                                         )}
                                                     </Box>
 
-                                                    {/* Warehouse Filter */}
+                                                    {/* Date on Stock Filter */}
                                                     <Box flex="1" minW="200px">
-                                                        <SimpleSearchableSelect
-                                                            value={stockViewWarehouse}
-                                                            onChange={(value) => setStockViewWarehouse(value)}
-                                                            options={locations}
-                                                            placeholder="Filter by Warehouse"
-                                                            displayKey="name"
-                                                            valueKey="id"
-                                                            formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
-                                                            isLoading={isLoadingWarehouses}
+                                                        <Input
+                                                            type="date"
+                                                            value={stockViewDateOnStock}
+                                                            onChange={(e) => setStockViewDateOnStock(e.target.value)}
+                                                            placeholder="Filter by Date on Stock"
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
                                                         />
-                                                        {stockViewWarehouse && (
+                                                        {stockViewDateOnStock && (
                                                             <Button
                                                                 size="xs"
                                                                 mt="1"
                                                                 leftIcon={<Icon as={MdClose} />}
                                                                 colorScheme="red"
                                                                 variant="ghost"
-                                                                onClick={() => setStockViewWarehouse(null)}
+                                                                onClick={() => setStockViewDateOnStock("")}
                                                             >
                                                                 Clear
                                                             </Button>
                                                         )}
                                                     </Box>
 
-                                                    {/* Currency Filter */}
+                                                    {/* Days on Stock Filter */}
                                                     <Box flex="1" minW="200px">
-                                                        <SimpleSearchableSelect
-                                                            value={stockViewCurrency}
-                                                            onChange={(value) => setStockViewCurrency(value)}
-                                                            options={currencies}
-                                                            placeholder="Filter by Currency"
-                                                            displayKey="name"
-                                                            valueKey="id"
-                                                            formatOption={(option) => {
-                                                                const code = option.name || option.code || option.symbol || "";
-                                                                const fullName = option.full_name || option.description || "";
-                                                                return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
-                                                            }}
-                                                            isLoading={isLoadingCurrencies}
+                                                        <Input
+                                                            type="number"
+                                                            value={stockViewDaysOnStock}
+                                                            onChange={(e) => setStockViewDaysOnStock(e.target.value)}
+                                                            placeholder="Filter by Days on Stock"
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
                                                         />
-                                                        {stockViewCurrency && (
+                                                        {stockViewDaysOnStock && (
                                                             <Button
                                                                 size="xs"
                                                                 mt="1"
                                                                 leftIcon={<Icon as={MdClose} />}
                                                                 colorScheme="red"
                                                                 variant="ghost"
-                                                                onClick={() => setStockViewCurrency(null)}
+                                                                onClick={() => setStockViewDaysOnStock("")}
                                                             >
                                                                 Clear
                                                             </Button>
@@ -2769,7 +2903,7 @@ export default function Stocks() {
                                                 </Flex>
 
                                                 {/* Clear All Filters Button */}
-                                                {(stockViewClient || stockViewVessel || stockViewSupplier || stockViewStatus || stockViewWarehouse || stockViewCurrency) && (
+                                                {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock) && (
                                                     <Button
                                                         size="sm"
                                                         mt="3"
@@ -2779,10 +2913,10 @@ export default function Stocks() {
                                                         onClick={() => {
                                                             setStockViewClient(null);
                                                             setStockViewVessel(null);
-                                                            setStockViewSupplier(null);
                                                             setStockViewStatus("");
-                                                            setStockViewWarehouse(null);
-                                                            setStockViewCurrency(null);
+                                                            setStockViewStockItemId("");
+                                                            setStockViewDateOnStock("");
+                                                            setStockViewDaysOnStock("");
                                                         }}
                                                     >
                                                         Clear All Filters
@@ -2793,7 +2927,7 @@ export default function Stocks() {
                                             {/* Results Count */}
                                             <Text fontSize="sm" color={tableTextColorSecondary}>
                                                 Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
-                                                {(stockViewClient || stockViewVessel || stockViewSupplier || stockViewStatus || stockViewWarehouse || stockViewCurrency || vesselViewStatuses.size > 0) && " (filtered)"}
+                                                {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || vesselViewStatuses.size > 0) && " (filtered)"}
                                             </Text>
                                         </VStack>
                                     </Card>
@@ -2925,7 +3059,8 @@ export default function Stocks() {
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
                                                 <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                <Th {...headerProps}>EXPORT DOCS</Th>
+                                                <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                <Th {...headerProps}>EXPORT DOC 2</Th>
                                                 <Th {...headerProps}>REMARKS</Th>
                                                 <Th {...headerProps}>ITEMS</Th>
                                                 <Th {...headerProps}>WEIGHT KGS</Th>
@@ -2979,9 +3114,21 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                            const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
+                                                            const prefixed = addSIPrefix(siValue);
+                                                            return prefixed || "-";
+                                                        })()}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                            const sicValue = renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction);
+                                                            const prefixed = addSICombinedPrefix(sicValue);
+                                                            return prefixed || "-";
+                                                        })()}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                            const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
+                                                            const prefixed = addDIPrefix(diValue);
+                                                            return prefixed || "-";
+                                                        })()}</Text></Td>
                                                         <Td {...cellProps}>
                                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
                                                                 {renderText(item.stock_status)}
@@ -3000,6 +3147,7 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
@@ -3012,7 +3160,7 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remarks || item.remarks)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
                                                         <Td {...cellProps}>
                                                             {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
                                                                 <VStack spacing={1} align="stretch">
@@ -3139,7 +3287,8 @@ export default function Stocks() {
                                                 <Th {...headerProps}>SHIPPED DATE</Th>
                                                 <Th {...headerProps}>DELIVERED DATE</Th>
                                                 <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                <Th {...headerProps}>EXPORT DOCS</Th>
+                                                <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                <Th {...headerProps}>EXPORT DOC 2</Th>
                                                 <Th {...headerProps}>REMARKS</Th>
                                                 <Th {...headerProps}>ITEMS</Th>
                                                 <Th {...headerProps}>WEIGHT KGS</Th>
@@ -3181,6 +3330,7 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
@@ -3378,7 +3528,8 @@ export default function Stocks() {
                                                     <Th {...headerProps}>AP DEST</Th>
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>SHIPPING DOC</Th>
-                                                    <Th {...headerProps}>EXPORT DOC</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
                                                     <Th {...headerProps}>REMARKS</Th>
                                                     <Th {...headerProps}>VESSEL</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
@@ -3541,4 +3692,5 @@ export default function Stocks() {
         </Box>
     );
 }
+
 
