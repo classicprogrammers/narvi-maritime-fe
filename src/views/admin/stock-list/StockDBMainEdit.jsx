@@ -44,6 +44,10 @@ import {
     AlertDialogHeader,
     AlertDialogContent,
     AlertDialogOverlay,
+    Menu,
+    MenuButton,
+    MenuList,
+    MenuItem,
 } from "@chakra-ui/react";
 import {
     MdChevronLeft,
@@ -54,6 +58,8 @@ import {
     MdVisibility,
     MdDownload,
     MdFullscreen,
+    MdArrowDownward,
+    MdMoreVert,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -838,6 +844,34 @@ export default function StockDBMainEdit() {
         });
     };
 
+    // Copy field value to rows below
+    const copyValueToRowsBelow = (rowIndex, field, copyToAll = false) => {
+        setFormRows(prev => {
+            const newRows = [...prev];
+            const sourceValue = newRows[rowIndex][field];
+
+            if (copyToAll) {
+                // Copy to all rows below
+                for (let i = rowIndex + 1; i < newRows.length; i++) {
+                    newRows[i] = {
+                        ...newRows[i],
+                        [field]: sourceValue
+                    };
+                }
+            } else {
+                // Copy only to the next row below
+                if (rowIndex + 1 < newRows.length) {
+                    newRows[rowIndex + 1] = {
+                        ...newRows[rowIndex + 1],
+                        [field]: sourceValue
+                    };
+                }
+            }
+
+            return newRows;
+        });
+    };
+
     // Helper to compare values (handles different data types)
     const valuesAreEqual = (val1, val2) => {
         // Handle null/undefined/empty/false
@@ -977,16 +1011,16 @@ export default function StockDBMainEdit() {
                 });
             });
         }
-        
+
         // Check if number of rows changed
         if (formRows.length !== originalRows.length) {
             return true;
         }
-        
+
         // Check if any rows have changes
         return formRows.some((row, index) => {
             const originalRow = originalRows[index] || {};
-            
+
             // Check for new rows (rows without stockId that have data)
             if (!row.stockId) {
                 // Check if row has any meaningful data (not just empty/default values)
@@ -1009,17 +1043,17 @@ export default function StockDBMainEdit() {
                 ).length > 0;
                 if (hasChanges) return true;
             }
-            
+
             // Check for attachment changes (new uploads or deletions)
             const hasNewAttachments = (row.attachments && row.attachments.length > 0);
             const hasDeletedAttachments = (row.attachmentsToDelete && row.attachmentsToDelete.length > 0);
             const originalAttachmentsCount = (originalRow.existingAttachments && originalRow.existingAttachments.length) || 0;
             const currentAttachmentsCount = (row.existingAttachments && row.existingAttachments.length) || 0;
-            
+
             if (hasNewAttachments || hasDeletedAttachments || originalAttachmentsCount !== currentAttachmentsCount) {
                 return true;
             }
-            
+
             return false;
         });
     }, [formRows, originalRows]);
@@ -1260,7 +1294,7 @@ export default function StockDBMainEdit() {
                                 }
                                 // Also clear the 'new' key if it exists
                                 sessionStorage.removeItem('stockEditFormData_new');
-                                
+
                                 if (filterState) {
                                     const sourcePath = filterState.activeTab !== undefined
                                         ? '/admin/stock-list/stocks'
@@ -1311,52 +1345,6 @@ export default function StockDBMainEdit() {
                     </Button>
                 </HStack>
             </Flex>
-
-            {/* Bulk Edit Navigation */}
-            {isBulkEdit && formRows.length > 1 && (
-                <Flex
-                    bg={cardBg}
-                    px={{ base: "4", md: "6" }}
-                    py="2"
-                    justify="space-between"
-                    align="center"
-                    mb="4"
-                    border="1px"
-                    borderColor={borderColor}
-                    borderRadius="md"
-                >
-                    <HStack spacing="2">
-                        <Button
-                            size="xs"
-                            onClick={() => {
-                                if (currentItemIndex > 0) {
-                                    setCurrentItemIndex(currentItemIndex - 1);
-                                }
-                            }}
-                            isDisabled={currentItemIndex === 0}
-                        >
-                            Previous
-                        </Button>
-                        <Text fontSize="sm" color={textColor}>
-                            Item {currentItemIndex + 1} of {formRows.length}
-                        </Text>
-                        <Button
-                            size="xs"
-                            onClick={() => {
-                                if (currentItemIndex < formRows.length - 1) {
-                                    setCurrentItemIndex(currentItemIndex + 1);
-                                }
-                            }}
-                            isDisabled={currentItemIndex === formRows.length - 1}
-                        >
-                            Next
-                        </Button>
-                    </HStack>
-                    <Text fontSize="xs" color="gray.500">
-                        Changes will apply to all {formRows.length} selected items
-                    </Text>
-                </Flex>
-            )}
 
             {/* Form Table with All Fields */}
             <Box bg={cardBg} p={{ base: "4", md: "6" }} borderRadius="md" border="1px" borderColor={borderColor} overflowX="auto">
@@ -1467,57 +1455,145 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="text"
-                                            inputMode="text"
-                                            value={row.soNumber || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
-                                            placeholder="Enter SO (e.g., SO-00021 1.1)"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="text"
+                                                inputMode="text"
+                                                value={row.soNumber || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
+                                                placeholder="Enter SO (e.g., SO-00021 1.1)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="text"
-                                            inputMode="text"
-                                            value={row.siNumber || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
-                                            placeholder="Enter SI Number (e.g., SI-00021 1.1)"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="text"
+                                                inputMode="text"
+                                                value={row.siNumber || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
+                                                placeholder="Enter SI Number (e.g., SI-00021 1.1)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siNumber", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siNumber", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="text"
-                                            inputMode="text"
-                                            value={row.siCombined || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
-                                            placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="text"
+                                                inputMode="text"
+                                                value={row.siCombined || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
+                                                placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siCombined", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "siCombined", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="text"
-                                            inputMode="text"
-                                            value={row.diNumber || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
-                                            placeholder="Enter DI Number (e.g., DI-00021 1.1)"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="text"
+                                                inputMode="text"
+                                                value={row.diNumber || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
+                                                placeholder="Enter DI Number (e.g., DI-00021 1.1)"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "diNumber", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "diNumber", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     <Td {...cellProps}>
                                         <Select
@@ -1567,72 +1643,182 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Box position="relative">
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Box position="relative" flex="1">
+                                                <Input
+                                                    list={`origin-countries-${rowIndex}`}
+                                                    value={row.origin_text || ""}
+                                                    onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
+                                                    placeholder="Type or select country..."
+                                                    size="sm"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                                <datalist id={`origin-countries-${rowIndex}`}>
+                                                    {countries.map((country) => (
+                                                        <option key={country.id || country.country_id} value={country.name || country.code || ""} />
+                                                    ))}
+                                                </datalist>
+                                            </Box>
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "origin_text", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "origin_text", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
+                                    </Td>
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
                                             <Input
-                                                list={`origin-countries-${rowIndex}`}
-                                                value={row.origin_text || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
-                                                placeholder="Type or select country..."
+                                                value={row.viaHub1 || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
+                                                placeholder=""
                                                 size="sm"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                flex="1"
                                             />
-                                            <datalist id={`origin-countries-${rowIndex}`}>
-                                                {countries.map((country) => (
-                                                    <option key={country.id || country.country_id} value={country.name || country.code || ""} />
-                                                ))}
-                                            </datalist>
-                                        </Box>
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub1", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub1", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.viaHub1 || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                value={row.viaHub2 || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub2", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "viaHub2", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.viaHub2 || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.apDestination || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
-                                            placeholder="Enter AP Destination"
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                value={row.apDestination || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
+                                                placeholder="Enter AP Destination"
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "apDestination", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "apDestination", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                                        <SimpleSearchableSelect
-                                            value={row.destination}
-                                            onChange={(value) => handleInputChange(rowIndex, "destination", value)}
-                                            options={destinations}
-                                            placeholder="Select Destination"
-                                            displayKey="name"
-                                            valueKey="id"
-                                            formatOption={(option) => option.name || option.code || `Dest ${option.id}`}
-                                            isLoading={isLoadingDestinations}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                        <Flex gap="1" align="center">
+                                            <Box flex="1">
+                                                <SimpleSearchableSelect
+                                                    value={row.destination}
+                                                    onChange={(value) => handleInputChange(rowIndex, "destination", value)}
+                                                    options={destinations}
+                                                    placeholder="Select Destination"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || option.code || `Dest ${option.id}`}
+                                                    isLoading={isLoadingDestinations}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            </Box>
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "destination", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "destination", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     <Td {...cellProps}>
                                         <Textarea
@@ -1658,42 +1844,111 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Textarea
-                                            value={row.exportDoc || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            rows={2}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="flex-start">
+                                            <Textarea
+                                                value={row.exportDoc || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "exportDoc", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                rows={2}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                        mt="1"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Textarea
-                                            value={row.exportDoc2 || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "exportDoc2", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            rows={2}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="flex-start">
+                                            <Textarea
+                                                value={row.exportDoc2 || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "exportDoc2", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                rows={2}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                        mt="1"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc2", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "exportDoc2", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     {/* Remarks */}
-                                    <Td {...cellProps}>
-                                        <Textarea
-                                            value={row.remarks || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            rows={2}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="flex-start">
+                                            <Textarea
+                                                value={row.remarks || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "remarks", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                rows={2}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                        mt="1"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "remarks", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "remarks", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     {/* Internal Remark - appears after Remarks */}
                                     <Td {...cellProps}>
@@ -1732,29 +1987,73 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         />
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="date"
-                                            value={row.shippedDate || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "shippedDate", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="date"
+                                                value={row.shippedDate || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "shippedDate", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "shippedDate", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "shippedDate", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            type="date"
-                                            value={row.deliveredDate || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
+                                    <Td {...cellProps} position="relative">
+                                        <Flex gap="1" align="center">
+                                            <Input
+                                                type="date"
+                                                value={row.deliveredDate || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
+                                                placeholder=""
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                flex="1"
+                                            />
+                                            {formRows.length > 1 && rowIndex < formRows.length - 1 && (
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={IconButton}
+                                                        icon={<Icon as={MdMoreVert} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        aria-label="Copy to rows below"
+                                                    />
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "deliveredDate", false)}>
+                                                            Assign to below row
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "deliveredDate", true)}>
+                                                            Assign to all rows below
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            )}
+                                        </Flex>
                                     </Td>
                                     <Td {...cellProps}>
                                         <Textarea

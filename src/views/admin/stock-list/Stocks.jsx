@@ -42,6 +42,7 @@ import {
     MenuButton,
     MenuList,
     MenuItem,
+    Collapse,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort } from "react-icons/md";
@@ -215,6 +216,9 @@ export default function Stocks() {
         const stored = sessionStorage.getItem('stocksClientViewStatuses');
         return stored ? new Set(JSON.parse(stored)) : new Set();
     });
+
+    // State to control filters section visibility
+    const [showFilters, setShowFilters] = useState(false);
 
     // Stock View / Edit tab filters (similar to index.jsx)
     const [stockViewClient, setStockViewClient] = useState(() => {
@@ -2943,10 +2947,24 @@ export default function Stocks() {
                         <TabPanels>
                             {/* Tab 1: Stock View / Edit */}
                             <TabPanel px="0" pt="20px">
-                                {/* Basic Filters Section */}
+                                {/* Filters Toggle Button */}
                                 <Box px="25px" mb="20px">
-                                    <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
-                                        <VStack spacing="4" align="stretch">
+                                    <Button
+                                        leftIcon={<Icon as={MdFilterList} />}
+                                        onClick={() => setShowFilters(!showFilters)}
+                                        colorScheme="blue"
+                                        variant={showFilters ? "solid" : "outline"}
+                                        size="md"
+                                    >
+                                        {showFilters ? "Hide Filters" : "Filters"}
+                                    </Button>
+                                </Box>
+
+                                {/* Basic Filters Section */}
+                                <Collapse in={showFilters} animateOpacity>
+                                    <Box px="25px" mb="20px">
+                                        <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
+                                            <VStack spacing="4" align="stretch">
                                             {/* Sort Button */}
                                             <Box>
                                                 <HStack mb="3" justify="space-between">
@@ -3362,9 +3380,10 @@ export default function Stocks() {
                                                 Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
                                                 {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
                                             </Text>
-                                        </VStack>
-                                    </Card>
-                                </Box>
+                                            </VStack>
+                                        </Card>
+                                    </Box>
+                                </Collapse>
 
                                 {/* Status Filter Checkboxes Section */}
                                 <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
