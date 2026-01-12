@@ -33,7 +33,7 @@ export const API_CONFIG = {
   },
 
   // Request timeout in milliseconds
-  TIMEOUT: 30000,
+  TIMEOUT: 40000,
 
   // Default headers
   DEFAULT_HEADERS: {

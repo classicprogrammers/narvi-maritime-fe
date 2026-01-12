@@ -143,12 +143,15 @@ export default function StockDBMainEdit() {
     };
 
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+    // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
     const addSOPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // .trim() removes leading/trailing spaces, but preserves internal spaces
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SO-")) return str;
         const withoutPrefix = str.startsWith("SO-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix (e.g., "00021 1.1" -> "SO-00021 1.1")
         return `SO-${withoutPrefix}`;
     };
 
@@ -161,10 +164,12 @@ export default function StockDBMainEdit() {
 
     const addSIPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SI-")) return str;
         const withoutPrefix = str.startsWith("SI-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix
         return `SI-${withoutPrefix}`;
     };
 
@@ -177,6 +182,7 @@ export default function StockDBMainEdit() {
 
     const addSICombinedPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SIC-")) return str;
@@ -188,6 +194,7 @@ export default function StockDBMainEdit() {
         } else if (str.startsWith("SI-")) {
             withoutPrefix = str.substring(3);
         }
+        // Preserve internal spaces when adding prefix
         return `SIC-${withoutPrefix}`;
     };
 
@@ -202,10 +209,12 @@ export default function StockDBMainEdit() {
 
     const addDIPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("DI-")) return str;
         const withoutPrefix = str.startsWith("DI-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix
         return `DI-${withoutPrefix}`;
     };
 
@@ -227,10 +236,10 @@ export default function StockDBMainEdit() {
         // Editable fields - all from main DB table
         client: "",
         vessel: "",
-        soNumber: "",
-        siNumber: "",
-        siCombined: "",
-        diNumber: "",
+        soNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
+        siNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
+        siCombined: "", // STRING type (preserves spaces, e.g., "00021 1.1")
+        diNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
         stockStatus: "",
         supplier: "",
         poNumber: "",
@@ -301,10 +310,11 @@ export default function StockDBMainEdit() {
             // Editable fields - all from main DB table
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
-            soNumber: addSOPrefix(normalizeId(stock.so_number_id) || normalizeId(stock.so_number) || normalizeId(stock.stock_so_number) || ""),
-            siNumber: addSIPrefix(normalizeId(stock.shipping_instruction_id) || normalizeId(stock.si_number) || normalizeId(stock.stock_shipping_instruction) || ""),
+            // Use getFieldValue to preserve spaces in text fields (e.g., "00021 1.1")
+            soNumber: addSOPrefix(getFieldValue(stock.stock_so_number) || getFieldValue(stock.so_number) || ""),
+            siNumber: addSIPrefix(getFieldValue(stock.stock_shipping_instruction) || getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
-            diNumber: addDIPrefix(normalizeId(stock.delivery_instruction_id) || normalizeId(stock.di_number) || normalizeId(stock.stock_delivery_instruction) || ""),
+            diNumber: addDIPrefix(getFieldValue(stock.stock_delivery_instruction) || getFieldValue(stock.di_number) || ""),
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
@@ -778,29 +788,43 @@ export default function StockDBMainEdit() {
             const newRows = [...prev];
             let processedValue = value;
 
-            // Handle prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+            // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
             if (field === "soNumber") {
                 if (value && value !== "") {
-                    processedValue = addSOPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("SO-") ? value.substring(3) : value;
+                    processedValue = `SO-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "siNumber") {
-                // If user types without prefix, add it; if empty, keep empty
                 if (value && value !== "") {
-                    processedValue = addSIPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("SI-") ? value.substring(3) : value;
+                    processedValue = `SI-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "siCombined") {
                 if (value && value !== "") {
-                    processedValue = addSICombinedPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    let withoutPrefix = value;
+                    if (value.startsWith("SIC-")) {
+                        withoutPrefix = value.substring(4);
+                    } else if (value.startsWith("SI-C-")) {
+                        withoutPrefix = value.substring(5);
+                    } else if (value.startsWith("SI-")) {
+                        withoutPrefix = value.substring(3);
+                    }
+                    processedValue = `SIC-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "diNumber") {
                 if (value && value !== "") {
-                    processedValue = addDIPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("DI-") ? value.substring(3) : value;
+                    processedValue = `DI-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
@@ -897,14 +921,15 @@ export default function StockDBMainEdit() {
             ["details", "details", (v) => v || ""],
             ["item", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["vesselDestination", "vessel_destination", (v) => v || ""],
-            ["soNumber", "stock_so_number", (v) => v ? removeSOPrefix(String(v)) : ""],
-            ["siNumber", "stock_shipping_instruction", (v) => v ? removeSIPrefix(String(v)) : ""],
+            // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
+            ["soNumber", "stock_so_number", (v) => v ? String(removeSOPrefix(String(v))) : ""],
+            ["siNumber", "stock_shipping_instruction", (v) => v ? String(removeSIPrefix(String(v))) : ""],
             ["siCombined", "si_combined", (v) => {
-                const cleaned = v ? removeSICombinedPrefix(String(v)) : "";
+                const cleaned = v ? String(removeSICombinedPrefix(String(v))) : "";
                 // If empty, send false (as per backend requirement)
                 return cleaned === "" ? false : cleaned;
             }],
-            ["diNumber", "stock_delivery_instruction", (v) => v ? removeDIPrefix(String(v)) : ""],
+            ["diNumber", "stock_delivery_instruction", (v) => v ? String(removeDIPrefix(String(v))) : ""],
             ["vesselDestination", "vessel_destination_text", (v) => v || ""],
             ["dgUn", "dg_un", (v) => v || ""],
         ];
@@ -936,16 +961,66 @@ export default function StockDBMainEdit() {
 
     // Check if there are unsaved changes
     const hasUnsavedChanges = useCallback(() => {
-        if (formRows.length === 0 || originalRows.length === 0) {
-            return false;
+        // If no original rows, check if formRows have any data
+        if (originalRows.length === 0) {
+            return formRows.some((row) => {
+                // Check if row has any meaningful data (not just empty/default values)
+                return Object.keys(row).some(key => {
+                    const value = row[key];
+                    // Skip empty values, false booleans, empty arrays, and internal fields
+                    if (value === null || value === undefined || value === "" || value === false) return false;
+                    if (Array.isArray(value) && value.length === 0) return false;
+                    if (key === 'attachmentsToDelete' || key === 'existingAttachments' || key === 'stockId' || key === 'id') return false;
+                    // Check if it's different from default empty row
+                    const emptyRow = getEmptyRow();
+                    return value !== emptyRow[key];
+                });
+            });
         }
+        
+        // Check if number of rows changed
+        if (formRows.length !== originalRows.length) {
+            return true;
+        }
+        
+        // Check if any rows have changes
         return formRows.some((row, index) => {
-            if (!row.stockId) return false;
             const originalRow = originalRows[index] || {};
-            const payload = getPayload(row, originalRow, true);
-            return Object.keys(payload).filter(key =>
-                key !== 'stock_id' && key !== 'stock_item_id'
-            ).length > 0;
+            
+            // Check for new rows (rows without stockId that have data)
+            if (!row.stockId) {
+                // Check if row has any meaningful data (not just empty/default values)
+                const hasData = Object.keys(row).some(key => {
+                    const value = row[key];
+                    // Skip empty values, false booleans, empty arrays, and internal fields
+                    if (value === null || value === undefined || value === "" || value === false) return false;
+                    if (Array.isArray(value) && value.length === 0) return false;
+                    if (key === 'attachmentsToDelete' || key === 'existingAttachments' || key === 'id') return false;
+                    // Check if it's different from default empty row
+                    const emptyRow = getEmptyRow();
+                    return value !== emptyRow[key];
+                });
+                if (hasData) return true;
+            } else {
+                // Check for changes in existing rows
+                const payload = getPayload(row, originalRow, true);
+                const hasChanges = Object.keys(payload).filter(key =>
+                    key !== 'stock_id' && key !== 'stock_item_id'
+                ).length > 0;
+                if (hasChanges) return true;
+            }
+            
+            // Check for attachment changes (new uploads or deletions)
+            const hasNewAttachments = (row.attachments && row.attachments.length > 0);
+            const hasDeletedAttachments = (row.attachmentsToDelete && row.attachmentsToDelete.length > 0);
+            const originalAttachmentsCount = (originalRow.existingAttachments && originalRow.existingAttachments.length) || 0;
+            const currentAttachmentsCount = (row.existingAttachments && row.existingAttachments.length) || 0;
+            
+            if (hasNewAttachments || hasDeletedAttachments || originalAttachmentsCount !== currentAttachmentsCount) {
+                return true;
+            }
+            
+            return false;
         });
     }, [formRows, originalRows]);
 
@@ -1170,7 +1245,35 @@ export default function StockDBMainEdit() {
                         size="sm"
                         variant="ghost"
                         aria-label="Back"
-                        onClick={onBackConfirmOpen}
+                        onClick={() => {
+                            // Only show confirmation modal if there are unsaved changes
+                            if (hasUnsavedChanges()) {
+                                onBackConfirmOpen();
+                            } else {
+                                // No changes, navigate back directly
+                                // Clear edit state from sessionStorage to prevent redirect loop
+                                sessionStorage.removeItem('stockEditState');
+                                // Clear the specific storage key for this stock
+                                if (formRows[0]?.stockId) {
+                                    const storageKey = `stockEditFormData_${formRows[0].stockId}`;
+                                    sessionStorage.removeItem(storageKey);
+                                }
+                                // Also clear the 'new' key if it exists
+                                sessionStorage.removeItem('stockEditFormData_new');
+                                
+                                if (filterState) {
+                                    const sourcePath = filterState.activeTab !== undefined
+                                        ? '/admin/stock-list/stocks'
+                                        : '/admin/stock-list/main-db';
+                                    history.push({
+                                        pathname: sourcePath,
+                                        state: { filterState, fromEdit: true }
+                                    });
+                                } else {
+                                    history.goBack();
+                                }
+                            }
+                        }}
                     />
                     <VStack align="start" spacing={0}>
                         <Text fontSize="xl" fontWeight="600" color={textColor}>
@@ -1286,6 +1389,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
+                                {/* Internal Remark appears after Remarks */}
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Internal Remark</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Exp ready from supplier</Th>
@@ -1365,9 +1469,11 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
+                                            type="text"
+                                            inputMode="text"
                                             value={row.soNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter SO (e.g., SO-00021 1.1)"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1376,9 +1482,11 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
+                                            type="text"
+                                            inputMode="text"
                                             value={row.siNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1387,9 +1495,11 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
+                                            type="text"
+                                            inputMode="text"
                                             value={row.siCombined || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1398,9 +1508,11 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Input
+                                            type="text"
+                                            inputMode="text"
                                             value={row.diNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1570,6 +1682,7 @@ export default function StockDBMainEdit() {
                                             rows={2}
                                         />
                                     </Td>
+                                    {/* Remarks */}
                                     <Td {...cellProps}>
                                         <Textarea
                                             value={row.remarks || ""}
@@ -1582,6 +1695,7 @@ export default function StockDBMainEdit() {
                                             rows={2}
                                         />
                                     </Td>
+                                    {/* Internal Remark - appears after Remarks */}
                                     <Td {...cellProps}>
                                         <Textarea
                                             value={row.internalRemark || ""}
@@ -1643,26 +1757,16 @@ export default function StockDBMainEdit() {
                                         />
                                     </Td>
                                     <Td {...cellProps}>
-                                        <Input
+                                        <Textarea
                                             value={row.dgUn || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter DG/UN Number"
                                             size="sm"
+                                            rows={3}
+                                            resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Textarea
-                                            value={row.details || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "details", e.target.value)}
-                                            placeholder=""
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                            rows={2}
                                         />
                                     </Td>
                                     <Td {...cellProps}>

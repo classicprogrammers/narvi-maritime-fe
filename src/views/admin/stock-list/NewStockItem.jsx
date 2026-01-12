@@ -126,10 +126,10 @@ export default function StockForm() {
         exportDoc2: "", // Export doc 2 - Free text + textarea
         remarks: "", // Remarks - Free text + textarea
         internalRemark: "", // Internal Remark - Free text + textarea
-        soNumber: "", // SO - (no data type specified)
-        siNumber: "", // SI Number - (no data type specified)
-        siCombined: "", // SI Combined - (no data type specified)
-        diNumber: "", // DI Number - (no data type specified)
+        soNumber: "", // SO - STRING type (preserves spaces, e.g., "00021 1.1")
+        siNumber: "", // SI Number - STRING type (preserves spaces, e.g., "00021 1.1")
+        siCombined: "", // SI Combined - STRING type (preserves spaces, e.g., "00021 1.1")
+        diNumber: "", // DI Number - STRING type (preserves spaces, e.g., "00021 1.1")
         clientAccess: false, // Client Access - Yes or No
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
@@ -532,12 +532,15 @@ export default function StockForm() {
     }, [suppliers]);
 
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+    // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
     const addSOPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // .trim() removes leading/trailing spaces, but preserves internal spaces
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SO-")) return str;
         const withoutPrefix = str.startsWith("SO-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix (e.g., "00021 1.1" -> "SO-00021 1.1")
         return `SO-${withoutPrefix}`;
     };
 
@@ -550,10 +553,12 @@ export default function StockForm() {
 
     const addSIPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SI-")) return str;
         const withoutPrefix = str.startsWith("SI-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix
         return `SI-${withoutPrefix}`;
     };
 
@@ -566,6 +571,7 @@ export default function StockForm() {
 
     const addSICombinedPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("SIC-")) return str;
@@ -577,6 +583,7 @@ export default function StockForm() {
         } else if (str.startsWith("SI-")) {
             withoutPrefix = str.substring(3);
         }
+        // Preserve internal spaces when adding prefix
         return `SIC-${withoutPrefix}`;
     };
 
@@ -591,10 +598,12 @@ export default function StockForm() {
 
     const addDIPrefix = (value) => {
         if (!value || value === "" || value === "-") return "";
+        // Preserve spaces in the middle of the value (e.g., "00021 1.1")
         const str = String(value).trim();
         if (str === "-") return "";
         if (str.startsWith("DI-")) return str;
         const withoutPrefix = str.startsWith("DI-") ? str.substring(3) : str;
+        // Preserve internal spaces when adding prefix
         return `DI-${withoutPrefix}`;
     };
 
@@ -759,28 +768,43 @@ export default function StockForm() {
             const newRows = [...prev];
             let processedValue = value;
             
-            // Handle prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
+            // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
             if (field === "soNumber") {
                 if (value && value !== "") {
-                    processedValue = addSOPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("SO-") ? value.substring(3) : value;
+                    processedValue = `SO-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "siNumber") {
                 if (value && value !== "") {
-                    processedValue = addSIPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("SI-") ? value.substring(3) : value;
+                    processedValue = `SI-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "siCombined") {
                 if (value && value !== "") {
-                    processedValue = addSICombinedPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    let withoutPrefix = value;
+                    if (value.startsWith("SIC-")) {
+                        withoutPrefix = value.substring(4);
+                    } else if (value.startsWith("SI-C-")) {
+                        withoutPrefix = value.substring(5);
+                    } else if (value.startsWith("SI-")) {
+                        withoutPrefix = value.substring(3);
+                    }
+                    processedValue = `SIC-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
             } else if (field === "diNumber") {
                 if (value && value !== "") {
-                    processedValue = addDIPrefix(value);
+                    // Remove existing prefix if present, then add it back (preserves spaces)
+                    const withoutPrefix = value.startsWith("DI-") ? value.substring(3) : value;
+                    processedValue = `DI-${withoutPrefix}`;
                 } else {
                     processedValue = "";
                 }
@@ -928,13 +952,41 @@ export default function StockForm() {
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
-            stock_so_number: rowData.soNumber ? removeSOPrefix(String(rowData.soNumber)) : "",
-            stock_shipping_instruction: rowData.siNumber ? removeSIPrefix(String(rowData.siNumber)) : "",
+            // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
+            // Ensure prefix exists before removing it (in case user typed without prefix)
+            stock_so_number: rowData.soNumber ? (() => {
+                let value = String(rowData.soNumber);
+                // Add prefix if missing (preserves spaces)
+                if (value && !value.startsWith("SO-")) {
+                    value = `SO-${value}`;
+                }
+                return String(removeSOPrefix(value));
+            })() : "",
+            stock_shipping_instruction: rowData.siNumber ? (() => {
+                let value = String(rowData.siNumber);
+                // Add prefix if missing (preserves spaces)
+                if (value && !value.startsWith("SI-")) {
+                    value = `SI-${value}`;
+                }
+                return String(removeSIPrefix(value));
+            })() : "",
             si_combined: rowData.siCombined ? (() => {
-                const cleaned = removeSICombinedPrefix(String(rowData.siCombined));
+                let value = String(rowData.siCombined);
+                // Add prefix if missing (preserves spaces)
+                if (value && !value.startsWith("SIC-") && !value.startsWith("SI-C-") && !value.startsWith("SI-")) {
+                    value = `SIC-${value}`;
+                }
+                const cleaned = String(removeSICombinedPrefix(value));
                 return cleaned === "" ? false : cleaned;
-            })() : false, // SI Combined - Free text
-            stock_delivery_instruction: rowData.diNumber ? removeDIPrefix(String(rowData.diNumber)) : "",
+            })() : false, // SI Combined - Free text (STRING type, can be false if empty)
+            stock_delivery_instruction: rowData.diNumber ? (() => {
+                let value = String(rowData.diNumber);
+                // Add prefix if missing (preserves spaces)
+                if (value && !value.startsWith("DI-")) {
+                    value = `DI-${value}`;
+                }
+                return String(removeDIPrefix(value));
+            })() : "",
             vessel_destination_text: rowData.vesselDestination || "", // Include vessel_destination_text
         };
 
@@ -1242,34 +1294,35 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Currency</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 1</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 2</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Via HUB 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">AP Destination</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Docs</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Destination</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Docs</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 1</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Export Doc 2</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Internal Remark</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SO</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
                             </Tr>
                         </Thead>
@@ -1504,11 +1557,13 @@ export default function StockForm() {
                                         />
                                     </Td>
                                         <Td {...cellProps}>
-                                            <Input
+                                            <Textarea
                                                 value={row.dgUn || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "dgUn", e.target.value)}
                                                 placeholder="Enter DG/UN Number"
                                                 size="sm"
+                                                rows={3}
+                                                resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1668,36 +1723,24 @@ export default function StockForm() {
                                         <Td {...cellProps}>
                                             <Textarea
                                                 value={row.internalRemark || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
+                                                onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
                                                 placeholder="Enter Internal Remark"
-                                            size="sm"
+                                                size="sm"
                                                 rows={3}
                                                 resize="vertical"
-                                            bg={inputBg}
-                                            color={inputText}
-                                                borderColor={borderColor}
-                                        />
-                                    </Td>
-                                        {/* Internal Remark - Free text + textarea */}
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.internalRemark || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "internalRemark", e.target.value)}
-                                                placeholder="Enter Internal Remark"
-                                            size="sm"
-                                                rows={3}
-                                                resize="vertical"
-                                            bg={inputBg}
-                                            color={inputText}
+                                                bg={inputBg}
+                                                color={inputText}
                                                 borderColor={borderColor}
                                             />
                                         </Td>
                                         {/* SO - Free text */}
                                         <Td {...cellProps}>
                                         <Input
+                                                type="text"
+                                                inputMode="text"
                                                 value={row.soNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
-                                                placeholder="Enter SO"
+                                                placeholder="Enter SO (e.g., 00021 1.1)"
                                             size="sm"
                                             bg={inputBg}
                                             color={inputText}
@@ -1707,9 +1750,11 @@ export default function StockForm() {
                                         {/* SI Number - Free text */}
                                         <Td {...cellProps}>
                                             <Input
+                                                type="text"
+                                                inputMode="text"
                                                 value={row.siNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
-                                                placeholder="Enter SI Number"
+                                                placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                                 size="sm"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1719,9 +1764,11 @@ export default function StockForm() {
                                         {/* SI Combined - Free text */}
                                         <Td {...cellProps}>
                                             <Input
+                                                type="text"
+                                                inputMode="text"
                                                 value={row.siCombined || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
-                                                placeholder="Enter SI Combined"
+                                                placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                                 size="sm"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1731,9 +1778,11 @@ export default function StockForm() {
                                         {/* DI Number - Free text */}
                                         <Td {...cellProps}>
                                             <Input
+                                                type="text"
+                                                inputMode="text"
                                                 value={row.diNumber || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
-                                                placeholder="Enter DI Number"
+                                                placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                                 size="sm"
                                                 bg={inputBg}
                                                 color={inputText}
