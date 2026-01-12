@@ -49,11 +49,11 @@ const ShippingOrderForm = ({
         destination_id: '',
         quotation_id: '',
         eta_date: '',
-        deadline_info: '',
+        next_action: '',
         est_to_usd: '',
         est_profit_usd: '',
         internal_remark: '',
-        client_remark: '',
+        client_case_invoice_ref: '',
         done: false,
     });
 
@@ -90,11 +90,11 @@ const ShippingOrderForm = ({
                 destination_id: order.destination_id || '',
                 quotation_id: order.quotation_id || '',
                 eta_date: order.eta_date ? order.eta_date.split(' ')[0] : '', // Format date for input
-                deadline_info: order.deadline_info || '',
+                next_action: order.next_action || '',
                 est_to_usd: order.est_to_usd || '',
                 est_profit_usd: order.est_profit_usd || '',
                 internal_remark: order.internal_remark || '',
-                client_remark: order.client_remark || '',
+                client_case_invoice_ref: order.client_case_invoice_ref || '',
                 done: order.done || false,
             });
         } else {
@@ -107,11 +107,11 @@ const ShippingOrderForm = ({
                 destination_id: '',
                 quotation_id: '',
                 eta_date: '',
-                deadline_info: '',
+                next_action: '',
                 est_to_usd: '',
                 est_profit_usd: '',
                 internal_remark: '',
-                client_remark: '',
+                client_case_invoice_ref: '',
                 done: false,
             });
         }
@@ -273,11 +273,11 @@ const ShippingOrderForm = ({
             destination_id: formData.destination_id || null,
             quotation_id: formData.quotation_id || null,
             eta_date: formData.eta_date || null,
-            deadline_info: formData.deadline_info || null,
+            next_action: formData.next_action || null,
             est_to_usd: formData.est_to_usd ? parseFloat(formData.est_to_usd) : null,
             est_profit_usd: formData.est_profit_usd ? parseFloat(formData.est_profit_usd) : null,
             internal_remark: formData.internal_remark || null,
-            client_remark: formData.client_remark || null,
+            client_case_invoice_ref: formData.client_case_invoice_ref || null,
             done: formData.done || false,
         };
 
@@ -480,11 +480,12 @@ const ShippingOrderForm = ({
 
                                 <GridItem>
                                     <FormControl>
-                                        <FormLabel fontSize="sm" color="gray.600">Deadline Info</FormLabel>
+                                        <FormLabel fontSize="sm" color="gray.600">Next Action</FormLabel>
                                         <Input
-                                            value={formData.deadline_info}
-                                            onChange={(e) => handleInputChange('deadline_info', e.target.value)}
-                                            placeholder="Enter deadline information"
+                                            type="date"
+                                            value={formData.next_action || ""}
+                                            onChange={(e) => handleInputChange('next_action', e.target.value)}
+                                            placeholder="Select next action date"
                                             size="md"
                                         />
                                     </FormControl>
@@ -543,11 +544,11 @@ const ShippingOrderForm = ({
 
                                 <GridItem>
                                     <FormControl>
-                                        <FormLabel fontSize="sm" color="gray.600">Client Remark</FormLabel>
+                                        <FormLabel fontSize="sm" color="gray.600">Client Case Invoice Ref</FormLabel>
                                         <Textarea
-                                            value={formData.client_remark}
-                                            onChange={(e) => handleInputChange('client_remark', e.target.value)}
-                                            placeholder="Enter client remarks"
+                                            value={formData.client_case_invoice_ref}
+                                            onChange={(e) => handleInputChange('client_case_invoice_ref', e.target.value)}
+                                            placeholder="Enter client case invoice reference"
                                             rows={3}
                                             resize="vertical"
                                         />

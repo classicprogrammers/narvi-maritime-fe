@@ -97,11 +97,11 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       'etb',
       'etd',
       'date_order',
-      'deadline_info',
+      'next_action',
       'est_to_usd',
       'est_profit_usd',
       'internal_remark',
-      'client_remark',
+      'client_case_invoice_ref',
     ];
 
     fieldsToCheck.forEach(field => {

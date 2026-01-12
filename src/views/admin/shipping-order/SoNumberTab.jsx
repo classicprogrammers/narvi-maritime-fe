@@ -48,7 +48,12 @@ import {
   CheckboxGroup,
   Tag,
   TagLabel,
+  Tooltip,
   TagCloseButton,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -93,6 +98,13 @@ const formatDateTime = (value) => {
     minute: "2-digit",
   })}`;
 };
+
+function toDateOnly(dateStr) {
+  if (!dateStr) return "";
+  // Extract just the date part (YYYY-MM-DD) if dateStr contains time
+  // If it's already in YYYY-MM-DD format, return as-is
+  return String(dateStr).split(" ")[0];
+}
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || value === "") return "-";
@@ -167,6 +179,12 @@ const SoNumberTab = () => {
     direction: 'asc', // 'asc' or 'desc'
   });
 
+  // Next Action sorting option
+  const [nextActionSortOption, setNextActionSortOption] = useState(() => {
+    const saved = sessionStorage.getItem('soNextActionSortOption');
+    return saved || 'none'; // 'none' or 'next_action'
+  });
+
   // Current PIC filter being edited
   const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
 
@@ -188,7 +206,7 @@ const SoNumberTab = () => {
       so_number: "",
       date_created: todayDate,
       // Default status when creating a new SO
-      done: "pending_pod",
+      done: "active",
       pic_new: null,
       client: "",
       client_id: null,
@@ -201,9 +219,9 @@ const SoNumberTab = () => {
       eta_date: "",
       etb: "",
       etd: "",
-      deadline_info: "",
+      next_action: "",
       internal_remark: "",
-      client_remark: "",
+      client_case_invoice_ref: "",
       quotation: "",
       quotation_id: null,
       timestamp: localTimestamp,
@@ -222,13 +240,13 @@ const SoNumberTab = () => {
       id: order.id,
       so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
       date_created: createdDateOnly,
-      // Keep backend value as-is if present, otherwise default to "pending_pod"
+      // Keep backend value as-is if present, otherwise default to "active"
       done:
         typeof order.done === "string"
           ? order.done
           : order.done === true
             ? "active"
-            : "pending_pod",
+            : "active",
       pic_new: order.pic_new || order.pic_id || order.pic || null,
       pic_name: order.pic_name || order.pic || "",
       client: order.client || order.client_name || "",
@@ -242,9 +260,9 @@ const SoNumberTab = () => {
       eta_date: order.eta_date,
       etb: order.etb,
       etd: order.etd,
-      deadline_info: order.deadline_info,
+      next_action: order.next_action ? toDateOnly(String(order.next_action)) : "",
       internal_remark: order.internal_remark,
-      client_remark: order.client_remark,
+      client_case_invoice_ref: order.client_case_invoice_ref,
       quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
       quotation_id: order.quotation_id && order.quotation_id !== false ? order.quotation_id : null,
       timestamp: order.timestamp || order.so_create_date || order.date_order,
@@ -330,6 +348,11 @@ const SoNumberTab = () => {
 
     fetchLookups();
   }, [toast]);
+
+  // Persist Next Action sort option to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('soNextActionSortOption', nextActionSortOption);
+  }, [nextActionSortOption]);
 
   // Fetch quotations for searchable quotation field
   useEffect(() => {
@@ -495,6 +518,12 @@ const SoNumberTab = () => {
     return client ? client.name : "-";
   }, [clients]);
 
+  const getClientCode = useCallback((clientId) => {
+    if (!clientId) return "-";
+    const client = clients.find((c) => c.id === clientId);
+    return client ? (client.client_code || client.code || "-") : "-";
+  }, [clients]);
+
   const getVesselName = useCallback((vesselId) => {
     if (!vesselId) return "-";
     const vessel = vessels.find((v) => v.id === vesselId);
@@ -597,8 +626,8 @@ const SoNumberTab = () => {
           getDestinationDisplay(order),
           getPICName(order.pic_new) || order.pic_name,
           order.internal_remark,
-          order.client_remark,
-          order.deadline_info,
+          order.client_case_invoice_ref,
+          order.next_action,
         ];
 
         return candidateValues.some((value) =>
@@ -701,24 +730,48 @@ const SoNumberTab = () => {
       });
     }
 
-    // Apply sorting
-    if (sortConfig.field) {
+    // Apply Next Action sorting if enabled
+    if (nextActionSortOption === 'next_action') {
+      filtered.sort((a, b) => {
+        // 1st priority: Sort by Next Action date
+        // Items with Next Action dates come first (sorted ascending by date)
+        // Items without Next Action dates come at the end
+        const aHasNextAction = a.next_action && a.next_action !== "";
+        const bHasNextAction = b.next_action && b.next_action !== "";
+
+        if (aHasNextAction && !bHasNextAction) {
+          return -1; // a comes before b
+        }
+        if (!aHasNextAction && bHasNextAction) {
+          return 1; // b comes before a
+        }
+        if (aHasNextAction && bHasNextAction) {
+          // Both have Next Action dates - sort by date (ascending - earliest first)
+          const aDate = new Date(a.next_action);
+          const bDate = new Date(b.next_action);
+          if (aDate.getTime() !== bDate.getTime()) {
+            return aDate.getTime() - bDate.getTime();
+          }
+        }
+        // If Next Action dates are equal, maintain order
+        return 0;
+      });
+    }
+
+    // Apply manual sorting if selected
+    if (sortConfig.field && sortConfig.field !== "next_action") {
       filtered.sort((a, b) => {
         let aValue, bValue;
 
-        if (sortConfig.field === "next_action") {
-          // Sort by deadline_info (Next Action)
-          aValue = a.deadline_info || "";
-          bValue = b.deadline_info || "";
-        } else if (sortConfig.field === "so_number") {
+        if (sortConfig.field === "so_number") {
           aValue = a.so_number || "";
           bValue = b.so_number || "";
         } else if (sortConfig.field === "date_created") {
           aValue = a.date_created || "";
           bValue = b.date_created || "";
         } else if (sortConfig.field === "client") {
-          aValue = getClientName(a.client_id);
-          bValue = getClientName(b.client_id);
+          aValue = getClientCode(a.client_id);
+          bValue = getClientCode(b.client_id);
         } else if (sortConfig.field === "pic") {
           aValue = getPICName(a.pic_new) || a.pic_name || "";
           bValue = getPICName(b.pic_new) || b.pic_name || "";
@@ -751,7 +804,9 @@ const SoNumberTab = () => {
     athReadyForInvoicePics,
     sinReadyForInvoicePics,
     sortConfig,
+    nextActionSortOption,
     getClientName,
+    getClientCode,
     getVesselName,
     getDestinationDisplay,
     getPICName,
@@ -824,12 +879,6 @@ const SoNumberTab = () => {
       return `${dateStr} 00:00:00`;
     };
 
-    const toDateOnly = (dateStr) => {
-      if (!dateStr) return null;
-      // Backend expects "YYYY-MM-DD" format (date only, no time) for ETB / ETD
-      // If dateStr already contains time, extract just the date part
-      return dateStr.split(" ")[0];
-    };
 
     return {
       // Core identifiers / required data
@@ -844,7 +893,7 @@ const SoNumberTab = () => {
       // Legacy field for backward compatibility (if needed)
       ...(data.destination_id && { destination_id: data.destination_id }),
       // Status and meta - send status as selected in UI; default already set in resetForm
-      done: data.done || "pending_pod",
+      done: data.done || "active",
       pic_new: data.pic_new || null,
       // Backend expects empty string when no quotation is linked
       quotation_id:
@@ -855,9 +904,9 @@ const SoNumberTab = () => {
       etb: data.etb && data.etb !== false ? toDateOnly(data.etb) : false,
       etd: data.etd && data.etd !== false ? toDateOnly(data.etd) : false,
       date_order: toDateTime(data.date_created || data.date_order),
-      deadline_info: data.deadline_info || "",
+      next_action: data.next_action ? toDateOnly(data.next_action) : "",
       internal_remark: data.internal_remark || "",
-      client_remark: data.client_remark || "",
+      client_case_invoice_ref: data.client_case_invoice_ref || "",
     };
   };
 
@@ -984,18 +1033,26 @@ const SoNumberTab = () => {
           </Badge>
         </Td>
         <Td>{getPICName(order.pic_new) || order.pic_name || "-"}</Td>
-        <Td>{getClientName(order.client_id)}</Td>
+        <Td>{getClientCode(order.client_id)}</Td>
         <Td>{getVesselName(order.vessel_id)}</Td>
         <Td>{getDestinationDisplay(order)}</Td>
+        <Td>{order.next_action ? formatDate(order.next_action) : "-"}</Td>
         <Td>{getEtaDisplay(order)}</Td>
         <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>
         <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
-        <Td>{order.deadline_info || "-"}</Td>
         <Td maxW="200px">
-          <Text noOfLines={2}>{order.internal_remark || "-"}</Text>
+          <Tooltip label={order.internal_remark || "-"} isDisabled={!order.internal_remark || order.internal_remark === "-"}>
+            <Text noOfLines={2} cursor={order.internal_remark && order.internal_remark !== "-" ? "help" : "default"}>
+              {order.internal_remark || "-"}
+            </Text>
+          </Tooltip>
         </Td>
         <Td maxW="200px">
-          <Text noOfLines={2}>{order.client_remark || "-"}</Text>
+          <Tooltip label={order.client_case_invoice_ref || "-"} isDisabled={!order.client_case_invoice_ref || order.client_case_invoice_ref === "-"}>
+            <Text noOfLines={2} cursor={order.client_case_invoice_ref && order.client_case_invoice_ref !== "-" ? "help" : "default"}>
+              {order.client_case_invoice_ref || "-"}
+            </Text>
+          </Tooltip>
         </Td>
         <Td>{order.quotation || "-"}</Td>
         <Td>{formatDateTime(order.timestamp || order.date_created)}</Td>
@@ -1266,6 +1323,56 @@ const SoNumberTab = () => {
             </WrapItem>
           </Wrap>
 
+          {/* Sorting Section */}
+          <Box mt="4">
+            <Flex align="center" gap="4">
+              <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                Sorting:
+              </Text>
+              <Menu>
+                <MenuButton
+                  as={Button}
+                  rightIcon={<Icon as={MdArrowDownward} />}
+                  size="sm"
+                  variant="outline"
+                  colorScheme={nextActionSortOption === 'next_action' ? 'blue' : 'gray'}
+                >
+                  {nextActionSortOption === 'next_action'
+                    ? 'Sort by Next Action'
+                    : 'No Sort'}
+                </MenuButton>
+                <MenuList>
+                  <MenuItem
+                    onClick={() => setNextActionSortOption('none')}
+                    bg={nextActionSortOption === 'none' ? 'blue.50' : 'transparent'}
+                  >
+                    No Sort
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => setNextActionSortOption('next_action')}
+                    bg={nextActionSortOption === 'next_action' ? 'blue.50' : 'transparent'}
+                  >
+                    Sort by Next Action
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+              {nextActionSortOption === 'next_action' && (
+                <Box
+                  p="2"
+                  bg="blue.50"
+                  borderRadius="md"
+                  fontSize="xs"
+                  color="blue.700"
+                  maxW="400px"
+                >
+                  <Text fontWeight="medium">Sorting Order:</Text>
+                  <Text>1st priority: Items with Next Action dates (sorted ascending)</Text>
+                  <Text>2nd priority: Items without Next Action dates (at the end)</Text>
+                </Box>
+              )}
+            </Flex>
+          </Box>
+
           {/* Client Selection for Active and Ready for Invoice Client filters */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
             <Box>
@@ -1308,15 +1415,15 @@ const SoNumberTab = () => {
                 { label: "Date Created", field: "date_created", sortable: true },
                 { label: "Status", field: "done", sortable: false },
                 { label: "Person in Charge", field: "pic", sortable: true },
-                { label: "Client", field: "client", sortable: true },
+                { label: "Client Code", field: "client", sortable: true },
                 { label: "Vessel Name", field: "vessel_name", sortable: false },
                 { label: "Destination", field: "destination", sortable: false },
+                { label: "Next Action", field: "next_action", sortable: true },
                 { label: "ETA", field: "eta_date", sortable: false },
                 { label: "ETB", field: "etb", sortable: false },
                 { label: "ETD", field: "etd", sortable: false },
-                { label: "Next Action", field: "next_action", sortable: true },
                 { label: "Internal Remark", field: "internal_remark", sortable: false },
-                { label: "Client Remark", field: "client_remark", sortable: false },
+                { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
                 { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
                 { label: "Actions", field: null, sortable: false },
@@ -1394,7 +1501,7 @@ const SoNumberTab = () => {
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
-                        value={formData.done || "pending_pod"}
+                        value={formData.done || "active"}
                         onChange={(e) =>
                           setFormData((prev) => ({
                             ...prev,
@@ -1559,6 +1666,22 @@ const SoNumberTab = () => {
                   </Flex>
                 </Box>
 
+                {/* Next Action */}
+                <Box>
+                  <Flex gap="4" flexWrap="wrap">
+                    <FormControl flex="1" minW="180px">
+                      <FormLabel>Next Action</FormLabel>
+                      <Input
+                        type="date"
+                        value={formData.next_action || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, next_action: e.target.value }))
+                        }
+                      />
+                    </FormControl>
+                  </Flex>
+                </Box>
+
                 {/* Schedule */}
                 <Box>
                   <Flex gap="4" flexWrap="wrap">
@@ -1592,15 +1715,6 @@ const SoNumberTab = () => {
                         }
                       />
                     </FormControl>
-                    <FormControl flex="2" minW="260px">
-                      <FormLabel>Deadline / ETA text</FormLabel>
-                      <Input
-                        value={formData.deadline_info}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, deadline_info: e.target.value }))
-                        }
-                      />
-                    </FormControl>
                   </Flex>
                 </Box>
 
@@ -1616,11 +1730,11 @@ const SoNumberTab = () => {
                     />
                   </FormControl>
                   <FormControl>
-                    <FormLabel>Client Remark</FormLabel>
+                    <FormLabel>Client Case Invoice Ref</FormLabel>
                     <Textarea
-                      value={formData.client_remark}
+                      value={formData.client_case_invoice_ref}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, client_remark: e.target.value }))
+                        setFormData((prev) => ({ ...prev, client_case_invoice_ref: e.target.value }))
                       }
                     />
                   </FormControl>
