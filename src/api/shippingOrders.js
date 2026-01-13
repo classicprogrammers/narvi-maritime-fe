@@ -52,33 +52,49 @@ export const createShippingOrder = async (orderData) => {
 // Update shipping order - only send changed parameters (matching backend spec)
 export const updateShippingOrder = async (id, orderData, originalData = {}) => {
   try {
+    // Helper function to normalize values for comparison
+    const normalize = (val) => {
+      if (val === null || val === undefined || val === "" || val === false) return null;
+      if (typeof val === 'string') {
+        // For date strings, extract just the date part (YYYY-MM-DD) for comparison
+        if (val.includes(' ')) {
+          return val.split(' ')[0];
+        }
+        return val.trim();
+      }
+      return val;
+    };
+
     // Helper function to check if a value has actually changed
     const hasChanged = (newValue, oldValue) => {
-      // Handle null/undefined cases
-      if (newValue === null || newValue === undefined) {
-        return oldValue !== null && oldValue !== undefined;
+      const normalizedNew = normalize(newValue);
+      const normalizedOld = normalize(oldValue);
+
+      // Both are null/empty - no change
+      if (normalizedNew === null && normalizedOld === null) return false;
+
+      // One is null, other is not - changed
+      if (normalizedNew === null || normalizedOld === null) {
+        return normalizedNew !== normalizedOld;
       }
-      if (oldValue === null || oldValue === undefined) {
-        return newValue !== null && newValue !== undefined;
+
+      // For strings, compare normalized values
+      if (typeof normalizedNew === 'string' && typeof normalizedOld === 'string') {
+        return normalizedNew !== normalizedOld;
       }
+
       // For numbers, compare values
-      if (typeof newValue === 'number' && typeof oldValue === 'number') {
-        return newValue !== oldValue;
+      if (typeof normalizedNew === 'number' && typeof normalizedOld === 'number') {
+        return normalizedNew !== normalizedOld;
       }
-      // For strings, trim and compare
-      if (typeof newValue === 'string' && typeof oldValue === 'string') {
-        return newValue.trim() !== oldValue.trim();
-      }
+
       // For booleans, direct comparison
-      if (typeof newValue === 'boolean' && typeof oldValue === 'boolean') {
-        return newValue !== oldValue;
+      if (typeof normalizedNew === 'boolean' && typeof normalizedOld === 'boolean') {
+        return normalizedNew !== normalizedOld;
       }
-      // For dates, compare ISO strings
-      if (newValue instanceof Date && oldValue instanceof Date) {
-        return newValue.toISOString() !== oldValue.toISOString();
-      }
+
       // Default comparison
-      return newValue !== oldValue;
+      return normalizedNew !== normalizedOld;
     };
 
     // Build payload with only changed fields (backend fields)
@@ -106,7 +122,16 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
 
     fieldsToCheck.forEach(field => {
       if (hasChanged(orderData[field], originalData[field])) {
-        payload[field] = orderData[field] !== undefined ? orderData[field] : null;
+        // Only include the field if it has a non-null value
+        // Don't include null, undefined, empty string, or false (for dates)
+        const value = orderData[field];
+        if (value !== null && value !== undefined && value !== "" && value !== false) {
+          payload[field] = value;
+        }
+        // Special handling for quotation_id - empty string is valid
+        else if (field === 'quotation_id' && value === "") {
+          payload[field] = "";
+        }
       }
     });
 
