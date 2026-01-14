@@ -75,7 +75,7 @@ export default function CustomerTable(props) {
   const [filters, setFilters] = useState({
     client_code: "",
     name: "",
-    company_type: "",
+    client_category: "",
     email: "",
   });
   const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
@@ -143,8 +143,6 @@ export default function CustomerTable(props) {
             item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.client_code &&
             item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.company_type &&
-            item.company_type.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.client_category &&
             item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
           (item.street &&
@@ -190,12 +188,12 @@ export default function CustomerTable(props) {
       );
     }
 
-    // Apply company type filter
-    if (filters.company_type) {
+    // Apply category type filter
+    if (filters.client_category) {
       filtered = filtered.filter(
         (item) =>
-          item.company_type &&
-          item.company_type.toLowerCase() === filters.company_type.toLowerCase()
+          item.client_category &&
+          item.client_category.toLowerCase() === filters.client_category.toLowerCase()
       );
     }
 
@@ -329,7 +327,7 @@ export default function CustomerTable(props) {
     setFilters({
       client_code: "",
       name: "",
-      company_type: "",
+      client_category: "",
       email: "",
     });
   };
@@ -586,7 +584,7 @@ export default function CustomerTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search clients by name, client code, company type, email, phone, address..."
+                  placeholder="Search clients by name, client code, category type, email, phone, address..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -610,12 +608,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.client_code || filters.name || filters.company_type || filters.email
+                  filters.client_code || filters.name || filters.client_category || filters.email
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.client_code || filters.name || filters.company_type || filters.email
+                  filters.client_code || filters.name || filters.client_category || filters.email
                     ? "blue"
                     : "gray"
                 }
@@ -660,7 +658,7 @@ export default function CustomerTable(props) {
             {/* Clear All */}
             {(filters.client_code ||
               filters.name ||
-              filters.company_type ||
+              filters.client_category ||
               filters.email ||
               sortOrder !== "newest") && (
                 <Box>
@@ -753,10 +751,10 @@ export default function CustomerTable(props) {
                   />
                 </Box>
 
-                {/* Company Type Filter */}
+                {/* Category Type Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Company Type
+                    Category Type
                   </Text>
                   <Select
                     variant="outline"
@@ -764,9 +762,9 @@ export default function CustomerTable(props) {
                     bg={inputBg}
                     color={inputText}
                     borderRadius="8px"
-                    placeholder="Select company type..."
-                    value={filters.company_type}
-                    onChange={(e) => handleFilterChange("company_type", e.target.value)}
+                    placeholder="Select category type..."
+                    value={filters.client_category}
+                    onChange={(e) => handleFilterChange("client_category", e.target.value)}
                     border="2px"
                     borderColor={borderColor}
                     _focus={{
@@ -778,8 +776,9 @@ export default function CustomerTable(props) {
                     }}
                   >
                     <option value="">All Types</option>
-                    <option value="company">Company</option>
-                    <option value="person">Person</option>
+                    <option value="shipspares">Ship Spares</option>
+                    <option value="bunker">Bunker</option>
+                    <option value="other">Other</option>
                   </Select>
                 </Box>
 
@@ -954,7 +953,7 @@ export default function CustomerTable(props) {
                               {value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "COMPANY TYPE") {
+                        } else if (cell.column.Header === "CATEGORY TYPE") {
                           data = (
                             <Text color={textColor} fontSize="sm" textTransform="capitalize">
                               {value || "-"}
