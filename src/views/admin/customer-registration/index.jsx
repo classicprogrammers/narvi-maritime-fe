@@ -952,216 +952,231 @@ function CustomerRegistration() {
 
                                                     {/* LEFT: Address3–7 (if present), RIGHT: empty for alignment */}
                                                     {visibleAddressFields >= 3 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
-                                                            <InputGroup w={gridInputWidth}>
-                                                                <Input
-                                                                    name="street3"
-                                                                    value={formData.street3}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Additional address line"
-                                                                    size="sm"
-                                                                    pr="64px"
-                                                                />
-                                                                <InputRightElement width="64px" height="100%" display="flex" alignItems="center" justifyContent="flex-end" pr={1}>
-                                                                    {visibleAddressFields < 4 && (
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
+                                                                <InputGroup w={gridInputWidth}>
+                                                                    <Input
+                                                                        name="street3"
+                                                                        value={formData.street3}
+                                                                        onChange={handleInputChange}
+                                                                        placeholder="Additional address line"
+                                                                        size="sm"
+                                                                        pr="64px"
+                                                                    />
+                                                                    <InputRightElement width="64px" height="100%" display="flex" alignItems="center" justifyContent="flex-end" pr={1}>
+                                                                        {visibleAddressFields < 4 && (
+                                                                            <IconButton
+                                                                                aria-label="Add Address4"
+                                                                                icon={<Icon as={MdAdd} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={addMoreAddress}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                                mr={1}
+                                                                            />
+                                                                        )}
                                                                         <IconButton
-                                                                            aria-label="Add Address4"
-                                                                            icon={<Icon as={MdAdd} />}
+                                                                            aria-label="Remove Address3"
+                                                                            icon={<Icon as={DeleteIcon} />}
                                                                             size="xs"
                                                                             variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={addMoreAddress}
+                                                                            colorScheme="red"
+                                                                            onClick={() => removeAddressField(3)}
                                                                             h="24px"
                                                                             w="24px"
                                                                             minW="24px"
-                                                                            mr={1}
                                                                         />
-                                                                    )}
-                                                                    <IconButton
-                                                                        aria-label="Remove Address3"
-                                                                        icon={<Icon as={DeleteIcon} />}
-                                                                        size="xs"
-                                                                        variant="ghost"
-                                                                        colorScheme="red"
-                                                                        onClick={() => removeAddressField(3)}
-                                                                        h="24px"
-                                                                        w="24px"
-                                                                        minW="24px"
-                                                                    />
-                                                                </InputRightElement>
-                                                            </InputGroup>
-                                                        </Box>
+                                                                    </InputRightElement>
+                                                                </InputGroup>
+                                                            </Box>
+                                                            <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                        </>
                                                     )}
 
                                                     {visibleAddressFields >= 4 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
-                                                            <InputGroup w={gridInputWidth}>
-                                                                <Input
-                                                                    name="street4"
-                                                                    value={formData.street4}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Additional address line"
-                                                                    size="sm"
-                                                                    pr={visibleAddressFields < 5 ? "32px" : "0"}
-                                                                />
-                                                                {visibleAddressFields < 5 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                        <IconButton
-                                                                            aria-label="Add Address5"
-                                                                            icon={<Icon as={MdAdd} />}
-                                                                            size="xs"
-                                                                            variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={addMoreAddress}
-                                                                            h="24px"
-                                                                            w="24px"
-                                                                            minW="24px"
-                                                                        />
-                                                                    </InputRightElement>
-                                                                )}
-                                                                {visibleAddressFields >= 5 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                        <IconButton
-                                                                            aria-label="Remove Address4"
-                                                                            icon={<Icon as={DeleteIcon} />}
-                                                                            size="xs"
-                                                                            variant="ghost"
-                                                                            colorScheme="red"
-                                                                            onClick={() => removeAddressField(4)}
-                                                                            h="24px"
-                                                                            w="24px"
-                                                                            minW="24px"
-                                                                        />
-                                                                    </InputRightElement>
-                                                                )}
-                                                            </InputGroup>
-                                                        </Box>
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                                                <InputGroup w={gridInputWidth}>
+                                                                    <Input
+                                                                        name="street4"
+                                                                        value={formData.street4}
+                                                                        onChange={handleInputChange}
+                                                                        placeholder="Additional address line"
+                                                                        size="sm"
+                                                                        pr={visibleAddressFields < 5 ? "32px" : "0"}
+                                                                    />
+                                                                    {visibleAddressFields < 5 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Add Address5"
+                                                                                icon={<Icon as={MdAdd} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={addMoreAddress}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                    {visibleAddressFields >= 5 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Remove Address4"
+                                                                                icon={<Icon as={DeleteIcon} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="red"
+                                                                                onClick={() => removeAddressField(4)}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                </InputGroup>
+                                                            </Box>
+                                                            <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                        </>
                                                     )}
 
                                                     {visibleAddressFields >= 5 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
-                                                            <InputGroup w={gridInputWidth}>
-                                                                <Input
-                                                                    name="street5"
-                                                                    value={formData.street5}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Additional address line"
-                                                                    size="sm"
-                                                                    pr={visibleAddressFields < 6 ? "32px" : "0"}
-                                                                />
-                                                                {visibleAddressFields < 6 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                        <IconButton
-                                                                            aria-label="Add Address6"
-                                                                            icon={<Icon as={MdAdd} />}
-                                                                            size="xs"
-                                                                            variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={addMoreAddress}
-                                                                            h="24px"
-                                                                            w="24px"
-                                                                            minW="24px"
-                                                                        />
-                                                                    </InputRightElement>
-                                                                )}
-                                                                {visibleAddressFields >= 6 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                        <IconButton
-                                                                            aria-label="Remove Address5"
-                                                                            icon={<Icon as={DeleteIcon} />}
-                                                                            size="xs"
-                                                                            variant="ghost"
-                                                                            colorScheme="red"
-                                                                            onClick={() => removeAddressField(5)}
-                                                                            h="24px"
-                                                                            w="24px"
-                                                                            minW="24px"
-                                                                        />
-                                                                    </InputRightElement>
-                                                                )}
-                                                            </InputGroup>
-                                                        </Box>
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
+                                                                <InputGroup w={gridInputWidth}>
+                                                                    <Input
+                                                                        name="street5"
+                                                                        value={formData.street5}
+                                                                        onChange={handleInputChange}
+                                                                        placeholder="Additional address line"
+                                                                        size="sm"
+                                                                        pr={visibleAddressFields < 6 ? "32px" : "0"}
+                                                                    />
+                                                                    {visibleAddressFields < 6 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Add Address6"
+                                                                                icon={<Icon as={MdAdd} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={addMoreAddress}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                    {visibleAddressFields >= 6 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Remove Address5"
+                                                                                icon={<Icon as={DeleteIcon} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="red"
+                                                                                onClick={() => removeAddressField(5)}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                </InputGroup>
+                                                            </Box>
+                                                            <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                        </>
                                                     )}
 
                                                     {visibleAddressFields >= 6 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
-                                                            <InputGroup w={gridInputWidth}>
-                                                                <Input
-                                                                    name="street6"
-                                                                    value={formData.street6}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Additional address line"
-                                                                    size="sm"
-                                                                    pr={visibleAddressFields < 7 ? "32px" : "0"}
-                                                                />
-                                                                {visibleAddressFields < 7 && (
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
+                                                                <InputGroup w={gridInputWidth}>
+                                                                    <Input
+                                                                        name="street6"
+                                                                        value={formData.street6}
+                                                                        onChange={handleInputChange}
+                                                                        placeholder="Additional address line"
+                                                                        size="sm"
+                                                                        pr={visibleAddressFields < 7 ? "32px" : "0"}
+                                                                    />
+                                                                    {visibleAddressFields < 7 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Add Address7"
+                                                                                icon={<Icon as={MdAdd} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={addMoreAddress}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                    {visibleAddressFields >= 7 && (
+                                                                        <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
+                                                                            <IconButton
+                                                                                aria-label="Remove Address6"
+                                                                                icon={<Icon as={DeleteIcon} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="red"
+                                                                                onClick={() => removeAddressField(6)}
+                                                                                h="24px"
+                                                                                w="24px"
+                                                                                minW="24px"
+                                                                            />
+                                                                        </InputRightElement>
+                                                                    )}
+                                                                </InputGroup>
+                                                            </Box>
+                                                            <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                        </>
+                                                    )}
+
+                                                    {visibleAddressFields >= 7 && (
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
+                                                                <InputGroup w={gridInputWidth}>
+                                                                    <Input
+                                                                        name="street7"
+                                                                        value={formData.street7}
+                                                                        onChange={handleInputChange}
+                                                                        placeholder="Additional address line"
+                                                                        size="sm"
+                                                                        pr="32px"
+                                                                    />
                                                                     <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
                                                                         <IconButton
-                                                                            aria-label="Add Address7"
-                                                                            icon={<Icon as={MdAdd} />}
-                                                                            size="xs"
-                                                                            variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={addMoreAddress}
-                                                                            h="24px"
-                                                                            w="24px"
-                                                                            minW="24px"
-                                                                        />
-                                                                    </InputRightElement>
-                                                                )}
-                                                                {visibleAddressFields >= 7 && (
-                                                                    <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                        <IconButton
-                                                                            aria-label="Remove Address6"
+                                                                            aria-label="Remove Address7"
                                                                             icon={<Icon as={DeleteIcon} />}
                                                                             size="xs"
                                                                             variant="ghost"
                                                                             colorScheme="red"
-                                                                            onClick={() => removeAddressField(6)}
+                                                                            onClick={() => removeAddressField(7)}
                                                                             h="24px"
                                                                             w="24px"
                                                                             minW="24px"
                                                                         />
                                                                     </InputRightElement>
-                                                                )}
-                                                            </InputGroup>
-                                                        </Box>
+                                                                </InputGroup>
+                                                            </Box>
+                                                            <Box px={4} py={2} borderColor={borderColor}></Box>
+                                                        </>
                                                     )}
 
-                                                    {visibleAddressFields >= 7 && (
-                                                        <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                            <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
-                                                            <InputGroup w={gridInputWidth}>
-                                                                <Input
-                                                                    name="street7"
-                                                                    value={formData.street7}
-                                                                    onChange={handleInputChange}
-                                                                    placeholder="Additional address line"
-                                                                    size="sm"
-                                                                    pr="32px"
-                                                                />
-                                                                <InputRightElement width="32px" height="100%" display="flex" alignItems="center" justifyContent="center">
-                                                                    <IconButton
-                                                                        aria-label="Remove Address7"
-                                                                        icon={<Icon as={DeleteIcon} />}
-                                                                        size="xs"
-                                                                        variant="ghost"
-                                                                        colorScheme="red"
-                                                                        onClick={() => removeAddressField(7)}
-                                                                        h="24px"
-                                                                        w="24px"
-                                                                        minW="24px"
-                                                                    />
-                                                                </InputRightElement>
-                                                            </InputGroup>
-                                                        </Box>
-                                                    )}
-
-                                                    {/* LEFT: Postcode / RIGHT: Payment terms */}
+                                                    {/* LEFT: Postcode / RIGHT: Payment Terms */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
                                                         <Input name="zip" value={formData.zip} onChange={handleInputChange} placeholder="Zip" size="sm" w={gridInputWidth} />
@@ -1171,7 +1186,7 @@ function CustomerRegistration() {
                                                         <Input name="payment_term" value={formData.payment_term} onChange={handleInputChange} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
                                                     </Box>
 
-                                                    {/* LEFT: City / RIGHT: Vessel type */}
+                                                    {/* LEFT: City / RIGHT: Vessel Type */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
                                                         <Input name="city" value={formData.city} onChange={handleInputChange} placeholder="City" size="sm" w={gridInputWidth} />
@@ -1247,28 +1262,28 @@ function CustomerRegistration() {
                                                         </Flex>
                                                     </Box>
 
-                                                    {/* LEFT: Phone1 / RIGHT: empty */}
+                                                    {/* LEFT: Phone1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
                                                         <Input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+65..." size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor}></Box>
 
-                                                    {/* LEFT: Phone2 / RIGHT: empty */}
+                                                    {/* LEFT: Phone2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
                                                         <Input name="phone2" value={formData.phone2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor}></Box>
 
-                                                    {/* LEFT: Email1 / RIGHT: empty */}
+                                                    {/* LEFT: Email1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
                                                         <Input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="name@company.com" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor}></Box>
 
-                                                    {/* LEFT: Email2 / RIGHT: empty */}
+                                                    {/* LEFT: Email2 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
                                                         <Input type="email" name="email2" value={formData.email2} onChange={handleInputChange} placeholder="optional" size="sm" w={gridInputWidth} />
