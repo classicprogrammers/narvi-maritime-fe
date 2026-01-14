@@ -228,6 +228,9 @@ function CustomerRegistration() {
         } else if (level === 2 && visibleVesselTypeFields >= 2) {
             setFormData((prev) => ({ ...prev, vessel_type2: "", vessel_type3: "" }));
             setVisibleVesselTypeFields(1);
+        } else if (level === 1 && visibleVesselTypeFields >= 1) {
+            setFormData((prev) => ({ ...prev, vessel_type1: "", vessel_type2: "", vessel_type3: "" }));
+            setVisibleVesselTypeFields(0);
         }
     };
 
@@ -1186,26 +1189,124 @@ function CustomerRegistration() {
                                                         <Input name="payment_term" value={formData.payment_term} onChange={handleInputChange} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
                                                     </Box>
 
-                                                    {/* LEFT: City / RIGHT: Vessel Type */}
+                                                    {/* LEFT: City / RIGHT: Vessel Type 1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
                                                         <Input name="city" value={formData.city} onChange={handleInputChange} placeholder="City" size="sm" w={gridInputWidth} />
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type</Text>
-                                                        <Box w={gridInputWidth}>
-                                                            <SearchableSelect
-                                                                value={formData.vessel_type1}
-                                                                onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type1: val }))}
-                                                                options={vesselTypes || []}
-                                                                placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
-                                                                displayKey="vessel_type"
-                                                                valueKey="vessel_type"
-                                                                formatOption={(option) => option?.vessel_type || ""}
-                                                                isLoading={isLoadingVesselTypes}
-                                                            />
-                                                        </Box>
+                                                        <Flex gap={2} alignItems="center" w={gridInputWidth}>
+                                                            <Box flex="1">
+                                                                <SearchableSelect
+                                                                    value={formData.vessel_type1}
+                                                                    onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type1: val }))}
+                                                                    options={vesselTypes || []}
+                                                                    placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
+                                                                    displayKey="vessel_type"
+                                                                    valueKey="vessel_type"
+                                                                    formatOption={(option) => option?.vessel_type || ""}
+                                                                    isLoading={isLoadingVesselTypes}
+                                                                />
+                                                            </Box>
+                                                            {visibleVesselTypeFields < 2 && (
+                                                                <IconButton
+                                                                    aria-label="Add Vessel Type 2"
+                                                                    icon={<Icon as={MdAdd} />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="blue"
+                                                                    onClick={addMoreVesselType}
+                                                                    h="24px"
+                                                                    w="24px"
+                                                                    minW="24px"
+                                                                />
+                                                            )}
+                                                        </Flex>
                                                     </Box>
+
+                                                    {/* RIGHT: Vessel Type 2 (if visible) */}
+                                                    {visibleVesselTypeFields >= 2 && (
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
+                                                            <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type 2</Text>
+                                                                <Flex gap={2} alignItems="center" w={gridInputWidth}>
+                                                                    <Box flex="1">
+                                                                        <SearchableSelect
+                                                                            value={formData.vessel_type2}
+                                                                            onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type2: val }))}
+                                                                            options={vesselTypes || []}
+                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
+                                                                            displayKey="vessel_type"
+                                                                            valueKey="vessel_type"
+                                                                            formatOption={(option) => option?.vessel_type || ""}
+                                                                            isLoading={isLoadingVesselTypes}
+                                                                        />
+                                                                    </Box>
+                                                                    {visibleVesselTypeFields < 3 && (
+                                                                        <IconButton
+                                                                            aria-label="Add Vessel Type 3"
+                                                                            icon={<Icon as={MdAdd} />}
+                                                                            size="xs"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={addMoreVesselType}
+                                                                            h="24px"
+                                                                            w="24px"
+                                                                            minW="24px"
+                                                                        />
+                                                                    )}
+                                                                    <IconButton
+                                                                        aria-label="Remove Vessel Type 2"
+                                                                        icon={<Icon as={DeleteIcon} />}
+                                                                        size="xs"
+                                                                        variant="ghost"
+                                                                        colorScheme="red"
+                                                                        onClick={() => removeVesselTypeField(2)}
+                                                                        h="24px"
+                                                                        w="24px"
+                                                                        minW="24px"
+                                                                    />
+                                                                </Flex>
+                                                            </Box>
+                                                        </>
+                                                    )}
+
+                                                    {/* RIGHT: Vessel Type 3 (if visible) */}
+                                                    {visibleVesselTypeFields >= 3 && (
+                                                        <>
+                                                            <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
+                                                            <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type 3</Text>
+                                                                <Flex gap={2} alignItems="center" w={gridInputWidth}>
+                                                                    <Box flex="1">
+                                                                        <SearchableSelect
+                                                                            value={formData.vessel_type3}
+                                                                            onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type3: val }))}
+                                                                            options={vesselTypes || []}
+                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
+                                                                            displayKey="vessel_type"
+                                                                            valueKey="vessel_type"
+                                                                            formatOption={(option) => option?.vessel_type || ""}
+                                                                            isLoading={isLoadingVesselTypes}
+                                                                        />
+                                                                    </Box>
+                                                                    <IconButton
+                                                                        aria-label="Remove Vessel Type 3"
+                                                                        icon={<Icon as={DeleteIcon} />}
+                                                                        size="xs"
+                                                                        variant="ghost"
+                                                                        colorScheme="red"
+                                                                        onClick={() => removeVesselTypeField(3)}
+                                                                        h="24px"
+                                                                        w="24px"
+                                                                        minW="24px"
+                                                                    />
+                                                                </Flex>
+                                                            </Box>
+                                                        </>
+                                                    )}
 
                                                     {/* LEFT: Country / RIGHT: Remarks */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
