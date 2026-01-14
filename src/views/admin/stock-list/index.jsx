@@ -718,7 +718,7 @@ export default function StockList() {
                 if (sortOption === 'via_hub' || sortOption === 'via_hub_status') {
                     const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
                     const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
-                    
+
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
                     }
@@ -1184,63 +1184,6 @@ export default function StockList() {
                 <Box px="25px" mb="20px">
                     <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
                         <VStack spacing="4" align="stretch">
-                            {/* Sort Button */}
-                            <Box>
-                                <HStack mb="3" justify="space-between">
-                                    <HStack>
-                                        <Icon as={MdSort} color="blue.500" />
-                                        <Text fontSize="md" fontWeight="700" color={textColor}>Sorting</Text>
-                                    </HStack>
-                                    <Menu>
-                                        <MenuButton
-                                            as={Button}
-                                            size="sm"
-                                            leftIcon={<Icon as={MdSort} />}
-                                            colorScheme={sortOption !== 'none' ? "blue" : "gray"}
-                                            variant={sortOption !== 'none' ? "solid" : "outline"}
-                                        >
-                                            {sortOption === 'none' ? "Select Sort Option" : 
-                                             sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                             sortOption === 'status' ? "Sort: Stock Status" :
-                                             "Sort: VIA HUB + Status"}
-                                        </MenuButton>
-                                        <MenuList>
-                                            <MenuItem onClick={() => setSortOption('via_hub')}>
-                                                Sort by VIA HUB (Alphabetically)
-                                            </MenuItem>
-                                            <MenuItem onClick={() => setSortOption('status')}>
-                                                Sort by Stock Status
-                                            </MenuItem>
-                                            <MenuItem onClick={() => setSortOption('via_hub_status')}>
-                                                Sort by VIA HUB + Status
-                                            </MenuItem>
-                                            <MenuItem onClick={() => setSortOption('none')}>
-                                                No Sort
-                                            </MenuItem>
-                                        </MenuList>
-                                    </Menu>
-                                </HStack>
-                                {sortOption !== 'none' && (
-                                    <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
-                                        <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
-                                        <Text fontSize="xs" color={textColor} opacity={0.8}>
-                                            {sortOption === 'via_hub' && (
-                                                <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
-                                            )}
-                                            {sortOption === 'status' && (
-                                                <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
-                                            )}
-                                            {sortOption === 'via_hub_status' && (
-                                                <>
-                                                    1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                    2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                </>
-                                            )}
-                                        </Text>
-                                    </Box>
-                                )}
-                            </Box>
-
                             {/* Basic Filters */}
                             <Box>
                                 <HStack mb="3" justify="space-between">
@@ -1248,29 +1191,61 @@ export default function StockList() {
                                         <Icon as={MdFilterList} color="blue.500" />
                                         <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                     </HStack>
-                                    {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
-                                        <Button
-                                            size="xs"
-                                            leftIcon={<Icon as={MdClose} />}
-                                            colorScheme="red"
-                                            variant="ghost"
-                                            onClick={() => {
-                                                setSelectedClient(null);
-                                                setSelectedVessel(null);
-                                                setSelectedSupplier(null);
-                                                setSelectedStatus("");
-                                                setSelectedWarehouse(null);
-                                                setSelectedCurrency(null);
-                                                setFilterSO("");
-                                                setFilterSI("");
-                                                setFilterSICombined("");
-                                                setFilterDI("");
-                                                setSearchFilter("");
-                                            }}
-                                        >
-                                            Clear All
-                                        </Button>
-                                    )}
+                                    <HStack>
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
+                                            <Button
+                                                size="xs"
+                                                leftIcon={<Icon as={MdClose} />}
+                                                colorScheme="red"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setSelectedClient(null);
+                                                    setSelectedVessel(null);
+                                                    setSelectedSupplier(null);
+                                                    setSelectedStatus("");
+                                                    setSelectedWarehouse(null);
+                                                    setSelectedCurrency(null);
+                                                    setFilterSO("");
+                                                    setFilterSI("");
+                                                    setFilterSICombined("");
+                                                    setFilterDI("");
+                                                    setSearchFilter("");
+                                                }}
+                                            >
+                                                Clear All
+                                            </Button>
+                                        )}
+
+                                        <Menu>
+                                            <MenuButton
+                                                as={Button}
+                                                size="sm"
+                                                leftIcon={<Icon as={MdSort} />}
+                                                colorScheme={sortOption !== 'none' ? "blue" : "gray"}
+                                                variant={sortOption !== 'none' ? "solid" : "outline"}
+                                            >
+                                                {sortOption === 'none' ? "Select Sort Option" :
+                                                    sortOption === 'via_hub' ? "Sort: VIA HUB" :
+                                                        sortOption === 'status' ? "Sort: Stock Status" :
+                                                            "Sort: VIA HUB + Status"}
+                                            </MenuButton>
+                                            <MenuList>
+                                                <MenuItem onClick={() => setSortOption('via_hub')}>
+                                                    Sort by VIA HUB (Alphabetically)
+                                                </MenuItem>
+                                                <MenuItem onClick={() => setSortOption('status')}>
+                                                    Sort by Stock Status
+                                                </MenuItem>
+                                                <MenuItem onClick={() => setSortOption('via_hub_status')}>
+                                                    Sort by VIA HUB + Status
+                                                </MenuItem>
+                                                <MenuItem onClick={() => setSortOption('none')}>
+                                                    No Sort
+                                                </MenuItem>
+                                            </MenuList>
+                                        </Menu>
+                                    </HStack>
+
                                 </HStack>
                                 <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                     {/* Client Filter */}
@@ -1609,6 +1584,27 @@ export default function StockList() {
                                     </Box>
                                 </Flex>
                             </Box>
+
+                            {/* Sorting Info Box */}
+                            {sortOption !== 'none' && (
+                                <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
+                                    <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
+                                    <Text fontSize="xs" color={textColor} opacity={0.8}>
+                                        {sortOption === 'via_hub' && (
+                                            <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
+                                        )}
+                                        {sortOption === 'status' && (
+                                            <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
+                                        )}
+                                        {sortOption === 'via_hub_status' && (
+                                            <>
+                                                1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                            </>
+                                        )}
+                                    </Text>
+                                </Box>
+                            )}
 
                             {/* Results Count */}
                             <Text fontSize="sm" color={tableTextColorSecondary}>

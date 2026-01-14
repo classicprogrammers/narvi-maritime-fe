@@ -45,7 +45,7 @@ import {
     Collapse,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -1437,16 +1437,22 @@ export default function Stocks() {
     // Handle select all
     const handleSelectAll = (isSelected) => {
         if (isSelected) {
-            const allIds = filteredAndSortedStock.map(item => item.id);
+            // Use the same filtered data that's displayed in the table
+            const filteredItems = activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
+            const allIds = filteredItems.map(item => item.id);
             setSelectedRows(new Set(allIds));
         } else {
             setSelectedRows(new Set());
         }
     };
 
-    // Check if all items are selected
-    const allItemsSelected = filteredAndSortedStock.length > 0 && filteredAndSortedStock.every(item => selectedRows.has(item.id));
-    const someItemsSelected = filteredAndSortedStock.some(item => selectedRows.has(item.id));
+    // Check if all items are selected - use the same filtered data that's displayed in the table
+    const getDisplayedItems = () => {
+        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
+    };
+    const displayedItems = getDisplayedItems();
+    const allItemsSelected = displayedItems.length > 0 && displayedItems.every(item => selectedRows.has(item.id));
+    const someItemsSelected = displayedItems.some(item => selectedRows.has(item.id));
 
     // Handle inline edit start - for single row
     // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
@@ -2643,6 +2649,17 @@ export default function Stocks() {
                         )}
                     </HStack>
                     <HStack spacing="3">
+                        {activeTab === 0 && (
+                            <Button
+                                leftIcon={<Icon as={MdFilterList} />}
+                                onClick={() => setShowFilters(!showFilters)}
+                                colorScheme="blue"
+                                variant={showFilters ? "solid" : "outline"}
+                                size="sm"
+                            >
+                                {showFilters ? "Hide Filters" : "Filters"}
+                            </Button>
+                        )}
                         <IconButton
                             size="sm"
                             icon={<Icon as={MdRefresh} />}
@@ -2947,60 +2964,397 @@ export default function Stocks() {
                         <TabPanels>
                             {/* Tab 1: Stock View / Edit */}
                             <TabPanel px="0" pt="20px">
-                                {/* Filters Toggle Button */}
-                                <Box px="25px" mb="20px">
-                                    <Button
-                                        leftIcon={<Icon as={MdFilterList} />}
-                                        onClick={() => setShowFilters(!showFilters)}
-                                        colorScheme="blue"
-                                        variant={showFilters ? "solid" : "outline"}
-                                        size="md"
-                                    >
-                                        {showFilters ? "Hide Filters" : "Filters"}
-                                    </Button>
-                                </Box>
-
                                 {/* Basic Filters Section */}
                                 <Collapse in={showFilters} animateOpacity>
                                     <Box px="25px" mb="20px">
                                         <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
                                             <VStack spacing="4" align="stretch">
-                                            {/* Sort Button */}
-                                            <Box>
-                                                <HStack mb="3" justify="space-between">
-                                                    <HStack>
-                                                        <Icon as={MdSort} color="blue.500" />
-                                                        <Text fontSize="md" fontWeight="700" color={textColor}>Sorting</Text>
+                                                {/* Basic Filters */}
+                                                <Box>
+                                                    <HStack mb="3" justify="space-between">
+                                                        <HStack>
+                                                            <Icon as={MdFilterList} color="blue.500" />
+                                                            <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
+                                                        </HStack>
+                                                        <HStack>
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter) && (
+                                                                <Button
+                                                                    size="xs"
+                                                                    leftIcon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => {
+                                                                        setStockViewStockItemId("");
+                                                                        setStockViewClient(null);
+                                                                        setStockViewVessel(null);
+                                                                        setStockViewStatus("");
+                                                                        setStockViewDateOnStock("");
+                                                                        setStockViewDaysOnStock("");
+                                                                        setStockViewFilterSO("");
+                                                                        setStockViewFilterSI("");
+                                                                        setStockViewFilterSICombined("");
+                                                                        setStockViewFilterDI("");
+                                                                        setStockViewSearchFilter("");
+                                                                    }}
+                                                                >
+                                                                    Clear All
+                                                                </Button>
+                                                            )}
+
+                                                            <Menu>
+                                                                <MenuButton
+                                                                    as={Button}
+                                                                    size="sm"
+                                                                    leftIcon={<Icon as={MdSort} />}
+                                                                    colorScheme={sortOption !== 'none' ? "blue" : "gray"}
+                                                                    variant={sortOption !== 'none' ? "solid" : "outline"}
+                                                                >
+                                                                    {sortOption === 'none' ? "Select Sort Option" :
+                                                                        sortOption === 'via_hub' ? "Sort: VIA HUB" :
+                                                                            sortOption === 'status' ? "Sort: Stock Status" :
+                                                                                "Sort: VIA HUB + Status"}
+                                                                </MenuButton>
+                                                                <MenuList>
+                                                                    <MenuItem onClick={() => setSortOption('via_hub')}>
+                                                                        Sort by VIA HUB (Alphabetically)
+                                                                    </MenuItem>
+                                                                    <MenuItem onClick={() => setSortOption('status')}>
+                                                                        Sort by Stock Status
+                                                                    </MenuItem>
+                                                                    <MenuItem onClick={() => setSortOption('via_hub_status')}>
+                                                                        Sort by VIA HUB + Status
+                                                                    </MenuItem>
+                                                                    <MenuItem onClick={() => setSortOption('none')}>
+                                                                        No Sort
+                                                                    </MenuItem>
+                                                                </MenuList>
+                                                            </Menu>
+
+                                                        </HStack>
                                                     </HStack>
-                                                    <Menu>
-                                                        <MenuButton
-                                                            as={Button}
-                                                            size="sm"
-                                                            leftIcon={<Icon as={MdSort} />}
-                                                            colorScheme={sortOption !== 'none' ? "blue" : "gray"}
-                                                            variant={sortOption !== 'none' ? "solid" : "outline"}
-                                                        >
-                                                            {sortOption === 'none' ? "Select Sort Option" :
-                                                                sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                                    sortOption === 'status' ? "Sort: Stock Status" :
-                                                                        "Sort: VIA HUB + Status"}
-                                                        </MenuButton>
-                                                        <MenuList>
-                                                            <MenuItem onClick={() => setSortOption('via_hub')}>
-                                                                Sort by VIA HUB (Alphabetically)
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => setSortOption('status')}>
-                                                                Sort by Stock Status
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => setSortOption('via_hub_status')}>
-                                                                Sort by VIA HUB + Status
-                                                            </MenuItem>
-                                                            <MenuItem onClick={() => setSortOption('none')}>
-                                                                No Sort
-                                                            </MenuItem>
-                                                        </MenuList>
-                                                    </Menu>
-                                                </HStack>
+                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                        {/* Stock Item ID Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewStockItemId}
+                                                                        onChange={(e) => setStockViewStockItemId(e.target.value)}
+                                                                        placeholder="Filter by Stock Item ID"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewStockItemId && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewStockItemId("")}
+                                                                        aria-label="Clear stock item ID filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Client Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={stockViewClient}
+                                                                        onChange={(value) => setStockViewClient(value)}
+                                                                        options={clients}
+                                                                        placeholder="Filter by Client"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Client ${option.id}`}
+                                                                        isLoading={isLoadingClients}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewClient && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewClient(null)}
+                                                                        aria-label="Clear client filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Vessel Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={stockViewVessel}
+                                                                        onChange={(value) => setStockViewVessel(value)}
+                                                                        options={vessels}
+                                                                        placeholder="Filter by Vessel"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                                        isLoading={isLoadingVessels}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewVessel && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewVessel(null)}
+                                                                        aria-label="Clear vessel filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Status Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <Select
+                                                                        value={stockViewStatus}
+                                                                        onChange={(e) => setStockViewStatus(e.target.value)}
+                                                                        placeholder="Filter by Status"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    >
+                                                                        <option value="">All Statuses</option>
+                                                                        <option value="pending">Pending</option>
+                                                                        <option value="in_stock">In Stock</option>
+                                                                        <option value="on_shipping">On Shipping Instr</option>
+                                                                        <option value="on_delivery">On Delivery Instr</option>
+                                                                        <option value="in_transit">In Transit</option>
+                                                                        <option value="arrived">Arrived Dest</option>
+                                                                        <option value="shipped">Shipped</option>
+                                                                        <option value="delivered">Delivered</option>
+                                                                        <option value="irregular">Irregularities</option>
+                                                                        <option value="cancelled">Cancelled</option>
+                                                                    </Select>
+                                                                </Box>
+                                                                {stockViewStatus && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewStatus("")}
+                                                                        aria-label="Clear status filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Date on Stock Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Input
+                                                                    type="date"
+                                                                    value={stockViewDateOnStock}
+                                                                    onChange={(e) => setStockViewDateOnStock(e.target.value)}
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                    size="sm"
+                                                                />
+                                                                {stockViewDateOnStock && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewDateOnStock("")}
+                                                                        aria-label="Clear date filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Days on Stock Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        type="number"
+                                                                        value={stockViewDaysOnStock}
+                                                                        onChange={(e) => setStockViewDaysOnStock(e.target.value)}
+                                                                        placeholder="Filter by Days on Stock"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewDaysOnStock && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewDaysOnStock("")}
+                                                                        aria-label="Clear days filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                    </Flex>
+                                                </Box>
+
+                                                {/* Reference Number Filters */}
+                                                <Box>
+                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                        {/* SO Number Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterSO}
+                                                                        onChange={(e) => setStockViewFilterSO(e.target.value)}
+                                                                        placeholder="Filter by SO Number"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterSO && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterSO("")}
+                                                                        aria-label="Clear SO filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* SI Number Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterSI}
+                                                                        onChange={(e) => setStockViewFilterSI(e.target.value)}
+                                                                        placeholder="Filter by SI Number"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterSI && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterSI("")}
+                                                                        aria-label="Clear SI filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* SI Combined Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterSICombined}
+                                                                        onChange={(e) => setStockViewFilterSICombined(e.target.value)}
+                                                                        placeholder="Filter by SI Combined"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterSICombined && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterSICombined("")}
+                                                                        aria-label="Clear SI Combined filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* DI Number Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterDI}
+                                                                        onChange={(e) => setStockViewFilterDI(e.target.value)}
+                                                                        placeholder="Filter by DI Number"
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterDI && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterDI("")}
+                                                                        aria-label="Clear DI filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewSearchFilter}
+                                                                        onChange={(e) => setStockViewSearchFilter(e.target.value)}
+                                                                        placeholder="Search all fields..."
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewSearchFilter && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewSearchFilter("")}
+                                                                        aria-label="Clear search filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+                                                    </Flex>
+                                                </Box>
+
+                                                {/* Sorting Info Box */}
                                                 {sortOption !== 'none' && (
                                                     <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
                                                         <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
@@ -3020,366 +3374,12 @@ export default function Stocks() {
                                                         </Text>
                                                     </Box>
                                                 )}
-                                            </Box>
 
-                                            {/* Basic Filters */}
-                                            <Box>
-                                                <HStack mb="3" justify="space-between">
-                                                    <HStack>
-                                                        <Icon as={MdFilterList} color="blue.500" />
-                                                        <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
-                                                    </HStack>
-                                                    {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter) && (
-                                                        <Button
-                                                            size="xs"
-                                                            leftIcon={<Icon as={MdClose} />}
-                                                            colorScheme="red"
-                                                            variant="ghost"
-                                                            onClick={() => {
-                                                                setStockViewStockItemId("");
-                                                                setStockViewClient(null);
-                                                                setStockViewVessel(null);
-                                                                setStockViewStatus("");
-                                                                setStockViewDateOnStock("");
-                                                                setStockViewDaysOnStock("");
-                                                                setStockViewFilterSO("");
-                                                                setStockViewFilterSI("");
-                                                                setStockViewFilterSICombined("");
-                                                                setStockViewFilterDI("");
-                                                                setStockViewSearchFilter("");
-                                                            }}
-                                                        >
-                                                            Clear All
-                                                        </Button>
-                                                    )}
-                                                </HStack>
-                                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
-                                                    {/* Stock Item ID Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewStockItemId}
-                                                                    onChange={(e) => setStockViewStockItemId(e.target.value)}
-                                                                    placeholder="Filter by Stock Item ID"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewStockItemId && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewStockItemId("")}
-                                                                    aria-label="Clear stock item ID filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Client Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <Box flex="1">
-                                                                <SimpleSearchableSelect
-                                                                    value={stockViewClient}
-                                                                    onChange={(value) => setStockViewClient(value)}
-                                                                    options={clients}
-                                                                    placeholder="Filter by Client"
-                                                                    displayKey="name"
-                                                                    valueKey="id"
-                                                                    formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                    isLoading={isLoadingClients}
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                />
-                                                            </Box>
-                                                            {stockViewClient && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewClient(null)}
-                                                                    aria-label="Clear client filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Vessel Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <Box flex="1">
-                                                                <SimpleSearchableSelect
-                                                                    value={stockViewVessel}
-                                                                    onChange={(value) => setStockViewVessel(value)}
-                                                                    options={vessels}
-                                                                    placeholder="Filter by Vessel"
-                                                                    displayKey="name"
-                                                                    valueKey="id"
-                                                                    formatOption={(option) => option.name || `Vessel ${option.id}`}
-                                                                    isLoading={isLoadingVessels}
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                />
-                                                            </Box>
-                                                            {stockViewVessel && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewVessel(null)}
-                                                                    aria-label="Clear vessel filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Status Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <Box flex="1">
-                                                                <Select
-                                                                    value={stockViewStatus}
-                                                                    onChange={(e) => setStockViewStatus(e.target.value)}
-                                                                    placeholder="Filter by Status"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                >
-                                                                    <option value="">All Statuses</option>
-                                                                    <option value="pending">Pending</option>
-                                                                    <option value="in_stock">In Stock</option>
-                                                                    <option value="on_shipping">On Shipping Instr</option>
-                                                                    <option value="on_delivery">On Delivery Instr</option>
-                                                                    <option value="in_transit">In Transit</option>
-                                                                    <option value="arrived">Arrived Dest</option>
-                                                                    <option value="shipped">Shipped</option>
-                                                                    <option value="delivered">Delivered</option>
-                                                                    <option value="irregular">Irregularities</option>
-                                                                    <option value="cancelled">Cancelled</option>
-                                                                </Select>
-                                                            </Box>
-                                                            {stockViewStatus && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewStatus("")}
-                                                                    aria-label="Clear status filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Date on Stock Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <Input
-                                                                type="date"
-                                                                value={stockViewDateOnStock}
-                                                                onChange={(e) => setStockViewDateOnStock(e.target.value)}
-                                                                bg={inputBg}
-                                                                color={inputText}
-                                                                borderColor={borderColor}
-                                                                size="sm"
-                                                            />
-                                                            {stockViewDateOnStock && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewDateOnStock("")}
-                                                                    aria-label="Clear date filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* Days on Stock Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    type="number"
-                                                                    value={stockViewDaysOnStock}
-                                                                    onChange={(e) => setStockViewDaysOnStock(e.target.value)}
-                                                                    placeholder="Filter by Days on Stock"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewDaysOnStock && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewDaysOnStock("")}
-                                                                    aria-label="Clear days filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                </Flex>
-                                            </Box>
-
-                                            {/* Reference Number Filters */}
-                                            <Box>
-                                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
-                                                    {/* SO Number Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewFilterSO}
-                                                                    onChange={(e) => setStockViewFilterSO(e.target.value)}
-                                                                    placeholder="Filter by SO Number"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewFilterSO && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewFilterSO("")}
-                                                                    aria-label="Clear SO filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* SI Number Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewFilterSI}
-                                                                    onChange={(e) => setStockViewFilterSI(e.target.value)}
-                                                                    placeholder="Filter by SI Number"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewFilterSI && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewFilterSI("")}
-                                                                    aria-label="Clear SI filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* SI Combined Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewFilterSICombined}
-                                                                    onChange={(e) => setStockViewFilterSICombined(e.target.value)}
-                                                                    placeholder="Filter by SI Combined"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewFilterSICombined && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewFilterSICombined("")}
-                                                                    aria-label="Clear SI Combined filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-
-                                                    {/* DI Number Filter */}
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewFilterDI}
-                                                                    onChange={(e) => setStockViewFilterDI(e.target.value)}
-                                                                    placeholder="Filter by DI Number"
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewFilterDI && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewFilterDI("")}
-                                                                    aria-label="Clear DI filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-                                                    <Box w="220px">
-                                                        <HStack spacing="1">
-                                                            <InputGroup size="sm">
-                                                                <Input
-                                                                    value={stockViewSearchFilter}
-                                                                    onChange={(e) => setStockViewSearchFilter(e.target.value)}
-                                                                    placeholder="Search all fields..."
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    pl="8"
-                                                                />
-                                                            </InputGroup>
-                                                            {stockViewSearchFilter && (
-                                                                <IconButton
-                                                                    size="sm"
-                                                                    icon={<Icon as={MdClose} />}
-                                                                    colorScheme="red"
-                                                                    variant="ghost"
-                                                                    onClick={() => setStockViewSearchFilter("")}
-                                                                    aria-label="Clear search filter"
-                                                                />
-                                                            )}
-                                                        </HStack>
-                                                    </Box>
-                                                </Flex>
-                                            </Box>
-
-                                            {/* Results Count */}
-                                            <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
-                                                {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
-                                            </Text>
+                                                {/* Results Count */}
+                                                <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                    Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
+                                                </Text>
                                             </VStack>
                                         </Card>
                                     </Box>
@@ -3430,29 +3430,42 @@ export default function Stocks() {
                                     </Flex>
                                 </Card>
 
-                                {/* Bulk Action Buttons */}
-                                {selectedRows.size > 0 && (
-                                    <Flex px="25px" mb="20px" align="center" gap="3">
-                                        <Text fontSize="sm" color={textColor} fontWeight="600">
-                                            {selectedRows.size} item(s) selected
-                                        </Text>
+                                {/* Select All and Bulk Action Buttons */}
+                                <Flex px="25px" mb="20px" align="center" gap="3" flexWrap="wrap">
+                                    {getFilteredStockByStatus().length > 0 && (
                                         <Button
-                                            leftIcon={<Icon as={MdEdit} />}
+                                            leftIcon={<Icon as={allItemsSelected ? MdCheckBox : MdCheckBoxOutlineBlank} />}
                                             colorScheme="blue"
                                             size="sm"
-                                            onClick={handleNavigateToEdit}
+                                            variant={allItemsSelected ? "solid" : "outline"}
+                                            onClick={() => handleSelectAll(!allItemsSelected)}
                                         >
-                                            Edit Selected
+                                            {allItemsSelected ? "Deselect All" : `Select All (${getFilteredStockByStatus().length})`}
                                         </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setSelectedRows(new Set())}
-                                        >
-                                            Clear Selection
-                                        </Button>
-                                    </Flex>
-                                )}
+                                    )}
+                                    {selectedRows.size > 0 && (
+                                        <>
+                                            <Text fontSize="sm" color={textColor} fontWeight="600">
+                                                {selectedRows.size} item(s) selected
+                                            </Text>
+                                            <Button
+                                                leftIcon={<Icon as={MdEdit} />}
+                                                colorScheme="blue"
+                                                size="sm"
+                                                onClick={handleNavigateToEdit}
+                                            >
+                                                Edit Selected
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => setSelectedRows(new Set())}
+                                            >
+                                                Clear Selection
+                                            </Button>
+                                        </>
+                                    )}
+                                </Flex>
 
                                 {/* Table with fields in exact order from image */}
                                 <Box overflowX="auto">
