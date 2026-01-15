@@ -120,6 +120,10 @@ export default function StockList() {
         const stored = sessionStorage.getItem('stockListMainSelectedCurrency');
         return stored && stored !== 'null' ? stored : null;
     });
+    const [selectedHub, setSelectedHub] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainSelectedHub');
+        return stored && stored !== 'null' ? stored : null;
+    });
     const [filterSO, setFilterSO] = useState(() => {
         return sessionStorage.getItem('stockListMainFilterSO') || "";
     });
@@ -273,6 +277,10 @@ export default function StockList() {
     useEffect(() => {
         sessionStorage.setItem('stockListMainSelectedCurrency', selectedCurrency || 'null');
     }, [selectedCurrency]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainSelectedHub', selectedHub || 'null');
+    }, [selectedHub]);
 
     // Persist sorting state to sessionStorage
     useEffect(() => {
@@ -516,6 +524,19 @@ export default function StockList() {
         return value;
     };
 
+    // Get unique hub options from stock list
+    const hubOptions = useMemo(() => {
+        const hubSet = new Set();
+        stockList.forEach(item => {
+            if (item.via_hub) hubSet.add(item.via_hub.trim());
+            if (item.via_hub2) hubSet.add(item.via_hub2.trim());
+        });
+        return Array.from(hubSet)
+            .filter(h => h)
+            .sort()
+            .map(hub => ({ id: hub, name: hub }));
+    }, [stockList]);
+
     // Filter and sort stock list
     const filteredAndSortedStock = useMemo(() => {
         let filtered = [...stockList];
@@ -550,6 +571,14 @@ export default function StockList() {
             filtered = filtered.filter(item =>
                 String(item.currency_id || item.currency) === String(selectedCurrency)
             );
+        }
+        if (selectedHub) {
+            const hubLower = selectedHub.toLowerCase();
+            filtered = filtered.filter(item => {
+                const hub1 = String(item.via_hub || "").toLowerCase();
+                const hub2 = String(item.via_hub2 || "").toLowerCase();
+                return hub1 === hubLower || hub2 === hubLower;
+            });
         }
 
         // Filter by SO Number
@@ -1192,7 +1221,7 @@ export default function StockList() {
                                         <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                     </HStack>
                                     <HStack>
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
                                             <Button
                                                 size="xs"
                                                 leftIcon={<Icon as={MdClose} />}
@@ -1205,6 +1234,7 @@ export default function StockList() {
                                                     setSelectedStatus("");
                                                     setSelectedWarehouse(null);
                                                     setSelectedCurrency(null);
+                                                    setSelectedHub(null);
                                                     setFilterSO("");
                                                     setFilterSI("");
                                                     setFilterSICombined("");
@@ -1553,6 +1583,36 @@ export default function StockList() {
                                                     variant="ghost"
                                                     onClick={() => setFilterDI("")}
                                                     aria-label="Clear DI filter"
+                                                />
+                                            )}
+                                        </HStack>
+                                    </Box>
+                                    
+                                    {/* Hub Filter */}
+                                    <Box w="220px">
+                                        <HStack spacing="1">
+                                            <Box flex="1">
+                                                <SimpleSearchableSelect
+                                                    value={selectedHub}
+                                                    onChange={(value) => setSelectedHub(value)}
+                                                    options={hubOptions}
+                                                    placeholder="Filter by Hub"
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    formatOption={(option) => option.name || option.id}
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                />
+                                            </Box>
+                                            {selectedHub && (
+                                                <IconButton
+                                                    size="sm"
+                                                    icon={<Icon as={MdClose} />}
+                                                    colorScheme="red"
+                                                    variant="ghost"
+                                                    onClick={() => setSelectedHub(null)}
+                                                    aria-label="Clear hub filter"
                                                 />
                                             )}
                                         </HStack>

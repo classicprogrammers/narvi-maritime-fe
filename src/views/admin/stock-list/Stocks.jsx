@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
     Box,
     Flex,
@@ -255,6 +255,10 @@ export default function Stocks() {
     });
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(() => {
         return sessionStorage.getItem('stocksStockViewSearchFilter') || "";
+    });
+    const [stockViewHub, setStockViewHub] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewHub');
+        return stored && stored !== 'null' ? stored : null;
     });
     const [sortOption, setSortOption] = useState(() => {
         const stored = sessionStorage.getItem('stocksSortOption');
@@ -557,6 +561,10 @@ export default function Stocks() {
     useEffect(() => {
         sessionStorage.setItem('stocksStockViewSearchFilter', stockViewSearchFilter || '');
     }, [stockViewSearchFilter]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewHub', stockViewHub || 'null');
+    }, [stockViewHub]);
 
     useEffect(() => {
         sessionStorage.setItem('stocksSortOption', sortOption || 'none');
@@ -1101,6 +1109,19 @@ export default function Stocks() {
         return str;
     };
 
+    // Get unique hub options from stock list
+    const hubOptions = useMemo(() => {
+        const hubSet = new Set();
+        stockList.forEach(item => {
+            if (item.via_hub) hubSet.add(item.via_hub.trim());
+            if (item.via_hub2) hubSet.add(item.via_hub2.trim());
+        });
+        return Array.from(hubSet)
+            .filter(h => h)
+            .sort()
+            .map(hub => ({ id: hub, name: hub }));
+    }, [stockList]);
+
     // Filter stock list by status checkboxes and basic filters for Stock View / Edit tab
     const getFilteredStockByStatus = () => {
         let filtered = [...stockList];
@@ -1186,6 +1207,16 @@ export default function Stocks() {
                 const diValue = item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction || "";
                 const prefixed = addDIPrefix(diValue);
                 return String(prefixed || "").toLowerCase().includes(searchTerm);
+            });
+        }
+
+        // Filter by Hub
+        if (stockViewHub) {
+            const hubLower = stockViewHub.toLowerCase();
+            filtered = filtered.filter(item => {
+                const hub1 = String(item.via_hub || "").toLowerCase();
+                const hub2 = String(item.via_hub2 || "").toLowerCase();
+                return hub1 === hubLower || hub2 === hubLower;
             });
         }
 
@@ -2977,7 +3008,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -2990,6 +3021,7 @@ export default function Stocks() {
                                                                         setStockViewStatus("");
                                                                         setStockViewDateOnStock("");
                                                                         setStockViewDaysOnStock("");
+                                                                        setStockViewHub(null);
                                                                         setStockViewFilterSO("");
                                                                         setStockViewFilterSI("");
                                                                         setStockViewFilterSICombined("");
@@ -3326,6 +3358,36 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
+
+                                                        {/* Hub Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={stockViewHub}
+                                                                        onChange={(value) => setStockViewHub(value)}
+                                                                        options={hubOptions}
+                                                                        placeholder="Filter by Hub"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || option.id}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {stockViewHub && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewHub(null)}
+                                                                        aria-label="Clear hub filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
                                                         <Box w="220px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
@@ -3378,7 +3440,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
