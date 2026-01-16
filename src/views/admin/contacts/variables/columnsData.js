@@ -15,6 +15,11 @@ export const columnsDataClient = [
     minWidth: 120,
   },
   {
+    Header: "COMPANY TYPE",
+    accessor: "company_type_text",
+    minWidth: 120,
+  },
+  {
     Header: "EMAIL",
     accessor: "emails",
     minWidth: 250,

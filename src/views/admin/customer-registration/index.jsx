@@ -196,6 +196,7 @@ function CustomerRegistration() {
         website: "",
         payment_term: "",
         type_client: "",
+        company_type_text: "",
         vessel_type: "",
         vessel_type1: "",
         vessel_type2: "",
@@ -284,6 +285,7 @@ function CustomerRegistration() {
                 website: editingClient.website || "",
                 payment_term: editingClient.payment_term || "",
                 type_client: editingClient.type_client || "",
+                company_type_text: editingClient.company_type_text || "",
                 vessel_type: editingClient.vessel_type || editingClient.vessel_types || "",
                 vessel_type1: editingClient.vessel_type1 || editingClient.vessel_type || "",
                 vessel_type2: editingClient.vessel_type2 || "",
@@ -641,6 +643,7 @@ function CustomerRegistration() {
                 website: formData.website,
                 payment_term: formData.payment_term || undefined,
                 type_client: formData.type_client || undefined,
+                company_type_text: formData.company_type_text || undefined,
                 vessel_type: formData.vessel_type || undefined,
                 vessel_type1: formData.vessel_type1 || undefined,
                 vessel_type2: formData.vessel_type2 || undefined,
@@ -652,6 +655,7 @@ function CustomerRegistration() {
             const doUpdate = async () => updateCustomerApi(editingClient.id, {
                 ...formData,
                 country_id: parseInt(formData.country_id) || null,
+                company_type_text: formData.company_type_text || "",
                 children: children.length ? children : undefined,
             });
 
@@ -680,6 +684,7 @@ function CustomerRegistration() {
                     website: formData.website,
                     payment_term: formData.payment_term,
                     type_client: formData.type_client,
+                    company_type_text: formData.company_type_text,
                     vessel_type: formData.vessel_type,
                     vessel_type1: formData.vessel_type1,
                     vessel_type2: formData.vessel_type2,
@@ -721,6 +726,7 @@ function CustomerRegistration() {
                     website: "",
                     payment_term: "",
                     type_client: "",
+                    company_type_text: "",
                     vessel_type: "",
                     vessel_type1: "",
                     vessel_type2: "",
@@ -951,6 +957,13 @@ function CustomerRegistration() {
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Client Type</Text>
                                                         <Input name="type_client" value={formData.type_client} onChange={handleInputChange} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
+                                                    </Box>
+
+                                                    {/* LEFT: empty / RIGHT: Company Type Text */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company Type Text</Text>
+                                                        <Input name="company_type_text" value={formData.company_type_text} onChange={handleInputChange} placeholder="add company type" size="sm" w={gridInputWidth} />
                                                     </Box>
 
                                                     {/* LEFT: Address3–7 (if present), RIGHT: empty for alignment */}

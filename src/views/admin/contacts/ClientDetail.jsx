@@ -81,6 +81,7 @@ const clientInfoSections = [
       { label: "Reg No", key: "reg_no" },
       { label: "Payment Terms", key: "payment_term" },
       { label: "Clients Type", key: "type_client" },
+      { label: "Company Type Text", key: "company_type_text" },
       { label: "Vessel Types", key: "vessel_type" },
       { label: "Category", key: "client_category" },
       { label: "Client Code", key: "client_code" },

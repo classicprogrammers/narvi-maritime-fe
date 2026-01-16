@@ -959,6 +959,12 @@ export default function CustomerTable(props) {
                               {value || "-"}
                             </Text>
                           );
+                        } else if (cell.column.Header === "COMPANY TYPE") {
+                          data = (
+                            <Text color={textColor} fontSize="sm">
+                              {value || "-"}
+                            </Text>
+                          );
                         } else if (cell.column.Header === "EMAIL") {
                           data = (
                             <Text color={textColor} fontSize="sm">
