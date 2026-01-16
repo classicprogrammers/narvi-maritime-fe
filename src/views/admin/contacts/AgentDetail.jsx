@@ -768,14 +768,16 @@ const AgentDetail = () => {
                           justifyContent="flex-start"
                           alignItems="center"
                           gap={2}
+                          flexWrap="wrap"
                         >
                           <Text
                             fontSize="sm"
                             color={valueColor}
-                            whiteSpace="nowrap"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            maxW="180px"
+                            whiteSpace="normal"
+                            wordBreak="break-word"
+                            overflow="visible"
+                            flex="1"
+                            minW="0"
                           >
                             {displayValue}
                           </Text>
@@ -785,6 +787,7 @@ const AgentDetail = () => {
                             variant="outline"
                             leftIcon={<Icon as={MdOpenInNew} />}
                             onClick={() => window.open(normalizedUrl, "_blank", "noopener,noreferrer")}
+                            flexShrink={0}
                           >
                             Visit
                           </Button>
@@ -794,8 +797,6 @@ const AgentDetail = () => {
 
                     // Special handling for remarks field - preserve line breaks for numbered lists
                     if (key === "remarks") {
-                      const remarksValue = String(displayValue || "");
-                      const hasLongText = remarksValue.length > 50 || remarksValue.includes("\n");
                       return (
                         <Flex
                           key={key}
@@ -806,46 +807,21 @@ const AgentDetail = () => {
                           alignItems="flex-start"
                           gap={2}
                         >
-                          <Tooltip
-                            label={
-                              <Box
-                                p={2}
-                                maxW="400px"
-                                whiteSpace="pre-wrap"
-                                fontSize="sm"
-                                lineHeight="1.5"
-                              >
-                                {remarksValue}
-                              </Box>
-                            }
-                            hasArrow
-                            placement="top"
-                            bg="gray.800"
-                            color="white"
-                            borderRadius="md"
-                            px={3}
-                            py={2}
-                            maxW="400px"
-                            isDisabled={!displayValue}
-                            openDelay={300}
+                          <Text
+                            fontSize="sm"
+                            color={valueColor}
+                            whiteSpace="pre-wrap"
+                            wordBreak="break-word"
+                            overflow="visible"
+                            width="100%"
                           >
-                            <Text
-                              fontSize="sm"
-                              color={valueColor}
-                              whiteSpace="pre-wrap"
-                              overflow="visible"
-                              wordBreak="break-word"
-                              maxW="400px"
-                              lineHeight="1.6"
-                            >
-                              {displayValue}
-                            </Text>
-                          </Tooltip>
+                            {displayValue}
+                          </Text>
                         </Flex>
                       );
                     }
 
-                    // Default rendering for other fields
+                    // Default rendering for other fields - show full text with wrapping
                     return (
                       <Flex
                         key={key}
@@ -856,22 +832,16 @@ const AgentDetail = () => {
                         alignItems="flex-start"
                         gap={2}
                       >
-                        <Tooltip
-                          label={displayValue}
-                          hasArrow
-                          isDisabled={!displayValue || String(displayValue).length <= 30}
+                        <Text
+                          fontSize="sm"
+                          color={valueColor}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          overflow="visible"
+                          width="100%"
                         >
-                          <Text
-                            fontSize="sm"
-                            color={valueColor}
-                            whiteSpace="nowrap"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            maxW="220px"
-                          >
-                            {displayValue}
-                          </Text>
-                        </Tooltip>
+                          {displayValue}
+                        </Text>
                       </Flex>
                     );
                   };
@@ -1088,46 +1058,16 @@ const AgentDetail = () => {
                               
                               return (
                                 <Td key={column.key} minW="170px" px={3} py={2}>
-                                  <Tooltip
-                                    label={
-                                      isRemarks ? (
-                                        <Box
-                                          p={2}
-                                          maxW="400px"
-                                          whiteSpace="pre-wrap"
-                                          fontSize="sm"
-                                          lineHeight="1.5"
-                                        >
-                                          {cellValueStr}
-                                        </Box>
-                                      ) : (
-                                        cellValueStr
-                                      )
-                                    }
-                                    hasArrow
-                                    placement="top"
-                                    bg={isRemarks ? "gray.800" : undefined}
-                                    color={isRemarks ? "white" : undefined}
-                                    borderRadius="md"
-                                    px={isRemarks ? 3 : undefined}
-                                    py={isRemarks ? 2 : undefined}
-                                    maxW={isRemarks ? "400px" : undefined}
-                                    isDisabled={!cellValue}
-                                    openDelay={300}
+                                  <Text
+                                    fontSize="sm"
+                                    color={valueColor}
+                                    whiteSpace={isRemarks ? "pre-wrap" : "normal"}
+                                    wordBreak="break-word"
+                                    overflow="visible"
+                                    width="100%"
                                   >
-                                    <Text
-                                      fontSize="sm"
-                                      color={valueColor}
-                                      whiteSpace={isRemarks ? "pre-wrap" : "nowrap"}
-                                      overflow={isRemarks ? "visible" : "hidden"}
-                                      textOverflow={isRemarks ? "clip" : "ellipsis"}
-                                      wordBreak={isRemarks ? "break-word" : "normal"}
-                                      maxW={isRemarks ? "400px" : "220px"}
-                                      lineHeight={isRemarks ? "1.6" : "normal"}
-                                    >
-                                      {cellValue}
-                                    </Text>
-                                  </Tooltip>
+                                    {cellValue}
+                                  </Text>
                                 </Td>
                               );
                             })}
