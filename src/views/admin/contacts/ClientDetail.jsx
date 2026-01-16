@@ -382,14 +382,16 @@ const ClientDetail = () => {
                           justifyContent="flex-start"
                           alignItems="center"
                           gap={2}
+                          flexWrap="wrap"
                         >
                           <Text
                             fontSize="sm"
                             color={valueColor}
-                            whiteSpace="nowrap"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            maxW="180px"
+                            whiteSpace="normal"
+                            wordBreak="break-word"
+                            overflow="visible"
+                            flex="1"
+                            minW="0"
                           >
                             {displayValue}
                           </Text>
@@ -399,6 +401,7 @@ const ClientDetail = () => {
                             variant="outline"
                             leftIcon={<Icon as={MdOpenInNew} />}
                             onClick={() => window.open(normalizedUrl, "_blank", "noopener,noreferrer")}
+                            flexShrink={0}
                           >
                             Visit
                           </Button>
@@ -418,26 +421,21 @@ const ClientDetail = () => {
                           alignItems="flex-start"
                           gap={2}
                         >
-                          <Tooltip
-                            label={displayValue}
-                            hasArrow
-                            isDisabled={!displayValue || String(displayValue).length <= 30}
+                          <Text
+                            fontSize="sm"
+                            color={valueColor}
+                            whiteSpace="pre-wrap"
+                            wordBreak="break-word"
+                            overflow="visible"
+                            width="100%"
                           >
-                            <Text
-                              fontSize="sm"
-                              color={valueColor}
-                              whiteSpace="pre-wrap"
-                              overflow="visible"
-                              maxW="220px"
-                            >
-                              {displayValue}
-                            </Text>
-                          </Tooltip>
+                            {displayValue}
+                          </Text>
                         </Flex>
                       );
                     }
 
-                    // Default rendering for other fields
+                    // Default rendering for other fields - show full text with wrapping
                     return (
                       <Flex
                         key={key}
@@ -448,22 +446,16 @@ const ClientDetail = () => {
                         alignItems="flex-start"
                         gap={2}
                       >
-                        <Tooltip
-                          label={displayValue}
-                          hasArrow
-                          isDisabled={!displayValue || String(displayValue).length <= 30}
+                        <Text
+                          fontSize="sm"
+                          color={valueColor}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          overflow="visible"
+                          width="100%"
                         >
-                          <Text
-                            fontSize="sm"
-                            color={valueColor}
-                            whiteSpace="nowrap"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            maxW="220px"
-                          >
-                            {displayValue}
-                          </Text>
-                        </Tooltip>
+                          {displayValue}
+                        </Text>
                       </Flex>
                     );
                   };
@@ -514,22 +506,16 @@ const ClientDetail = () => {
                           <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
                             {peopleTableColumns.map((column) => (
                               <Td key={column.key} minW="170px" px={3} py={2}>
-                                <Tooltip
-                                  label={prettyValue(person[column.key])}
-                                  hasArrow
-                                  isDisabled={!prettyValue(person[column.key])}
+                                <Text
+                                  fontSize="sm"
+                                  color={valueColor}
+                                  whiteSpace={column.key === "remarks" ? "pre-wrap" : "normal"}
+                                  wordBreak="break-word"
+                                  overflow="visible"
+                                  width="100%"
                                 >
-                                  <Text
-                                    fontSize="sm"
-                                    color={valueColor}
-                                    whiteSpace={column.key === "remarks" ? "pre-wrap" : "nowrap"}
-                                    overflow={column.key === "remarks" ? "visible" : "hidden"}
-                                    textOverflow={column.key === "remarks" ? "clip" : "ellipsis"}
-                                    maxW="220px"
-                                  >
-                                    {prettyValue(person[column.key])}
-                                  </Text>
-                                </Tooltip>
+                                  {prettyValue(person[column.key])}
+                                </Text>
                               </Td>
                             ))}
                           </Tr>
