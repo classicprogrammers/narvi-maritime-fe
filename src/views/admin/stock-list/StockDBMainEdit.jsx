@@ -102,7 +102,7 @@ export default function StockDBMainEdit() {
     const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
     const [lwhModalRowIndex, setLwhModalRowIndex] = useState(null);
     const [lwhModalValue, setLwhModalValue] = useState("");
-    
+
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [dimensionsModalRowIndex, setDimensionsModalRowIndex] = useState(null);
@@ -376,14 +376,16 @@ export default function StockDBMainEdit() {
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
-            dimensions: Array.isArray(stock.dimensions) ? stock.dimensions.map(dim => ({
-                id: dim.id || null,
-                length_cm: dim.length_cm || "",
-                width_cm: dim.width_cm || "",
-                height_cm: dim.height_cm || "",
-                volume_cbm: dim.volume_cbm || "",
-                cw_air_freight: dim.cw_air_freight || "",
-            })) : [],
+            dimensions: Array.isArray(stock.dimensions) && stock.dimensions.length > 0
+                ? stock.dimensions.map(dim => ({
+                    id: dim.id || null,
+                    length_cm: dim.length_cm !== null && dim.length_cm !== undefined ? dim.length_cm : "",
+                    width_cm: dim.width_cm !== null && dim.width_cm !== undefined ? dim.width_cm : "",
+                    height_cm: dim.height_cm !== null && dim.height_cm !== undefined ? dim.height_cm : "",
+                    volume_cbm: dim.volume_cbm !== null && dim.volume_cbm !== undefined ? dim.volume_cbm : "",
+                    cw_air_freight: dim.cw_air_freight !== null && dim.cw_air_freight !== undefined ? dim.cw_air_freight : "",
+                }))
+                : [],
         };
 
         if (returnData) {
@@ -1035,7 +1037,7 @@ export default function StockDBMainEdit() {
             const [frontendField, backendField, transform] = dimensionsField;
             const currentValue = rowData[frontendField];
             const originalValue = originalData ? originalData[frontendField] : undefined;
-            
+
             // Debug logging
             console.log('Dimensions check:', {
                 currentValue,
@@ -1045,25 +1047,25 @@ export default function StockDBMainEdit() {
                 currentLength: Array.isArray(currentValue) ? currentValue.length : 0,
                 originalLength: Array.isArray(originalValue) ? originalValue.length : 0
             });
-            
+
             // Always include dimensions if they exist in form data OR original data
             // Priority: currentValue (from form) > originalValue (from loaded stock data)
             let dimensionsToInclude = null;
-            
+
             // Check current form data first
             if (Array.isArray(currentValue)) {
                 const transformedValue = transform(currentValue);
                 // Include dimensions even if empty array - backend needs this
                 dimensionsToInclude = transformedValue || [];
                 console.log('Using currentValue dimensions:', dimensionsToInclude);
-            } 
+            }
             // Fall back to original data if form data doesn't have dimensions
             else if (originalValue && Array.isArray(originalValue)) {
                 const transformedValue = transform(originalValue);
                 dimensionsToInclude = transformedValue || [];
                 console.log('Using originalValue dimensions:', dimensionsToInclude);
             }
-            
+
             // Always include dimensions if they were found (even if empty array)
             if (dimensionsToInclude !== null) {
                 payload[backendField] = dimensionsToInclude;
@@ -2224,7 +2226,10 @@ export default function StockDBMainEdit() {
                                             leftIcon={<Icon as={MdAdd} />}
                                             onClick={() => {
                                                 setDimensionsModalRowIndex(rowIndex);
-                                                setDimensionsList(row.dimensions || []);
+                                                // Ensure all dimensions are loaded, even if some fields are empty
+                                                const dimensions = Array.isArray(row.dimensions) ? row.dimensions : [];
+                                                console.log('Loading dimensions for row:', rowIndex, 'Dimensions count:', dimensions.length, dimensions);
+                                                setDimensionsList(dimensions);
                                                 onDimensionsModalOpen();
                                             }}
                                             colorScheme="blue"
@@ -2597,7 +2602,7 @@ export default function StockDBMainEdit() {
                     </AlertDialogContent>
                 </AlertDialogOverlay>
             </AlertDialog>
-            
+
             {/* Dimensions Modal */}
             <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="xl">
                 <ModalOverlay />
@@ -2606,100 +2611,106 @@ export default function StockDBMainEdit() {
                     <ModalCloseButton />
                     <ModalBody>
                         <VStack spacing={4} align="stretch">
-                            {dimensionsList.map((dim, index) => (
-                                <Box key={dim.id || index} p={4} border="1px" borderColor={borderColor} borderRadius="md">
-                                    <Flex justify="space-between" align="center" mb={3}>
-                                        <Text fontWeight="600">Dimension {index + 1}</Text>
-                                        <IconButton
-                                            aria-label="Remove dimension"
-                                            icon={<Icon as={MdDelete} />}
-                                            size="sm"
-                                            colorScheme="red"
-                                            variant="ghost"
-                                            onClick={() => {
-                                                const updated = dimensionsList.filter((_, i) => i !== index);
-                                                setDimensionsList(updated);
-                                            }}
-                                        />
-                                    </Flex>
-                                    <Flex gap={3} wrap="wrap">
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Length (cm)</FormLabel>
-                                            <NumberInput
-                                                value={dim.length_cm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], length_cm: value };
+                            {dimensionsList.length === 0 ? (
+                                <Text color={useColorModeValue("gray.600", "gray.400")} textAlign="center" py={4}>
+                                    No dimensions added yet. Click "Add Dimension" to create one.
+                                </Text>
+                            ) : (
+                                dimensionsList.map((dim, index) => (
+                                    <Box key={dim.id || index} p={4} border="1px" borderColor={borderColor} borderRadius="md">
+                                        <Flex justify="space-between" align="center" mb={3}>
+                                            <Text fontWeight="600">Dimension {index + 1}</Text>
+                                            <IconButton
+                                                aria-label="Remove dimension"
+                                                icon={<Icon as={MdDelete} />}
+                                                size="sm"
+                                                colorScheme="red"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    const updated = dimensionsList.filter((_, i) => i !== index);
                                                     setDimensionsList(updated);
                                                 }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Width (cm)</FormLabel>
-                                            <NumberInput
-                                                value={dim.width_cm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], width_cm: value };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Height (cm)</FormLabel>
-                                            <NumberInput
-                                                value={dim.height_cm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], height_cm: value };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                    </Flex>
-                                    <Flex gap={3} wrap="wrap" mt={3}>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Volume (CBM)</FormLabel>
-                                            <Input
-                                                value={dim.volume_cbm || ""}
-                                                isReadOnly
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                placeholder="Calculated by backend"
                                             />
-                                        </FormControl>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">CW Air Freight</FormLabel>
-                                            <Input
-                                                value={dim.cw_air_freight || ""}
-                                                isReadOnly
-                                                size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                placeholder="Calculated by backend"
-                                            />
-                                        </FormControl>
-                                    </Flex>
-                                </Box>
-                            ))}
+                                        </Flex>
+                                        <Flex gap={3} wrap="wrap">
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Length (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.length_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = { ...updated[index], length_cm: value };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Width (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.width_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = { ...updated[index], width_cm: value };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Height (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.height_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = { ...updated[index], height_cm: value };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                        </Flex>
+                                        <Flex gap={3} wrap="wrap" mt={3}>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Volume (CBM)</FormLabel>
+                                                <Input
+                                                    value={dim.volume_cbm || ""}
+                                                    isReadOnly
+                                                    size="sm"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    placeholder="Calculated by backend"
+                                                />
+                                            </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">CW Air Freight</FormLabel>
+                                                <Input
+                                                    value={dim.cw_air_freight || ""}
+                                                    isReadOnly
+                                                    size="sm"
+                                                    bg={inputBg}
+                                                    color={inputText}
+                                                    borderColor={borderColor}
+                                                    placeholder="Calculated by backend"
+                                                />
+                                            </FormControl>
+                                        </Flex>
+                                    </Box>
+                                ))
+                            )}
                             <Button
                                 leftIcon={<Icon as={MdAdd} />}
                                 onClick={() => {
