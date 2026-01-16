@@ -60,6 +60,7 @@ import {
     MdFullscreen,
     MdArrowDownward,
     MdMoreVert,
+    MdAdd,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -101,6 +102,11 @@ export default function StockDBMainEdit() {
     const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
     const [lwhModalRowIndex, setLwhModalRowIndex] = useState(null);
     const [lwhModalValue, setLwhModalValue] = useState("");
+    
+    // Dimensions modal state
+    const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
+    const [dimensionsModalRowIndex, setDimensionsModalRowIndex] = useState(null);
+    const [dimensionsList, setDimensionsList] = useState([]);
 
     // Confirmation dialog for back button
     const { isOpen: isBackConfirmOpen, onOpen: onBackConfirmOpen, onClose: onBackConfirmClose } = useDisclosure();
@@ -282,6 +288,7 @@ export default function StockDBMainEdit() {
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
         existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
+        dimensions: [], // Array of dimension objects { id, length_cm, width_cm, height_cm, volume_cbm, cw_air_freight }
         blank: "",
         // Internal fields for API payload
         vesselDestination: "",
@@ -369,6 +376,14 @@ export default function StockDBMainEdit() {
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
+            dimensions: Array.isArray(stock.dimensions) ? stock.dimensions.map(dim => ({
+                id: dim.id || null,
+                length_cm: dim.length_cm || "",
+                width_cm: dim.width_cm || "",
+                height_cm: dim.height_cm || "",
+                volume_cbm: dim.volume_cbm || "",
+                cw_air_freight: dim.cw_air_freight || "",
+            })) : [],
         };
 
         if (returnData) {
@@ -874,6 +889,32 @@ export default function StockDBMainEdit() {
 
     // Helper to compare values (handles different data types)
     const valuesAreEqual = (val1, val2) => {
+        // Handle arrays (e.g., dimensions, attachments)
+        if (Array.isArray(val1) || Array.isArray(val2)) {
+            if (!Array.isArray(val1) || !Array.isArray(val2)) return false;
+            if (val1.length !== val2.length) return false;
+            // Deep compare array elements (for dimensions with nested objects)
+            return val1.every((item, index) => {
+                const item2 = val2[index];
+                if (typeof item === 'object' && typeof item2 === 'object') {
+                    // Compare object properties
+                    const keys1 = Object.keys(item || {});
+                    const keys2 = Object.keys(item2 || {});
+                    if (keys1.length !== keys2.length) return false;
+                    return keys1.every(key => {
+                        const v1 = item[key];
+                        const v2 = item2[key];
+                        // Handle numeric comparison for dimension fields
+                        if (key.includes('_cm') || key === 'volume_cbm' || key === 'cw_air_freight') {
+                            return Number(v1) === Number(v2);
+                        }
+                        return v1 === v2;
+                    });
+                }
+                return item === item2;
+            });
+        }
+
         // Handle null/undefined/empty/false
         const isEmpty1 = val1 === null || val1 === undefined || val1 === false || val1 === "";
         const isEmpty2 = val2 === null || val2 === undefined || val2 === false || val2 === "";
@@ -941,6 +982,25 @@ export default function StockDBMainEdit() {
             ["cwAirfreight", "cw_air_freight_new", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
             ["destination", "destination_new", (v) => v || ""],
+            // Dimensions
+            ["dimensions", "dimensions", (v) => {
+                if (!Array.isArray(v)) return [];
+                // Always return array (even if empty) so backend can process it
+                // Only include id, length_cm, width_cm, height_cm
+                // volume_cbm and cw_air_freight are calculated by backend
+                return v.map(dim => {
+                    const dimension = {
+                        length_cm: toNumber(dim.length_cm) || 0,
+                        width_cm: toNumber(dim.width_cm) || 0,
+                        height_cm: toNumber(dim.height_cm) || 0,
+                    };
+                    // Only include id if it exists (for updates, not for new records)
+                    if (dim.id) {
+                        dimension.id = dim.id;
+                    }
+                    return dimension;
+                });
+            }],
             // Attachments
             ["attachments", "attachments", (v) => v || []],
             ["attachmentsToDelete", "attachment_to_delete", (v) => v || []],
@@ -968,8 +1028,58 @@ export default function StockDBMainEdit() {
             ["dgUn", "dg_un", (v) => v || ""],
         ];
 
+        // Always include dimensions if they exist (before checking other fields)
+        // This ensures dimensions are sent to backend for proper calculation of total_volume_cbm and total_cw_air_freight
+        const dimensionsField = fieldMappings.find(([field]) => field === "dimensions");
+        if (dimensionsField) {
+            const [frontendField, backendField, transform] = dimensionsField;
+            const currentValue = rowData[frontendField];
+            const originalValue = originalData ? originalData[frontendField] : undefined;
+            
+            // Debug logging
+            console.log('Dimensions check:', {
+                currentValue,
+                originalValue,
+                currentIsArray: Array.isArray(currentValue),
+                originalIsArray: Array.isArray(originalValue),
+                currentLength: Array.isArray(currentValue) ? currentValue.length : 0,
+                originalLength: Array.isArray(originalValue) ? originalValue.length : 0
+            });
+            
+            // Always include dimensions if they exist in form data OR original data
+            // Priority: currentValue (from form) > originalValue (from loaded stock data)
+            let dimensionsToInclude = null;
+            
+            // Check current form data first
+            if (Array.isArray(currentValue)) {
+                const transformedValue = transform(currentValue);
+                // Include dimensions even if empty array - backend needs this
+                dimensionsToInclude = transformedValue || [];
+                console.log('Using currentValue dimensions:', dimensionsToInclude);
+            } 
+            // Fall back to original data if form data doesn't have dimensions
+            else if (originalValue && Array.isArray(originalValue)) {
+                const transformedValue = transform(originalValue);
+                dimensionsToInclude = transformedValue || [];
+                console.log('Using originalValue dimensions:', dimensionsToInclude);
+            }
+            
+            // Always include dimensions if they were found (even if empty array)
+            if (dimensionsToInclude !== null) {
+                payload[backendField] = dimensionsToInclude;
+                console.log('Added dimensions to payload:', payload[backendField]);
+            } else {
+                console.log('No dimensions to include');
+            }
+        }
+
         // Only include changed fields
         fieldMappings.forEach(([frontendField, backendField, transform]) => {
+            // Skip dimensions as they're handled above
+            if (frontendField === "dimensions") {
+                return;
+            }
+
             const currentValue = rowData[frontendField];
             const originalValue = originalData ? originalData[frontendField] : undefined;
 
@@ -986,9 +1096,26 @@ export default function StockDBMainEdit() {
 
         // Always include shipment_type as empty string if it's in the original payload structure
         // (This might be needed by the API, but only if other fields changed)
-        if (Object.keys(payload).length > (payload.stock_id ? 1 : 0) + (payload.stock_item_id ? 1 : 0)) {
+        if (Object.keys(payload).length > (payload.stock_id ? 1 : 0) + (payload.stock_item_id ? 1 : 0) + (payload.dimensions ? 1 : 0)) {
             payload.shipment_type = "";
         }
+
+        // Final check: Ensure dimensions are always included if they exist in original data
+        // This is a fallback to ensure dimensions are never missed
+        if (!payload.dimensions && originalData && originalData.dimensions && Array.isArray(originalData.dimensions)) {
+            const dimensionsField = fieldMappings.find(([field]) => field === "dimensions");
+            if (dimensionsField) {
+                const [, , transform] = dimensionsField;
+                const transformedValue = transform(originalData.dimensions);
+                if (transformedValue) {
+                    payload.dimensions = transformedValue;
+                    console.log('Fallback: Added dimensions from originalData:', payload.dimensions);
+                }
+            }
+        }
+
+        console.log('Final payload keys:', Object.keys(payload));
+        console.log('Final payload dimensions:', payload.dimensions);
 
         return payload;
     };
@@ -1162,11 +1289,14 @@ export default function StockDBMainEdit() {
                 }
                 const originalRow = originalRows[index] || {};
                 const payload = getPayload(row, originalRow, true);
-                // Only include if there are changes (besides stock_id and stock_item_id)
+                // Always include payload if it has dimensions (even if no other changes)
+                // This ensures dimensions are sent to backend for calculation of totals
+                const hasDimensions = payload.hasOwnProperty('dimensions');
+                // Only include if there are changes (besides stock_id and stock_item_id) OR if dimensions exist
                 const hasChanges = Object.keys(payload).filter(key =>
                     key !== 'stock_id' && key !== 'stock_item_id'
                 ).length > 0;
-                return hasChanges ? payload : null;
+                return (hasChanges || hasDimensions) ? payload : null;
             }).filter(line => line !== null); // Remove unchanged rows
 
             if (lines.length === 0) {
@@ -1386,9 +1516,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight KG</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length CM</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width CM</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height CM</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume cbm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
@@ -2091,48 +2219,30 @@ export default function StockDBMainEdit() {
                                         </NumberInput>
                                     </Td>
                                     <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.lengthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
-                                            min={0}
-                                            precision={2}
+                                        <Button
                                             size="sm"
+                                            leftIcon={<Icon as={MdAdd} />}
+                                            onClick={() => {
+                                                setDimensionsModalRowIndex(rowIndex);
+                                                setDimensionsList(row.dimensions || []);
+                                                onDimensionsModalOpen();
+                                            }}
+                                            colorScheme="blue"
+                                            variant="outline"
                                         >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                            Dimensions ({row.dimensions?.length || 0})
+                                        </Button>
                                     </Td>
                                     <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.widthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.heightCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <NumberInput
+                                        <Input
                                             value={row.volumeNoDim}
-                                            onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
-                                            min={0}
-                                            precision={2}
+                                            onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
+                                            placeholder="Volume no dim"
                                             size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
                                     </Td>
                                     <Td {...cellProps}>
                                         <NumberInput
@@ -2487,6 +2597,151 @@ export default function StockDBMainEdit() {
                     </AlertDialogContent>
                 </AlertDialogOverlay>
             </AlertDialog>
+            
+            {/* Dimensions Modal */}
+            <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="xl">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Manage Dimensions</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4} align="stretch">
+                            {dimensionsList.map((dim, index) => (
+                                <Box key={dim.id || index} p={4} border="1px" borderColor={borderColor} borderRadius="md">
+                                    <Flex justify="space-between" align="center" mb={3}>
+                                        <Text fontWeight="600">Dimension {index + 1}</Text>
+                                        <IconButton
+                                            aria-label="Remove dimension"
+                                            icon={<Icon as={MdDelete} />}
+                                            size="sm"
+                                            colorScheme="red"
+                                            variant="ghost"
+                                            onClick={() => {
+                                                const updated = dimensionsList.filter((_, i) => i !== index);
+                                                setDimensionsList(updated);
+                                            }}
+                                        />
+                                    </Flex>
+                                    <Flex gap={3} wrap="wrap">
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Length (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.length_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], length_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Width (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.width_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], width_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Height (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.height_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], height_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                    </Flex>
+                                    <Flex gap={3} wrap="wrap" mt={3}>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Volume (CBM)</FormLabel>
+                                            <Input
+                                                value={dim.volume_cbm || ""}
+                                                isReadOnly
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                placeholder="Calculated by backend"
+                                            />
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">CW Air Freight</FormLabel>
+                                            <Input
+                                                value={dim.cw_air_freight || ""}
+                                                isReadOnly
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                placeholder="Calculated by backend"
+                                            />
+                                        </FormControl>
+                                    </Flex>
+                                </Box>
+                            ))}
+                            <Button
+                                leftIcon={<Icon as={MdAdd} />}
+                                onClick={() => {
+                                    setDimensionsList([...dimensionsList, {
+                                        id: null,
+                                        length_cm: "",
+                                        width_cm: "",
+                                        height_cm: "",
+                                        volume_cbm: "",
+                                        cw_air_freight: "",
+                                    }]);
+                                }}
+                                colorScheme="blue"
+                                variant="outline"
+                            >
+                                Add Dimension
+                            </Button>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="ghost" mr={3} onClick={onDimensionsModalClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            onClick={() => {
+                                if (dimensionsModalRowIndex !== null) {
+                                    const updatedRows = [...formRows];
+                                    updatedRows[dimensionsModalRowIndex] = {
+                                        ...updatedRows[dimensionsModalRowIndex],
+                                        dimensions: dimensionsList,
+                                    };
+                                    setFormRows(updatedRows);
+                                }
+                                onDimensionsModalClose();
+                            }}
+                        >
+                            Save Dimensions
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 }

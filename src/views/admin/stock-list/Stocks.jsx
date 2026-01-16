@@ -43,6 +43,16 @@ import {
     MenuList,
     MenuItem,
     Collapse,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
+    Tooltip,
+    Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
@@ -264,6 +274,10 @@ export default function Stocks() {
         const stored = sessionStorage.getItem('stocksSortOption');
         return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status'
     });
+
+    // Dimensions modal state
+    const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
+    const [selectedDimensions, setSelectedDimensions] = useState([]);
 
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -2314,22 +2328,54 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "length_cm", item.length_cm, "number") : <Text {...cellText}>{renderText(item.length_cm)}</Text>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "width_cm", item.width_cm, "number") : <Text {...cellText}>{renderText(item.width_cm)}</Text>}
-                        </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "height_cm", item.height_cm, "number") : <Text {...cellText}>{renderText(item.height_cm)}</Text>}
-                        </Td>
-                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "volume_no_dim", item.volume_no_dim || item.volume_dim, "number") : <Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "lwh_text", item.lwh_text, "textarea") : <Text {...cellText}>{renderText(item.lwh_text)}</Text>}
                         </Td>
-                        <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "volume_cbm", item.volume_cbm, "number") : <Text {...cellText}>{renderText(item.volume_cbm)}</Text>}
+                        <Td 
+                            {...cellProps} 
+                            cursor={!isEditing ? "pointer" : "default"}
+                            onClick={!isEditing ? () => {
+                                setSelectedDimensions(item.dimensions || []);
+                                onDimensionsModalOpen();
+                            } : undefined}
+                            _hover={!isEditing ? { bg: useColorModeValue("gray.100", "gray.700") } : {}}
+                        >
+                            {isEditing ? (
+                                renderEditableCell(item, "total_volume_cbm", item.total_volume_cbm, "number")
+                            ) : (
+                                <HStack spacing={2} align="center" justify="flex-start">
+                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                        {renderText(item.total_volume_cbm)}
+                                    </Text>
+                                    <Tooltip label="View dimensions" hasArrow>
+                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                    </Tooltip>
+                                </HStack>
+                            )}
+                        </Td>
+                        <Td 
+                            {...cellProps} 
+                            cursor={!isEditing ? "pointer" : "default"}
+                            onClick={!isEditing ? () => {
+                                setSelectedDimensions(item.dimensions || []);
+                                onDimensionsModalOpen();
+                            } : undefined}
+                            _hover={!isEditing ? { bg: useColorModeValue("gray.100", "gray.700") } : {}}
+                        >
+                            {isEditing ? (
+                                renderEditableCell(item, "total_cw_air_freight", item.total_cw_air_freight, "number")
+                            ) : (
+                                <HStack spacing={2} align="center" justify="flex-start">
+                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                        {renderText(item.total_cw_air_freight)}
+                                    </Text>
+                                    <Tooltip label="View dimensions" hasArrow>
+                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                    </Tooltip>
+                                </HStack>
+                            )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                             {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text>}
@@ -3591,12 +3637,10 @@ export default function Stocks() {
                                                 <Th {...headerProps}>REMARKS</Th>
                                                 <Th {...headerProps}>ITEMS</Th>
                                                 <Th {...headerProps}>WEIGHT KGS</Th>
-                                                <Th {...headerProps}>LENGTH CM</Th>
-                                                <Th {...headerProps}>WIDTH CM</Th>
-                                                <Th {...headerProps}>HEIGHT CM</Th>
                                                 <Th {...headerProps}>VOLUME NO DIM</Th>
                                                 <Th {...headerProps}>LWH TEXT</Th>
-                                                <Th {...headerProps}>VOLUME CBM</Th>
+                                                <Th {...headerProps}>TOTAL VOLUME CBM</Th>
+                                                <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
                                                 <Th {...headerProps}>CURRENCY</Th>
                                                 <Th {...headerProps}>VALUE</Th>
                                                 <Th {...headerProps}>CLIENT</Th>
@@ -3678,12 +3722,44 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                                                        <Td 
+                                                            {...cellProps} 
+                                                            cursor="pointer" 
+                                                            onClick={() => {
+                                                                setSelectedDimensions(item.dimensions || []);
+                                                                onDimensionsModalOpen();
+                                                            }}
+                                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                        >
+                                                            <HStack spacing={2} align="center" justify="flex-start">
+                                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                    {renderText(item.total_volume_cbm)}
+                                                                </Text>
+                                                                <Tooltip label="View dimensions" hasArrow>
+                                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Td>
+                                                        <Td 
+                                                            {...cellProps} 
+                                                            cursor="pointer" 
+                                                            onClick={() => {
+                                                                setSelectedDimensions(item.dimensions || []);
+                                                                onDimensionsModalOpen();
+                                                            }}
+                                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                        >
+                                                            <HStack spacing={2} align="center" justify="flex-start">
+                                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                    {renderText(item.total_cw_air_freight)}
+                                                                </Text>
+                                                                <Tooltip label="View dimensions" hasArrow>
+                                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
@@ -3819,12 +3895,10 @@ export default function Stocks() {
                                                 <Th {...headerProps}>REMARKS</Th>
                                                 <Th {...headerProps}>ITEMS</Th>
                                                 <Th {...headerProps}>WEIGHT KGS</Th>
-                                                <Th {...headerProps}>LENGTH CM</Th>
-                                                <Th {...headerProps}>WIDTH CM</Th>
-                                                <Th {...headerProps}>HEIGHT CM</Th>
                                                 <Th {...headerProps}>VOLUME NO DIM</Th>
                                                 <Th {...headerProps}>LWH TEXT</Th>
-                                                <Th {...headerProps}>VOLUME CBM</Th>
+                                                <Th {...headerProps}>TOTAL VOLUME CBM</Th>
+                                                <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
                                                 <Th {...headerProps}>CURRENCY</Th>
                                                 <Th {...headerProps}>VALUE</Th>
                                                 <Th {...headerProps}>FILES</Th>
@@ -3861,12 +3935,44 @@ export default function Stocks() {
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.length_cm)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.width_cm)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.height_cm)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_cbm)}</Text></Td>
+                                                        <Td 
+                                                            {...cellProps} 
+                                                            cursor="pointer" 
+                                                            onClick={() => {
+                                                                setSelectedDimensions(item.dimensions || []);
+                                                                onDimensionsModalOpen();
+                                                            }}
+                                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                        >
+                                                            <HStack spacing={2} align="center" justify="flex-start">
+                                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                    {renderText(item.total_volume_cbm)}
+                                                                </Text>
+                                                                <Tooltip label="View dimensions" hasArrow>
+                                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Td>
+                                                        <Td 
+                                                            {...cellProps} 
+                                                            cursor="pointer" 
+                                                            onClick={() => {
+                                                                setSelectedDimensions(item.dimensions || []);
+                                                                onDimensionsModalOpen();
+                                                            }}
+                                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                        >
+                                                            <HStack spacing={2} align="center" justify="flex-start">
+                                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                    {renderText(item.total_cw_air_freight)}
+                                                                </Text>
+                                                                <Tooltip label="View dimensions" hasArrow>
+                                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                </Tooltip>
+                                                            </HStack>
+                                                        </Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                                         <Td {...cellProps}>
@@ -4216,6 +4322,162 @@ export default function Stocks() {
                     </>
                 )}
             </Card>
+
+            {/* Dimensions View Modal */}
+            <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="2xl">
+                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
+                <ModalContent>
+                    <ModalHeader 
+                        fontSize="xl" 
+                        fontWeight="bold" 
+                        pb={3}
+                        borderBottom="1px"
+                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                    >
+                        <HStack spacing={2}>
+                            <Icon as={MdVisibility} color="blue.500" />
+                            <Text>Dimensions Details</Text>
+                            {selectedDimensions && selectedDimensions.length > 0 && (
+                                <Badge colorScheme="blue" fontSize="sm" px={2} py={1} borderRadius="full">
+                                    {selectedDimensions.length} {selectedDimensions.length === 1 ? 'Dimension' : 'Dimensions'}
+                                </Badge>
+                            )}
+                        </HStack>
+                    </ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody py={6}>
+                        {selectedDimensions && selectedDimensions.length > 0 ? (
+                            <VStack spacing={4} align="stretch">
+                                {selectedDimensions.map((dim, index) => (
+                                    <Box
+                                        key={dim.id || index}
+                                        p={4}
+                                        border="1px"
+                                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                                        borderRadius="lg"
+                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        _hover={{
+                                            borderColor: useColorModeValue("blue.300", "blue.500"),
+                                            boxShadow: "md",
+                                            transform: "translateY(-2px)",
+                                            transition: "all 0.2s"
+                                        }}
+                                    >
+                                        <Flex justify="space-between" align="center" mb={3}>
+                                            <HStack spacing={2}>
+                                                <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
+                                                    Dimension {index + 1}
+                                                </Badge>
+                                                {dim.id && (
+                                                    <Badge colorScheme="gray" fontSize="xs" px={2} py={1}>
+                                                        ID: {dim.id}
+                                                    </Badge>
+                                                )}
+                                            </HStack>
+                                        </Flex>
+                                        <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={3}>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Length
+                                                </Text>
+                                                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                    {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Width
+                                                </Text>
+                                                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                    {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Height
+                                                </Text>
+                                                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                    {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                </Text>
+                                            </Box>
+                                        </Grid>
+                                        <Divider my={3} />
+                                        <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Volume (CBM)
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="blue.500">
+                                                    {renderText(dim.volume_cbm) || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    CW Air Freight
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="green.500">
+                                                    {renderText(dim.cw_air_freight) || "-"}
+                                                </Text>
+                                            </Box>
+                                        </Grid>
+                                    </Box>
+                                ))}
+                                {/* Summary Section */}
+                                {selectedDimensions.length > 1 && (
+                                    <>
+                                        <Divider />
+                                        <Box
+                                            p={4}
+                                            bg={useColorModeValue("blue.50", "blue.900")}
+                                            borderRadius="lg"
+                                            border="1px"
+                                            borderColor={useColorModeValue("blue.200", "blue.700")}
+                                        >
+                                            <Text fontSize="sm" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")} mb={3}>
+                                                Total Summary
+                                            </Text>
+                                            <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                        Total Volume (CBM)
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                        {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.volume_cbm) || 0), 0).toFixed(3)}
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                        Total CW Air Freight
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                        {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.cw_air_freight) || 0), 0).toFixed(1)}
+                                                    </Text>
+                                                </Box>
+                                            </Grid>
+                                        </Box>
+                                    </>
+                                )}
+                            </VStack>
+                        ) : (
+                            <VStack spacing={4} py={8}>
+                                <Icon as={MdVisibility} boxSize={12} color={useColorModeValue("gray.400", "gray.600")} />
+                                <Text fontSize="lg" fontWeight="medium" color={useColorModeValue("gray.600", "gray.400")}>
+                                    No dimensions available
+                                </Text>
+                                <Text fontSize="sm" color={useColorModeValue("gray.500", "gray.500")} textAlign="center">
+                                    This stock item does not have any dimensions recorded.
+                                </Text>
+                            </VStack>
+                        )}
+                    </ModalBody>
+                    <ModalFooter borderTop="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                        <Button onClick={onDimensionsModalClose} colorScheme="blue">
+                            Close
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
         </Box>
     );
 }

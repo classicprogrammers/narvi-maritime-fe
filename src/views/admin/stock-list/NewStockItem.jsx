@@ -34,6 +34,14 @@ import {
     MenuButton,
     MenuList,
     MenuItem,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalFooter,
+    ModalBody,
+    ModalCloseButton,
+    useDisclosure,
 } from "@chakra-ui/react";
 import {
     MdSave,
@@ -79,6 +87,11 @@ export default function StockForm() {
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
     const [pics, setPics] = useState([]);
     const [isLoadingPICs, setIsLoadingPICs] = useState(false);
+    
+    // Dimensions modal state
+    const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
+    const [currentRowIndexForDimensions, setCurrentRowIndexForDimensions] = useState(0);
+    const [dimensionsList, setDimensionsList] = useState([]);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -146,6 +159,7 @@ export default function StockForm() {
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
         existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
+        dimensions: [], // Array of dimension objects { id, length_cm, width_cm, height_cm, volume_cbm, cw_air_freight }
     });
 
     // Form state - array of rows
@@ -700,6 +714,14 @@ export default function StockForm() {
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
+            dimensions: Array.isArray(stock.dimensions) ? stock.dimensions.map(dim => ({
+                id: dim.id || null,
+                length_cm: dim.length_cm || "",
+                width_cm: dim.width_cm || "",
+                height_cm: dim.height_cm || "",
+                volume_cbm: dim.volume_cbm || "",
+                cw_air_freight: dim.cw_air_freight || "",
+            })) : [],
         };
 
         if (returnData) {
@@ -983,6 +1005,21 @@ export default function StockForm() {
             dg_un: rowData.dgUn || "", // DG/UN Number - Free text
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
+            dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0 
+                ? rowData.dimensions.map(dim => {
+                    const dimension = {
+                        length_cm: toNumber(dim.length_cm) || 0,
+                        width_cm: toNumber(dim.width_cm) || 0,
+                        height_cm: toNumber(dim.height_cm) || 0,
+                    };
+                    // Only include id if it exists (for updates, not for new records)
+                    // volume_cbm and cw_air_freight are calculated by backend, so don't send them
+                    if (dim.id) {
+                        dimension.id = dim.id;
+                    }
+                    return dimension;
+                })
+                : undefined,
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
             // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
@@ -1332,9 +1369,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
@@ -1534,48 +1569,32 @@ export default function StockForm() {
                                         </NumberInput>
                                     </Td>
                                         <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.lengthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                        <HStack spacing={2}>
+                                            <Button
+                                                size="sm"
+                                                leftIcon={<Icon as={MdAdd} />}
+                                                onClick={() => {
+                                                    setCurrentRowIndexForDimensions(rowIndex);
+                                                    setDimensionsList(row.dimensions || []);
+                                                    onDimensionsModalOpen();
+                                                }}
+                                                colorScheme="blue"
+                                                variant="outline"
+                                            >
+                                                Dimensions ({row.dimensions?.length || 0})
+                                            </Button>
+                                        </HStack>
                                     </Td>
                                         <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.widthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                        <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.heightCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                        <Td {...cellProps}>
-                                        <NumberInput
+                                        <Input
                                             value={row.volumeNoDim}
-                                            onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
-                                            min={0}
-                                            precision={2}
+                                            onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
+                                            placeholder="Volume no dim"
                                             size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
                                     </Td>
                                         <Td {...cellProps}>
                                         <Textarea
@@ -2192,6 +2211,149 @@ export default function StockForm() {
                     </Box>
                 </Card>
             </Box>
+            
+            {/* Dimensions Modal */}
+            <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="xl">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Manage Dimensions</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4} align="stretch">
+                            {dimensionsList.map((dim, index) => (
+                                <Box key={dim.id || index} p={4} border="1px" borderColor={borderColor} borderRadius="md">
+                                    <Flex justify="space-between" align="center" mb={3}>
+                                        <Text fontWeight="600">Dimension {index + 1}</Text>
+                                        <IconButton
+                                            aria-label="Remove dimension"
+                                            icon={<Icon as={MdDelete} />}
+                                            size="sm"
+                                            colorScheme="red"
+                                            variant="ghost"
+                                            onClick={() => {
+                                                const updated = dimensionsList.filter((_, i) => i !== index);
+                                                setDimensionsList(updated);
+                                            }}
+                                        />
+                                    </Flex>
+                                    <Flex gap={3} wrap="wrap">
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Length (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.length_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], length_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Width (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.width_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], width_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Height (cm)</FormLabel>
+                                            <NumberInput
+                                                value={dim.height_cm || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = { ...updated[index], height_cm: value };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
+                                    </Flex>
+                                    <Flex gap={3} wrap="wrap" mt={3}>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Volume (CBM)</FormLabel>
+                                            <Input
+                                                value={dim.volume_cbm || ""}
+                                                isReadOnly
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                placeholder="Calculated by backend"
+                                            />
+                                        </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">CW Air Freight</FormLabel>
+                                            <Input
+                                                value={dim.cw_air_freight || ""}
+                                                isReadOnly
+                                                size="sm"
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                                placeholder="Calculated by backend"
+                                            />
+                                        </FormControl>
+                                    </Flex>
+                                </Box>
+                            ))}
+                            <Button
+                                leftIcon={<Icon as={MdAdd} />}
+                                onClick={() => {
+                                    setDimensionsList([...dimensionsList, {
+                                        id: null,
+                                        length_cm: "",
+                                        width_cm: "",
+                                        height_cm: "",
+                                        volume_cbm: "",
+                                        cw_air_freight: "",
+                                    }]);
+                                }}
+                                colorScheme="blue"
+                                variant="outline"
+                            >
+                                Add Dimension
+                            </Button>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="ghost" mr={3} onClick={onDimensionsModalClose}>
+                            Cancel
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            onClick={() => {
+                                const updatedRows = [...formRows];
+                                updatedRows[currentRowIndexForDimensions] = {
+                                    ...updatedRows[currentRowIndexForDimensions],
+                                    dimensions: dimensionsList,
+                                };
+                                setFormRows(updatedRows);
+                                onDimensionsModalClose();
+                            }}
+                        >
+                            Save Dimensions
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </Box>
     );
 } 
