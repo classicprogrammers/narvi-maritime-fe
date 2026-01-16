@@ -1600,7 +1600,7 @@ function VendorRegistration() {
                                             </Flex>
 
                                             <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }} columnGap={4} rowGap={3}>
-                                                {/* CNEE1 - Free Text */}
+                                                {/* CNEE - Free Text */}
                                                 <Box
                                                     display="flex"
                                                     justifyContent="space-between"
@@ -1614,12 +1614,12 @@ function VendorRegistration() {
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
                                                     >
-                                                        CNEE1
+                                                        CNEE {rowIndex + 1}
                                                     </Text>
                                                     <Input
                                                         value={row.cnee1 || ""}
                                                         onChange={(e) => updateCneeRow(rowIndex, "cnee1", e.target.value)}
-                                                        placeholder="Enter CNEE1 (free text)"
+                                                        placeholder={`Enter CNEE ${rowIndex + 1} (free text)`}
                                                         size="sm"
                                                         w={gridInputWidth}
                                                     />

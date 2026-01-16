@@ -896,7 +896,7 @@ const AgentDetail = () => {
                             columnGap={4}
                             rowGap={3}
                           >
-                            {/* CNEE1 - Free Text */}
+                            {/* CNEE - Free Text */}
                             <GridItem>
                               <Flex
                                 alignItems="center"
@@ -910,7 +910,7 @@ const AgentDetail = () => {
                                   color={labelColor}
                                   minW="90px"
                                 >
-                                  CNEE1
+                                  CNEE {rowIndex + 1}
                                 </Text>
                                 <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
                                   {prettyValue(row.cnee1)}
