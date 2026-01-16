@@ -171,6 +171,8 @@ export const updateCustomerApi = async (customerId, data) => {
       website: data.website,
       prefix: data.prefix,
       remarks: data.remarks,
+      tariffs: data.tariffs || "",
+      client_invoicing: data.client_invoicing || "",
       payment_term: data.payment_term,
       type_client: data.type_client,
       company_type_text: data.company_type_text,

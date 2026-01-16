@@ -90,6 +90,8 @@ const clientInfoSections = [
       { label: "Phone1", key: "phone" },
       { label: "Phone2", key: "phone2" },
       { label: "Website", key: "website" },
+      { label: "Tariffs", key: "tariffs" },
+      { label: "Client Invoicing", key: "client_invoicing" },
       { label: "Remarks", key: "remarks" },
     ],
   },

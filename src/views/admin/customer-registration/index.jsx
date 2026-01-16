@@ -202,6 +202,8 @@ function CustomerRegistration() {
         vessel_type2: "",
         vessel_type3: "",
         remarks: "",
+        tariffs: "",
+        client_invoicing: "",
         prefix: "",
         job_title: "",
     });
@@ -291,6 +293,8 @@ function CustomerRegistration() {
                 vessel_type2: editingClient.vessel_type2 || "",
                 vessel_type3: editingClient.vessel_type3 || "",
                 remarks: editingClient.remarks || "",
+                tariffs: editingClient.tariffs || "",
+                client_invoicing: editingClient.client_invoicing || "",
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
             });
@@ -649,6 +653,8 @@ function CustomerRegistration() {
                 vessel_type2: formData.vessel_type2 || undefined,
                 vessel_type3: formData.vessel_type3 || undefined,
                 remarks: formData.remarks,
+                tariffs: formData.tariffs || "",
+                client_invoicing: formData.client_invoicing || "",
                 company_type: "company",
                 children: children.length ? children : undefined,
             });
@@ -732,6 +738,8 @@ function CustomerRegistration() {
                     vessel_type2: "",
                     vessel_type3: "",
                     remarks: "",
+                    tariffs: "",
+                    client_invoicing: "",
                     prefix: "",
                     job_title: "",
                 });
@@ -1375,6 +1383,20 @@ function CustomerRegistration() {
                                                             )}
                                                         </Flex>
                                                     </Box>
+
+                                                    {/* LEFT: Tariffs */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Tariffs</Text>
+                                                        <Input name="tariffs" value={formData.tariffs} onChange={handleInputChange} placeholder="Tariffs" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    <Box px={4} py={2} borderColor={borderColor}></Box>
+
+                                                    {/* LEFT: Client Invoicing */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Client Invoicing</Text>
+                                                        <Input name="client_invoicing" value={formData.client_invoicing} onChange={handleInputChange} placeholder="Client invoicing" size="sm" w={gridInputWidth} />
+                                                    </Box>
+                                                    <Box px={4} py={2} borderColor={borderColor}></Box>
 
                                                     {/* LEFT: Phone1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>

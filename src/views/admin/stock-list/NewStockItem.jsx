@@ -1007,17 +1007,14 @@ export default function StockForm() {
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0 
                 ? rowData.dimensions.map(dim => {
-                    const dimension = {
+                    // For new records, all dimensions are "create" operations
+                    // volume_cbm and cw_air_freight are calculated by backend, so don't send them
+                    return {
+                        op: "create",
                         length_cm: toNumber(dim.length_cm) || 0,
                         width_cm: toNumber(dim.width_cm) || 0,
                         height_cm: toNumber(dim.height_cm) || 0,
                     };
-                    // Only include id if it exists (for updates, not for new records)
-                    // volume_cbm and cw_air_freight are calculated by backend, so don't send them
-                    if (dim.id) {
-                        dimension.id = dim.id;
-                    }
-                    return dimension;
                 })
                 : undefined,
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field

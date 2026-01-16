@@ -441,6 +441,19 @@ export default function StockDBMainEdit() {
                 if (normalized.volumeCbm !== undefined) normalized.volumeCbm = String(normalized.volumeCbm || "");
                 if (normalized.cwAirfreight !== undefined) normalized.cwAirfreight = String(normalized.cwAirfreight || "");
                 if (normalized.value !== undefined) normalized.value = String(normalized.value || "");
+                // Deep copy dimensions array to ensure proper comparison
+                if (normalized.dimensions && Array.isArray(normalized.dimensions)) {
+                    normalized.dimensions = normalized.dimensions.map(dim => ({
+                        ...dim,
+                        // Preserve original values as-is for comparison
+                        id: dim.id || null,
+                        length_cm: dim.length_cm,
+                        width_cm: dim.width_cm,
+                        height_cm: dim.height_cm,
+                        volume_cbm: dim.volume_cbm,
+                        cw_air_freight: dim.cw_air_freight,
+                    }));
+                }
                 return normalized;
             }) : [getEmptyRow()]);
         } else {
@@ -984,24 +997,10 @@ export default function StockDBMainEdit() {
             ["cwAirfreight", "cw_air_freight_new", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
             ["destination", "destination_new", (v) => v || ""],
-            // Dimensions
+            // Dimensions - handled separately with operation types (create/update/delete)
             ["dimensions", "dimensions", (v) => {
-                if (!Array.isArray(v)) return [];
-                // Always return array (even if empty) so backend can process it
-                // Only include id, length_cm, width_cm, height_cm
-                // volume_cbm and cw_air_freight are calculated by backend
-                return v.map(dim => {
-                    const dimension = {
-                        length_cm: toNumber(dim.length_cm) || 0,
-                        width_cm: toNumber(dim.width_cm) || 0,
-                        height_cm: toNumber(dim.height_cm) || 0,
-                    };
-                    // Only include id if it exists (for updates, not for new records)
-                    if (dim.id) {
-                        dimension.id = dim.id;
-                    }
-                    return dimension;
-                });
+                // This transform is not used anymore - dimensions are handled above with operation types
+                return [];
             }],
             // Attachments
             ["attachments", "attachments", (v) => v || []],
@@ -1032,46 +1031,102 @@ export default function StockDBMainEdit() {
 
         // Always include dimensions if they exist (before checking other fields)
         // This ensures dimensions are sent to backend for proper calculation of total_volume_cbm and total_cw_air_freight
+        // Format: { op: "create|update|delete", id?: number, length_cm, width_cm, height_cm }
         const dimensionsField = fieldMappings.find(([field]) => field === "dimensions");
         if (dimensionsField) {
-            const [frontendField, backendField, transform] = dimensionsField;
-            const currentValue = rowData[frontendField];
-            const originalValue = originalData ? originalData[frontendField] : undefined;
+            const [frontendField, backendField] = dimensionsField;
+            const currentDimensions = Array.isArray(rowData[frontendField]) ? rowData[frontendField] : [];
+            const originalDimensions = originalData && Array.isArray(originalData[frontendField]) ? originalData[frontendField] : [];
 
-            // Debug logging
-            console.log('Dimensions check:', {
-                currentValue,
-                originalValue,
-                currentIsArray: Array.isArray(currentValue),
-                originalIsArray: Array.isArray(originalValue),
-                currentLength: Array.isArray(currentValue) ? currentValue.length : 0,
-                originalLength: Array.isArray(originalValue) ? originalValue.length : 0
+            // Build dimensions payload with operation types
+            const dimensionsPayload = [];
+
+            // Helper function to normalize dimension values for comparison
+            const normalizeDimValue = (value) => {
+                if (value === null || value === undefined || value === "") return 0;
+                const num = Number(value);
+                return isNaN(num) ? 0 : num;
+            };
+
+            // 1. Find dimensions to CREATE (exist in current but not in original, or have no id)
+            currentDimensions.forEach(dim => {
+                if (!dim.id) {
+                    // New dimension - no id means it's new
+                    const length = normalizeDimValue(dim.length_cm);
+                    const width = normalizeDimValue(dim.width_cm);
+                    const height = normalizeDimValue(dim.height_cm);
+                    
+                    // Only add if at least one value is non-zero
+                    if (length > 0 || width > 0 || height > 0) {
+                        dimensionsPayload.push({
+                            op: "create",
+                            length_cm: length,
+                            width_cm: width,
+                            height_cm: height,
+                        });
+                    }
+                } else {
+                    // Check if this dimension exists in original
+                    const originalDim = originalDimensions.find(od => od.id === dim.id);
+                    if (!originalDim) {
+                        // New dimension with id (shouldn't happen, but handle it)
+                        const length = normalizeDimValue(dim.length_cm);
+                        const width = normalizeDimValue(dim.width_cm);
+                        const height = normalizeDimValue(dim.height_cm);
+                        
+                        if (length > 0 || width > 0 || height > 0) {
+                            dimensionsPayload.push({
+                                op: "create",
+                                length_cm: length,
+                                width_cm: width,
+                                height_cm: height,
+                            });
+                        }
+                    } else {
+                        // Check if dimension values changed - normalize both for comparison
+                        const currentLength = normalizeDimValue(dim.length_cm);
+                        const currentWidth = normalizeDimValue(dim.width_cm);
+                        const currentHeight = normalizeDimValue(dim.height_cm);
+                        const originalLength = normalizeDimValue(originalDim.length_cm);
+                        const originalWidth = normalizeDimValue(originalDim.width_cm);
+                        const originalHeight = normalizeDimValue(originalDim.height_cm);
+                        
+                        const hasChanged = 
+                            currentLength !== originalLength ||
+                            currentWidth !== originalWidth ||
+                            currentHeight !== originalHeight;
+                        
+                        if (hasChanged) {
+                            // Updated dimension - include ALL fields (not just changed ones) for clarity
+                            dimensionsPayload.push({
+                                op: "update",
+                                id: dim.id,
+                                length_cm: currentLength,
+                                width_cm: currentWidth,
+                                height_cm: currentHeight,
+                            });
+                        }
+                    }
+                }
             });
 
-            // Always include dimensions if they exist in form data OR original data
-            // Priority: currentValue (from form) > originalValue (from loaded stock data)
-            let dimensionsToInclude = null;
+            // 2. Find dimensions to DELETE (exist in original but not in current)
+            originalDimensions.forEach(originalDim => {
+                if (originalDim.id) {
+                    const existsInCurrent = currentDimensions.some(dim => dim.id === originalDim.id);
+                    if (!existsInCurrent) {
+                        // Dimension was deleted
+                        dimensionsPayload.push({
+                            op: "delete",
+                            id: originalDim.id,
+                        });
+                    }
+                }
+            });
 
-            // Check current form data first
-            if (Array.isArray(currentValue)) {
-                const transformedValue = transform(currentValue);
-                // Include dimensions even if empty array - backend needs this
-                dimensionsToInclude = transformedValue || [];
-                console.log('Using currentValue dimensions:', dimensionsToInclude);
-            }
-            // Fall back to original data if form data doesn't have dimensions
-            else if (originalValue && Array.isArray(originalValue)) {
-                const transformedValue = transform(originalValue);
-                dimensionsToInclude = transformedValue || [];
-                console.log('Using originalValue dimensions:', dimensionsToInclude);
-            }
-
-            // Always include dimensions if they were found (even if empty array)
-            if (dimensionsToInclude !== null) {
-                payload[backendField] = dimensionsToInclude;
-                console.log('Added dimensions to payload:', payload[backendField]);
-            } else {
-                console.log('No dimensions to include');
+            // Always include dimensions array if there are any operations
+            if (dimensionsPayload.length > 0) {
+                payload[backendField] = dimensionsPayload;
             }
         }
 
@@ -1101,23 +1156,6 @@ export default function StockDBMainEdit() {
         if (Object.keys(payload).length > (payload.stock_id ? 1 : 0) + (payload.stock_item_id ? 1 : 0) + (payload.dimensions ? 1 : 0)) {
             payload.shipment_type = "";
         }
-
-        // Final check: Ensure dimensions are always included if they exist in original data
-        // This is a fallback to ensure dimensions are never missed
-        if (!payload.dimensions && originalData && originalData.dimensions && Array.isArray(originalData.dimensions)) {
-            const dimensionsField = fieldMappings.find(([field]) => field === "dimensions");
-            if (dimensionsField) {
-                const [, , transform] = dimensionsField;
-                const transformedValue = transform(originalData.dimensions);
-                if (transformedValue) {
-                    payload.dimensions = transformedValue;
-                    console.log('Fallback: Added dimensions from originalData:', payload.dimensions);
-                }
-            }
-        }
-
-        console.log('Final payload keys:', Object.keys(payload));
-        console.log('Final payload dimensions:', payload.dimensions);
 
         return payload;
     };

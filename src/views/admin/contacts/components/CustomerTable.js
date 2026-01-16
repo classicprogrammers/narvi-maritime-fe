@@ -1539,6 +1539,44 @@ export default function CustomerTable(props) {
                       _hover={{ borderColor: "blue.300" }}
                     />
                   </FormControl>
+
+                  <FormControl>
+                    <FormLabel>Tariffs</FormLabel>
+                    <Input
+                      placeholder="Tariffs"
+                      value={editingCustomer?.tariffs || ""}
+                      onChange={(e) => handleEditInputChange("tariffs", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
+
+                  <FormControl>
+                    <FormLabel>Client Invoicing</FormLabel>
+                    <Input
+                      placeholder="Client invoicing"
+                      value={editingCustomer?.client_invoicing || ""}
+                      onChange={(e) => handleEditInputChange("client_invoicing", e.target.value)}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
                 </Grid>
               </Box>
 
