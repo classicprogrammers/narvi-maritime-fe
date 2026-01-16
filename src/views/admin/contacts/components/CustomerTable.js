@@ -351,6 +351,81 @@ export default function CustomerTable(props) {
     }));
   };
 
+  // Helper function to handle numbered list on Enter
+  const createNumberedListHandler = (field) => {
+    return (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        const currentText = e.target.value;
+        const cursorPosition = e.target.selectionStart;
+
+        // Get the text before and after cursor
+        const textBeforeCursor = currentText.substring(0, cursorPosition);
+        const textAfterCursor = currentText.substring(cursorPosition);
+
+        // Find the current line (text from last newline to cursor)
+        const lastNewlineIndex = textBeforeCursor.lastIndexOf("\n");
+        const currentLine = textBeforeCursor.substring(lastNewlineIndex + 1);
+
+        // If current line is empty, just add a newline
+        if (!currentLine.trim()) {
+          const newValue = textBeforeCursor + "\n" + textAfterCursor;
+          handleEditInputChange(field, newValue);
+          // Set cursor position after the newline
+          setTimeout(() => {
+            e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1;
+          }, 0);
+          return;
+        }
+
+        // Parse existing numbered items to get the next number
+        const allLines = currentText.split("\n");
+        let maxNumber = 0;
+
+        // Find the highest number in existing numbered items
+        allLines.forEach(line => {
+          const match = line.trim().match(/^(\d+)\.\s/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNumber) {
+              maxNumber = num;
+            }
+          }
+        });
+
+        // Check if current line already has a number prefix
+        const trimmedCurrentLine = currentLine.trim();
+        const hasNumberPrefix = /^\d+\.\s/.test(trimmedCurrentLine);
+
+        let newLine;
+        if (hasNumberPrefix) {
+          // Already has a number, keep it as is
+          newLine = currentLine;
+        } else {
+          // Add numbering to current line
+          const nextNumber = maxNumber + 1;
+          // Preserve any leading whitespace
+          const leadingWhitespace = currentLine.match(/^\s*/)?.[0] || "";
+          const lineContent = trimmedCurrentLine;
+          newLine = leadingWhitespace + `${nextNumber}. ${lineContent}`;
+        }
+
+        // Build the new value
+        const linesBefore = lastNewlineIndex >= 0
+          ? textBeforeCursor.substring(0, lastNewlineIndex + 1)
+          : "";
+        const newValue = linesBefore + newLine + "\n" + textAfterCursor;
+
+        handleEditInputChange(field, newValue);
+
+        // Set cursor position after the newline
+        setTimeout(() => {
+          e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1 + (newLine.length - currentLine.length) + 1;
+        }, 0);
+      }
+    };
+  };
+
 
   const handleSaveEdit = async () => {
     try {
@@ -1561,14 +1636,17 @@ export default function CustomerTable(props) {
 
                   <FormControl>
                     <FormLabel>Client Invoicing</FormLabel>
-                    <Input
-                      placeholder="Client invoicing"
+                    <Textarea
+                      placeholder="Type and press Enter to create numbered list..."
                       value={editingCustomer?.client_invoicing || ""}
                       onChange={(e) => handleEditInputChange("client_invoicing", e.target.value)}
+                      onKeyDown={createNumberedListHandler("client_invoicing")}
                       bg={inputBg}
                       color={inputText}
                       border="2px"
                       borderColor={borderColor}
+                      rows={3}
+                      resize="vertical"
                       _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                       _focus={{
                         borderColor: "blue.400",
@@ -1585,25 +1663,26 @@ export default function CustomerTable(props) {
                 <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
                   Additional Information
                 </Text>
-                <FormControl>
-                  <FormLabel>Remarks</FormLabel>
-                  <Textarea
-                    placeholder="e.g., Preferred supplier for spare parts..."
-                    value={editingCustomer?.remarks || ""}
-                    onChange={(e) => handleEditInputChange("remarks", e.target.value)}
-                    bg={inputBg}
-                    color={inputText}
-                    border="2px"
-                    borderColor={borderColor}
-                    rows={3}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{ borderColor: "blue.300" }}
-                  />
-                </FormControl>
+                  <FormControl>
+                    <FormLabel>Remarks</FormLabel>
+                    <Textarea
+                      placeholder="Type and press Enter to create numbered list..."
+                      value={editingCustomer?.remarks || ""}
+                      onChange={(e) => handleEditInputChange("remarks", e.target.value)}
+                      onKeyDown={createNumberedListHandler("remarks")}
+                      bg={inputBg}
+                      color={inputText}
+                      border="2px"
+                      borderColor={borderColor}
+                      rows={3}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                    />
+                  </FormControl>
               </Box>
             </VStack>
           </ModalBody>

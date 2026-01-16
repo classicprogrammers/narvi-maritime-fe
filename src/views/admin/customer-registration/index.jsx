@@ -493,6 +493,13 @@ function CustomerRegistration() {
         }));
     });
 
+    const handleClientInvoicingKeyDown = createNumberedListHandler((newValue) => {
+        setFormData(prev => ({
+            ...prev,
+            client_invoicing: newValue
+        }));
+    });
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -1384,19 +1391,29 @@ function CustomerRegistration() {
                                                         </Flex>
                                                     </Box>
 
-                                                    {/* LEFT: Tariffs */}
-                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                                                    {/* LEFT: Empty / RIGHT: Tariffs */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
                                                         <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Tariffs</Text>
                                                         <Input name="tariffs" value={formData.tariffs} onChange={handleInputChange} placeholder="Tariffs" size="sm" w={gridInputWidth} />
                                                     </Box>
-                                                    <Box px={4} py={2} borderColor={borderColor}></Box>
 
-                                                    {/* LEFT: Client Invoicing */}
-                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Client Invoicing</Text>
-                                                        <Input name="client_invoicing" value={formData.client_invoicing} onChange={handleInputChange} placeholder="Client invoicing" size="sm" w={gridInputWidth} />
+                                                    {/* LEFT: Empty / RIGHT: Client Invoicing */}
+                                                    <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }}></Box>
+                                                    <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
+                                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Client Invoicing</Text>
+                                                        <Textarea
+                                                            name="client_invoicing"
+                                                            value={formData.client_invoicing}
+                                                            onChange={handleInputChange}
+                                                            onKeyDown={handleClientInvoicingKeyDown}
+                                                            placeholder="Type and press Enter to create numbered list..."
+                                                            size="sm"
+                                                            w={gridInputWidth}
+                                                            rows={3}
+                                                            resize="vertical"
+                                                        />
                                                     </Box>
-                                                    <Box px={4} py={2} borderColor={borderColor}></Box>
 
                                                     {/* LEFT: Phone1 */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>

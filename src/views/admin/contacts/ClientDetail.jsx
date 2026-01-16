@@ -341,8 +341,10 @@ const ClientDetail = () => {
                     "type_client",
                     "payment_term",
                     "vessel_type",
-                    "remarks",
                     "website",
+                    "tariffs",
+                    "client_invoicing",
+                    "remarks",
                   ];
 
                   // Helper to get displayable items in a given order
@@ -404,8 +406,8 @@ const ClientDetail = () => {
                       );
                     }
 
-                    // Special handling for remarks field - preserve line breaks for numbered lists
-                    if (key === "remarks") {
+                    // Special handling for remarks and client_invoicing fields - preserve line breaks
+                    if (key === "remarks" || key === "client_invoicing") {
                       return (
                         <Flex
                           key={key}
