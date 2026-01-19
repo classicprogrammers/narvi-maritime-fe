@@ -283,6 +283,9 @@ export default function Stocks() {
     const [selectedDimensions, setSelectedDimensions] = useState([]);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
+    // View selected items - filter table instead of modal
+    const [isViewingSelected, setIsViewingSelected] = useState(false);
+
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
@@ -727,6 +730,11 @@ export default function Stocks() {
             pathname: '/admin/stock-list/edit-stock',
             state: editState
         });
+    };
+
+    const handleBulkView = () => {
+        // Toggle view mode - filter table to show only selected items
+        setIsViewingSelected(prev => !prev);
     };
 
     // Handle navigate to edit page with selected items
@@ -1203,6 +1211,12 @@ export default function Stocks() {
     const getFilteredStockByStatus = () => {
         let filtered = [...stockList];
 
+        // If viewing selected items, filter to only show selected items
+        if (isViewingSelected && selectedRows.size > 0) {
+            const selectedIds = Array.from(selectedRows);
+            filtered = filtered.filter(item => selectedIds.includes(item.id));
+        }
+
         // Apply basic filters (same as index.jsx)
         if (stockViewClient) {
             filtered = filtered.filter(item =>
@@ -1426,6 +1440,12 @@ export default function Stocks() {
     const getFilteredStockByVessel = () => {
         let filtered = [...stockList];
 
+        // If viewing selected items, filter to only show selected items
+        if (isViewingSelected && selectedRows.size > 0) {
+            const selectedIds = Array.from(selectedRows);
+            filtered = filtered.filter(item => selectedIds.includes(item.id));
+        }
+
         // Apply vessel filter
         if (vesselViewVessel) {
             filtered = filtered.filter((item) => {
@@ -1457,6 +1477,12 @@ export default function Stocks() {
     // Filter stock list for By Client view
     const getFilteredStockByClient = () => {
         let filtered = [...stockList];
+
+        // If viewing selected items, filter to only show selected items
+        if (isViewingSelected && selectedRows.size > 0) {
+            const selectedIds = Array.from(selectedRows);
+            filtered = filtered.filter(item => selectedIds.includes(item.id));
+        }
 
         // Apply client filter
         if (clientViewClient) {
@@ -3551,7 +3577,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
@@ -3622,6 +3648,14 @@ export default function Stocks() {
                                                 {selectedRows.size} item(s) selected
                                             </Text>
                                             <Button
+                                                leftIcon={<Icon as={MdVisibility} />}
+                                                colorScheme={isViewingSelected ? "blue" : "green"}
+                                                size="sm"
+                                                onClick={handleBulkView}
+                                            >
+                                                {isViewingSelected ? "Show All" : "View Selected"}
+                                            </Button>
+                                            <Button
                                                 leftIcon={<Icon as={MdEdit} />}
                                                 colorScheme="blue"
                                                 size="sm"
@@ -3632,7 +3666,10 @@ export default function Stocks() {
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                onClick={() => setSelectedRows(new Set())}
+                                                onClick={() => {
+                                                    setSelectedRows(new Set());
+                                                    setIsViewingSelected(false);
+                                                }}
                                             >
                                                 Clear Selection
                                             </Button>
@@ -4203,24 +4240,39 @@ export default function Stocks() {
                                     </>
                                 ) : (
                                     <>
-                                        <Text fontSize="sm" color={textColor} fontWeight="600">
-                                            {selectedRows.size} item(s) selected
-                                        </Text>
-                                        <Button
-                                            leftIcon={<Icon as={MdEdit} />}
-                                            colorScheme="blue"
-                                            size="sm"
-                                            onClick={handleBulkEdit}
-                                        >
-                                            Edit Selected
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setSelectedRows(new Set())}
-                                        >
-                                            Clear Selection
-                                        </Button>
+                                        {selectedRows.size > 0 && (
+                                            <>
+                                                <Text fontSize="sm" color={textColor} fontWeight="600">
+                                                    {selectedRows.size} item(s) selected
+                                                </Text>
+                                                <Button
+                                                    leftIcon={<Icon as={MdVisibility} />}
+                                                    colorScheme={isViewingSelected ? "blue" : "green"}
+                                                    size="sm"
+                                                    onClick={handleBulkView}
+                                                >
+                                                    {isViewingSelected ? "Show All" : "View Selected"}
+                                                </Button>
+                                                <Button
+                                                    leftIcon={<Icon as={MdEdit} />}
+                                                    colorScheme="blue"
+                                                    size="sm"
+                                                    onClick={handleBulkEdit}
+                                                >
+                                                    Edit Selected
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setSelectedRows(new Set());
+                                                        setIsViewingSelected(false);
+                                                    }}
+                                                >
+                                                    Clear Selection
+                                                </Button>
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </Flex>
@@ -4416,9 +4468,9 @@ export default function Stocks() {
                                         Showing {startIndex + 1} to {Math.min(endIndex, filteredAndSortedStock.length)} of {filteredAndSortedStock.length} stock items
                                         {(() => {
                                             if (activeTab === 0) {
-                                                return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0) ? " (filtered)" : "";
+                                                return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             } else {
-                                                return (clientViewClient || clientViewStatuses.size > 0) ? " (filtered)" : "";
+                                                return (clientViewClient || clientViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             }
                                         })()}
                                         {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
@@ -4649,6 +4701,7 @@ export default function Stocks() {
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+
 
         </Box>
     );

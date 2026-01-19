@@ -705,7 +705,7 @@ export default function StockDBMainEdit() {
                             stockId = urlMatch[1];
                         }
                     }
-                    
+
                     if (!stockId) {
                         throw new Error('Unable to determine stock item ID from attachment URL');
                     }
@@ -717,72 +717,72 @@ export default function StockDBMainEdit() {
                         // Call API to get attachment
                         const response = await getStockItemAttachmentsApi(stockId);
 
-                    // Handle response - could be blob (direct file) or JSON (metadata)
-                    let attachmentData = null;
-                    
-                    // If response is a blob (direct file data)
-                    if (response.data instanceof Blob) {
-                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-                        fileUrl = URL.createObjectURL(response.data);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    }
-                    
-                    // If response is JSON (metadata or error)
-                    if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
-                        // Find the specific attachment by ID if available
-                        if (attachment.id) {
-                            attachmentData = response.result.attachments.find(att => att.id === attachment.id);
-                        } else {
-                            // Use first attachment if no ID match
-                            attachmentData = response.result.attachments[0];
-                        }
-                    } else if (response.attachments && Array.isArray(response.attachments)) {
-                        if (attachment.id) {
-                            attachmentData = response.attachments.find(att => att.id === attachment.id);
-                        } else {
-                            attachmentData = response.attachments[0];
-                        }
-                    } else if (response.result && response.result.data) {
-                        // Handle case where attachment data is in result.data
-                        attachmentData = response.result.data;
-                    } else if (response.data && !(response.data instanceof Blob)) {
-                        attachmentData = response.data;
-                    }
+                        // Handle response - could be blob (direct file) or JSON (metadata)
+                        let attachmentData = null;
 
-                    if (!attachmentData) {
-                        throw new Error('Attachment not found in API response');
-                    }
-
-                    // Now handle the attachment data - it might have base64 data, URL, or file data
-                    if (attachmentData.datas) {
-                        // Base64 data - convert to blob
-                        const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
-                        const base64Data = attachmentData.datas;
-                        const byteCharacters = atob(base64Data);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        // If response is a blob (direct file data)
+                        if (response.data instanceof Blob) {
+                            const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                            fileUrl = URL.createObjectURL(response.data);
+                            window.open(fileUrl, '_blank');
+                            return;
                         }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: mimeType });
-                        fileUrl = URL.createObjectURL(blob);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
-                        // Direct file URL (not an API endpoint)
-                        fileUrl = attachmentData.url;
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else if (attachmentData.file || attachmentData.blob) {
-                        // File or blob object
-                        const file = attachmentData.file || attachmentData.blob;
-                        fileUrl = URL.createObjectURL(file);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else {
-                        throw new Error('Attachment data format not supported');
-                    }
+
+                        // If response is JSON (metadata or error)
+                        if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
+                            // Find the specific attachment by ID if available
+                            if (attachment.id) {
+                                attachmentData = response.result.attachments.find(att => att.id === attachment.id);
+                            } else {
+                                // Use first attachment if no ID match
+                                attachmentData = response.result.attachments[0];
+                            }
+                        } else if (response.attachments && Array.isArray(response.attachments)) {
+                            if (attachment.id) {
+                                attachmentData = response.attachments.find(att => att.id === attachment.id);
+                            } else {
+                                attachmentData = response.attachments[0];
+                            }
+                        } else if (response.result && response.result.data) {
+                            // Handle case where attachment data is in result.data
+                            attachmentData = response.result.data;
+                        } else if (response.data && !(response.data instanceof Blob)) {
+                            attachmentData = response.data;
+                        }
+
+                        if (!attachmentData) {
+                            throw new Error('Attachment not found in API response');
+                        }
+
+                        // Now handle the attachment data - it might have base64 data, URL, or file data
+                        if (attachmentData.datas) {
+                            // Base64 data - convert to blob
+                            const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
+                            const base64Data = attachmentData.datas;
+                            const byteCharacters = atob(base64Data);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: mimeType });
+                            fileUrl = URL.createObjectURL(blob);
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
+                            // Direct file URL (not an API endpoint)
+                            fileUrl = attachmentData.url;
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else if (attachmentData.file || attachmentData.blob) {
+                            // File or blob object
+                            const file = attachmentData.file || attachmentData.blob;
+                            fileUrl = URL.createObjectURL(file);
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else {
+                            throw new Error('Attachment data format not supported');
+                        }
                     } finally {
                         // Hide loading state
                         setIsLoadingAttachment(false);
@@ -1109,7 +1109,7 @@ export default function StockDBMainEdit() {
                     const length = normalizeDimValue(dim.length_cm);
                     const width = normalizeDimValue(dim.width_cm);
                     const height = normalizeDimValue(dim.height_cm);
-                    
+
                     // Only add if at least one value is non-zero
                     if (length > 0 || width > 0 || height > 0) {
                         dimensionsPayload.push({
@@ -1127,7 +1127,7 @@ export default function StockDBMainEdit() {
                         const length = normalizeDimValue(dim.length_cm);
                         const width = normalizeDimValue(dim.width_cm);
                         const height = normalizeDimValue(dim.height_cm);
-                        
+
                         if (length > 0 || width > 0 || height > 0) {
                             dimensionsPayload.push({
                                 op: "create",
@@ -1144,12 +1144,12 @@ export default function StockDBMainEdit() {
                         const originalLength = normalizeDimValue(originalDim.length_cm);
                         const originalWidth = normalizeDimValue(originalDim.width_cm);
                         const originalHeight = normalizeDimValue(originalDim.height_cm);
-                        
-                        const hasChanged = 
+
+                        const hasChanged =
                             currentLength !== originalLength ||
                             currentWidth !== originalWidth ||
                             currentHeight !== originalHeight;
-                        
+
                         if (hasChanged) {
                             // Updated dimension - include ALL fields (not just changed ones) for clarity
                             dimensionsPayload.push({
@@ -2847,6 +2847,7 @@ export default function StockDBMainEdit() {
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+
         </Box>
     );
 }
