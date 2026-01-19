@@ -56,7 +56,6 @@ import {
     MdAttachFile,
     MdClose as MdRemove,
     MdVisibility,
-    MdDownload,
     MdFullscreen,
     MdArrowDownward,
     MdMoreVert,
@@ -828,8 +827,13 @@ export default function StockDBMainEdit() {
                     return;
                 } catch (base64Error) {
                     console.error('Error converting base64 to blob:', base64Error);
-                    // Fall back to download if viewing fails
-                    handleDownloadFile(attachment);
+                    toast({
+                        title: 'Error',
+                        description: 'Unable to view file. File conversion failed.',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
                     return;
                 }
             }
@@ -867,63 +871,6 @@ export default function StockDBMainEdit() {
         }
     };
 
-    // Handle downloading attachments - simplified like vessel attachments
-    const handleDownloadFile = (attachment) => {
-        try {
-            let fileUrl = null;
-            let fileName = attachment.filename || attachment.name || 'download';
-
-            // Case 1: actual uploaded file (File or Blob)
-            if (attachment instanceof File || attachment instanceof Blob) {
-                fileUrl = URL.createObjectURL(attachment);
-            }
-            // Case 2: backend URL
-            else if (attachment.url) {
-                fileUrl = attachment.url;
-            }
-            // Case 3: base64 data (most common for attachments)
-            else if (attachment.datas) {
-                const mimeType = attachment.mimetype || "application/octet-stream";
-                fileUrl = `data:${mimeType};base64,${attachment.datas}`;
-            }
-            // Case 4: construct URL from attachment ID
-            else if (attachment.id) {
-                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
-                fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
-            }
-            // Case 5: file path
-            else if (attachment.path) {
-                fileUrl = attachment.path;
-            }
-
-            if (fileUrl) {
-                const link = document.createElement('a');
-                link.href = fileUrl;
-                link.download = fileName;
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } else {
-                toast({
-                    title: 'Error',
-                    description: 'Unable to download file. File data not available.',
-                    status: 'error',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            }
-        } catch (error) {
-            console.error('Error downloading file:', error);
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to download file',
-                status: 'error',
-                duration: 3000,
-                isClosable: true,
-            });
-        }
-    };
 
     // Handle input change
     const handleInputChange = (rowIndex, field, value) => {
@@ -2501,7 +2448,7 @@ export default function StockDBMainEdit() {
                                             size="sm"
                                         />
                                     </Td>
-                                    {/* Files - Upload/Download button */}
+                                    {/* Files - Upload button */}
                                     <Td {...cellProps}>
                                         <VStack spacing={2} align="stretch">
                                             {/* File Upload Input */}
@@ -2553,14 +2500,6 @@ export default function StockDBMainEdit() {
                                                             onClick={() => handleViewFile(att, row.stockId)}
                                                         />
                                                         <IconButton
-                                                            aria-label="Download file"
-                                                            icon={<Icon as={MdDownload} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={() => handleDownloadFile(att)}
-                                                        />
-                                                        <IconButton
                                                             aria-label="Delete attachment"
                                                             icon={<Icon as={MdRemove} />}
                                                             size="xs"
@@ -2594,14 +2533,6 @@ export default function StockDBMainEdit() {
                                                             variant="ghost"
                                                             colorScheme="blue"
                                                             onClick={() => handleViewFile(att)}
-                                                        />
-                                                        <IconButton
-                                                            aria-label="Download file"
-                                                            icon={<Icon as={MdDownload} />}
-                                                            size="xs"
-                                                            variant="ghost"
-                                                            colorScheme="blue"
-                                                            onClick={() => handleDownloadFile(att)}
                                                         />
                                                         <IconButton
                                                             aria-label="Remove attachment"

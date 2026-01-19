@@ -55,7 +55,7 @@ import {
     Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -1032,8 +1032,13 @@ export default function Stocks() {
                     return;
                 } catch (base64Error) {
                     console.error('Error converting base64 to blob:', base64Error);
-                    // Fall back to download if viewing fails
-                    handleDownloadFile(attachment);
+                    toast({
+                        title: 'Error',
+                        description: 'Unable to view file. File conversion failed.',
+                        status: 'error',
+                        duration: 50000,
+                        isClosable: true,
+                    });
                     return;
                 }
             }
@@ -1071,63 +1076,6 @@ export default function Stocks() {
         }
     };
 
-    // Handle downloading attachments - simplified like vessel attachments
-    const handleDownloadFile = (attachment) => {
-        try {
-            let fileUrl = null;
-            let fileName = attachment.filename || attachment.name || 'download';
-
-            // Case 1: actual uploaded file (File or Blob)
-            if (attachment instanceof File || attachment instanceof Blob) {
-                fileUrl = URL.createObjectURL(attachment);
-            }
-            // Case 2: backend URL
-            else if (attachment.url) {
-                fileUrl = attachment.url;
-            }
-            // Case 3: base64 data (most common for attachments)
-            else if (attachment.datas) {
-                const mimeType = attachment.mimetype || "application/octet-stream";
-                fileUrl = `data:${mimeType};base64,${attachment.datas}`;
-            }
-            // Case 4: construct URL from attachment ID
-            else if (attachment.id) {
-                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
-                fileUrl = `${baseUrl}/web/content/${attachment.id}?download=true`;
-            }
-            // Case 5: file path
-            else if (attachment.path) {
-                fileUrl = attachment.path;
-            }
-
-            if (fileUrl) {
-                const link = document.createElement('a');
-                link.href = fileUrl;
-                link.download = fileName;
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            } else {
-                toast({
-                    title: 'Error',
-                    description: 'Unable to download file. File data not available.',
-                    status: 'error',
-                    duration: 50000,
-                    isClosable: true,
-                });
-            }
-        } catch (error) {
-            console.error('Error downloading file:', error);
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to download file',
-                status: 'error',
-                duration: 50000,
-                isClosable: true,
-            });
-        }
-    };
 
     // Shared sorting function - used by both By Vessel and By Client tabs
     // Sort by: AP Dest > Via Hub > Stock Status > Date on Stock
@@ -2529,14 +2477,6 @@ export default function Stocks() {
                                                 aria-label="View file"
                                                 onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             />
-                                            <IconButton
-                                                icon={<Icon as={MdDownload} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="blue"
-                                                aria-label="Download file"
-                                                onClick={() => handleDownloadFile(att)}
-                                            />
                                         </HStack>
                                     ))}
                                 </VStack>
@@ -2757,14 +2697,6 @@ export default function Stocks() {
                                                 colorScheme="blue"
                                                 aria-label="View file"
                                                 onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                            />
-                                            <IconButton
-                                                icon={<Icon as={MdDownload} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="blue"
-                                                aria-label="Download file"
-                                                onClick={() => handleDownloadFile(att)}
                                             />
                                         </HStack>
                                     ))}
@@ -3979,14 +3911,6 @@ export default function Stocks() {
                                                                                 aria-label="View file"
                                                                                 onClick={() => handleViewFile(att)}
                                                                             />
-                                                                            <IconButton
-                                                                                icon={<Icon as={MdDownload} />}
-                                                                                size="xs"
-                                                                                variant="ghost"
-                                                                                colorScheme="blue"
-                                                                                aria-label="Download file"
-                                                                                onClick={() => handleDownloadFile(att)}
-                                                                            />
                                                                         </HStack>
                                                                     ))}
                                                                 </VStack>
@@ -4229,14 +4153,6 @@ export default function Stocks() {
                                                                                 colorScheme="blue"
                                                                                 aria-label="View file"
                                                                                 onClick={() => handleViewFile(att)}
-                                                                            />
-                                                                            <IconButton
-                                                                                icon={<Icon as={MdDownload} />}
-                                                                                size="xs"
-                                                                                variant="ghost"
-                                                                                colorScheme="blue"
-                                                                                aria-label="Download file"
-                                                                                onClick={() => handleDownloadFile(att)}
                                                                             />
                                                                         </HStack>
                                                                     ))}

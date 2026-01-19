@@ -2115,7 +2115,7 @@ export default function StockForm() {
                                             <option value="true">Yes</option>
                                         </Select>
                                     </Td>
-                                        {/* Files - Upload/Download button */}
+                                        {/* Files - Upload button */}
                                         <Td {...cellProps}>
                                             <VStack spacing={2} align="stretch">
                                                 {/* File Upload Input */}
