@@ -62,7 +62,7 @@ import {
     MdMoreVert,
     MdAdd,
 } from "react-icons/md";
-import { updateStockItemApi, deleteStockItemApi } from "../../../api/stock";
+import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -97,6 +97,7 @@ export default function StockDBMainEdit() {
     const [lastAutoSaveTime, setLastAutoSaveTime] = useState(null);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const autoSaveTimeoutRef = React.useRef(null);
+    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     // Modal state for LWH Text field
     const { isOpen: isLWHModalOpen, onOpen: onLWHModalOpen, onClose: onLWHModalClose } = useDisclosure();
@@ -684,7 +685,7 @@ export default function StockDBMainEdit() {
     };
 
     // Handle viewing attachments - simplified like vessel attachments
-    const handleViewFile = (attachment) => {
+    const handleViewFile = async (attachment, stockItemId = null) => {
         try {
             let fileUrl = null;
 
@@ -694,7 +695,113 @@ export default function StockDBMainEdit() {
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 2: backend URL
+            // Case 2: API endpoint URL - fetch attachment from API
+            else if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
+                try {
+                    // Extract stock ID from URL or use provided stockItemId
+                    let stockId = stockItemId;
+                    if (!stockId) {
+                        const urlMatch = attachment.url.match(/\/api\/stock\/list\/(\d+)\/attachments/);
+                        if (urlMatch && urlMatch[1]) {
+                            stockId = urlMatch[1];
+                        }
+                    }
+                    
+                    if (!stockId) {
+                        throw new Error('Unable to determine stock item ID from attachment URL');
+                    }
+
+                    // Show loading state
+                    setIsLoadingAttachment(true);
+
+                    try {
+                        // Call API to get attachment
+                        const response = await getStockItemAttachmentsApi(stockId);
+
+                    // Handle response - could be blob (direct file) or JSON (metadata)
+                    let attachmentData = null;
+                    
+                    // If response is a blob (direct file data)
+                    if (response.data instanceof Blob) {
+                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                        fileUrl = URL.createObjectURL(response.data);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    }
+                    
+                    // If response is JSON (metadata or error)
+                    if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
+                        // Find the specific attachment by ID if available
+                        if (attachment.id) {
+                            attachmentData = response.result.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            // Use first attachment if no ID match
+                            attachmentData = response.result.attachments[0];
+                        }
+                    } else if (response.attachments && Array.isArray(response.attachments)) {
+                        if (attachment.id) {
+                            attachmentData = response.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            attachmentData = response.attachments[0];
+                        }
+                    } else if (response.result && response.result.data) {
+                        // Handle case where attachment data is in result.data
+                        attachmentData = response.result.data;
+                    } else if (response.data && !(response.data instanceof Blob)) {
+                        attachmentData = response.data;
+                    }
+
+                    if (!attachmentData) {
+                        throw new Error('Attachment not found in API response');
+                    }
+
+                    // Now handle the attachment data - it might have base64 data, URL, or file data
+                    if (attachmentData.datas) {
+                        // Base64 data - convert to blob
+                        const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
+                        const base64Data = attachmentData.datas;
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: mimeType });
+                        fileUrl = URL.createObjectURL(blob);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
+                        // Direct file URL (not an API endpoint)
+                        fileUrl = attachmentData.url;
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.file || attachmentData.blob) {
+                        // File or blob object
+                        const file = attachmentData.file || attachmentData.blob;
+                        fileUrl = URL.createObjectURL(file);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else {
+                        throw new Error('Attachment data format not supported');
+                    }
+                    } finally {
+                        // Hide loading state
+                        setIsLoadingAttachment(false);
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching attachment from API:', apiError);
+                    setIsLoadingAttachment(false);
+                    toast({
+                        title: 'Error',
+                        description: apiError.message || 'Failed to fetch attachment from server',
+                        status: 'error',
+                        duration: 50000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 3: backend URL (non-API endpoint)
             else if (attachment.url) {
                 fileUrl = attachment.url;
                 window.open(fileUrl, '_blank');
@@ -1440,6 +1547,24 @@ export default function StockDBMainEdit() {
 
     return (
         <Box p={{ base: "4", md: "6" }} mt={{ base: "80px", md: "80px", xl: "70px" }}>
+            {isLoadingAttachment && (
+                <Box
+                    position="fixed"
+                    top="50%"
+                    left="50%"
+                    transform="translate(-50%, -50%)"
+                    zIndex={1001}
+                    bg={useColorModeValue("white", "gray.800")}
+                    p={6}
+                    borderRadius="md"
+                    boxShadow="lg"
+                >
+                    <VStack spacing="4">
+                        <Spinner size="xl" color="#1c4a95" />
+                        <Text color={useColorModeValue("gray.600", "gray.300")}>Loading...</Text>
+                    </VStack>
+                </Box>
+            )}
 
             {/* Header */}
             <Flex justify="space-between" align="center" mb="6">
@@ -2414,7 +2539,7 @@ export default function StockDBMainEdit() {
                                                         cursor="pointer"
                                                         color="blue.500"
                                                         _hover={{ textDecoration: "underline" }}
-                                                        onClick={() => handleViewFile(att)}
+                                                        onClick={() => handleViewFile(att, row.stockId)}
                                                     >
                                                         {att.filename || att.name || `File ${attIdx + 1}`}
                                                     </Text>
@@ -2425,7 +2550,7 @@ export default function StockDBMainEdit() {
                                                             size="xs"
                                                             variant="ghost"
                                                             colorScheme="blue"
-                                                            onClick={() => handleViewFile(att)}
+                                                            onClick={() => handleViewFile(att, row.stockId)}
                                                         />
                                                         <IconButton
                                                             aria-label="Download file"

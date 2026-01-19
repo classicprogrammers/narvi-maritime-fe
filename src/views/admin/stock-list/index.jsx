@@ -37,6 +37,7 @@ import {
     useDisclosure,
     Tooltip,
     Grid,
+    Collapse,
 } from "@chakra-ui/react";
 import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdDownload, MdSearch, MdNumbers, MdDescription, MdSort } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -50,6 +51,7 @@ import locationsAPI from "../../../api/locations";
 import countriesAPI from "../../../api/countries";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import { getStockItemAttachmentsApi } from "../../../api/stock";
 
 export default function StockList() {
     const history = useHistory();
@@ -99,6 +101,17 @@ export default function StockList() {
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
+
+    // View selected items modal state
+    const { isOpen: isViewModalOpen, onOpen: onViewModalOpen, onClose: onViewModalClose } = useDisclosure();
+    const [viewSelectedItems, setViewSelectedItems] = useState([]);
+
+    // Filter section visibility - default to open
+    const [isFiltersOpen, setIsFiltersOpen] = useState(() => {
+        const stored = sessionStorage.getItem('stockListMainFiltersOpen');
+        return stored !== null ? stored === 'true' : true; // Default to true (open)
+    });
+    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     // Lookup data for IDs -> Names
     const [clients, setClients] = useState([]);
@@ -205,6 +218,11 @@ export default function StockList() {
         color: tableTextColor,
         fontSize: "sm",
     };
+
+    // Save filter visibility state to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stockListMainFiltersOpen', String(isFiltersOpen));
+    }, [isFiltersOpen]);
 
     // Fetch stock list on component mount
     useEffect(() => {
@@ -849,6 +867,17 @@ export default function StockList() {
         }
     };
 
+    // Handle bulk view - open modal with selected items
+    const handleBulkView = () => {
+        const selectedIds = Array.from(selectedRows);
+        if (selectedIds.length > 0) {
+            // Filter the full data objects from stockList for selected items
+            const selectedItemsData = stockList.filter(item => selectedIds.includes(item.id));
+            setViewSelectedItems(selectedItemsData);
+            onViewModalOpen();
+        }
+    };
+
     // Handle single item edit - navigate to StockDB Main edit page with item's full data
     const handleEditItem = (item) => {
         // Pass current filter state so it can be restored when navigating back
@@ -986,7 +1015,7 @@ export default function StockList() {
     };
 
     // Handle viewing attachments - convert base64 to blob URL to avoid navigation errors
-    const handleViewFile = (attachment) => {
+    const handleViewFile = async (attachment, stockItemId = null) => {
         try {
             let fileUrl = null;
 
@@ -996,7 +1025,113 @@ export default function StockList() {
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 2: backend URL
+            // Case 2: API endpoint URL - fetch attachment from API
+            else if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
+                try {
+                    // Extract stock ID from URL or use provided stockItemId
+                    let stockId = stockItemId;
+                    if (!stockId) {
+                        const urlMatch = attachment.url.match(/\/api\/stock\/list\/(\d+)\/attachments/);
+                        if (urlMatch && urlMatch[1]) {
+                            stockId = urlMatch[1];
+                        }
+                    }
+                    
+                    if (!stockId) {
+                        throw new Error('Unable to determine stock item ID from attachment URL');
+                    }
+
+                    // Show loading state
+                    setIsLoadingAttachment(true);
+
+                    try {
+                        // Call API to get attachment
+                        const response = await getStockItemAttachmentsApi(stockId);
+
+                    // Handle response - could be blob (direct file) or JSON (metadata)
+                    let attachmentData = null;
+                    
+                    // If response is a blob (direct file data)
+                    if (response.data instanceof Blob) {
+                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                        fileUrl = URL.createObjectURL(response.data);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    }
+                    
+                    // If response is JSON (metadata or error)
+                    if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
+                        // Find the specific attachment by ID if available
+                        if (attachment.id) {
+                            attachmentData = response.result.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            // Use first attachment if no ID match
+                            attachmentData = response.result.attachments[0];
+                        }
+                    } else if (response.attachments && Array.isArray(response.attachments)) {
+                        if (attachment.id) {
+                            attachmentData = response.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            attachmentData = response.attachments[0];
+                        }
+                    } else if (response.result && response.result.data) {
+                        // Handle case where attachment data is in result.data
+                        attachmentData = response.result.data;
+                    } else if (response.data && !(response.data instanceof Blob)) {
+                        attachmentData = response.data;
+                    }
+
+                    if (!attachmentData) {
+                        throw new Error('Attachment not found in API response');
+                    }
+
+                    // Now handle the attachment data - it might have base64 data, URL, or file data
+                    if (attachmentData.datas) {
+                        // Base64 data - convert to blob
+                        const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
+                        const base64Data = attachmentData.datas;
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: mimeType });
+                        fileUrl = URL.createObjectURL(blob);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
+                        // Direct file URL (not an API endpoint)
+                        fileUrl = attachmentData.url;
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.file || attachmentData.blob) {
+                        // File or blob object
+                        const file = attachmentData.file || attachmentData.blob;
+                        fileUrl = URL.createObjectURL(file);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else {
+                        throw new Error('Attachment data format not supported');
+                    }
+                    } finally {
+                        // Hide loading state
+                        setIsLoadingAttachment(false);
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching attachment from API:', apiError);
+                    setIsLoadingAttachment(false);
+                    toast({
+                        title: 'Error',
+                        description: apiError.message || 'Failed to fetch attachment from server',
+                        status: 'error',
+                        duration: 50000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 3: backend URL (non-API endpoint)
             else if (attachment.url) {
                 fileUrl = attachment.url;
                 window.open(fileUrl, '_blank');
@@ -1047,7 +1182,7 @@ export default function StockList() {
                 title: 'Error',
                 description: 'Unable to view file. File data not available.',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         } catch (error) {
@@ -1056,7 +1191,7 @@ export default function StockList() {
                 title: 'Error',
                 description: error.message || 'Failed to view file',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         }
@@ -1104,7 +1239,7 @@ export default function StockList() {
                     title: 'Error',
                     description: 'Unable to download file. File data not available.',
                     status: 'error',
-                    duration: 3000,
+                    duration: 50000,
                     isClosable: true,
                 });
             }
@@ -1114,7 +1249,7 @@ export default function StockList() {
                 title: 'Error',
                 description: error.message || 'Failed to download file',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         }
@@ -1151,19 +1286,7 @@ export default function StockList() {
         }
     };
 
-    // Show loading state
-    if (isLoading && stockList.length === 0) {
-        return (
-            <Box pt={{ base: "130px", md: "80px", xl: "80px" }} p="6">
-                <Flex justify="center" align="center" h="200px">
-                    <HStack spacing="4">
-                        <Spinner size="xl" color="#1c4a95" />
-                        <Text>Loading stock list...</Text>
-                    </HStack>
-                </Flex>
-            </Box>
-        );
-    }
+    // Note: Loading state is now shown inside the table instead of blocking the entire page
 
     // Show error state
     if (error && stockList.length === 0) {
@@ -1227,464 +1350,484 @@ export default function StockList() {
                 <Box px="25px" mb="20px">
                     <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
                         <VStack spacing="4" align="stretch">
-                            {/* Basic Filters */}
-                            <Box>
-                                <HStack mb="3" justify="space-between">
-                                    <HStack>
-                                        <Icon as={MdFilterList} color="blue.500" />
-                                        <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
-                                    </HStack>
-                                    <HStack>
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
-                                            <Button
-                                                size="xs"
-                                                leftIcon={<Icon as={MdClose} />}
-                                                colorScheme="red"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                    setSelectedClient(null);
-                                                    setSelectedVessel(null);
-                                                    setSelectedSupplier(null);
-                                                    setSelectedStatus("");
-                                                    setSelectedWarehouse(null);
-                                                    setSelectedCurrency(null);
-                                                    setSelectedHub(null);
-                                                    setFilterSO("");
-                                                    setFilterSI("");
-                                                    setFilterSICombined("");
-                                                    setFilterDI("");
-                                                    setSearchFilter("");
-                                                }}
-                                            >
-                                                Clear All
-                                            </Button>
-                                        )}
-
-                                        <Menu>
-                                            <MenuButton
-                                                as={Button}
-                                                size="sm"
-                                                leftIcon={<Icon as={MdSort} />}
-                                                colorScheme={sortOption !== 'none' ? "blue" : "gray"}
-                                                variant={sortOption !== 'none' ? "solid" : "outline"}
-                                            >
-                                                {sortOption === 'none' ? "Select Sort Option" :
-                                                    sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                        sortOption === 'status' ? "Sort: Stock Status" :
-                                                            "Sort: VIA HUB + Status"}
-                                            </MenuButton>
-                                            <MenuList>
-                                                <MenuItem onClick={() => setSortOption('via_hub')}>
-                                                    Sort by VIA HUB (Alphabetically)
-                                                </MenuItem>
-                                                <MenuItem onClick={() => setSortOption('status')}>
-                                                    Sort by Stock Status
-                                                </MenuItem>
-                                                <MenuItem onClick={() => setSortOption('via_hub_status')}>
-                                                    Sort by VIA HUB + Status
-                                                </MenuItem>
-                                                <MenuItem onClick={() => setSortOption('none')}>
-                                                    No Sort
-                                                </MenuItem>
-                                            </MenuList>
-                                        </Menu>
-                                    </HStack>
-
+                            {/* Filter Header with Toggle Button */}
+                            <HStack justify="space-between">
+                                <HStack>
+                                    <Icon as={MdFilterList} color="blue.500" />
+                                    <Text fontSize="md" fontWeight="700" color={textColor}>Filters</Text>
                                 </HStack>
-                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
-                                    {/* Client Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedClient}
-                                                    onChange={(value) => setSelectedClient(value)}
-                                                    options={clients}
-                                                    placeholder="Filter by Client"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Client ${option.id}`}
-                                                    isLoading={isLoadingClients}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                <Button
+                                    size="sm"
+                                    leftIcon={<Icon as={MdFilterList} />}
+                                    variant="outline"
+                                    onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                                >
+                                    {isFiltersOpen ? "Hide Filters" : "Show Filters"}
+                                </Button>
+                            </HStack>
+
+                            {/* Collapsible Filter Content */}
+                            <Collapse in={isFiltersOpen} animateOpacity>
+                                <VStack spacing="4" align="stretch">
+                                    {/* Basic Filters */}
+                                    <Box>
+                                        <HStack mb="3" justify="space-between">
+                                            <HStack>
+                                                <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
+                                            </HStack>
+                                            <HStack>
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
+                                                    <Button
+                                                        size="xs"
+                                                        leftIcon={<Icon as={MdClose} />}
+                                                        colorScheme="red"
+                                                        variant="ghost"
+                                                        onClick={() => {
+                                                            setSelectedClient(null);
+                                                            setSelectedVessel(null);
+                                                            setSelectedSupplier(null);
+                                                            setSelectedStatus("");
+                                                            setSelectedWarehouse(null);
+                                                            setSelectedCurrency(null);
+                                                            setSelectedHub(null);
+                                                            setFilterSO("");
+                                                            setFilterSI("");
+                                                            setFilterSICombined("");
+                                                            setFilterDI("");
+                                                            setSearchFilter("");
+                                                        }}
+                                                    >
+                                                        Clear All
+                                                    </Button>
+                                                )}
+
+                                                <Menu>
+                                                    <MenuButton
+                                                        as={Button}
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdSort} />}
+                                                        colorScheme={sortOption !== 'none' ? "blue" : "gray"}
+                                                        variant={sortOption !== 'none' ? "solid" : "outline"}
+                                                    >
+                                                        {sortOption === 'none' ? "Select Sort Option" :
+                                                            sortOption === 'via_hub' ? "Sort: VIA HUB" :
+                                                                sortOption === 'status' ? "Sort: Stock Status" :
+                                                                    "Sort: VIA HUB + Status"}
+                                                    </MenuButton>
+                                                    <MenuList>
+                                                        <MenuItem onClick={() => setSortOption('via_hub')}>
+                                                            Sort by VIA HUB (Alphabetically)
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('status')}>
+                                                            Sort by Stock Status
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('via_hub_status')}>
+                                                            Sort by VIA HUB + Status
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('none')}>
+                                                            No Sort
+                                                        </MenuItem>
+                                                    </MenuList>
+                                                </Menu>
+                                            </HStack>
+
+                                        </HStack>
+                                        <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                            {/* Client Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedClient}
+                                                            onChange={(value) => setSelectedClient(value)}
+                                                            options={clients}
+                                                            placeholder="Filter by Client"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Client ${option.id}`}
+                                                            isLoading={isLoadingClients}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedClient && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedClient(null)}
+                                                            aria-label="Clear client filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedClient && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedClient(null)}
-                                                    aria-label="Clear client filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
 
-                                    {/* Vessel Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedVessel}
-                                                    onChange={(value) => setSelectedVessel(value)}
-                                                    options={vessels}
-                                                    placeholder="Filter by Vessel"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Vessel ${option.id}`}
-                                                    isLoading={isLoadingVessels}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                            {/* Vessel Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedVessel}
+                                                            onChange={(value) => setSelectedVessel(value)}
+                                                            options={vessels}
+                                                            placeholder="Filter by Vessel"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                            isLoading={isLoadingVessels}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedVessel && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedVessel(null)}
+                                                            aria-label="Clear vessel filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedVessel && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedVessel(null)}
-                                                    aria-label="Clear vessel filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
 
-                                    {/* Supplier Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedSupplier}
-                                                    onChange={(value) => setSelectedSupplier(value)}
-                                                    options={vendors}
-                                                    placeholder="Filter by Supplier"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                    isLoading={isLoadingSuppliers}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                            {/* Supplier Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedSupplier}
+                                                            onChange={(value) => setSelectedSupplier(value)}
+                                                            options={vendors}
+                                                            placeholder="Filter by Supplier"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || `Supplier ${option.id}`}
+                                                            isLoading={isLoadingSuppliers}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedSupplier && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedSupplier(null)}
+                                                            aria-label="Clear supplier filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedSupplier && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedSupplier(null)}
-                                                    aria-label="Clear supplier filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
 
-                                    {/* Status Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <Select
-                                                    value={selectedStatus}
-                                                    onChange={(e) => setSelectedStatus(e.target.value)}
-                                                    placeholder="Filter by Status"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                >
-                                                    <option value="">All Statuses</option>
-                                                    <option value="pending">Pending</option>
-                                                    <option value="in_stock">In Stock</option>
-                                                    <option value="on_shipping">On Shipping Instr</option>
-                                                    <option value="on_delivery">On Delivery Instr</option>
-                                                    <option value="in_transit">In Transit</option>
-                                                    <option value="arrived">Arrived Dest</option>
-                                                    <option value="shipped">Shipped</option>
-                                                    <option value="delivered">Delivered</option>
-                                                    <option value="irregular">Irregularities</option>
-                                                    <option value="cancelled">Cancelled</option>
-                                                </Select>
+                                            {/* Status Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <Select
+                                                            value={selectedStatus}
+                                                            onChange={(e) => setSelectedStatus(e.target.value)}
+                                                            placeholder="Filter by Status"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        >
+                                                            <option value="">All Statuses</option>
+                                                            <option value="pending">Pending</option>
+                                                            <option value="in_stock">In Stock</option>
+                                                            <option value="on_shipping">On Shipping Instr</option>
+                                                            <option value="on_delivery">On Delivery Instr</option>
+                                                            <option value="in_transit">In Transit</option>
+                                                            <option value="arrived">Arrived Dest</option>
+                                                            <option value="shipped">Shipped</option>
+                                                            <option value="delivered">Delivered</option>
+                                                            <option value="irregular">Irregularities</option>
+                                                            <option value="cancelled">Cancelled</option>
+                                                        </Select>
+                                                    </Box>
+                                                    {selectedStatus && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedStatus("")}
+                                                            aria-label="Clear status filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedStatus && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedStatus("")}
-                                                    aria-label="Clear status filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
 
-                                    {/* Warehouse Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedWarehouse}
-                                                    onChange={(value) => setSelectedWarehouse(value)}
-                                                    options={locations}
-                                                    placeholder="Filter by Warehouse"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
-                                                    isLoading={isLoadingWarehouses}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                            {/* Warehouse Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedWarehouse}
+                                                            onChange={(value) => setSelectedWarehouse(value)}
+                                                            options={locations}
+                                                            placeholder="Filter by Warehouse"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
+                                                            isLoading={isLoadingWarehouses}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedWarehouse && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedWarehouse(null)}
+                                                            aria-label="Clear warehouse filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedWarehouse && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedWarehouse(null)}
-                                                    aria-label="Clear warehouse filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
 
-                                    {/* Currency Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedCurrency}
-                                                    onChange={(value) => setSelectedCurrency(value)}
-                                                    options={currencies}
-                                                    placeholder="Filter by Currency"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => {
-                                                        const code = option.name || option.code || option.symbol || "";
-                                                        const fullName = option.full_name || option.description || "";
-                                                        return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
-                                                    }}
-                                                    isLoading={isLoadingCurrencies}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                            {/* Currency Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedCurrency}
+                                                            onChange={(value) => setSelectedCurrency(value)}
+                                                            options={currencies}
+                                                            placeholder="Filter by Currency"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => {
+                                                                const code = option.name || option.code || option.symbol || "";
+                                                                const fullName = option.full_name || option.description || "";
+                                                                return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
+                                                            }}
+                                                            isLoading={isLoadingCurrencies}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedCurrency && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedCurrency(null)}
+                                                            aria-label="Clear currency filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedCurrency && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedCurrency(null)}
-                                                    aria-label="Clear currency filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-                                </Flex>
-                            </Box>
-
-                            {/* Reference Number Filters */}
-                            <Box>
-                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
-                                    {/* SO Number Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <InputGroup size="sm">
-                                                <Input
-                                                    value={filterSO}
-                                                    onChange={(e) => setFilterSO(e.target.value)}
-                                                    placeholder="Filter by SO Number"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    pl="8"
-                                                />
-                                            </InputGroup>
-                                            {filterSO && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setFilterSO("")}
-                                                    aria-label="Clear SO filter"
-                                                />
-                                            )}
-                                        </HStack>
+                                        </Flex>
                                     </Box>
 
-                                    {/* SI Number Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <InputGroup size="sm">
-                                                <Input
-                                                    value={filterSI}
-                                                    onChange={(e) => setFilterSI(e.target.value)}
-                                                    placeholder="Filter by SI Number"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    pl="8"
-                                                />
-                                            </InputGroup>
-                                            {filterSI && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setFilterSI("")}
-                                                    aria-label="Clear SI filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-
-                                    {/* SI Combined Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <InputGroup size="sm">
-                                                <Input
-                                                    value={filterSICombined}
-                                                    onChange={(e) => setFilterSICombined(e.target.value)}
-                                                    placeholder="Filter by SI Combined"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    pl="8"
-                                                />
-                                            </InputGroup>
-                                            {filterSICombined && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setFilterSICombined("")}
-                                                    aria-label="Clear SI Combined filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-
-                                    {/* DI Number Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <InputGroup size="sm">
-                                                <Input
-                                                    value={filterDI}
-                                                    onChange={(e) => setFilterDI(e.target.value)}
-                                                    placeholder="Filter by DI Number"
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    pl="8"
-                                                />
-                                            </InputGroup>
-                                            {filterDI && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setFilterDI("")}
-                                                    aria-label="Clear DI filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-                                    
-                                    {/* Hub Filter */}
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <Box flex="1">
-                                                <SimpleSearchableSelect
-                                                    value={selectedHub}
-                                                    onChange={(value) => setSelectedHub(value)}
-                                                    options={hubOptions}
-                                                    placeholder="Filter by Hub"
-                                                    displayKey="name"
-                                                    valueKey="id"
-                                                    formatOption={(option) => option.name || option.id}
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                />
+                                    {/* Reference Number Filters */}
+                                    <Box>
+                                        <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                            {/* SO Number Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterSO}
+                                                            onChange={(e) => setFilterSO(e.target.value)}
+                                                            placeholder="Filter by SO Number"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterSO && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterSO("")}
+                                                            aria-label="Clear SO filter"
+                                                        />
+                                                    )}
+                                                </HStack>
                                             </Box>
-                                            {selectedHub && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSelectedHub(null)}
-                                                    aria-label="Clear hub filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-                                    <Box w="220px">
-                                        <HStack spacing="1">
-                                            <InputGroup size="sm">
-                                                <Input
-                                                    value={searchFilter}
-                                                    onChange={(e) => setSearchFilter(e.target.value)}
-                                                    placeholder="Search all fields..."
-                                                    bg={inputBg}
-                                                    color={inputText}
-                                                    borderColor={borderColor}
-                                                    pl="8"
-                                                />
-                                            </InputGroup>
-                                            {searchFilter && (
-                                                <IconButton
-                                                    size="sm"
-                                                    icon={<Icon as={MdClose} />}
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => setSearchFilter("")}
-                                                    aria-label="Clear search filter"
-                                                />
-                                            )}
-                                        </HStack>
-                                    </Box>
-                                </Flex>
-                            </Box>
 
-                            {/* Sorting Info Box */}
-                            {sortOption !== 'none' && (
-                                <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
-                                    <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
-                                    <Text fontSize="xs" color={textColor} opacity={0.8}>
-                                        {sortOption === 'via_hub' && (
-                                            <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
-                                        )}
-                                        {sortOption === 'status' && (
-                                            <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
-                                        )}
-                                        {sortOption === 'via_hub_status' && (
-                                            <>
-                                                1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                            </>
-                                        )}
+                                            {/* SI Number Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterSI}
+                                                            onChange={(e) => setFilterSI(e.target.value)}
+                                                            placeholder="Filter by SI Number"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterSI && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterSI("")}
+                                                            aria-label="Clear SI filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* SI Combined Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterSICombined}
+                                                            onChange={(e) => setFilterSICombined(e.target.value)}
+                                                            placeholder="Filter by SI Combined"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterSICombined && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterSICombined("")}
+                                                            aria-label="Clear SI Combined filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* DI Number Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterDI}
+                                                            onChange={(e) => setFilterDI(e.target.value)}
+                                                            placeholder="Filter by DI Number"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterDI && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterDI("")}
+                                                            aria-label="Clear DI filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* Hub Filter */}
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <Box flex="1">
+                                                        <SimpleSearchableSelect
+                                                            value={selectedHub}
+                                                            onChange={(value) => setSelectedHub(value)}
+                                                            options={hubOptions}
+                                                            placeholder="Filter by Hub"
+                                                            displayKey="name"
+                                                            valueKey="id"
+                                                            formatOption={(option) => option.name || option.id}
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                        />
+                                                    </Box>
+                                                    {selectedHub && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSelectedHub(null)}
+                                                            aria-label="Clear hub filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+                                            <Box w="220px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={searchFilter}
+                                                            onChange={(e) => setSearchFilter(e.target.value)}
+                                                            placeholder="Search all fields..."
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {searchFilter && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setSearchFilter("")}
+                                                            aria-label="Clear search filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+                                        </Flex>
+                                    </Box>
+
+                                    {/* Sorting Info Box */}
+                                    {sortOption !== 'none' && (
+                                        <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
+                                            <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
+                                            <Text fontSize="xs" color={textColor} opacity={0.8}>
+                                                {sortOption === 'via_hub' && (
+                                                    <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
+                                                )}
+                                                {sortOption === 'status' && (
+                                                    <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
+                                                )}
+                                                {sortOption === 'via_hub_status' && (
+                                                    <>
+                                                        1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                        2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                    </>
+                                                )}
+                                            </Text>
+                                        </Box>
+                                    )}
+
+                                    {/* Results Count */}
+                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                        Showing {filteredAndSortedStock.length} of {stockList.length} stock items
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && " (filtered)"}
                                     </Text>
-                                </Box>
-                            )}
-
-                            {/* Results Count */}
-                            <Text fontSize="sm" color={tableTextColorSecondary}>
-                                Showing {filteredAndSortedStock.length} of {stockList.length} stock items
-                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && " (filtered)"}
-                            </Text>
+                                </VStack>
+                            </Collapse>
                         </VStack>
                     </Card>
                 </Box>
@@ -1695,6 +1838,14 @@ export default function StockList() {
                         <Text fontSize="sm" color={textColor} fontWeight="600">
                             {selectedRows.size} item(s) selected
                         </Text>
+                        <Button
+                            leftIcon={<Icon as={MdVisibility} />}
+                            colorScheme="green"
+                            size="sm"
+                            onClick={handleBulkView}
+                        >
+                            View Selected
+                        </Button>
                         <Button
                             leftIcon={<Icon as={MdEdit} />}
                             colorScheme="blue"
@@ -1715,14 +1866,50 @@ export default function StockList() {
                 )}
 
                 {/* Table Container */}
-                <Box pr="25px" overflowX="auto">
-                    {filteredAndSortedStock.length > 0 && (
-                        <Table
-                            variant="unstyled"
-                            size="sm"
-                            minW="5000px"
-                            ml="25px"
+                <Box pr="25px" overflowX="auto" position="relative" minH="400px">
+                    {isLoading && (
+                        <Box
+                            position="fixed"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            zIndex={1000}
+                            bg={useColorModeValue("white", "gray.800")}
+                            p={6}
+                            borderRadius="md"
+                            boxShadow="lg"
                         >
+                            <VStack spacing="4">
+                                <Spinner size="xl" color="#1c4a95" />
+                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                            </VStack>
+                        </Box>
+                    )}
+                    {isLoadingAttachment && (
+                        <Box
+                            position="fixed"
+                            top="50%"
+                            left="50%"
+                            transform="translate(-50%, -50%)"
+                            zIndex={1001}
+                            bg={useColorModeValue("white", "gray.800")}
+                            p={6}
+                            borderRadius="md"
+                            boxShadow="lg"
+                        >
+                            <VStack spacing="4">
+                                <Spinner size="xl" color="#1c4a95" />
+                                <Text color={tableTextColorSecondary}>Loading...</Text>
+                            </VStack>
+                        </Box>
+                    )}
+                    <Table
+                        variant="unstyled"
+                        size="sm"
+                        minW="5000px"
+                        ml="25px"
+                    >
+                        {!isLoading && (
                             <Thead bg={tableHeaderBg}>
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
@@ -1831,8 +2018,28 @@ export default function StockList() {
                                     <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
                             </Thead>
-                            <Tbody>
-                                {filteredAndSortedStock.map((item, index) => (
+                        )}
+                        <Tbody>
+                            {isLoading ? (
+                                <Tr>
+                                    <Td colSpan={46} textAlign="center" py="40px">
+                                        <Box visibility="hidden" h="100px">
+                                            {/* Placeholder to maintain table structure */}
+                                        </Box>
+                                    </Td>
+                                </Tr>
+                            ) : filteredAndSortedStock.length === 0 ? (
+                                <Tr>
+                                    <Td colSpan={46} textAlign="center" py="40px">
+                                        <Text color={tableTextColorSecondary}>
+                                            {stockList.length === 0
+                                                ? "No stock items available."
+                                                : "No stock items match your filter criteria."}
+                                        </Text>
+                                    </Td>
+                                </Tr>
+                            ) : (
+                                filteredAndSortedStock.map((item, index) => (
                                     <Tr
                                         key={item.id}
                                         bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
@@ -1900,9 +2107,9 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                        <Td 
-                                            {...cellProps} 
-                                            cursor="pointer" 
+                                        <Td
+                                            {...cellProps}
+                                            cursor="pointer"
                                             onClick={() => {
                                                 setSelectedDimensions(item.dimensions || []);
                                                 onDimensionsModalOpen();
@@ -1918,9 +2125,9 @@ export default function StockList() {
                                                 </Tooltip>
                                             </HStack>
                                         </Td>
-                                        <Td 
-                                            {...cellProps} 
-                                            cursor="pointer" 
+                                        <Td
+                                            {...cellProps}
+                                            cursor="pointer"
                                             onClick={() => {
                                                 setSelectedDimensions(item.dimensions || []);
                                                 onDimensionsModalOpen();
@@ -1957,7 +2164,7 @@ export default function StockList() {
                                                                 cursor="pointer"
                                                                 color="blue.500"
                                                                 _hover={{ textDecoration: "underline" }}
-                                                                onClick={() => handleViewFile(att)}
+                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                                             >
                                                                 {att.filename || att.name || `File ${idx + 1}`}
                                                             </Text>
@@ -1967,7 +2174,7 @@ export default function StockList() {
                                                                 variant="ghost"
                                                                 colorScheme="blue"
                                                                 aria-label="View file"
-                                                                onClick={() => handleViewFile(att)}
+                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                                             />
                                                             <IconButton
                                                                 icon={<Icon as={MdDownload} />}
@@ -1997,34 +2204,200 @@ export default function StockList() {
                                             />
                                         </Td>
                                     </Tr>
-                                ))}
-                            </Tbody>
-                        </Table>
-                    )}
-
-                    {!isLoading && filteredAndSortedStock.length === 0 && (
-                        <Box textAlign="center" py="16" px="25px">
-                            <VStack spacing="4">
-                                <Text color={tableTextColor} fontSize="lg" fontWeight="600">
-                                    No stock items available yet
-                                </Text>
-                                <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
-                                    No stock items found.
-                                </Text>
-                            </VStack>
-                        </Box>
-                    )}
+                                ))
+                            )}
+                        </Tbody>
+                    </Table>
                 </Box>
 
             </Card>
+
+            {/* View Selected Items Modal */}
+            <Modal isOpen={isViewModalOpen} onClose={onViewModalClose} size="6xl" scrollBehavior="inside">
+                <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
+                <ModalContent maxH="90vh">
+                    <ModalHeader
+                        fontSize="xl"
+                        fontWeight="bold"
+                        pb={3}
+                        borderBottom="1px"
+                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                    >
+                        <HStack spacing={2}>
+                            <Icon as={MdVisibility} color="green.500" />
+                            <Text>View Selected Stock Items</Text>
+                            {viewSelectedItems && viewSelectedItems.length > 0 && (
+                                <Badge colorScheme="green" fontSize="sm" px={2} py={1} borderRadius="full">
+                                    {viewSelectedItems.length} {viewSelectedItems.length === 1 ? 'Item' : 'Items'}
+                                </Badge>
+                            )}
+                        </HStack>
+                    </ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody py={6}>
+                        {viewSelectedItems && viewSelectedItems.length > 0 ? (
+                            <VStack spacing={4} align="stretch">
+                                {viewSelectedItems.map((item, index) => (
+                                    <Box
+                                        key={item.id || index}
+                                        p={4}
+                                        border="1px"
+                                        borderColor={useColorModeValue("gray.200", "gray.700")}
+                                        borderRadius="lg"
+                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                    >
+                                        <HStack justify="space-between" mb={3} pb={3} borderBottom="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                                            <HStack spacing={2}>
+                                                <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
+                                                    Item {index + 1}
+                                                </Badge>
+                                                {item.stock_item_id && (
+                                                    <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                        Stock ID: {item.stock_item_id}
+                                                    </Text>
+                                                )}
+                                            </HStack>
+                                            {item.stock_status && (
+                                                <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px={3} py={1}>
+                                                    {renderText(item.stock_status)}
+                                                </Badge>
+                                            )}
+                                        </HStack>
+                                        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }} gap={4}>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Client
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {getClientName(item.client_id || item.client)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Vessel
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {getVesselName(item.vessel_id || item.vessel)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Supplier
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    SO Number
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    PO Number
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {renderText(item.po_text || item.po_number)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Warehouse
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {item.warehouse_id || item.stock_warehouse || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Items
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Weight (KG)
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {renderText(item.weight_kg ?? item.weight_kgs)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Total Volume (CBM)
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color="blue.500">
+                                                    {renderText(item.total_volume_cbm)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Total CW Air Freight
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color="green.500">
+                                                    {renderText(item.total_cw_air_freight)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Value
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {renderText(item.value)} {item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Date on Stock
+                                                </Text>
+                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                                                    {formatDate(item.date_on_stock)}
+                                                </Text>
+                                            </Box>
+                                            {item.remarks && (
+                                                <Box gridColumn={{ base: "1", md: "1 / -1" }}>
+                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                        Remarks
+                                                    </Text>
+                                                    <Text fontSize="sm" color={textColor} whiteSpace="pre-wrap">
+                                                        {renderText(item.remarks)}
+                                                    </Text>
+                                                </Box>
+                                            )}
+                                        </Grid>
+                                    </Box>
+                                ))}
+                            </VStack>
+                        ) : (
+                            <VStack spacing={4} py={8}>
+                                <Icon as={MdVisibility} boxSize={12} color={useColorModeValue("gray.400", "gray.600")} />
+                                <Text fontSize="lg" fontWeight="medium" color={useColorModeValue("gray.600", "gray.400")}>
+                                    No items selected
+                                </Text>
+                            </VStack>
+                        )}
+                    </ModalBody>
+                    <ModalFooter borderTop="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                        <Button onClick={onViewModalClose} colorScheme="blue">
+                            Close
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
 
             {/* Dimensions View Modal */}
             <Modal isOpen={isDimensionsModalOpen} onClose={onDimensionsModalClose} size="2xl">
                 <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
                 <ModalContent>
-                    <ModalHeader 
-                        fontSize="xl" 
-                        fontWeight="bold" 
+                    <ModalHeader
+                        fontSize="xl"
+                        fontWeight="bold"
                         pb={3}
                         borderBottom="1px"
                         borderColor={useColorModeValue("gray.200", "gray.700")}

@@ -48,8 +48,8 @@ export const columnsDataAgents = [
     minWidth: 180,
   },
   {
-    Header: "REGISTRATION NO",
-    accessor: "reg_no",
+    Header: "AGENT TYPE",
+    accessor: "type_client",
     minWidth: 140,
   },
   {

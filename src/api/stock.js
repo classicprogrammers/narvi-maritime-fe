@@ -162,3 +162,50 @@ export const deleteStockItemApi = async (stockId) => {
     handleApiError(error, "Delete stock item");
   }
 };
+
+// Get stock item attachments
+export const getStockItemAttachmentsApi = async (stockId) => {
+  try {
+    // Request binary data for file attachments
+    const response = await api.get(`${getApiEndpoint("STOCK_LIST")}/${stockId}/attachments`, {
+      responseType: 'blob', // Get binary data
+    });
+
+    // If response is JSON (error or metadata), parse it
+    if (response.data instanceof Blob && response.data.type === 'application/json') {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      
+      // Check if response has error status (JSON-RPC format)
+      if (jsonData.result && jsonData.result.status === 'error') {
+        throw new Error(jsonData.result.message || 'Failed to fetch attachments');
+      }
+      
+      return jsonData;
+    }
+
+    // If response is a file (binary), return it as blob
+    return {
+      data: response.data,
+      type: response.headers['content-type'] || 'application/octet-stream',
+    };
+  } catch (error) {
+    // If blob parsing fails, try as JSON
+    if (error.response && error.response.data) {
+      try {
+        // If error response is JSON, parse it
+        if (error.response.data instanceof Blob && error.response.data.type === 'application/json') {
+          const text = await error.response.data.text();
+          const jsonData = JSON.parse(text);
+          if (jsonData.result && jsonData.result.status === 'error') {
+            throw new Error(jsonData.result.message || 'Failed to fetch attachments');
+          }
+        }
+      } catch (parseError) {
+        // Ignore parse errors, use original error
+      }
+    }
+    console.error("Get stock item attachments error:", error);
+    handleApiError(error, "Get stock item attachments");
+  }
+};

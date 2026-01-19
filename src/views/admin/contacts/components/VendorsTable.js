@@ -1079,10 +1079,10 @@ export default function VendorsTable(props) {
                               {cell.value || "-"}
                             </Text>
                           );
-                        } else if (cell.column.Header === "REGISTRATION NO") {
+                        } else if (cell.column.Header === "AGENT TYPE") {
                           data = (
                             <Text color={textColor} fontSize="sm">
-                              {row.original.reg_no || "-"}
+                              {row.original.type_client || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "CITY / COUNTRY") {

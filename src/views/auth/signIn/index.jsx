@@ -28,7 +28,7 @@ import { useUser } from "redux/hooks/useUser";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
-import {  getApiEndpoint } from "../../../config/api";
+import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
 
 function SignIn() {
@@ -42,7 +42,7 @@ function SignIn() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
   const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
   const [modalMessage, setModalMessage] = React.useState("");
- 
+
   // Chakra color mode
   const textColor = useColorModeValue("navy.700", "white");
   const textColorSecondary = "gray.400";
@@ -285,7 +285,7 @@ function SignIn() {
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    placeholder='Min. 8 characters'
+                    placeholder='Enter your password'
                     mb='24px'
                     size='lg'
                     type={show ? 'text' : 'password'}
@@ -319,7 +319,7 @@ function SignIn() {
                       Keep me logged in
                     </FormLabel>
                   </FormControl>
-                  <NavLink to='/auth/forgot-password'>
+                  {/* <NavLink to='/auth/forgot-password'>
                     <Text
                       color={textColorBrand}
                       fontSize='sm'
@@ -327,7 +327,7 @@ function SignIn() {
                       fontWeight='500'>
                       Forgot password?
                     </Text>
-                  </NavLink>
+                  </NavLink> */}
                 </Flex>
                 <Button
                   type="submit"

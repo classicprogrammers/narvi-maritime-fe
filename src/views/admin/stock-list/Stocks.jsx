@@ -57,7 +57,7 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdDownload, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { updateStockItemApi } from "../../../api/stock";
+import { updateStockItemApi, getStockItemAttachmentsApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -227,8 +227,11 @@ export default function Stocks() {
         return stored ? new Set(JSON.parse(stored)) : new Set();
     });
 
-    // State to control filters section visibility
-    const [showFilters, setShowFilters] = useState(false);
+    // State to control filters section visibility - default to open
+    const [showFilters, setShowFilters] = useState(() => {
+        const stored = sessionStorage.getItem('stocksShowFilters');
+        return stored !== null ? stored === 'true' : true; // Default to true (open)
+    });
 
     // Stock View / Edit tab filters (similar to index.jsx)
     const [stockViewClient, setStockViewClient] = useState(() => {
@@ -278,6 +281,7 @@ export default function Stocks() {
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
+    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     const [clients, setClients] = useState([]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -336,6 +340,11 @@ export default function Stocks() {
     // Ensure we only auto-fetch once (avoids double calls in StrictMode)
     const hasFetchedInitialData = useRef(false);
     const hasFetchedLookupData = useRef(false);
+
+    // Save filter visibility state to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stocksShowFilters', String(showFilters));
+    }, [showFilters]);
 
     // Fetch stock list on component mount
     useEffect(() => {
@@ -880,7 +889,7 @@ export default function Stocks() {
     };
 
     // Handle viewing attachments - simplified like vessel attachments
-    const handleViewFile = (attachment) => {
+    const handleViewFile = async (attachment, stockItemId = null) => {
         try {
             let fileUrl = null;
 
@@ -890,7 +899,113 @@ export default function Stocks() {
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 2: backend URL
+            // Case 2: API endpoint URL - fetch attachment from API
+            else if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
+                try {
+                    // Extract stock ID from URL or use provided stockItemId
+                    let stockId = stockItemId;
+                    if (!stockId) {
+                        const urlMatch = attachment.url.match(/\/api\/stock\/list\/(\d+)\/attachments/);
+                        if (urlMatch && urlMatch[1]) {
+                            stockId = urlMatch[1];
+                        }
+                    }
+                    
+                    if (!stockId) {
+                        throw new Error('Unable to determine stock item ID from attachment URL');
+                    }
+
+                    // Show loading state
+                    setIsLoadingAttachment(true);
+
+                    try {
+                        // Call API to get attachment
+                        const response = await getStockItemAttachmentsApi(stockId);
+
+                    // Handle response - could be blob (direct file) or JSON (metadata)
+                    let attachmentData = null;
+                    
+                    // If response is a blob (direct file data)
+                    if (response.data instanceof Blob) {
+                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                        fileUrl = URL.createObjectURL(response.data);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    }
+                    
+                    // If response is JSON (metadata or error)
+                    if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
+                        // Find the specific attachment by ID if available
+                        if (attachment.id) {
+                            attachmentData = response.result.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            // Use first attachment if no ID match
+                            attachmentData = response.result.attachments[0];
+                        }
+                    } else if (response.attachments && Array.isArray(response.attachments)) {
+                        if (attachment.id) {
+                            attachmentData = response.attachments.find(att => att.id === attachment.id);
+                        } else {
+                            attachmentData = response.attachments[0];
+                        }
+                    } else if (response.result && response.result.data) {
+                        // Handle case where attachment data is in result.data
+                        attachmentData = response.result.data;
+                    } else if (response.data && !(response.data instanceof Blob)) {
+                        attachmentData = response.data;
+                    }
+
+                    if (!attachmentData) {
+                        throw new Error('Attachment not found in API response');
+                    }
+
+                    // Now handle the attachment data - it might have base64 data, URL, or file data
+                    if (attachmentData.datas) {
+                        // Base64 data - convert to blob
+                        const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
+                        const base64Data = attachmentData.datas;
+                        const byteCharacters = atob(base64Data);
+                        const byteNumbers = new Array(byteCharacters.length);
+                        for (let i = 0; i < byteCharacters.length; i++) {
+                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        }
+                        const byteArray = new Uint8Array(byteNumbers);
+                        const blob = new Blob([byteArray], { type: mimeType });
+                        fileUrl = URL.createObjectURL(blob);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
+                        // Direct file URL (not an API endpoint)
+                        fileUrl = attachmentData.url;
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else if (attachmentData.file || attachmentData.blob) {
+                        // File or blob object
+                        const file = attachmentData.file || attachmentData.blob;
+                        fileUrl = URL.createObjectURL(file);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else {
+                        throw new Error('Attachment data format not supported');
+                    }
+                    } finally {
+                        // Hide loading state
+                        setIsLoadingAttachment(false);
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching attachment from API:', apiError);
+                    setIsLoadingAttachment(false);
+                    toast({
+                        title: 'Error',
+                        description: apiError.message || 'Failed to fetch attachment from server',
+                        status: 'error',
+                        duration: 50000,
+                        isClosable: true,
+                    });
+                    return;
+                }
+            }
+            // Case 3: backend URL (non-API endpoint)
             else if (attachment.url) {
                 fileUrl = attachment.url;
                 window.open(fileUrl, '_blank');
@@ -941,7 +1056,7 @@ export default function Stocks() {
                 title: 'Error',
                 description: 'Unable to view file. File data not available.',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         } catch (error) {
@@ -950,7 +1065,7 @@ export default function Stocks() {
                 title: 'Error',
                 description: error.message || 'Failed to view file',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         }
@@ -998,7 +1113,7 @@ export default function Stocks() {
                     title: 'Error',
                     description: 'Unable to download file. File data not available.',
                     status: 'error',
-                    duration: 3000,
+                    duration: 50000,
                     isClosable: true,
                 });
             }
@@ -1008,7 +1123,7 @@ export default function Stocks() {
                 title: 'Error',
                 description: error.message || 'Failed to download file',
                 status: 'error',
-                duration: 3000,
+                duration: 50000,
                 isClosable: true,
             });
         }
@@ -1907,7 +2022,7 @@ export default function Stocks() {
         return value;
     };
 
-    const isInitialLoading = isLoading && stockList.length === 0;
+    // Note: Loading state is now shown inside the tables instead of blocking the entire page
 
     // Show error state
     if (error && stockList.length === 0) {
@@ -2402,7 +2517,7 @@ export default function Stocks() {
                                                 cursor="pointer"
                                                 color="blue.500"
                                                 _hover={{ textDecoration: "underline" }}
-                                                onClick={() => handleViewFile(att)}
+                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             >
                                                 {att.filename || att.name || `File ${idx + 1}`}
                                             </Text>
@@ -2412,7 +2527,7 @@ export default function Stocks() {
                                                 variant="ghost"
                                                 colorScheme="blue"
                                                 aria-label="View file"
-                                                onClick={() => handleViewFile(att)}
+                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             />
                                             <IconButton
                                                 icon={<Icon as={MdDownload} />}
@@ -2631,7 +2746,7 @@ export default function Stocks() {
                                                 cursor="pointer"
                                                 color="blue.500"
                                                 _hover={{ textDecoration: "underline" }}
-                                                onClick={() => handleViewFile(att)}
+                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             >
                                                 {att.filename || att.name || `File ${idx + 1}`}
                                             </Text>
@@ -2641,7 +2756,7 @@ export default function Stocks() {
                                                 variant="ghost"
                                                 colorScheme="blue"
                                                 aria-label="View file"
-                                                onClick={() => handleViewFile(att)}
+                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             />
                                             <IconButton
                                                 icon={<Icon as={MdDownload} />}
@@ -2699,6 +2814,24 @@ export default function Stocks() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+            {isLoadingAttachment && (
+                <Box
+                    position="fixed"
+                    top="50%"
+                    left="50%"
+                    transform="translate(-50%, -50%)"
+                    zIndex={1001}
+                    bg={useColorModeValue("white", "gray.800")}
+                    p={6}
+                    borderRadius="md"
+                    boxShadow="lg"
+                >
+                    <VStack spacing="4">
+                        <Spinner size="xl" color="#1c4a95" />
+                        <Text color={useColorModeValue("gray.600", "gray.300")}>Loading...</Text>
+                    </VStack>
+                </Box>
+            )}
             <Card
                 direction="column"
                 w="100%"
@@ -3576,111 +3709,168 @@ export default function Stocks() {
                                 </Flex>
 
                                 {/* Table with fields in exact order from image */}
-                                <Box overflowX="auto">
+                                <Box overflowX="auto" position="relative" minH="400px">
+                                    {isLoading && (
+                                        <Box
+                                            position="fixed"
+                                            top="50%"
+                                            left="50%"
+                                            transform="translate(-50%, -50%)"
+                                            zIndex={1000}
+                                            bg={useColorModeValue("white", "gray.800")}
+                                            p={6}
+                                            borderRadius="md"
+                                            boxShadow="lg"
+                                        >
+                                            <VStack spacing="4">
+                                                <Spinner size="xl" color="#1c4a95" />
+                                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                            </VStack>
+                                        </Box>
+                                    )}
+                                    {isLoadingAttachment && (
+                                        <Box
+                                            position="fixed"
+                                            top="50%"
+                                            left="50%"
+                                            transform="translate(-50%, -50%)"
+                                            zIndex={1001}
+                                            bg={useColorModeValue("white", "gray.800")}
+                                            p={6}
+                                            borderRadius="md"
+                                            boxShadow="lg"
+                                        >
+                                            <VStack spacing="4">
+                                                <Spinner size="xl" color="#1c4a95" />
+                                                <Text color={tableTextColorSecondary}>Loading...</Text>
+                                            </VStack>
+                                        </Box>
+                                    )}
                                     <Table size="sm" minW="6000px">
-                                        <Thead bg={tableHeaderBg}>
-                                            <Tr>
-                                                <Th
-                                                    borderRight="1px"
-                                                    borderColor={tableBorderColor}
-                                                    py="12px"
-                                                    px="8px"
-                                                    fontSize="12px"
-                                                    fontWeight="600"
-                                                    textTransform="uppercase"
-                                                    width="40px"
-                                                    minW="40px"
-                                                    maxW="40px"
-                                                    color={tableTextColor}
-                                                >
-                                                    <Checkbox
-                                                        isChecked={allItemsSelected}
-                                                        isIndeterminate={someItemsSelected && !allItemsSelected}
-                                                        onChange={(e) => handleSelectAll(e.target.checked)}
-                                                        size="sm"
-                                                        borderColor="gray.600"
-                                                        colorScheme="blue"
-                                                        sx={{
-                                                            "& .chakra-checkbox__control": {
-                                                                borderColor: "gray.600",
-                                                                _checked: {
-                                                                    borderColor: "blue.500",
-                                                                    bg: "blue.500",
-                                                                },
-                                                            },
-                                                        }}
-                                                    />
-                                                </Th>
-                                                <Th {...headerProps}>VESSEL</Th>
-                                                <Th {...headerProps}>STOCKITEMID</Th>
-                                                <Th {...headerProps}>SUPPLIER</Th>
-                                                <Th {...headerProps}>PO NUMBER</Th>
-                                                <Th {...headerProps}>SO NUMBER</Th>
-                                                <Th {...headerProps}>SI NUMBER</Th>
-                                                <Th {...headerProps}>SI COMBINED</Th>
-                                                <Th {...headerProps}>DI NUMBER</Th>
-                                                <Th {...headerProps}>STOCK STATUS</Th>
-                                                <Th {...headerProps}>ORIGIN</Th>
-                                                <Th {...headerProps}>VIA HUB 1</Th>
-                                                <Th {...headerProps}>VIA HUB 2</Th>
-                                                <Th {...headerProps}>AP DESTINATION</Th>
-                                                <Th {...headerProps}>DESTINATION</Th>
-                                                <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
-                                                <Th {...headerProps}>DATE ON STOCK</Th>
-                                                <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
-                                                <Th {...headerProps}>SHIPPED DATE</Th>
-                                                <Th {...headerProps}>DELIVERED DATE</Th>
-                                                <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                <Th {...headerProps}>EXPORT DOC 2</Th>
-                                                <Th {...headerProps}>REMARKS</Th>
-                                                <Th {...headerProps}>ITEMS</Th>
-                                                <Th {...headerProps}>WEIGHT KGS</Th>
-                                                <Th {...headerProps}>VOLUME NO DIM</Th>
-                                                <Th {...headerProps}>LWH TEXT</Th>
-                                                <Th {...headerProps}>TOTAL VOLUME CBM</Th>
-                                                <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
-                                                <Th {...headerProps}>CURRENCY</Th>
-                                                <Th {...headerProps}>VALUE</Th>
-                                                <Th {...headerProps}>CLIENT</Th>
-                                                <Th {...headerProps}>INTERNAL REMARKS</Th>
-                                                <Th {...headerProps}>FILES</Th>
-                                                <Th {...headerProps}>ACTIONS</Th>
-                                            </Tr>
-                                        </Thead>
-                                        <Tbody>
-                                            {getFilteredStockByStatus().map((item, index) => {
-                                                const statusStyle = getStatusStyle(item.stock_status);
-                                                const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                return (
-                                                    <Tr key={item.id} bg={rowBg}>
-                                                        <Td
-                                                            borderRight="1px"
-                                                            borderColor={tableBorderColor}
-                                                            py="12px"
-                                                            px="8px"
-                                                            width="40px"
-                                                            minW="40px"
-                                                            maxW="40px"
-                                                        >
-                                                            <Checkbox
-                                                                isChecked={selectedRows.has(item.id)}
-                                                                onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                                                size="sm"
-                                                                borderColor="gray.600"
-                                                                sx={{
-                                                                    "& .chakra-checkbox__control": {
-                                                                        borderColor: "gray.600",
-                                                                        _checked: {
-                                                                            borderColor: "blue.500",
-                                                                            bg: "blue.500",
-                                                                        },
+                                        {!isLoading && (
+                                            <Thead bg={tableHeaderBg}>
+                                                <Tr>
+                                                    <Th
+                                                        borderRight="1px"
+                                                        borderColor={tableBorderColor}
+                                                        py="12px"
+                                                        px="8px"
+                                                        fontSize="12px"
+                                                        fontWeight="600"
+                                                        textTransform="uppercase"
+                                                        width="40px"
+                                                        minW="40px"
+                                                        maxW="40px"
+                                                        color={tableTextColor}
+                                                    >
+                                                        <Checkbox
+                                                            isChecked={allItemsSelected}
+                                                            isIndeterminate={someItemsSelected && !allItemsSelected}
+                                                            onChange={(e) => handleSelectAll(e.target.checked)}
+                                                            size="sm"
+                                                            borderColor="gray.600"
+                                                            colorScheme="blue"
+                                                            sx={{
+                                                                "& .chakra-checkbox__control": {
+                                                                    borderColor: "gray.600",
+                                                                    _checked: {
+                                                                        borderColor: "blue.500",
+                                                                        bg: "blue.500",
                                                                     },
-                                                                }}
-                                                            />
-                                                        </Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                },
+                                                            }}
+                                                        />
+                                                    </Th>
+                                                    <Th {...headerProps}>VESSEL</Th>
+                                                    <Th {...headerProps}>STOCKITEMID</Th>
+                                                    <Th {...headerProps}>SUPPLIER</Th>
+                                                    <Th {...headerProps}>PO NUMBER</Th>
+                                                    <Th {...headerProps}>SO NUMBER</Th>
+                                                    <Th {...headerProps}>SI NUMBER</Th>
+                                                    <Th {...headerProps}>SI COMBINED</Th>
+                                                    <Th {...headerProps}>DI NUMBER</Th>
+                                                    <Th {...headerProps}>STOCK STATUS</Th>
+                                                    <Th {...headerProps}>ORIGIN</Th>
+                                                    <Th {...headerProps}>VIA HUB 1</Th>
+                                                    <Th {...headerProps}>VIA HUB 2</Th>
+                                                    <Th {...headerProps}>AP DESTINATION</Th>
+                                                    <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                    <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
+                                                    <Th {...headerProps}>DATE ON STOCK</Th>
+                                                    <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
+                                                    <Th {...headerProps}>SHIPPED DATE</Th>
+                                                    <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
+                                                    <Th {...headerProps}>REMARKS</Th>
+                                                    <Th {...headerProps}>ITEMS</Th>
+                                                    <Th {...headerProps}>WEIGHT KGS</Th>
+                                                    <Th {...headerProps}>VOLUME NO DIM</Th>
+                                                    <Th {...headerProps}>LWH TEXT</Th>
+                                                    <Th {...headerProps}>TOTAL VOLUME CBM</Th>
+                                                    <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
+                                                    <Th {...headerProps}>CURRENCY</Th>
+                                                    <Th {...headerProps}>VALUE</Th>
+                                                    <Th {...headerProps}>CLIENT</Th>
+                                                    <Th {...headerProps}>INTERNAL REMARKS</Th>
+                                                    <Th {...headerProps}>FILES</Th>
+                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                </Tr>
+                                            </Thead>
+                                        )}
+                                        <Tbody>
+                                            {isLoading ? (
+                                                <Tr>
+                                                    <Td colSpan={20} textAlign="center" py="40px">
+                                                        <Box visibility="hidden" h="100px">
+                                                            {/* Placeholder to maintain table structure */}
+                                                        </Box>
+                                                    </Td>
+                                                </Tr>
+                                            ) : getFilteredStockByStatus().length === 0 ? (
+                                                <Tr>
+                                                    <Td colSpan={20} textAlign="center" py="40px">
+                                                        <Text color={tableTextColorSecondary}>
+                                                            {stockList.length === 0 
+                                                                ? "No stock items available." 
+                                                                : "No stock items match your filter criteria."}
+                                                        </Text>
+                                                    </Td>
+                                                </Tr>
+                                            ) : (
+                                                getFilteredStockByStatus().map((item, index) => {
+                                                    const statusStyle = getStatusStyle(item.stock_status);
+                                                    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                    return (
+                                                        <Tr key={item.id} bg={rowBg}>
+                                                            <Td
+                                                                borderRight="1px"
+                                                                borderColor={tableBorderColor}
+                                                                py="12px"
+                                                                px="8px"
+                                                                width="40px"
+                                                                minW="40px"
+                                                                maxW="40px"
+                                                            >
+                                                                <Checkbox
+                                                                    isChecked={selectedRows.has(item.id)}
+                                                                    onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                                                                    size="sm"
+                                                                    borderColor="gray.600"
+                                                                    sx={{
+                                                                        "& .chakra-checkbox__control": {
+                                                                            borderColor: "gray.600",
+                                                                            _checked: {
+                                                                                borderColor: "blue.500",
+                                                                                bg: "blue.500",
+                                                                            },
+                                                                        },
+                                                                    }}
+                                                                />
+                                                            </Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
@@ -3815,8 +4005,9 @@ export default function Stocks() {
                                                             />
                                                         </Td>
                                                     </Tr>
-                                                );
-                                            })}
+                                                    );
+                                                })
+                                            )}
                                         </Tbody>
                                     </Table>
                                 </Box>
@@ -3870,48 +4061,87 @@ export default function Stocks() {
                                 </Card>
 
                                 {/* Table with fields for client view only */}
-                                <Box overflowX="auto">
+                                <Box overflowX="auto" position="relative" minH="400px">
+                                    {isLoading && (
+                                        <Box
+                                            position="fixed"
+                                            top="50%"
+                                            left="50%"
+                                            transform="translate(-50%, -50%)"
+                                            zIndex={1000}
+                                            bg={useColorModeValue("white", "gray.800")}
+                                            p={6}
+                                            borderRadius="md"
+                                            boxShadow="lg"
+                                        >
+                                            <VStack spacing="4">
+                                                <Spinner size="xl" color="#1c4a95" />
+                                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                            </VStack>
+                                        </Box>
+                                    )}
                                     <Table variant="striped" size="sm" minW="5000px">
-                                        <Thead bg={tableHeaderBg}>
-                                            <Tr>
-                                                <Th {...headerProps}>VESSEL</Th>
-                                                <Th {...headerProps}>SUPPLIER</Th>
-                                                <Th {...headerProps}>PO NUMBER</Th>
-                                                <Th {...headerProps}>STOCK STATUS</Th>
-                                                <Th {...headerProps}>ORIGIN</Th>
-                                                <Th {...headerProps}>VIA HUB 1</Th>
-                                                <Th {...headerProps}>VIA HUB 2</Th>
-                                                <Th {...headerProps}>AP DESTINATION</Th>
-                                                <Th {...headerProps}>DESTINATION</Th>
-                                                <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
-                                                <Th {...headerProps}>DATE ON STOCK</Th>
-                                                <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
-                                                <Th {...headerProps}>SHIPPED DATE</Th>
-                                                <Th {...headerProps}>DELIVERED DATE</Th>
-                                                <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                <Th {...headerProps}>EXPORT DOC 2</Th>
-                                                <Th {...headerProps}>REMARKS</Th>
-                                                <Th {...headerProps}>ITEMS</Th>
-                                                <Th {...headerProps}>WEIGHT KGS</Th>
-                                                <Th {...headerProps}>VOLUME NO DIM</Th>
-                                                <Th {...headerProps}>LWH TEXT</Th>
-                                                <Th {...headerProps}>TOTAL VOLUME CBM</Th>
-                                                <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
-                                                <Th {...headerProps}>CURRENCY</Th>
-                                                <Th {...headerProps}>VALUE</Th>
-                                                <Th {...headerProps}>FILES</Th>
-                                            </Tr>
-                                        </Thead>
+                                        {!isLoading && (
+                                            <Thead bg={tableHeaderBg}>
+                                                <Tr>
+                                                    <Th {...headerProps}>VESSEL</Th>
+                                                    <Th {...headerProps}>SUPPLIER</Th>
+                                                    <Th {...headerProps}>PO NUMBER</Th>
+                                                    <Th {...headerProps}>STOCK STATUS</Th>
+                                                    <Th {...headerProps}>ORIGIN</Th>
+                                                    <Th {...headerProps}>VIA HUB 1</Th>
+                                                    <Th {...headerProps}>VIA HUB 2</Th>
+                                                    <Th {...headerProps}>AP DESTINATION</Th>
+                                                    <Th {...headerProps}>DESTINATION</Th>
+                                                    <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                    <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
+                                                    <Th {...headerProps}>DATE ON STOCK</Th>
+                                                    <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
+                                                    <Th {...headerProps}>SHIPPED DATE</Th>
+                                                    <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
+                                                    <Th {...headerProps}>REMARKS</Th>
+                                                    <Th {...headerProps}>ITEMS</Th>
+                                                    <Th {...headerProps}>WEIGHT KGS</Th>
+                                                    <Th {...headerProps}>VOLUME NO DIM</Th>
+                                                    <Th {...headerProps}>LWH TEXT</Th>
+                                                    <Th {...headerProps}>TOTAL VOLUME CBM</Th>
+                                                    <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
+                                                    <Th {...headerProps}>CURRENCY</Th>
+                                                    <Th {...headerProps}>VALUE</Th>
+                                                    <Th {...headerProps}>FILES</Th>
+                                                </Tr>
+                                            </Thead>
+                                        )}
                                         <Tbody>
-                                            {getFilteredStockByStatus().map((item, index) => {
-                                                const statusStyle = getStatusStyle(item.stock_status);
-                                                const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                return (
-                                                    <Tr key={item.id} bg={rowBg}>
-                                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                            {isLoading ? (
+                                                <Tr>
+                                                    <Td colSpan={18} textAlign="center" py="40px">
+                                                        <Box visibility="hidden" h="100px">
+                                                            {/* Placeholder to maintain table structure */}
+                                                        </Box>
+                                                    </Td>
+                                                </Tr>
+                                            ) : getFilteredStockByStatus().length === 0 ? (
+                                                <Tr>
+                                                    <Td colSpan={18} textAlign="center" py="40px">
+                                                        <Text color={tableTextColorSecondary}>
+                                                            {stockList.length === 0 
+                                                                ? "No stock items available." 
+                                                                : "No stock items match your filter criteria."}
+                                                        </Text>
+                                                    </Td>
+                                                </Tr>
+                                            ) : (
+                                                getFilteredStockByStatus().map((item, index) => {
+                                                    const statusStyle = getStatusStyle(item.stock_status);
+                                                    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                    return (
+                                                        <Tr key={item.id} bg={rowBg}>
+                                                            <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
                                                         <Td {...cellProps}>
                                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
@@ -4016,8 +4246,9 @@ export default function Stocks() {
                                                             )}
                                                         </Td>
                                                     </Tr>
-                                                );
-                                            })}
+                                                    );
+                                                })
+                                            )}
                                         </Tbody>
                                     </Table>
                                 </Box>
@@ -4080,42 +4311,60 @@ export default function Stocks() {
                         )}
 
                         {/* Table Container */}
-                        <Box pr="25px" overflowX="auto">
-                            {(paginatedStock.length > 0 || isInitialLoading) && (
-                                <Table variant="unstyled" size="sm" ml="25px">
-                                    <Thead bg={tableHeaderBg}>
-                                        <Tr>
-                                            <Th
-                                                borderRight="1px"
-                                                borderColor={tableBorderColor}
-                                                py="12px"
-                                                px="8px"
-                                                fontSize="12px"
-                                                fontWeight="600"
-                                                textTransform="uppercase"
-                                                width="40px"
-                                                minW="40px"
-                                                maxW="40px"
-                                                color={tableTextColor}
-                                            >
-                                                <Checkbox
-                                                    isChecked={allPageItemsSelected}
-                                                    isIndeterminate={somePageItemsSelected && !allPageItemsSelected}
-                                                    onChange={(e) => handleSelectAll(e.target.checked)}
-                                                    size="sm"
-                                                    borderColor="gray.600"
-                                                    colorScheme="blue"
-                                                    sx={{
-                                                        "& .chakra-checkbox__control": {
-                                                            borderColor: "gray.600",
-                                                            _checked: {
-                                                                borderColor: "blue.500",
-                                                                bg: "blue.500",
+                        <Box pr="25px" overflowX="auto" position="relative" minH="400px">
+                            {isLoading && (
+                                <Box
+                                    position="fixed"
+                                    top="50%"
+                                    left="50%"
+                                    transform="translate(-50%, -50%)"
+                                    zIndex={1000}
+                                    bg={useColorModeValue("white", "gray.800")}
+                                    p={6}
+                                    borderRadius="md"
+                                    boxShadow="lg"
+                                >
+                                    <VStack spacing="4">
+                                        <Spinner size="xl" color="#1c4a95" />
+                                        <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                    </VStack>
+                                </Box>
+                            )}
+                            <Table variant="unstyled" size="sm" ml="25px">
+                                    {!isLoading && (
+                                        <Thead bg={tableHeaderBg}>
+                                            <Tr>
+                                                <Th
+                                                    borderRight="1px"
+                                                    borderColor={tableBorderColor}
+                                                    py="12px"
+                                                    px="8px"
+                                                    fontSize="12px"
+                                                    fontWeight="600"
+                                                    textTransform="uppercase"
+                                                    width="40px"
+                                                    minW="40px"
+                                                    maxW="40px"
+                                                    color={tableTextColor}
+                                                >
+                                                    <Checkbox
+                                                        isChecked={allPageItemsSelected}
+                                                        isIndeterminate={somePageItemsSelected && !allPageItemsSelected}
+                                                        onChange={(e) => handleSelectAll(e.target.checked)}
+                                                        size="sm"
+                                                        borderColor="gray.600"
+                                                        colorScheme="blue"
+                                                        sx={{
+                                                            "& .chakra-checkbox__control": {
+                                                                borderColor: "gray.600",
+                                                                _checked: {
+                                                                    borderColor: "blue.500",
+                                                                    bg: "blue.500",
+                                                                },
                                                             },
-                                                        },
-                                                    }}
-                                                />
-                                            </Th>
+                                                        }}
+                                                    />
+                                                </Th>
                                             {activeTab === 0 ? (
                                                 <>
                                                     <Th {...headerProps}>VESSEL</Th>
@@ -4175,16 +4424,24 @@ export default function Stocks() {
                                             )}
                                         </Tr>
                                     </Thead>
+                                    )}
                                     <Tbody>
-                                        {isInitialLoading ? (
+                                        {isLoading ? (
                                             <Tr>
-                                                <Td colSpan={activeTab === 0 ? 20 : 33}>
-                                                    <Center py="10">
-                                                        <HStack spacing="4">
-                                                            <Spinner size="lg" color="#1c4a95" />
-                                                            <Text color={tableTextColor}>Loading stock list...</Text>
-                                                        </HStack>
-                                                    </Center>
+                                                <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
+                                                    <Box visibility="hidden" h="100px">
+                                                        {/* Placeholder to maintain table structure */}
+                                                    </Box>
+                                                </Td>
+                                            </Tr>
+                                        ) : paginatedStock.length === 0 ? (
+                                            <Tr>
+                                                <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
+                                                    <Text color={tableTextColorSecondary}>
+                                                        {stockList.length === 0 
+                                                            ? "No stock items available." 
+                                                            : "No stock items match your filter criteria."}
+                                                    </Text>
                                                 </Td>
                                             </Tr>
                                         ) : (
@@ -4192,7 +4449,6 @@ export default function Stocks() {
                                         )}
                                     </Tbody>
                                 </Table>
-                            )}
 
                             {!isLoading && filteredAndSortedStock.length === 0 && (
                                 <Box textAlign="center" py="16" px="25px">

@@ -327,13 +327,9 @@ const VesselDetail = () => {
                   borderColor={borderColor}
                   borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    Vessel Name
-                  </Text>
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {prettyValue(vessel.name)}
                   </Text>
@@ -343,13 +339,9 @@ const VesselDetail = () => {
                   py={2}
                   borderColor={borderColor}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    Client (Customer)
-                  </Text>
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {clientName}
                   </Text>
@@ -360,13 +352,9 @@ const VesselDetail = () => {
                   borderColor={borderColor}
                   borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    Vessel Type
-                  </Text>
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {prettyValue(vessel.vessel_type)}
                   </Text>
@@ -376,13 +364,9 @@ const VesselDetail = () => {
                   py={2}
                   borderColor={borderColor}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    IMO
-                  </Text>
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {prettyValue(vessel.imo)}
                   </Text>
@@ -393,13 +377,9 @@ const VesselDetail = () => {
                   borderColor={borderColor}
                   borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    Status
-                  </Text>
                   <Badge
                     colorScheme={
                       vessel.status === "active" ? "green" :
@@ -418,13 +398,9 @@ const VesselDetail = () => {
                   py={2}
                   borderColor={borderColor}
                   display="flex"
-                  justifyContent="space-between"
+                  justifyContent="flex-start"
                   alignItems="center"
-                  gap={2}
                 >
-                  <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                    DB ID
-                  </Text>
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
                     {prettyValue(vessel.id)}
                   </Text>
