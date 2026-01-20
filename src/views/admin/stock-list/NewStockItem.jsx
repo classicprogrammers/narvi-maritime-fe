@@ -107,7 +107,7 @@ export default function StockForm() {
         py: "8px",
         px: "8px",
         minW: "130px",
-        maxW: "200px",
+        // maxW: "200px",
     };
 
     // Default empty row template – only keep fields that exist in the UI
@@ -1400,6 +1400,8 @@ export default function StockForm() {
                                                     value={row.stockItemId || ""}
                                                     isReadOnly
                                                     size="sm"
+                                                    minW="200px"
+                                                    w="100%"
                                                     bg={useColorModeValue("gray.100", "gray.700")}
                                                     color={inputText}
                                                 />
@@ -1418,6 +1420,8 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                minW="200px"
+                                                w="100%"
                                             />
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1433,6 +1437,8 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                minW="200px"
+                                                w="100%"
                                             />
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1452,6 +1458,8 @@ export default function StockForm() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                             />
                                         </Td>
                                         <Td {...cellProps}>
@@ -1459,6 +1467,8 @@ export default function StockForm() {
                                                 value={row.stockStatus}
                                                 onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1490,6 +1500,8 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                minW="200px"
+                                                w="100%"
                                             />
                                         </Td>
                                         {/* Single PO Number field, but allow multiple lines for clarity */}
@@ -1500,6 +1512,8 @@ export default function StockForm() {
                                                 placeholder="Enter PO Number(s) - one per line"
                                                 size="sm"
                                                 rows={3}
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1512,6 +1526,8 @@ export default function StockForm() {
                                                 value={row.expReadyInStock || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1525,6 +1541,8 @@ export default function StockForm() {
                                                 placeholder="Enter Warehouse ID"
                                                 size="sm"
                                                 rows={2}
+                                                minW="200px"
+                                                w="100%"
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1538,6 +1556,8 @@ export default function StockForm() {
                                                 value={row.dateOnStock || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1550,6 +1570,8 @@ export default function StockForm() {
                                                 min={0}
                                                 precision={0}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                             >
                                                 <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             </NumberInput>
@@ -1561,6 +1583,8 @@ export default function StockForm() {
                                                 min={0}
                                                 precision={2}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                             >
                                                 <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             </NumberInput>
@@ -1588,6 +1612,8 @@ export default function StockForm() {
                                                 onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
                                                 placeholder="Volume no dim"
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1600,6 +1626,8 @@ export default function StockForm() {
                                                 placeholder="LWH Text (one set per line)"
                                                 size="sm"
                                                 rows={3}
+                                                minW="200px"
+                                                w="100%"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1612,6 +1640,8 @@ export default function StockForm() {
                                                 placeholder="Enter DG/UN Number"
                                                 size="sm"
                                                 rows={3}
+                                                minW="200px"
+                                                w="100%"
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1625,6 +1655,8 @@ export default function StockForm() {
                                                 min={0}
                                                 precision={2}
                                                 size="sm"
+                                                minW="200px"
+                                                w="100%"
                                             >
                                                 <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             </NumberInput>
@@ -1646,6 +1678,8 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                minW="200px"
+                                                w="100%"
                                             />
                                         </Td>
                                         <Td {...cellProps} position="relative">
@@ -1657,6 +1691,7 @@ export default function StockForm() {
                                                         onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
                                                         placeholder="Type or select country..."
                                                         size="sm"
+                                                        minW="200px"
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -1695,6 +1730,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                                     placeholder="Enter HUB 1"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1728,6 +1764,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
                                                     placeholder="Enter HUB 2"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1761,6 +1798,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
                                                     placeholder="AP Destination"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1795,6 +1833,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "destination", e.target.value)}
                                                     placeholder="Enter Destination"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -1829,6 +1868,8 @@ export default function StockForm() {
                                                 placeholder="Enter Shipping Docs"
                                                 size="sm"
                                                 rows={3}
+                                                minW="200px"
+                                                w="100%"
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1844,6 +1885,7 @@ export default function StockForm() {
                                                     placeholder="Enter Export docs"
                                                     size="sm"
                                                     rows={3}
+                                                    minW="200px"
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
@@ -1880,6 +1922,7 @@ export default function StockForm() {
                                                     placeholder="Enter Export Doc 2"
                                                     size="sm"
                                                     rows={3}
+                                                    minW="200px"
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
@@ -1916,6 +1959,7 @@ export default function StockForm() {
                                                     placeholder="Enter Remarks"
                                                     size="sm"
                                                     rows={3}
+                                                    minW="200px"
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
@@ -1951,6 +1995,8 @@ export default function StockForm() {
                                                 placeholder="Enter Internal Remark"
                                                 size="sm"
                                                 rows={3}
+                                                minW="200px"
+                                                w="100%"
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1967,6 +2013,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
                                                     placeholder="Enter SO (e.g., 00021 1.1)"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2003,6 +2050,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
                                                     placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2039,6 +2087,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
                                                     placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2075,6 +2124,7 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
                                                     placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                                     size="sm"
+                                                    minW="200px"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}

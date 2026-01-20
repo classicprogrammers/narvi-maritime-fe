@@ -1034,6 +1034,28 @@ export default function StockList() {
         return value;
     };
 
+    const splitLines = (val) =>
+        (val || "")
+            .split(/\r?\n/)
+            .map((v) => v.trim())
+            .filter(Boolean);
+
+    const renderMultiLineLabels = (value) => {
+        const lines = splitLines(value);
+        if (!lines.length) {
+            return <Text {...cellText}>-</Text>;
+        }
+        return (
+            <VStack align="start" spacing={1}>
+                {lines.map((line, idx) => (
+                    <Badge key={idx} colorScheme="blue" variant="subtle">
+                        {line}
+                    </Badge>
+                ))}
+            </VStack>
+        );
+    };
+
     // Handle viewing attachments - use new API endpoint
     const handleViewFile = async (attachment, stockItemId = null) => {
         try {
@@ -2160,7 +2182,7 @@ export default function StockList() {
                                             </Badge>
                                         </Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
@@ -2376,9 +2398,9 @@ export default function StockList() {
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
                                                     PO Number
                                                 </Text>
-                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {renderText(item.po_text || item.po_number)}
-                                                </Text>
+                                                <Box>
+                                                    {renderMultiLineLabels(item.po_text || item.po_number)}
+                                                </Box>
                                             </Box>
                                             <Box>
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>

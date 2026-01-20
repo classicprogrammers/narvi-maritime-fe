@@ -142,10 +142,10 @@ export default function StockDBMainEdit() {
     const cellProps = {
         borderRight: "1px",
         borderColor: tableBorderColor,
-        py: "8px",
-        px: "8px",
-        minW: "130px",
-        maxW: "200px",
+        py: "12px",
+        px: "12px",
+        whiteSpace: "normal",
+        minW: "fit-content",
     };
 
     // Helper function to convert value to number
@@ -1740,6 +1740,8 @@ export default function StockDBMainEdit() {
                                             value={row.stockItemId || ""}
                                             isReadOnly
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={useColorModeValue("gray.100", "gray.700")}
                                             color={inputText}
                                         />
@@ -1749,6 +1751,8 @@ export default function StockDBMainEdit() {
                                             value={row.slCreateDate || ""}
                                             isReadOnly
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={useColorModeValue("gray.100", "gray.700")}
                                             color={inputText}
                                         />
@@ -1767,6 +1771,8 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1782,6 +1788,8 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps} position="relative">
@@ -1793,6 +1801,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
                                                 placeholder="Enter SO (e.g., SO-00021 1.1)"
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1828,6 +1837,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
                                                 placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1863,6 +1873,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
                                                 placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1898,6 +1909,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
                                                 placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1929,6 +1941,8 @@ export default function StockDBMainEdit() {
                                             value={row.stockStatus}
                                             onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1959,6 +1973,8 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -1968,6 +1984,8 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter PO Number(s) - one per line"
                                             size="sm"
                                             rows={3}
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1981,6 +1999,7 @@ export default function StockDBMainEdit() {
                                                     value={row.origin_text || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
                                                     placeholder="Type or select country..."
+                                                    minW="200px"
                                                     size="sm"
                                                     bg={inputBg}
                                                     color={inputText}
@@ -2020,6 +2039,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2053,6 +2073,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2086,6 +2107,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
                                                 placeholder="Enter AP Destination"
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2114,7 +2136,7 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <Flex gap="1" align="center">
-                                            <Box flex="1">
+                                            <Box flex="1" minW="200px">
                                                 <SimpleSearchableSelect
                                                     value={row.destination}
                                                     onChange={(value) => handleInputChange(rowIndex, "destination", value)}
@@ -2127,6 +2149,8 @@ export default function StockDBMainEdit() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
+                                                    minW="200px"
+                                                    w="100%"
                                                 />
                                             </Box>
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
@@ -2157,6 +2181,8 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter Warehouse ID"
                                             size="sm"
                                             rows={2}
+                                            minW="200px"
+                                            w="100%"
                                             resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
@@ -2169,6 +2195,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2185,6 +2213,7 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
+                                                minW="200px"
                                                 flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
@@ -2220,6 +2249,7 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
+                                                minW="200px"
                                                 flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
@@ -2256,6 +2286,7 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
+                                                minW="200px"
                                                 flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
@@ -2291,6 +2322,8 @@ export default function StockDBMainEdit() {
                                             color={inputText}
                                             borderColor={borderColor}
                                             rows={2}
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -2300,6 +2333,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
                                             placeholder=""
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2312,6 +2347,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                             placeholder=""
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2325,6 +2362,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "shippedDate", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2359,6 +2397,7 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "deliveredDate", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
+                                                minW="200px"
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2392,6 +2431,8 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter DG/UN Number"
                                             size="sm"
                                             rows={3}
+                                            minW="200px"
+                                            w="100%"
                                             resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
@@ -2405,6 +2446,8 @@ export default function StockDBMainEdit() {
                                             min={0}
                                             precision={0}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
@@ -2416,6 +2459,8 @@ export default function StockDBMainEdit() {
                                             min={0}
                                             precision={2}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
@@ -2444,6 +2489,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
                                             placeholder="Volume no dim"
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2456,6 +2503,8 @@ export default function StockDBMainEdit() {
                                             min={0}
                                             precision={2}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
@@ -2471,6 +2520,8 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={5}
+                                                minW="200px"
+                                                w="100%"
                                                 resize="vertical"
                                                 minH="100px"
                                             />
@@ -2497,6 +2548,8 @@ export default function StockDBMainEdit() {
                                             min={0}
                                             precision={2}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
@@ -2508,6 +2561,8 @@ export default function StockDBMainEdit() {
                                             min={0}
                                             precision={2}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         >
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
@@ -2529,6 +2584,8 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -2662,6 +2719,8 @@ export default function StockDBMainEdit() {
                                             color={inputText}
                                             borderColor={borderColor}
                                             size="sm"
+                                            minW="200px"
+                                            w="100%"
                                         />
                                     </Td>
                                     <Td {...cellProps}>

@@ -183,6 +183,7 @@ const SimpleSearchableSelect = ({
           bg={bg || defaultBg}
           color={color || defaultColor}
           borderColor={borderColor || defaultBorderColor}
+          title={displayValue}
           _focus={{
             borderColor: "#1c4a95",
             boxShadow: "0 0 0 1px #1c4a95",

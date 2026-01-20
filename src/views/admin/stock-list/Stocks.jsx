@@ -3976,7 +3976,7 @@ export default function Stocks() {
                                                             <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                         <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{(() => {
                                                             const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
@@ -4247,7 +4247,7 @@ export default function Stocks() {
                                                         <Tr key={item.id} bg={rowBg}>
                                                             <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.po_text || item.po_number)}</Text></Td>
+                                                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                         <Td {...cellProps}>
                                                             <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
                                                                 {renderText(item.stock_status)}
