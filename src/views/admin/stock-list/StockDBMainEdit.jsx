@@ -60,8 +60,9 @@ import {
     MdArrowDownward,
     MdMoreVert,
     MdAdd,
+    MdDownload,
 } from "react-icons/md";
-import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi } from "../../../api/stock";
+import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -683,7 +684,7 @@ export default function StockDBMainEdit() {
         }));
     };
 
-    // Handle viewing attachments - simplified like vessel attachments
+    // Handle viewing attachments - use new API endpoint
     const handleViewFile = async (attachment, stockItemId = null) => {
         try {
             let fileUrl = null;
@@ -694,8 +695,39 @@ export default function StockDBMainEdit() {
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 2: API endpoint URL - fetch attachment from API
-            else if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
+
+            // Case 2: If we have stockId and attachmentId, use new API endpoint
+            if (stockItemId && attachment.id) {
+                try {
+                    setIsLoadingAttachment(true);
+                    // Use new endpoint for viewing: /api/stock/list/${stockId}/attachment/${attachmentId}/download
+                    const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
+                    
+                    if (response.data instanceof Blob) {
+                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                        fileUrl = URL.createObjectURL(response.data);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else {
+                        throw new Error('Invalid response format from server');
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching attachment from API:', apiError);
+                    toast({
+                        title: 'Error',
+                        description: apiError.message || 'Failed to fetch attachment from server',
+                        status: 'error',
+                        duration: 3000,
+                        isClosable: true,
+                    });
+                    return;
+                } finally {
+                    setIsLoadingAttachment(false);
+                }
+            }
+
+            // Case 3: API endpoint URL - legacy support
+            if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
                 try {
                     // Extract stock ID from URL or use provided stockItemId
                     let stockId = stockItemId;
@@ -710,7 +742,6 @@ export default function StockDBMainEdit() {
                         throw new Error('Unable to determine stock item ID from attachment URL');
                     }
 
-                    // Show loading state
                     setIsLoadingAttachment(true);
 
                     try {
@@ -784,7 +815,6 @@ export default function StockDBMainEdit() {
                             throw new Error('Attachment data format not supported');
                         }
                     } finally {
-                        // Hide loading state
                         setIsLoadingAttachment(false);
                     }
                 } catch (apiError) {
@@ -794,19 +824,19 @@ export default function StockDBMainEdit() {
                         title: 'Error',
                         description: apiError.message || 'Failed to fetch attachment from server',
                         status: 'error',
-                        duration: 50000,
+                        duration: 3000,
                         isClosable: true,
                     });
                     return;
                 }
             }
-            // Case 3: backend URL (non-API endpoint)
+            // Case 4: backend URL (non-API endpoint)
             else if (attachment.url) {
                 fileUrl = attachment.url;
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 3: base64 data (most common for attachments) - convert to blob
+            // Case 5: base64 data (most common for attachments) - convert to blob
             else if (attachment.datas) {
                 try {
                     const mimeType = attachment.mimetype || "application/octet-stream";
@@ -837,14 +867,14 @@ export default function StockDBMainEdit() {
                     return;
                 }
             }
-            // Case 4: construct URL from attachment ID
+            // Case 6: construct URL from attachment ID
             else if (attachment.id) {
                 const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
                 fileUrl = `${baseUrl}/web/content/${attachment.id}`;
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 5: file path
+            // Case 7: file path
             else if (attachment.path) {
                 fileUrl = attachment.path;
                 window.open(fileUrl, '_blank');
@@ -864,6 +894,65 @@ export default function StockDBMainEdit() {
             toast({
                 title: 'Error',
                 description: error.message || 'Failed to view file',
+                status: 'error',
+                duration: 3000,
+                isClosable: true,
+            });
+        }
+    };
+
+    // Handle force downloading attachments - use new API endpoint with download=true
+    const handleDownloadFile = async (attachment, stockItemId = null) => {
+        try {
+            if (!stockItemId || !attachment.id) {
+                toast({
+                    title: 'Error',
+                    description: 'Stock ID and Attachment ID are required for download',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+                return;
+            }
+
+            setIsLoadingAttachment(true);
+            try {
+                // Use new endpoint for force download: /api/stock/list/${stockId}/attachment/${attachmentId}/download?download=true
+                const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, true);
+                
+                if (response.data instanceof Blob) {
+                    const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                    const filename = response.filename || attachment.filename || attachment.name || 'download';
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(response.data);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('Invalid response format from server');
+                }
+            } catch (apiError) {
+                console.error('Error downloading attachment from API:', apiError);
+                toast({
+                    title: 'Error',
+                    description: apiError.message || 'Failed to download attachment from server',
+                    status: 'error',
+                    duration: 3000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingAttachment(false);
+            }
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to download file',
                 status: 'error',
                 duration: 3000,
                 isClosable: true,
@@ -2498,6 +2587,14 @@ export default function StockDBMainEdit() {
                                                             variant="ghost"
                                                             colorScheme="blue"
                                                             onClick={() => handleViewFile(att, row.stockId)}
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Download file"
+                                                            icon={<Icon as={MdDownload} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="green"
+                                                            onClick={() => handleDownloadFile(att, row.stockId)}
                                                         />
                                                         <IconButton
                                                             aria-label="Delete attachment"

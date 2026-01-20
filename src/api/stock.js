@@ -209,3 +209,53 @@ export const getStockItemAttachmentsApi = async (stockId) => {
     handleApiError(error, "Get stock item attachments");
   }
 };
+
+// Download stock item attachment (for viewing or force download)
+export const downloadStockItemAttachmentApi = async (stockId, attachmentId, forceDownload = false) => {
+  try {
+    const url = `${getApiEndpoint("STOCK_LIST")}/${stockId}/attachment/${attachmentId}/download${forceDownload ? '?download=true' : ''}`;
+    const response = await api.get(url, {
+      responseType: 'blob', // Get binary data
+    });
+
+    // If response is JSON (error or metadata), parse it
+    if (response.data instanceof Blob && response.data.type === 'application/json') {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      
+      // Check if response has error status (JSON-RPC format)
+      if (jsonData.result && jsonData.result.status === 'error') {
+        throw new Error(jsonData.result.message || 'Failed to download attachment');
+      }
+      
+      return jsonData;
+    }
+
+    // If response is a file (binary), return it as blob
+    return {
+      data: response.data,
+      type: response.headers['content-type'] || 'application/octet-stream',
+      filename: response.headers['content-disposition'] 
+        ? response.headers['content-disposition'].match(/filename="?(.+)"?/)?.[1] 
+        : null,
+    };
+  } catch (error) {
+    // If blob parsing fails, try as JSON
+    if (error.response && error.response.data) {
+      try {
+        // If error response is JSON, parse it
+        if (error.response.data instanceof Blob && error.response.data.type === 'application/json') {
+          const text = await error.response.data.text();
+          const jsonData = JSON.parse(text);
+          if (jsonData.result && jsonData.result.status === 'error') {
+            throw new Error(jsonData.result.message || 'Failed to download attachment');
+          }
+        }
+      } catch (parseError) {
+        // Ignore parse errors, use original error
+      }
+    }
+    console.error("Download stock item attachment error:", error);
+    handleApiError(error, "Download stock item attachment");
+  }
+};

@@ -55,9 +55,9 @@ import {
     Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { updateStockItemApi, getStockItemAttachmentsApi } from "../../../api/stock";
+import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
 import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
@@ -896,7 +896,7 @@ export default function Stocks() {
         return style.label || status || "-";
     };
 
-    // Handle viewing attachments - simplified like vessel attachments
+    // Handle viewing attachments - use new API endpoint
     const handleViewFile = async (attachment, stockItemId = null) => {
         try {
             let fileUrl = null;
@@ -907,8 +907,39 @@ export default function Stocks() {
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 2: API endpoint URL - fetch attachment from API
-            else if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
+
+            // Case 2: If we have stockId and attachmentId, use new API endpoint
+            if (stockItemId && attachment.id) {
+                try {
+                    setIsLoadingAttachment(true);
+                    // Use new endpoint for viewing: /api/stock/list/${stockId}/attachment/${attachmentId}/download
+                    const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
+                    
+                    if (response.data instanceof Blob) {
+                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                        fileUrl = URL.createObjectURL(response.data);
+                        window.open(fileUrl, '_blank');
+                        return;
+                    } else {
+                        throw new Error('Invalid response format from server');
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching attachment from API:', apiError);
+                    toast({
+                        title: 'Error',
+                        description: apiError.message || 'Failed to fetch attachment from server',
+                        status: 'error',
+                        duration: 50000,
+                        isClosable: true,
+                    });
+                    return;
+                } finally {
+                    setIsLoadingAttachment(false);
+                }
+            }
+
+            // Case 3: API endpoint URL - legacy support
+            if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
                 try {
                     // Extract stock ID from URL or use provided stockItemId
                     let stockId = stockItemId;
@@ -923,81 +954,79 @@ export default function Stocks() {
                         throw new Error('Unable to determine stock item ID from attachment URL');
                     }
 
-                    // Show loading state
                     setIsLoadingAttachment(true);
 
                     try {
                         // Call API to get attachment
                         const response = await getStockItemAttachmentsApi(stockId);
 
-                    // Handle response - could be blob (direct file) or JSON (metadata)
-                    let attachmentData = null;
-                    
-                    // If response is a blob (direct file data)
-                    if (response.data instanceof Blob) {
-                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-                        fileUrl = URL.createObjectURL(response.data);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    }
-                    
-                    // If response is JSON (metadata or error)
-                    if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
-                        // Find the specific attachment by ID if available
-                        if (attachment.id) {
-                            attachmentData = response.result.attachments.find(att => att.id === attachment.id);
-                        } else {
-                            // Use first attachment if no ID match
-                            attachmentData = response.result.attachments[0];
+                        // Handle response - could be blob (direct file) or JSON (metadata)
+                        let attachmentData = null;
+                        
+                        // If response is a blob (direct file data)
+                        if (response.data instanceof Blob) {
+                            const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                            fileUrl = URL.createObjectURL(response.data);
+                            window.open(fileUrl, '_blank');
+                            return;
                         }
-                    } else if (response.attachments && Array.isArray(response.attachments)) {
-                        if (attachment.id) {
-                            attachmentData = response.attachments.find(att => att.id === attachment.id);
-                        } else {
-                            attachmentData = response.attachments[0];
+                        
+                        // If response is JSON (metadata or error)
+                        if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
+                            // Find the specific attachment by ID if available
+                            if (attachment.id) {
+                                attachmentData = response.result.attachments.find(att => att.id === attachment.id);
+                            } else {
+                                // Use first attachment if no ID match
+                                attachmentData = response.result.attachments[0];
+                            }
+                        } else if (response.attachments && Array.isArray(response.attachments)) {
+                            if (attachment.id) {
+                                attachmentData = response.attachments.find(att => att.id === attachment.id);
+                            } else {
+                                attachmentData = response.attachments[0];
+                            }
+                        } else if (response.result && response.result.data) {
+                            // Handle case where attachment data is in result.data
+                            attachmentData = response.result.data;
+                        } else if (response.data && !(response.data instanceof Blob)) {
+                            attachmentData = response.data;
                         }
-                    } else if (response.result && response.result.data) {
-                        // Handle case where attachment data is in result.data
-                        attachmentData = response.result.data;
-                    } else if (response.data && !(response.data instanceof Blob)) {
-                        attachmentData = response.data;
-                    }
 
-                    if (!attachmentData) {
-                        throw new Error('Attachment not found in API response');
-                    }
-
-                    // Now handle the attachment data - it might have base64 data, URL, or file data
-                    if (attachmentData.datas) {
-                        // Base64 data - convert to blob
-                        const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
-                        const base64Data = attachmentData.datas;
-                        const byteCharacters = atob(base64Data);
-                        const byteNumbers = new Array(byteCharacters.length);
-                        for (let i = 0; i < byteCharacters.length; i++) {
-                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                        if (!attachmentData) {
+                            throw new Error('Attachment not found in API response');
                         }
-                        const byteArray = new Uint8Array(byteNumbers);
-                        const blob = new Blob([byteArray], { type: mimeType });
-                        fileUrl = URL.createObjectURL(blob);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
-                        // Direct file URL (not an API endpoint)
-                        fileUrl = attachmentData.url;
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else if (attachmentData.file || attachmentData.blob) {
-                        // File or blob object
-                        const file = attachmentData.file || attachmentData.blob;
-                        fileUrl = URL.createObjectURL(file);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else {
-                        throw new Error('Attachment data format not supported');
-                    }
+
+                        // Now handle the attachment data - it might have base64 data, URL, or file data
+                        if (attachmentData.datas) {
+                            // Base64 data - convert to blob
+                            const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
+                            const base64Data = attachmentData.datas;
+                            const byteCharacters = atob(base64Data);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], { type: mimeType });
+                            fileUrl = URL.createObjectURL(blob);
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
+                            // Direct file URL (not an API endpoint)
+                            fileUrl = attachmentData.url;
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else if (attachmentData.file || attachmentData.blob) {
+                            // File or blob object
+                            const file = attachmentData.file || attachmentData.blob;
+                            fileUrl = URL.createObjectURL(file);
+                            window.open(fileUrl, '_blank');
+                            return;
+                        } else {
+                            throw new Error('Attachment data format not supported');
+                        }
                     } finally {
-                        // Hide loading state
                         setIsLoadingAttachment(false);
                     }
                 } catch (apiError) {
@@ -1013,13 +1042,13 @@ export default function Stocks() {
                     return;
                 }
             }
-            // Case 3: backend URL (non-API endpoint)
+            // Case 4: backend URL (non-API endpoint)
             else if (attachment.url) {
                 fileUrl = attachment.url;
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 3: base64 data (most common for attachments) - convert to blob
+            // Case 5: base64 data (most common for attachments) - convert to blob
             else if (attachment.datas) {
                 try {
                     const mimeType = attachment.mimetype || "application/octet-stream";
@@ -1050,14 +1079,14 @@ export default function Stocks() {
                     return;
                 }
             }
-            // Case 4: construct URL from attachment ID
+            // Case 6: construct URL from attachment ID
             else if (attachment.id) {
                 const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
                 fileUrl = `${baseUrl}/web/content/${attachment.id}`;
                 window.open(fileUrl, '_blank');
                 return;
             }
-            // Case 5: file path
+            // Case 7: file path
             else if (attachment.path) {
                 fileUrl = attachment.path;
                 window.open(fileUrl, '_blank');
@@ -1077,6 +1106,65 @@ export default function Stocks() {
             toast({
                 title: 'Error',
                 description: error.message || 'Failed to view file',
+                status: 'error',
+                duration: 50000,
+                isClosable: true,
+            });
+        }
+    };
+
+    // Handle force downloading attachments - use new API endpoint with download=true
+    const handleDownloadFile = async (attachment, stockItemId = null) => {
+        try {
+            if (!stockItemId || !attachment.id) {
+                toast({
+                    title: 'Error',
+                    description: 'Stock ID and Attachment ID are required for download',
+                    status: 'error',
+                    duration: 50000,
+                    isClosable: true,
+                });
+                return;
+            }
+
+            setIsLoadingAttachment(true);
+            try {
+                // Use new endpoint for force download: /api/stock/list/${stockId}/attachment/${attachmentId}/download?download=true
+                const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, true);
+                
+                if (response.data instanceof Blob) {
+                    const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                    const filename = response.filename || attachment.filename || attachment.name || 'download';
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(response.data);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                } else {
+                    throw new Error('Invalid response format from server');
+                }
+            } catch (apiError) {
+                console.error('Error downloading attachment from API:', apiError);
+                toast({
+                    title: 'Error',
+                    description: apiError.message || 'Failed to download attachment from server',
+                    status: 'error',
+                    duration: 50000,
+                    isClosable: true,
+                });
+            } finally {
+                setIsLoadingAttachment(false);
+            }
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            toast({
+                title: 'Error',
+                description: error.message || 'Failed to download file',
                 status: 'error',
                 duration: 50000,
                 isClosable: true,
@@ -2503,6 +2591,14 @@ export default function Stocks() {
                                                 aria-label="View file"
                                                 onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                             />
+                                            <IconButton
+                                                icon={<Icon as={MdDownload} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="green"
+                                                aria-label="Download file"
+                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
+                                            />
                                         </HStack>
                                     ))}
                                 </VStack>
@@ -2723,6 +2819,14 @@ export default function Stocks() {
                                                 colorScheme="blue"
                                                 aria-label="View file"
                                                 onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                            />
+                                            <IconButton
+                                                icon={<Icon as={MdDownload} />}
+                                                size="xs"
+                                                variant="ghost"
+                                                colorScheme="green"
+                                                aria-label="Download file"
+                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
                                             />
                                         </HStack>
                                     ))}
@@ -3946,7 +4050,15 @@ export default function Stocks() {
                                                                                 variant="ghost"
                                                                                 colorScheme="blue"
                                                                                 aria-label="View file"
-                                                                                onClick={() => handleViewFile(att)}
+                                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                                                            />
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdDownload} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="green"
+                                                                                aria-label="Download file"
+                                                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
                                                                             />
                                                                         </HStack>
                                                                     ))}
@@ -4189,7 +4301,15 @@ export default function Stocks() {
                                                                                 variant="ghost"
                                                                                 colorScheme="blue"
                                                                                 aria-label="View file"
-                                                                                onClick={() => handleViewFile(att)}
+                                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                                                            />
+                                                                            <IconButton
+                                                                                icon={<Icon as={MdDownload} />}
+                                                                                size="xs"
+                                                                                variant="ghost"
+                                                                                colorScheme="green"
+                                                                                aria-label="Download file"
+                                                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
                                                                             />
                                                                         </HStack>
                                                                     ))}
