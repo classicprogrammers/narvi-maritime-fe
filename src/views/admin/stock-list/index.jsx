@@ -102,6 +102,9 @@ export default function StockList() {
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
 
+    // View selected items modal state (legacy - currently using filter table instead)
+    const { isOpen: isViewModalOpen, onOpen: onViewModalOpen, onClose: onViewModalClose } = useDisclosure();
+
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
@@ -181,7 +184,7 @@ export default function StockList() {
     });
     const [sortOption, setSortOption] = useState(() => {
         const stored = sessionStorage.getItem('stockListMainSortOption');
-        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status'
+        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status', 'via_vessel', 'via_vessel_status'
     });
 
 
@@ -790,6 +793,16 @@ export default function StockList() {
                     }
                 }
 
+                // Sort by Vessel (alphabetically by vessel name)
+                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
+                    const vesselNameA = getVesselName(a.vessel_id || a.vessel || "").toLowerCase().trim();
+                    const vesselNameB = getVesselName(b.vessel_id || b.vessel || "").toLowerCase().trim();
+
+                    if (vesselNameA !== vesselNameB) {
+                        return vesselNameA.localeCompare(vesselNameB);
+                    }
+                }
+
                 // Sort by Stock Status in specific order:
                 // 1. "Pending"
                 // 2. "In Stock"
@@ -797,7 +810,7 @@ export default function StockList() {
                 // 4. "Arrived Destination"
                 // 5. "On a Shipping Instruction"
                 // 6. "On a Delivery Instruction"
-                if (sortOption === 'status' || sortOption === 'via_hub_status') {
+                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
                         "in_stock",       // "In Stock"
@@ -829,6 +842,13 @@ export default function StockList() {
 
         return filtered;
     }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, searchFilter, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
+
+    // Get selected items for the view modal
+    const viewSelectedItems = useMemo(() => {
+        if (selectedRows.size === 0) return [];
+        const selectedIds = Array.from(selectedRows);
+        return stockList.filter(item => selectedIds.includes(item.id));
+    }, [stockList, selectedRows]);
 
     // Handle column sorting
     const handleSort = (field) => {
@@ -1447,18 +1467,26 @@ export default function StockList() {
                                                     >
                                                         {sortOption === 'none' ? "Select Sort Option" :
                                                             sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                                sortOption === 'status' ? "Sort: Stock Status" :
-                                                                    "Sort: VIA HUB + Status"}
+                                                                sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
+                                                                    sortOption === 'status' ? "Sort: Stock Status" :
+                                                                        sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
+                                                                            "Sort: VIA VESSEL + Status"}
                                                     </MenuButton>
                                                     <MenuList>
                                                         <MenuItem onClick={() => setSortOption('via_hub')}>
                                                             Sort by VIA HUB (Alphabetically)
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('via_vessel')}>
+                                                            Sort by VIA VESSEL (Alphabetically)
                                                         </MenuItem>
                                                         <MenuItem onClick={() => setSortOption('status')}>
                                                             Sort by Stock Status
                                                         </MenuItem>
                                                         <MenuItem onClick={() => setSortOption('via_hub_status')}>
                                                             Sort by VIA HUB + Status
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('via_vessel_status')}>
+                                                            Sort by VIA VESSEL + Status
                                                         </MenuItem>
                                                         <MenuItem onClick={() => setSortOption('none')}>
                                                             No Sort
@@ -1844,12 +1872,21 @@ export default function StockList() {
                                                 {sortOption === 'via_hub' && (
                                                     <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
                                                 )}
+                                                {sortOption === 'via_vessel' && (
+                                                    <>VIA VESSEL (alphabetically by vessel name)</>
+                                                )}
                                                 {sortOption === 'status' && (
                                                     <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
                                                 )}
                                                 {sortOption === 'via_hub_status' && (
                                                     <>
                                                         1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                        2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                    </>
+                                                )}
+                                                {sortOption === 'via_vessel_status' && (
+                                                    <>
+                                                        1st: VIA VESSEL (alphabetically by vessel name)<br />
                                                         2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                     </>
                                                 )}
