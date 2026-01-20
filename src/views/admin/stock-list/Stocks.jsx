@@ -1539,6 +1539,23 @@ export default function Stocks() {
                     if (statusOrderA !== statusOrderB) {
                         return statusOrderA - statusOrderB;
                     }
+
+                    // Special case for via_hub_status: If same hub and both have "Stock" status, sort by Date on Stock
+                    if (sortOption === 'via_hub_status') {
+                        const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
+                        const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+                        const normalizedA = normalizeStatusForSort(a.stock_status);
+                        const normalizedB = normalizeStatusForSort(b.stock_status);
+
+                        // If same hub and both are "in_stock", sort by date_on_stock
+                        if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "in_stock" && normalizedB === "in_stock") {
+                            const dateA = a.date_on_stock ? new Date(a.date_on_stock) : new Date(0);
+                            const dateB = b.date_on_stock ? new Date(b.date_on_stock) : new Date(0);
+                            if (dateA.getTime() !== dateB.getTime()) {
+                                return dateA.getTime() - dateB.getTime(); // Ascending order (older dates first)
+                            }
+                        }
+                    }
                 }
 
                 // If everything is equal, maintain original order
