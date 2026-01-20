@@ -275,7 +275,7 @@ export default function Stocks() {
     });
     const [sortOption, setSortOption] = useState(() => {
         const stored = sessionStorage.getItem('stocksSortOption');
-        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status'
+        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status', 'via_vessel', 'via_vessel_status'
     });
 
     // Dimensions modal state
@@ -1484,6 +1484,16 @@ export default function Stocks() {
                     }
                 }
 
+                // Sort by Vessel (alphabetically by vessel name)
+                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
+                    const vesselNameA = getVesselName(a.vessel_id || a.vessel || "").toLowerCase().trim();
+                    const vesselNameB = getVesselName(b.vessel_id || b.vessel || "").toLowerCase().trim();
+
+                    if (vesselNameA !== vesselNameB) {
+                        return vesselNameA.localeCompare(vesselNameB);
+                    }
+                }
+
                 // Sort by Stock Status in specific order:
                 // 1. "Pending"
                 // 2. "In Stock"
@@ -1491,7 +1501,7 @@ export default function Stocks() {
                 // 4. "Arrived Destination"
                 // 5. "On a Shipping Instruction"
                 // 6. "On a Delivery Instruction"
-                if (sortOption === 'status' || sortOption === 'via_hub_status') {
+                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
                         "in_stock",       // "In Stock"
@@ -2922,15 +2932,53 @@ export default function Stocks() {
                     </HStack>
                     <HStack spacing="3">
                         {activeTab === 0 && (
-                            <Button
-                                leftIcon={<Icon as={MdFilterList} />}
-                                onClick={() => setShowFilters(!showFilters)}
-                                colorScheme="blue"
-                                variant={showFilters ? "solid" : "outline"}
-                                size="sm"
-                            >
-                                {showFilters ? "Hide Filters" : "Filters"}
-                            </Button>
+                            <>
+                                <Button
+                                    leftIcon={<Icon as={MdFilterList} />}
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    colorScheme="blue"
+                                    variant={showFilters ? "solid" : "outline"}
+                                    size="sm"
+                                >
+                                    {showFilters ? "Hide Filters" : "Filters"}
+                                </Button>
+                                <Menu>
+                                    <MenuButton
+                                        as={Button}
+                                        size="sm"
+                                        leftIcon={<Icon as={MdSort} />}
+                                        colorScheme={sortOption !== 'none' ? "blue" : "gray"}
+                                        variant={sortOption !== 'none' ? "solid" : "outline"}
+                                    >
+                                        {sortOption === 'none' ? "Select Sort Option" :
+                                            sortOption === 'via_hub' ? "Sort: VIA HUB" :
+                                                sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
+                                                    sortOption === 'status' ? "Sort: Stock Status" :
+                                                        sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
+                                                            "Sort: VIA VESSEL + Status"}
+                                    </MenuButton>
+                                    <MenuList>
+                                        <MenuItem onClick={() => setSortOption('via_hub')}>
+                                            Sort by VIA HUB (Alphabetically)
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('via_vessel')}>
+                                            Sort by VIA VESSEL (Alphabetically)
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('status')}>
+                                            Sort by Stock Status
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('via_hub_status')}>
+                                            Sort by VIA HUB + Status
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('via_vessel_status')}>
+                                            Sort by VIA VESSEL + Status
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('none')}>
+                                            No Sort
+                                        </MenuItem>
+                                    </MenuList>
+                                </Menu>
+                            </>
                         )}
                         <IconButton
                             size="sm"
@@ -3273,36 +3321,6 @@ export default function Stocks() {
                                                                     Clear All
                                                                 </Button>
                                                             )}
-
-                                                            <Menu>
-                                                                <MenuButton
-                                                                    as={Button}
-                                                                    size="sm"
-                                                                    leftIcon={<Icon as={MdSort} />}
-                                                                    colorScheme={sortOption !== 'none' ? "blue" : "gray"}
-                                                                    variant={sortOption !== 'none' ? "solid" : "outline"}
-                                                                >
-                                                                    {sortOption === 'none' ? "Select Sort Option" :
-                                                                        sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                                            sortOption === 'status' ? "Sort: Stock Status" :
-                                                                                "Sort: VIA HUB + Status"}
-                                                                </MenuButton>
-                                                                <MenuList>
-                                                                    <MenuItem onClick={() => setSortOption('via_hub')}>
-                                                                        Sort by VIA HUB (Alphabetically)
-                                                                    </MenuItem>
-                                                                    <MenuItem onClick={() => setSortOption('status')}>
-                                                                        Sort by Stock Status
-                                                                    </MenuItem>
-                                                                    <MenuItem onClick={() => setSortOption('via_hub_status')}>
-                                                                        Sort by VIA HUB + Status
-                                                                    </MenuItem>
-                                                                    <MenuItem onClick={() => setSortOption('none')}>
-                                                                        No Sort
-                                                                    </MenuItem>
-                                                                </MenuList>
-                                                            </Menu>
-
                                                         </HStack>
                                                     </HStack>
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
@@ -3665,12 +3683,21 @@ export default function Stocks() {
                                                             {sortOption === 'via_hub' && (
                                                                 <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
                                                             )}
+                                                            {sortOption === 'via_vessel' && (
+                                                                <>VIA VESSEL (alphabetically by vessel name)</>
+                                                            )}
                                                             {sortOption === 'status' && (
                                                                 <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
                                                             )}
                                                             {sortOption === 'via_hub_status' && (
                                                                 <>
                                                                     1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                                    2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                                </>
+                                                            )}
+                                                            {sortOption === 'via_vessel_status' && (
+                                                                <>
+                                                                    1st: VIA VESSEL (alphabetically by vessel name)<br />
                                                                     2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                                 </>
                                                             )}
