@@ -2496,6 +2496,9 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "delivered_date", item.delivered_date, "date") : <Text {...cellText}>{formatDate(item.delivered_date)}</Text>}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing ? renderEditableCell(item, "dg_un", item.dg_un) : <Text {...cellText}>{renderText(item.dg_un)}</Text>}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc, "textarea") : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
                         </Td>
                         <Td {...cellProps}>
@@ -3900,6 +3903,7 @@ export default function Stocks() {
                                                     <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
                                                     <Th {...headerProps}>SHIPPED DATE</Th>
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                                     <Th {...headerProps}>SHIPPING DOCS</Th>
                                                     <Th {...headerProps}>EXPORT DOC 1</Th>
                                                     <Th {...headerProps}>EXPORT DOC 2</Th>
@@ -3922,7 +3926,7 @@ export default function Stocks() {
                                         <Tbody>
                                             {isLoading ? (
                                                 <Tr>
-                                                    <Td colSpan={20} textAlign="center" py="40px">
+                                                    <Td colSpan={21} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
                                                             {/* Placeholder to maintain table structure */}
                                                         </Box>
@@ -3930,7 +3934,7 @@ export default function Stocks() {
                                                 </Tr>
                                             ) : getFilteredStockByStatus().length === 0 ? (
                                                 <Tr>
-                                                    <Td colSpan={20} textAlign="center" py="40px">
+                                                    <Td colSpan={21} textAlign="center" py="40px">
                                                         <Text color={tableTextColorSecondary}>
                                                             {stockList.length === 0 
                                                                 ? "No stock items available." 
@@ -4005,6 +4009,7 @@ export default function Stocks() {
                                                         <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
@@ -4198,6 +4203,7 @@ export default function Stocks() {
                                                     <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
                                                     <Th {...headerProps}>SHIPPED DATE</Th>
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>DG/UN NUMBER</Th>
                                                     <Th {...headerProps}>SHIPPING DOCS</Th>
                                                     <Th {...headerProps}>EXPORT DOC 1</Th>
                                                     <Th {...headerProps}>EXPORT DOC 2</Th>
@@ -4217,7 +4223,7 @@ export default function Stocks() {
                                         <Tbody>
                                             {isLoading ? (
                                                 <Tr>
-                                                    <Td colSpan={18} textAlign="center" py="40px">
+                                                    <Td colSpan={19} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
                                                             {/* Placeholder to maintain table structure */}
                                                         </Box>
@@ -4225,7 +4231,7 @@ export default function Stocks() {
                                                 </Tr>
                                             ) : getFilteredStockByStatus().length === 0 ? (
                                                 <Tr>
-                                                    <Td colSpan={18} textAlign="center" py="40px">
+                                                    <Td colSpan={19} textAlign="center" py="40px">
                                                         <Text color={tableTextColorSecondary}>
                                                             {stockList.length === 0 
                                                                 ? "No stock items available." 
@@ -4258,6 +4264,7 @@ export default function Stocks() {
                                                         <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
@@ -4497,6 +4504,25 @@ export default function Stocks() {
                                                     <Th {...headerProps}>DESTINATION</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>EXP READY FROM SUPPLIER</Th>
+                                                    <Th {...headerProps}>DATE ON STOCK</Th>
+                                                    <Th {...headerProps} textAlign="center">DAYS ON STOCK</Th>
+                                                    <Th {...headerProps}>SHIPPED DATE</Th>
+                                                    <Th {...headerProps}>DELIVERED DATE</Th>
+                                                    <Th {...headerProps}>DG/UN NUMBER</Th>
+                                                    <Th {...headerProps}>SHIPPING DOCS</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 1</Th>
+                                                    <Th {...headerProps}>EXPORT DOC 2</Th>
+                                                    <Th {...headerProps}>REMARKS</Th>
+                                                    <Th {...headerProps}>BOXES</Th>
+                                                    <Th {...headerProps}>WEIGHT KGS</Th>
+                                                    <Th {...headerProps}>VOLUME NO DIM</Th>
+                                                    <Th {...headerProps}>LWH TEXT</Th>
+                                                    <Th {...headerProps}>TOTAL VOLUME CBM</Th>
+                                                    <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
+                                                    <Th {...headerProps}>CURRENCY</Th>
+                                                    <Th {...headerProps}>VALUE</Th>
+                                                    <Th {...headerProps}>CLIENT</Th>
+                                                    <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </>
@@ -4542,7 +4568,7 @@ export default function Stocks() {
                                     <Tbody>
                                         {isLoading ? (
                                             <Tr>
-                                                <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
+                                                <Td colSpan={activeTab === 0 ? 21 : 33} textAlign="center" py="40px">
                                                     <Box visibility="hidden" h="100px">
                                                         {/* Placeholder to maintain table structure */}
                                                     </Box>
@@ -4550,7 +4576,7 @@ export default function Stocks() {
                                             </Tr>
                                         ) : paginatedStock.length === 0 ? (
                                             <Tr>
-                                                <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
+                                                <Td colSpan={activeTab === 0 ? 21 : 33} textAlign="center" py="40px">
                                                     <Text color={tableTextColorSecondary}>
                                                         {stockList.length === 0 
                                                             ? "No stock items available." 

@@ -1962,11 +1962,12 @@ export default function StockDBMainEdit() {
                                         />
                                     </Td>
                                     <Td {...cellProps}>
-                                        <Input
+                                        <Textarea
                                             value={row.poNumber || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                            placeholder=""
+                                            placeholder="Enter PO Number(s) - one per line"
                                             size="sm"
+                                            rows={3}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
