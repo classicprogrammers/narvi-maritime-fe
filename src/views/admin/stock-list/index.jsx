@@ -805,7 +805,7 @@ export default function StockList() {
 
                 // Sort by Stock Status in specific order:
                 // 1. "Pending"
-                // 2. "In Stock"
+                // 2. "Stock"
                 // 3. "In Transit"
                 // 4. "Arrived Destination"
                 // 5. "On a Shipping Instruction"
@@ -813,7 +813,7 @@ export default function StockList() {
                 if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
-                        "in_stock",       // "In Stock"
+                        "in_stock",       // "Stock"
                         "in_transit",     // "In Transit"
                         "arrived",        // "Arrived Destination"
                         "on_shipping",    // "On a Shipping Instruction"
@@ -1604,7 +1604,7 @@ export default function StockList() {
                                                         >
                                                             <option value="">All Statuses</option>
                                                             <option value="pending">Pending</option>
-                                                            <option value="in_stock">In Stock</option>
+                                                            <option value="in_stock">Stock</option>
                                                             <option value="on_shipping">On Shipping Instr</option>
                                                             <option value="on_delivery">On Delivery Instr</option>
                                                             <option value="in_transit">In Transit</option>
@@ -1876,18 +1876,18 @@ export default function StockList() {
                                                     <>VIA VESSEL (alphabetically by vessel name)</>
                                                 )}
                                                 {sortOption === 'status' && (
-                                                    <>Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
+                                                    <>Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
                                                 )}
                                                 {sortOption === 'via_hub_status' && (
                                                     <>
                                                         1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                        2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                        2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                     </>
                                                 )}
                                                 {sortOption === 'via_vessel_status' && (
                                                     <>
                                                         1st: VIA VESSEL (alphabetically by vessel name)<br />
-                                                        2nd: Stock Status - Pending → In Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                        2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                     </>
                                                 )}
                                             </Text>
@@ -2062,7 +2062,7 @@ export default function StockList() {
                                         DELIVERED DATE {sortField === "delivered_date" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>DG/UN NUMBER</Th>
-                                    <Th {...headerProps}>ITEMS</Th>
+                                    <Th {...headerProps}>BOXES</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>

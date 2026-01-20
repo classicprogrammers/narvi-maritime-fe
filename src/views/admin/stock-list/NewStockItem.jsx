@@ -1466,7 +1466,7 @@ export default function StockForm() {
                                                 <option value="">Select</option>
                                                 <option value="blank">Blank</option>
                                                 <option value="pending">Pending</option>
-                                                <option value="in_stock">In Stock</option>
+                                                <option value="in_stock">Stock</option>
                                                 <option value="on_shipping">On Shipping Instr</option>
                                                 <option value="on_delivery">On Delivery Instr</option>
                                                 <option value="in_transit">In Transit</option>
