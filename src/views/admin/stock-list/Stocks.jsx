@@ -69,92 +69,91 @@ import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 // Status definitions matching backend status keys exactly
-// Colors tuned per business requirements
+// Colors matched to status filter UI design with exact hex colors
 const STATUS_CONFIG = {
     //blank
     blank: {
         label: "Blank",
     },
-    // Pending = Cornflower Blue (approximated with Chakra blue scale)
+    // Pending = #c9daf7
     pending: {
         label: "Pending",
         color: "blue",
-        bgColor: "blue.200",
+        bgColor: "#c9daf7",
         textColor: "blue.900",
-        lightBg: "blue.50"
+        lightBg: "#c9daf7"
     },
-    // Stock = Grey
+    // Stock = #d8d8d8
     in_stock: {
         label: "Stock",
         color: "gray",
-        bgColor: "gray.200",
+        bgColor: "#d8d8d8",
         textColor: "gray.800",
-        lightBg: "gray.100"
+        lightBg: "#d8d8d8"
     },
-    // On a Shipping Instr = Orange
+    // On a Shipping Instr = #fec02e
     on_shipping: {
         label: "On Shipping Instr",
         color: "orange",
-        bgColor: "orange.200",
-        textColor: "orange.800",
-        lightBg: "orange.50"
+        bgColor: "#fec02e",
+        textColor: "orange.900",
+        lightBg: "#fec02e"
     },
-    // On a Delivery Instr = Theme color (closer to blue 11)
-    // Using blue scheme to stay aligned with app theme
+    // On a Delivery Instr = #b7e1cd
     on_delivery: {
         label: "On Delivery Instr",
-        color: "blue",
-        bgColor: "blue.300",
-        textColor: "blue.900",
-        lightBg: "blue.100"
+        color: "teal",
+        bgColor: "#b7e1cd",
+        textColor: "teal.900",
+        lightBg: "#b7e1cd"
     },
-    // In Transit = Light Green 1
+    // In Transit = #92d059
     in_transit: {
         label: "In Transit",
         color: "green",
-        bgColor: "green.100",
+        bgColor: "#92d059",
         textColor: "green.800",
-        lightBg: "green.50"
+        lightBg: "#92d059"
     },
-    // Arrived Destination = Dark Grey 2
+    // Arrived Destination = #a5a5a5
     arrived: {
         label: "Arrived Dest",
         color: "gray",
-        bgColor: "gray.500",
+        bgColor: "#a5a5a5",
         textColor: "white",
-        lightBg: "gray.300"
+        lightBg: "#a5a5a5"
     },
-    // Shipped = Light Orange 3
+    // Shipped = #fce5ce
     shipped: {
         label: "Shipped",
         color: "orange",
-        bgColor: "orange.100",
+        bgColor: "#fce5ce",
         textColor: "orange.800",
-        lightBg: "orange.50"
+        lightBg: "#fce5ce"
     },
-    // Delivered = Light Red 3
+    // Delivered = #f4cccd
     delivered: {
         label: "Delivered",
-        color: "red",
-        bgColor: "red.200",
-        textColor: "red.800",
-        lightBg: "red.50"
+        color: "pink",
+        bgColor: "#f4cccd",
+        textColor: "pink.900",
+        lightBg: "#f4cccd"
     },
-    // Irregularities = Red
+    // Irregularities = #fe001b
     irregular: {
         label: "Irregularities",
         color: "red",
-        bgColor: "red.400",
-        textColor: "red.900",
-        lightBg: "red.300"
+        bgColor: "#fe001b",
+        textColor: "white",
+        lightBg: "#fe001b"
     },
-    // Cancelled = Light Purple 2
+    // Cancelled = #9a00fb91
     cancelled: {
         label: "Cancelled",
         color: "purple",
-        bgColor: "purple.200",
-        textColor: "purple.900",
-        lightBg: "purple.100"
+        bgColor: "#9a00fb91",
+        textColor: "white",
+        lightBg: "#9a00fb91"
     },
 };
 
