@@ -1688,13 +1688,13 @@ export default function Stocks() {
     const handleCopySelectedRows = async () => {
         if (clientViewSelectedRows.size === 0) return;
 
-        const selectedItems = filteredAndSortedStock.filter(item => 
+        const selectedItems = filteredAndSortedStock.filter(item =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
 
         // Build HTML table
         let htmlTable = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif;">';
-        
+
         // Add header row
         htmlTable += '<thead><tr style="background-color: #f0f0f0; font-weight: bold;">';
         if (clientViewFilterType === 'filter1') {
@@ -1708,7 +1708,7 @@ export default function Stocks() {
         selectedItems.forEach(item => {
             const statusStyle = getStatusStyle(item.stock_status);
             htmlTable += '<tr>';
-            
+
             if (clientViewFilterType === 'filter1') {
                 const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
                 const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, '<br>');
@@ -1716,7 +1716,7 @@ export default function Stocks() {
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                 const status = getStatusLabel(item.stock_status);
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                
+
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
                 htmlTable += `<td>${boxes}</td>`;
@@ -1734,7 +1734,7 @@ export default function Stocks() {
                 const exportDoc2 = item.export_doc_2 || '-';
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                
+
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
@@ -1746,7 +1746,7 @@ export default function Stocks() {
                 htmlTable += `<td>${boxes}</td>`;
                 htmlTable += `<td>${weight}</td>`;
             }
-            
+
             htmlTable += '</tr>';
         });
 
@@ -1771,7 +1771,7 @@ export default function Stocks() {
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                
+
                 // Also try to copy HTML using execCommand
                 const div = document.createElement('div');
                 div.innerHTML = htmlTable;
@@ -1787,7 +1787,7 @@ export default function Stocks() {
                 selection.removeAllRanges();
                 document.body.removeChild(div);
             }
-            
+
             toast({
                 title: "Copied!",
                 description: `${clientViewSelectedRows.size} row(s) copied to clipboard`,
@@ -4444,93 +4444,93 @@ export default function Stocks() {
                                                 </Tr>
                                             </Thead>
                                         )}
-                                            <Tbody>
-                                                {isLoading ? (
-                                                    <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
-                                                            <Box visibility="hidden" h="100px">
-                                                                {/* Placeholder to maintain table structure */}
-                                                            </Box>
-                                                        </Td>
-                                                    </Tr>
-                                                ) : filteredAndSortedStock.length === 0 ? (
-                                                    <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
-                                                            <Text color={tableTextColorSecondary}>
-                                                                {stockList.length === 0
-                                                                    ? "No stock items available."
-                                                                    : "No stock items match your filter criteria."}
-                                                            </Text>
-                                                        </Td>
-                                                    </Tr>
-                                                ) : (
-                                                    filteredAndSortedStock.map((item, index) => {
-                                                        const statusStyle = getStatusStyle(item.stock_status);
-                                                        const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                        const itemId = item.id || item.stock_item_id;
-                                                        return (
-                                                            <Tr key={itemId} bg={rowBg}>
-                                                                <Td {...cellProps} bg={rowBg} w="40px">
-                                                                    <Checkbox
-                                                                        isChecked={clientViewSelectedRows.has(itemId)}
-                                                                        onChange={() => handleClientViewRowToggle(itemId)}
-                                                                        colorScheme="blue"
-                                                                    />
-                                                                </Td>
-                                                                {clientViewFilterType === 'filter1' ? (
-                                                                    <>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <Badge
-                                                                                colorScheme={statusStyle.color}
-                                                                                size="sm"
-                                                                                borderRadius="full"
-                                                                                px="3"
-                                                                                py="1"
-                                                                                bg={statusStyle.bgColor}
-                                                                                color={statusStyle.textColor}
-                                                                            >
-                                                                                {getStatusLabel(item.stock_status)}
-                                                                            </Badge>
-                                                                        </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <Badge
-                                                                                colorScheme={statusStyle.color}
-                                                                                size="sm"
-                                                                                borderRadius="full"
-                                                                                px="3"
-                                                                                py="1"
-                                                                                bg={statusStyle.bgColor}
-                                                                                color={statusStyle.textColor}
-                                                                            >
-                                                                                {getStatusLabel(item.stock_status)}
-                                                                            </Badge>
-                                                                        </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                    </>
-                                                                )}
-                                                            </Tr>
-                                                        );
-                                                    })
-                                                )}
-                                            </Tbody>
-                                        </Table>
-                                    </Box>
+                                        <Tbody>
+                                            {isLoading ? (
+                                                <Tr>
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
+                                                        <Box visibility="hidden" h="100px">
+                                                            {/* Placeholder to maintain table structure */}
+                                                        </Box>
+                                                    </Td>
+                                                </Tr>
+                                            ) : filteredAndSortedStock.length === 0 ? (
+                                                <Tr>
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
+                                                        <Text color={tableTextColorSecondary}>
+                                                            {stockList.length === 0
+                                                                ? "No stock items available."
+                                                                : "No stock items match your filter criteria."}
+                                                        </Text>
+                                                    </Td>
+                                                </Tr>
+                                            ) : (
+                                                filteredAndSortedStock.map((item, index) => {
+                                                    const statusStyle = getStatusStyle(item.stock_status);
+                                                    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                    const itemId = item.id || item.stock_item_id;
+                                                    return (
+                                                        <Tr key={itemId} bg={rowBg}>
+                                                            <Td {...cellProps} bg={rowBg} w="40px">
+                                                                <Checkbox
+                                                                    isChecked={clientViewSelectedRows.has(itemId)}
+                                                                    onChange={() => handleClientViewRowToggle(itemId)}
+                                                                    colorScheme="blue"
+                                                                />
+                                                            </Td>
+                                                            {clientViewFilterType === 'filter1' ? (
+                                                                <>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}>
+                                                                        <Badge
+                                                                            colorScheme={statusStyle.color}
+                                                                            size="sm"
+                                                                            borderRadius="full"
+                                                                            px="3"
+                                                                            py="1"
+                                                                            bg={statusStyle.bgColor}
+                                                                            color={statusStyle.textColor}
+                                                                        >
+                                                                            {getStatusLabel(item.stock_status)}
+                                                                        </Badge>
+                                                                    </Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                    <Td {...cellProps} bg={rowBg}>
+                                                                        <Badge
+                                                                            colorScheme={statusStyle.color}
+                                                                            size="sm"
+                                                                            borderRadius="full"
+                                                                            px="3"
+                                                                            py="1"
+                                                                            bg={statusStyle.bgColor}
+                                                                            color={statusStyle.textColor}
+                                                                        >
+                                                                            {getStatusLabel(item.stock_status)}
+                                                                        </Badge>
+                                                                    </Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                </>
+                                                            )}
+                                                        </Tr>
+                                                    );
+                                                })
+                                            )}
+                                        </Tbody>
+                                    </Table>
+                                </Box>
                             </TabPanel>
                         </TabPanels>
                     </Tabs>
