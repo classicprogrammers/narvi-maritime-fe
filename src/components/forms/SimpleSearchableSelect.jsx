@@ -22,6 +22,11 @@ const SimpleSearchableSelect = ({
   color,
   borderColor,
   size = "sm",
+  // When enabled, the input auto-sizes to its content (selected label / search text)
+  autoWidth = false,
+  autoWidthMin = 12,
+  autoWidthMax = 60,
+  autoWidthPadding = 2,
   ...props
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,6 +44,24 @@ const SimpleSearchableSelect = ({
   // Find selected option to display
   const selectedOption = options.find(option => String(option[valueKey]) === String(value));
   const displayValue = selectedOption ? formatOption(selectedOption) : "";
+
+  // Value shown inside the input
+  const inputValue = isOpen ? searchValue : displayValue;
+
+  // Compute htmlSize when autoWidth enabled (Input supports htmlSize)
+  const computedHtmlSize = (() => {
+    if (!autoWidth) return undefined;
+    const valueLen = String(inputValue ?? "").length;
+    const placeholderLen = String(placeholder ?? "").length;
+    const desired = Math.max(valueLen, placeholderLen) + Number(autoWidthPadding || 0);
+    const min = Number(autoWidthMin || 0);
+    const max = Number(autoWidthMax || 0);
+    if (max > 0) return Math.min(max, Math.max(min, desired));
+    return Math.max(min, desired);
+  })();
+
+  // Pull layout props so we can apply them to the wrapper too
+  const { w, minW, maxW, ...inputProps } = props;
 
   // Filter options based on search
   useEffect(() => {
@@ -173,9 +196,15 @@ const SimpleSearchableSelect = ({
 
   return (
     <>
-      <Box position="relative" ref={containerRef} w="100%">
+      <Box
+        position="relative"
+        ref={containerRef}
+        w={autoWidth ? (w || "auto") : (w || "100%")}
+        minW={minW}
+        maxW={maxW}
+      >
         <Input
-          value={isOpen ? searchValue : displayValue}
+          value={inputValue}
           onChange={handleInputChange}
           onFocus={handleFocus}
           placeholder={placeholder}
@@ -184,11 +213,15 @@ const SimpleSearchableSelect = ({
           color={color || defaultColor}
           borderColor={borderColor || defaultBorderColor}
           title={displayValue}
+          w={autoWidth ? "auto" : w}
+          minW={minW}
+          maxW={maxW}
+          htmlSize={inputProps.htmlSize ?? computedHtmlSize}
           _focus={{
             borderColor: "#1c4a95",
             boxShadow: "0 0 0 1px #1c4a95",
           }}
-          {...props}
+          {...inputProps}
         />
       </Box>
       {typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}

@@ -155,6 +155,38 @@ export default function StockDBMainEdit() {
         return isNaN(num) ? 0 : num;
     };
 
+    // Auto-size helper for text inputs (Chakra `Input` supports `htmlSize`)
+    // Keeps widths readable without blowing up the table.
+    const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
+        const {
+            min = 12,      // minimum characters
+            max = 80,      // maximum characters
+            padding = 2,   // extra characters for breathing room
+        } = opts || {};
+
+        const valueLen = String(value ?? "").length;
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(valueLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
+    // Auto-size helper for textarea columns (based on longest line)
+    const getAutoCols = (value, placeholder = "", opts = {}) => {
+        const {
+            min = 24,     // minimum columns
+            max = 90,     // maximum columns
+            padding = 2,  // extra columns for breathing room
+        } = opts || {};
+
+        const text = String(value ?? "");
+        const maxLineLen = text
+            .split(/\r?\n/)
+            .reduce((acc, line) => Math.max(acc, line.length), 0);
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(maxLineLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
     // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
     const addSOPrefix = (value) => {
@@ -1740,8 +1772,8 @@ export default function StockDBMainEdit() {
                                             value={row.stockItemId || ""}
                                             isReadOnly
                                             size="sm"
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.stockItemId, "", { min: 12, max: 40 })}
                                             bg={useColorModeValue("gray.100", "gray.700")}
                                             color={inputText}
                                         />
@@ -1751,8 +1783,8 @@ export default function StockDBMainEdit() {
                                             value={row.slCreateDate || ""}
                                             isReadOnly
                                             size="sm"
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.slCreateDate, "", { min: 12, max: 30 })}
                                             bg={useColorModeValue("gray.100", "gray.700")}
                                             color={inputText}
                                         />
@@ -1771,8 +1803,9 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                            minW="200px"
-                                            w="100%"
+                                            autoWidth
+                                            autoWidthMin={18}
+                                            autoWidthMax={50}
                                         />
                                     </Td>
                                     <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1788,8 +1821,9 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                            minW="200px"
-                                            w="100%"
+                                            autoWidth
+                                            autoWidthMin={18}
+                                            autoWidthMax={50}
                                         />
                                     </Td>
                                     <Td {...cellProps} position="relative">
@@ -1801,11 +1835,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
                                                 placeholder="Enter SO (e.g., SO-00021 1.1)"
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.soNumber, "Enter SO (e.g., SO-00021 1.1)", { min: 18, max: 60 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -1837,11 +1872,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
                                                 placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.siNumber, "Enter SI Number (e.g., SI-00021 1.1)", { min: 20, max: 60 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -1873,11 +1909,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
                                                 placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.siCombined, "Enter SI Combined (e.g., SIC-00021 1.1)", { min: 22, max: 60 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -1909,11 +1946,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
                                                 placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.diNumber, "Enter DI Number (e.g., DI-00021 1.1)", { min: 20, max: 60 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -1973,8 +2011,9 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                            minW="200px"
-                                            w="100%"
+                                            autoWidth
+                                            autoWidthMin={18}
+                                            autoWidthMax={55}
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -1984,8 +2023,10 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter PO Number(s) - one per line"
                                             size="sm"
                                             rows={3}
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="90ch"
+                                            cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1993,14 +2034,15 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps} position="relative">
                                         <Flex gap="1" align="center">
-                                            <Box position="relative" flex="1">
+                                            <Box position="relative" flex="0 0 auto">
                                                 <Input
                                                     list={`origin-countries-${rowIndex}`}
                                                     value={row.origin_text || ""}
                                                     onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
                                                     placeholder="Type or select country..."
-                                                    minW="200px"
                                                     size="sm"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2039,11 +2081,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "viaHub1", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.viaHub1, "", { min: 12, max: 40 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2073,11 +2116,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
                                                 placeholder=""
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.viaHub2, "", { min: 12, max: 40 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2107,11 +2151,12 @@ export default function StockDBMainEdit() {
                                                 onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
                                                 placeholder="Enter AP Destination"
                                                 size="sm"
-                                                minW="200px"
+                                                w="auto"
+                                                flex="0 0 auto"
+                                                htmlSize={getAutoHtmlSize(row.apDestination, "Enter AP Destination", { min: 18, max: 60 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                flex="1"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2136,7 +2181,7 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
                                         <Flex gap="1" align="center">
-                                            <Box flex="1" minW="200px">
+                                            <Box flex="0 0 auto">
                                                 <SimpleSearchableSelect
                                                     value={row.destination}
                                                     onChange={(value) => handleInputChange(rowIndex, "destination", value)}
@@ -2149,8 +2194,9 @@ export default function StockDBMainEdit() {
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    minW="200px"
-                                                    w="100%"
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={55}
                                                 />
                                             </Box>
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
@@ -2181,8 +2227,10 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter Warehouse ID"
                                             size="sm"
                                             rows={2}
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="90ch"
+                                            cols={getAutoCols(row.warehouseId, "Enter Warehouse ID", { min: 24, max: 60 })}
                                             resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
@@ -2195,8 +2243,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "shippingDoc", e.target.value)}
                                             placeholder=""
                                             size="sm"
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.shippingDoc, "", { min: 16, max: 80 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2213,8 +2261,11 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
-                                                minW="200px"
-                                                flex="1"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.exportDoc, "", { min: 24, max: 90 })}
+                                                flex="0 0 auto"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2249,8 +2300,11 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
-                                                minW="200px"
-                                                flex="1"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.exportDoc2, "", { min: 24, max: 90 })}
+                                                flex="0 0 auto"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2286,8 +2340,11 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={2}
-                                                minW="200px"
-                                                flex="1"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.remarks, "", { min: 24, max: 90 })}
+                                                flex="0 0 auto"
                                             />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
@@ -2322,8 +2379,10 @@ export default function StockDBMainEdit() {
                                             color={inputText}
                                             borderColor={borderColor}
                                             rows={2}
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="90ch"
+                                            cols={getAutoCols(row.internalRemark, "", { min: 24, max: 90 })}
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -2431,8 +2490,10 @@ export default function StockDBMainEdit() {
                                             placeholder="Enter DG/UN Number"
                                             size="sm"
                                             rows={3}
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="60ch"
+                                            cols={getAutoCols(row.dgUn, "Enter DG/UN Number", { min: 24, max: 60 })}
                                             resize="vertical"
                                             bg={inputBg}
                                             color={inputText}
@@ -2489,8 +2550,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
                                             placeholder="Volume no dim"
                                             size="sm"
-                                            minW="200px"
-                                            w="100%"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.volumeNoDim, "Volume no dim", { min: 16, max: 30 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2520,8 +2581,10 @@ export default function StockDBMainEdit() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 rows={5}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.lwhText, "Enter LWH text (supports multiple lines)", { min: 24, max: 90 })}
                                                 resize="vertical"
                                                 minH="100px"
                                             />
@@ -2584,8 +2647,9 @@ export default function StockDBMainEdit() {
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
-                                            minW="200px"
-                                            w="100%"
+                                            autoWidth
+                                            autoWidthMin={16}
+                                            autoWidthMax={55}
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -2719,8 +2783,9 @@ export default function StockDBMainEdit() {
                                             color={inputText}
                                             borderColor={borderColor}
                                             size="sm"
-                                            minW="200px"
-                                            w="100%"
+                                            autoWidth
+                                            autoWidthMin={16}
+                                            autoWidthMax={40}
                                         />
                                     </Td>
                                     <Td {...cellProps}>
@@ -2729,6 +2794,8 @@ export default function StockDBMainEdit() {
                                             onChange={(e) => handleInputChange(rowIndex, "blank", e.target.value)}
                                             placeholder=""
                                             size="sm"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.blank, "", { min: 12, max: 40 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2739,6 +2806,8 @@ export default function StockDBMainEdit() {
                                             value={row.slCreateDateTime || ""}
                                             isReadOnly
                                             size="sm"
+                                            w="auto"
+                                            htmlSize={getAutoHtmlSize(row.slCreateDateTime, "", { min: 18, max: 40 })}
                                             bg={useColorModeValue("gray.100", "gray.700")}
                                             color={inputText}
                                         />

@@ -110,6 +110,38 @@ export default function StockForm() {
         // maxW: "200px",
     };
 
+    // Auto-size helper for text inputs (Chakra `Input` supports `htmlSize`)
+    // Keeps widths readable without blowing up the table.
+    const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
+        const {
+            min = 12,      // minimum characters
+            max = 80,      // maximum characters
+            padding = 2,   // extra characters for breathing room
+        } = opts || {};
+
+        const valueLen = String(value ?? "").length;
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(valueLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
+    // Auto-size helper for textarea columns (based on longest line)
+    const getAutoCols = (value, placeholder = "", opts = {}) => {
+        const {
+            min = 24,     // minimum columns
+            max = 90,     // maximum columns
+            padding = 2,  // extra columns for breathing room
+        } = opts || {};
+
+        const text = String(value ?? "");
+        const maxLineLen = text
+            .split(/\r?\n/)
+            .reduce((acc, line) => Math.max(acc, line.length), 0);
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(maxLineLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
     // Default empty row template – only keep fields that exist in the UI
     const getEmptyRow = () => ({
         id: Date.now() + Math.random(), // Unique ID for each row
@@ -1400,8 +1432,8 @@ export default function StockForm() {
                                                     value={row.stockItemId || ""}
                                                     isReadOnly
                                                     size="sm"
-                                                    minW="200px"
-                                                    w="100%"
+                                                    w="auto"
+                                                    htmlSize={getAutoHtmlSize(row.stockItemId, "", { min: 12, max: 40 })}
                                                     bg={useColorModeValue("gray.100", "gray.700")}
                                                     color={inputText}
                                                 />
@@ -1420,8 +1452,9 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                minW="200px"
-                                                w="100%"
+                                                autoWidth
+                                                autoWidthMin={18}
+                                                autoWidthMax={50}
                                             />
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1437,8 +1470,9 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                minW="200px"
-                                                w="100%"
+                                                autoWidth
+                                                autoWidthMin={18}
+                                                autoWidthMax={50}
                                             />
                                         </Td>
                                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
@@ -1458,8 +1492,9 @@ export default function StockForm() {
                                                 color={inputText}
                                                 borderColor={borderColor}
                                                 size="sm"
-                                                minW="200px"
-                                                w="100%"
+                                                autoWidth
+                                                autoWidthMin={16}
+                                                autoWidthMax={40}
                                             />
                                         </Td>
                                         <Td {...cellProps}>
@@ -1500,8 +1535,9 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                minW="200px"
-                                                w="100%"
+                                                autoWidth
+                                                autoWidthMin={18}
+                                                autoWidthMax={55}
                                             />
                                         </Td>
                                         {/* Single PO Number field, but allow multiple lines for clarity */}
@@ -1512,8 +1548,10 @@ export default function StockForm() {
                                                 placeholder="Enter PO Number(s) - one per line"
                                                 size="sm"
                                                 rows={3}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1526,8 +1564,8 @@ export default function StockForm() {
                                                 value={row.expReadyInStock || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "expReadyInStock", e.target.value)}
                                                 size="sm"
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                htmlSize={getAutoHtmlSize(row.expReadyInStock, "", { min: 12, max: 12 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1541,8 +1579,10 @@ export default function StockForm() {
                                                 placeholder="Enter Warehouse ID"
                                                 size="sm"
                                                 rows={2}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.warehouseId, "Enter Warehouse ID", { min: 24, max: 60 })}
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1556,8 +1596,8 @@ export default function StockForm() {
                                                 value={row.dateOnStock || ""}
                                                 onChange={(e) => handleInputChange(rowIndex, "dateOnStock", e.target.value)}
                                                 size="sm"
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                htmlSize={getAutoHtmlSize(row.dateOnStock, "", { min: 12, max: 12 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1612,8 +1652,8 @@ export default function StockForm() {
                                                 onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
                                                 placeholder="Volume no dim"
                                                 size="sm"
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                htmlSize={getAutoHtmlSize(row.volumeNoDim, "Volume no dim", { min: 16, max: 30 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1626,8 +1666,10 @@ export default function StockForm() {
                                                 placeholder="LWH Text (one set per line)"
                                                 size="sm"
                                                 rows={3}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.lwhText, "LWH Text (one set per line)", { min: 24, max: 90 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1640,8 +1682,10 @@ export default function StockForm() {
                                                 placeholder="Enter DG/UN Number"
                                                 size="sm"
                                                 rows={3}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="60ch"
+                                                cols={getAutoCols(row.dgUn, "Enter DG/UN Number", { min: 24, max: 60 })}
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1678,20 +1722,22 @@ export default function StockForm() {
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
-                                                minW="200px"
-                                                w="100%"
+                                                autoWidth
+                                                autoWidthMin={16}
+                                                autoWidthMax={55}
                                             />
                                         </Td>
                                         <Td {...cellProps} position="relative">
                                             <Flex gap="1" align="center">
-                                                <Box position="relative" flex="1">
+                                                <Box position="relative" flex="0 0 auto">
                                                     <Input
                                                         list={`origin-countries-${rowIndex}`}
                                                         value={row.origin_text || ""}
                                                         onChange={(e) => handleInputChange(rowIndex, "origin_text", e.target.value)}
                                                         placeholder="Type or select country..."
                                                         size="sm"
-                                                        minW="200px"
+                                                        w="auto"
+                                                        htmlSize={getAutoHtmlSize(row.origin_text, "Type or select country...", { min: 18, max: 60 })}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -1730,11 +1776,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "viaHub", e.target.value)}
                                                     placeholder="Enter HUB 1"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.viaHub, "Enter HUB 1", { min: 14, max: 40 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1764,11 +1811,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "viaHub2", e.target.value)}
                                                     placeholder="Enter HUB 2"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.viaHub2, "Enter HUB 2", { min: 14, max: 40 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1798,11 +1846,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "apDestination", e.target.value)}
                                                     placeholder="AP Destination"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.apDestination, "AP Destination", { min: 18, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1833,11 +1882,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "destination", e.target.value)}
                                                     placeholder="Enter Destination"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.destination, "Enter Destination", { min: 18, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1868,8 +1918,10 @@ export default function StockForm() {
                                                 placeholder="Enter Shipping Docs"
                                                 size="sm"
                                                 rows={3}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.shippingDoc, "Enter Shipping Docs", { min: 24, max: 90 })}
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1885,12 +1937,15 @@ export default function StockForm() {
                                                     placeholder="Enter Export docs"
                                                     size="sm"
                                                     rows={3}
-                                                    minW="200px"
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.exportDoc, "Enter Export docs", { min: 24, max: 90 })}
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
+                                                    flex="0 0 auto"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1922,12 +1977,15 @@ export default function StockForm() {
                                                     placeholder="Enter Export Doc 2"
                                                     size="sm"
                                                     rows={3}
-                                                    minW="200px"
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.exportDoc2, "Enter Export Doc 2", { min: 24, max: 90 })}
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
+                                                    flex="0 0 auto"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1959,12 +2017,15 @@ export default function StockForm() {
                                                     placeholder="Enter Remarks"
                                                     size="sm"
                                                     rows={3}
-                                                    minW="200px"
+                                                    w="auto"
+                                                    minW="24ch"
+                                                    maxW="90ch"
+                                                    cols={getAutoCols(row.remarks, "Enter Remarks", { min: 24, max: 90 })}
                                                     resize="vertical"
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
+                                                    flex="0 0 auto"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -1995,8 +2056,10 @@ export default function StockForm() {
                                                 placeholder="Enter Internal Remark"
                                                 size="sm"
                                                 rows={3}
-                                                minW="200px"
-                                                w="100%"
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.internalRemark, "Enter Internal Remark", { min: 24, max: 90 })}
                                                 resize="vertical"
                                                 bg={inputBg}
                                                 color={inputText}
@@ -2013,11 +2076,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
                                                     placeholder="Enter SO (e.g., 00021 1.1)"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.soNumber, "Enter SO (e.g., 00021 1.1)", { min: 18, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -2050,11 +2114,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "siNumber", e.target.value)}
                                                     placeholder="Enter SI Number (e.g., SI-00021 1.1)"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.siNumber, "Enter SI Number (e.g., SI-00021 1.1)", { min: 20, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -2087,11 +2152,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "siCombined", e.target.value)}
                                                     placeholder="Enter SI Combined (e.g., SIC-00021 1.1)"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.siCombined, "Enter SI Combined (e.g., SIC-00021 1.1)", { min: 22, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
@@ -2124,11 +2190,12 @@ export default function StockForm() {
                                                     onChange={(e) => handleInputChange(rowIndex, "diNumber", e.target.value)}
                                                     placeholder="Enter DI Number (e.g., DI-00021 1.1)"
                                                     size="sm"
-                                                    minW="200px"
+                                                    w="auto"
+                                                    flex="0 0 auto"
+                                                    htmlSize={getAutoHtmlSize(row.diNumber, "Enter DI Number (e.g., DI-00021 1.1)", { min: 20, max: 60 })}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
-                                                    flex="1"
                                                 />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
