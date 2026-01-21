@@ -23,6 +23,7 @@ import {
     Text,
     Divider,
     Badge,
+    useDisclosure,
 } from '@chakra-ui/react';
 import { useShippingOrders } from '../../redux/hooks/useShippingOrders';
 import { useLookups } from '../../hooks/useLookups';
@@ -54,11 +55,14 @@ const ShippingOrderForm = ({
         est_profit_usd: '',
         internal_remark: '',
         client_case_invoice_ref: '',
+        vsls_agent_dtls: '',
         done: false,
     });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const vslsAgentDtlsDisclosure = useDisclosure();
+  const [vslsAgentDtlsModalValue, setVslsAgentDtlsModalValue] = useState("");
     const {
         customers,
         vessels,
@@ -95,6 +99,7 @@ const ShippingOrderForm = ({
                 est_profit_usd: order.est_profit_usd || '',
                 internal_remark: order.internal_remark || '',
                 client_case_invoice_ref: order.client_case_invoice_ref || '',
+                vsls_agent_dtls: order.vsls_agent_dtls || '',
                 done: order.done || false,
             });
         } else {
@@ -112,6 +117,7 @@ const ShippingOrderForm = ({
                 est_profit_usd: '',
                 internal_remark: '',
                 client_case_invoice_ref: '',
+                vsls_agent_dtls: '',
                 done: false,
             });
         }
@@ -278,6 +284,7 @@ const ShippingOrderForm = ({
             est_profit_usd: formData.est_profit_usd ? parseFloat(formData.est_profit_usd) : null,
             internal_remark: formData.internal_remark || null,
             client_case_invoice_ref: formData.client_case_invoice_ref || null,
+            vsls_agent_dtls: formData.vsls_agent_dtls || null,
             done: formData.done || false,
         };
 
@@ -324,6 +331,7 @@ const ShippingOrderForm = ({
     const isLoading = isCreating || isUpdating || isSubmitting;
 
     return (
+        <>
         <Modal isOpen={isOpen} onClose={onClose} size="4xl" scrollBehavior="inside">
             <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
             <ModalContent maxW="1000px" borderRadius="xl" boxShadow="2xl">
@@ -544,6 +552,37 @@ const ShippingOrderForm = ({
 
                                 <GridItem>
                                     <FormControl>
+                                        <FormLabel fontSize="sm" color="gray.600">VSLS Agent Details</FormLabel>
+                                        <VStack align="stretch" spacing="2">
+                                            <Textarea
+                                                value={formData.vsls_agent_dtls || ""}
+                                                isReadOnly
+                                                placeholder="Click to edit..."
+                                                rows={2}
+                                                resize="vertical"
+                                                cursor="pointer"
+                                                onClick={() => {
+                                                    setVslsAgentDtlsModalValue(formData.vsls_agent_dtls || "");
+                                                    vslsAgentDtlsDisclosure.onOpen();
+                                                }}
+                                            />
+                                            <Button
+                                                size="xs"
+                                                variant="outline"
+                                                alignSelf="flex-start"
+                                                onClick={() => {
+                                                    setVslsAgentDtlsModalValue(formData.vsls_agent_dtls || "");
+                                                    vslsAgentDtlsDisclosure.onOpen();
+                                                }}
+                                            >
+                                                Open editor
+                                            </Button>
+                                        </VStack>
+                                    </FormControl>
+                                </GridItem>
+
+                                <GridItem>
+                                    <FormControl>
                                         <FormLabel fontSize="sm" color="gray.600">Client Case Invoice Ref</FormLabel>
                                         <Textarea
                                             value={formData.client_case_invoice_ref}
@@ -618,6 +657,40 @@ const ShippingOrderForm = ({
                 </ModalFooter>
             </ModalContent>
         </Modal>
+
+        {/* Large textarea modal for VSLS Agent Details */}
+        <Modal isOpen={vslsAgentDtlsDisclosure.isOpen} onClose={vslsAgentDtlsDisclosure.onClose} size="xl" scrollBehavior="inside">
+            <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(10px)" />
+            <ModalContent borderRadius="xl" boxShadow="2xl">
+                <ModalHeader>VSLS Agent Details</ModalHeader>
+                <ModalCloseButton />
+                <ModalBody>
+                    <Textarea
+                        value={vslsAgentDtlsModalValue}
+                        onChange={(e) => setVslsAgentDtlsModalValue(e.target.value)}
+                        rows={16}
+                        resize="vertical"
+                        placeholder="Enter VSLS agent details..."
+                    />
+                </ModalBody>
+                <ModalFooter>
+                    <Button
+                        colorScheme="blue"
+                        mr={3}
+                        onClick={() => {
+                            handleInputChange('vsls_agent_dtls', vslsAgentDtlsModalValue);
+                            vslsAgentDtlsDisclosure.onClose();
+                        }}
+                    >
+                        Save
+                    </Button>
+                    <Button variant="ghost" onClick={vslsAgentDtlsDisclosure.onClose}>
+                        Close
+                    </Button>
+                </ModalFooter>
+            </ModalContent>
+        </Modal>
+        </>
     );
 };
 

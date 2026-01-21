@@ -152,6 +152,13 @@ const SoNumberTab = () => {
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
   const picFilterModalDisclosure = useDisclosure();
+  const vslsAgentDtlsDisclosure = useDisclosure();
+
+  // VSLS Agent Details modal state (used for both edit + view)
+  const [vslsAgentDtlsModalValue, setVslsAgentDtlsModalValue] = useState("");
+  const [vslsAgentDtlsModalMode, setVslsAgentDtlsModalMode] = useState("view"); // 'view' | 'edit'
+  const [vslsAgentDtlsModalTitle, setVslsAgentDtlsModalTitle] = useState("VSLS Agent Details");
+  const [vslsAgentDtlsModalTargetField, setVslsAgentDtlsModalTargetField] = useState(null); // e.g. 'vsls_agent_dtls'
 
   // Filter states
   const [activeFilters, setActiveFilters] = useState({
@@ -222,6 +229,7 @@ const SoNumberTab = () => {
       next_action: "",
       internal_remark: "",
       client_case_invoice_ref: "",
+      vsls_agent_dtls: "",
       quotation: "",
       quotation_id: null,
       timestamp: localTimestamp,
@@ -263,12 +271,21 @@ const SoNumberTab = () => {
       next_action: order.next_action ? toDateOnly(String(order.next_action)) : "",
       internal_remark: order.internal_remark,
       client_case_invoice_ref: order.client_case_invoice_ref,
+      vsls_agent_dtls: order.vsls_agent_dtls || order.vsls_agent_details || "",
       quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
       quotation_id: order.quotation_id && order.quotation_id !== false ? order.quotation_id : null,
       timestamp: order.timestamp || order.so_create_date || order.date_order,
       _raw: order,
     };
   };
+
+  const openVslsAgentDtlsModal = useCallback((value, mode = "view", title = "Details", targetField = null) => {
+    setVslsAgentDtlsModalMode(mode);
+    setVslsAgentDtlsModalTitle(title);
+    setVslsAgentDtlsModalTargetField(targetField);
+    setVslsAgentDtlsModalValue(String(value || ""));
+    vslsAgentDtlsDisclosure.onOpen();
+  }, [vslsAgentDtlsDisclosure]);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -627,6 +644,7 @@ const SoNumberTab = () => {
           getPICName(order.pic_new) || order.pic_name,
           order.internal_remark,
           order.client_case_invoice_ref,
+          order.vsls_agent_dtls,
           order.next_action,
         ];
 
@@ -1040,6 +1058,11 @@ const SoNumberTab = () => {
           value: data.client_case_invoice_ref || null,
           originalValue: originalData.client_case_invoice_ref || null
         },
+        {
+          key: 'vsls_agent_dtls',
+          value: data.vsls_agent_dtls || null,
+          originalValue: originalData.vsls_agent_dtls || null
+        },
       ];
 
       fields.forEach(({ key, value, originalValue, compareValue }) => {
@@ -1094,6 +1117,7 @@ const SoNumberTab = () => {
     if (hasValue(data.next_action)) payload.next_action = toDateOnly(data.next_action);
     if (hasValue(data.internal_remark)) payload.internal_remark = data.internal_remark;
     if (hasValue(data.client_case_invoice_ref)) payload.client_case_invoice_ref = data.client_case_invoice_ref;
+    if (hasValue(data.vsls_agent_dtls)) payload.vsls_agent_dtls = data.vsls_agent_dtls;
 
     return payload;
   };
@@ -1163,10 +1187,10 @@ const SoNumberTab = () => {
   };
 
   const renderTableBody = () => {
-    if (isLoading && orders.length === 0) {
+      if (isLoading && orders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={18}>
+          <Td colSpan={19}>
             <Center py="10">
               <Spinner size="lg" color="blue.500" />
             </Center>
@@ -1178,7 +1202,7 @@ const SoNumberTab = () => {
     if (filteredOrders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={18}>
+          <Td colSpan={19}>
             <Center py="10">
               <Text color={tableTextColor}>No SO records match your filters.</Text>
             </Center>
@@ -1230,8 +1254,31 @@ const SoNumberTab = () => {
         <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
         <Td maxW="200px">
           <Tooltip label={order.internal_remark || "-"} isDisabled={!order.internal_remark || order.internal_remark === "-"}>
-            <Text noOfLines={2} cursor={order.internal_remark && order.internal_remark !== "-" ? "help" : "default"}>
+            <Text
+              noOfLines={2}
+              cursor={order.internal_remark && order.internal_remark !== "-" ? "pointer" : "default"}
+              onClick={() => {
+                if (order.internal_remark && order.internal_remark !== "-") {
+                  openVslsAgentDtlsModal(order.internal_remark, "view", `Internal Remark — ${getSoNumber(order)}`);
+                }
+              }}
+            >
               {order.internal_remark || "-"}
+            </Text>
+          </Tooltip>
+        </Td>
+        <Td maxW="200px">
+          <Tooltip label={order.vsls_agent_dtls || "-"} isDisabled={!order.vsls_agent_dtls || order.vsls_agent_dtls === "-"}>
+            <Text
+              noOfLines={2}
+              cursor={order.vsls_agent_dtls && order.vsls_agent_dtls !== "-" ? "pointer" : "default"}
+              onClick={() => {
+                if (order.vsls_agent_dtls && order.vsls_agent_dtls !== "-") {
+                  openVslsAgentDtlsModal(order.vsls_agent_dtls, "view", `VSLS Agent Details — ${getSoNumber(order)}`);
+                }
+              }}
+            >
+              {order.vsls_agent_dtls || "-"}
             </Text>
           </Tooltip>
         </Td>
@@ -1611,6 +1658,7 @@ const SoNumberTab = () => {
                 { label: "ETB", field: "etb", sortable: false },
                 { label: "ETD", field: "etd", sortable: false },
                 { label: "Internal Remark", field: "internal_remark", sortable: false },
+                { label: "VSLS Agent Details", field: "vsls_agent_dtls", sortable: false },
                 { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
                 { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
@@ -1917,6 +1965,40 @@ const SoNumberTab = () => {
                       }
                     />
                   </FormControl>
+                  <FormControl mb="3">
+                    <FormLabel>VSLS Agent Details</FormLabel>
+                    <VStack align="stretch" spacing="2">
+                      <Textarea
+                        value={formData.vsls_agent_dtls || ""}
+                        isReadOnly
+                        rows={2}
+                        cursor="pointer"
+                        onClick={() =>
+                          openVslsAgentDtlsModal(
+                            formData.vsls_agent_dtls || "",
+                            "edit",
+                            `Edit VSLS Agent Details — ${formData.so_number || "SO"}`,
+                            "vsls_agent_dtls"
+                          )
+                        }
+                      />
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={() =>
+                          openVslsAgentDtlsModal(
+                            formData.vsls_agent_dtls || "",
+                            "edit",
+                            `Edit VSLS Agent Details — ${formData.so_number || "SO"}`,
+                            "vsls_agent_dtls"
+                          )
+                        }
+                        alignSelf="flex-start"
+                      >
+                        Open editor
+                      </Button>
+                    </VStack>
+                  </FormControl>
                   <FormControl>
                     <FormLabel>Client Case Invoice Ref</FormLabel>
                     <Textarea
@@ -1979,6 +2061,65 @@ const SoNumberTab = () => {
             </Button>
             <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
               {editingOrder ? "Save Changes" : "Create SO"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Large text modal (VSLS Agent Details + other long fields) */}
+      <Modal
+        isOpen={vslsAgentDtlsDisclosure.isOpen}
+        onClose={() => {
+          vslsAgentDtlsDisclosure.onClose();
+          setVslsAgentDtlsModalTargetField(null);
+        }}
+        size="xl"
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>{vslsAgentDtlsModalTitle}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Textarea
+              value={vslsAgentDtlsModalValue}
+              onChange={(e) => {
+                if (vslsAgentDtlsModalMode === "edit") {
+                  setVslsAgentDtlsModalValue(e.target.value);
+                }
+              }}
+              isReadOnly={vslsAgentDtlsModalMode !== "edit"}
+              rows={16}
+              resize="vertical"
+              placeholder="Enter details..."
+            />
+          </ModalBody>
+          <ModalFooter>
+            {vslsAgentDtlsModalMode === "edit" && (
+              <Button
+                colorScheme="blue"
+                mr={3}
+                onClick={() => {
+                  if (vslsAgentDtlsModalTargetField && formData) {
+                    setFormData((prev) => ({
+                      ...prev,
+                      [vslsAgentDtlsModalTargetField]: vslsAgentDtlsModalValue,
+                    }));
+                  }
+                  vslsAgentDtlsDisclosure.onClose();
+                  setVslsAgentDtlsModalTargetField(null);
+                }}
+              >
+                Save
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={() => {
+                vslsAgentDtlsDisclosure.onClose();
+                setVslsAgentDtlsModalTargetField(null);
+              }}
+            >
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>

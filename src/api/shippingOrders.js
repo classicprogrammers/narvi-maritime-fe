@@ -117,6 +117,7 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       'est_to_usd',
       'est_profit_usd',
       'internal_remark',
+      'vsls_agent_dtls',
       'client_case_invoice_ref',
     ];
 
