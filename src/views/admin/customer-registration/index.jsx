@@ -160,6 +160,24 @@ function CustomerRegistration() {
     const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
     const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
 
+    // Auto-size helpers (Remarks + People inputs)
+    const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
+        const { min = 12, max = 60, padding = 2 } = opts || {};
+        const valueLen = String(value ?? "").length;
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(valueLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
+    const getAutoCols = (value, placeholder = "", opts = {}) => {
+        const { min = 24, max = 90, padding = 2 } = opts || {};
+        const text = String(value ?? "");
+        const maxLineLen = text.split(/\r?\n/).reduce((acc, line) => Math.max(acc, line.length), 0);
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(maxLineLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
     // If a client is passed via navigation state, or clientId is provided, we are editing
     const editingClient = React.useMemo(() => {
         if (location.state?.client) return location.state.client;
@@ -1567,6 +1585,10 @@ function CustomerRegistration() {
                                                                             placeholder="Type and press Enter to create numbered list..."
                                                                             rows={3}
                                                                             resize="vertical"
+                                                                            w="auto"
+                                                                            minW="24ch"
+                                                                            maxW="90ch"
+                                                                            cols={getAutoCols(row[column.key], "Type and press Enter to create numbered list...", { min: 24, max: 90 })}
                                                                         />
                                                                     ) : (
                                                                         <Tooltip
@@ -1599,6 +1621,10 @@ function CustomerRegistration() {
                                                                                     boxShadow: "0 0 0 1px rgba(0, 123, 255, 0.2)",
                                                                                 }}
                                                                                 placeholder={peoplePlaceholders[column.key] || undefined}
+                                                                                w="auto"
+                                                                                minW="16ch"
+                                                                                maxW="60ch"
+                                                                                htmlSize={getAutoHtmlSize(row[column.key], peoplePlaceholders[column.key] || "", { min: 12, max: 60 })}
                                                                             />
                                                                         </Tooltip>
                                                                     )}

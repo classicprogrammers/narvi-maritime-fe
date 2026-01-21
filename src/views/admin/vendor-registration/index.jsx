@@ -315,6 +315,24 @@ function VendorRegistration() {
     const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
     const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
 
+    // Auto-size helpers (Remarks + People inputs)
+    const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
+        const { min = 12, max = 60, padding = 2 } = opts || {};
+        const valueLen = String(value ?? "").length;
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(valueLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
+    const getAutoCols = (value, placeholder = "", opts = {}) => {
+        const { min = 24, max = 90, padding = 2 } = opts || {};
+        const text = String(value ?? "");
+        const maxLineLen = text.split(/\r?\n/).reduce((acc, line) => Math.max(acc, line.length), 0);
+        const placeholderLen = String(placeholder ?? "").length;
+        const desired = Math.max(maxLineLen, placeholderLen) + padding;
+        return Math.min(max, Math.max(min, desired));
+    };
+
     const toast = useToast();
     const [formData, setFormData] = React.useState(INITIAL_FORM_DATA);
 
@@ -453,10 +471,10 @@ function VendorRegistration() {
         }
 
         const row = cneeRows[rowIndex];
-        
+
         // Only copy CNEE TEXT
-        const cneeText = row.cnee_text && String(row.cnee_text).trim() !== "" 
-            ? String(row.cnee_text).trim() 
+        const cneeText = row.cnee_text && String(row.cnee_text).trim() !== ""
+            ? String(row.cnee_text).trim()
             : "";
 
         if (!cneeText) {
@@ -657,15 +675,15 @@ function VendorRegistration() {
                 e.preventDefault();
                 const currentText = e.target.value;
                 const cursorPosition = e.target.selectionStart;
-                
+
                 // Get the text before and after cursor
                 const textBeforeCursor = currentText.substring(0, cursorPosition);
                 const textAfterCursor = currentText.substring(cursorPosition);
-                
+
                 // Find the current line (text from last newline to cursor)
                 const lastNewlineIndex = textBeforeCursor.lastIndexOf("\n");
                 const currentLine = textBeforeCursor.substring(lastNewlineIndex + 1);
-                
+
                 // If current line is empty, just add a newline
                 if (!currentLine.trim()) {
                     const newValue = textBeforeCursor + "\n" + textAfterCursor;
@@ -676,11 +694,11 @@ function VendorRegistration() {
                     }, 0);
                     return;
                 }
-                
+
                 // Parse existing numbered items to get the next number
                 const allLines = currentText.split("\n");
                 let maxNumber = 0;
-                
+
                 // Find the highest number in existing numbered items
                 allLines.forEach(line => {
                     const match = line.trim().match(/^(\d+)\.\s/);
@@ -691,11 +709,11 @@ function VendorRegistration() {
                         }
                     }
                 });
-                
+
                 // Check if current line already has a number prefix
                 const trimmedCurrentLine = currentLine.trim();
                 const hasNumberPrefix = /^\d+\.\s/.test(trimmedCurrentLine);
-                
+
                 let newLine;
                 if (hasNumberPrefix) {
                     // Already has a number, keep it as is
@@ -708,15 +726,15 @@ function VendorRegistration() {
                     const lineContent = trimmedCurrentLine;
                     newLine = leadingWhitespace + `${nextNumber}. ${lineContent}`;
                 }
-                
+
                 // Build the new value
-                const linesBefore = lastNewlineIndex >= 0 
+                const linesBefore = lastNewlineIndex >= 0
                     ? textBeforeCursor.substring(0, lastNewlineIndex + 1)
                     : "";
                 const newValue = linesBefore + newLine + "\n" + textAfterCursor;
-                
+
                 updateFunction(newValue);
-                
+
                 // Set cursor position after the newline
                 setTimeout(() => {
                     const newCursorPos = linesBefore.length + newLine.length + 1;
@@ -1647,7 +1665,7 @@ function VendorRegistration() {
                                                             value={row.cnee_type_text || ""}
                                                             onChange={(e) => updateCneeRow(rowIndex, "cnee_type_text", e.target.value)}
                                                             placeholder="Type or select CNEE type..."
-                                                        size="sm"
+                                                            size="sm"
                                                             w="100%"
                                                         />
                                                         <datalist id={`cnee-type-${rowIndex}`}>
@@ -1866,6 +1884,10 @@ function VendorRegistration() {
                                                             placeholder="Type and press Enter to create numbered list..."
                                                             rows={3}
                                                             resize="vertical"
+                                                            w="auto"
+                                                            minW="24ch"
+                                                            maxW="90ch"
+                                                            cols={getAutoCols(row[column.key], "Type and press Enter to create numbered list...", { min: 24, max: 90 })}
                                                         />
                                                     ) : (
                                                         <Tooltip
@@ -1891,6 +1913,10 @@ function VendorRegistration() {
                                                                     borderColor: "blue.500",
                                                                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.3)",
                                                                 }}
+                                                                w="auto"
+                                                                minW="16ch"
+                                                                maxW="60ch"
+                                                                htmlSize={getAutoHtmlSize(row[column.key], peoplePlaceholders[column.key] || "", { min: 12, max: 60 })}
                                                             />
                                                         </Tooltip>
                                                     )}
