@@ -233,6 +233,18 @@ export default function Stocks() {
         const stored = sessionStorage.getItem('stocksClientViewSelectedRows');
         return stored ? new Set(JSON.parse(stored)) : new Set();
     });
+    const [clientViewSearchClient, setClientViewSearchClient] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewSearchClient');
+        return stored || '';
+    });
+    const [clientViewSearchVessel, setClientViewSearchVessel] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewSearchVessel');
+        return stored || '';
+    });
+    const [clientViewVesselFilter, setClientViewVesselFilter] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewVesselFilter');
+        return stored && stored !== 'null' ? stored : null;
+    });
 
     // State to control filters section visibility - default to open
     const [showFilters, setShowFilters] = useState(() => {
@@ -468,7 +480,10 @@ export default function Stocks() {
             if (filterState.vesselViewVessel !== undefined) setVesselViewVessel(filterState.vesselViewVessel);
             if (filterState.vesselViewStatuses !== undefined) setVesselViewStatuses(new Set(filterState.vesselViewStatuses)); // Convert Array back to Set
             if (filterState.clientViewClient !== undefined) setClientViewClient(filterState.clientViewClient);
-            if (filterState.clientViewStatuses !== undefined) setClientViewStatuses(new Set(filterState.clientViewStatuses)); // Convert Array back to Set
+            if (filterState.clientViewSearchClient !== undefined) setClientViewSearchClient(filterState.clientViewSearchClient);
+            if (filterState.clientViewSearchVessel !== undefined) setClientViewSearchVessel(filterState.clientViewSearchVessel);
+            if (filterState.clientViewVesselFilter !== undefined) setClientViewVesselFilter(filterState.clientViewVesselFilter);
+            if (filterState.clientViewStatuses !== undefined) setClientViewStatuses(new Set(filterState.clientViewStatuses)); // Convert Set to Array for serialization
             // Restore Stock View / Edit filters
             if (filterState.stockViewClient !== undefined) setStockViewClient(filterState.stockViewClient);
             if (filterState.stockViewVessel !== undefined) setStockViewVessel(filterState.stockViewVessel);
@@ -557,6 +572,18 @@ export default function Stocks() {
     useEffect(() => {
         sessionStorage.setItem('stocksClientViewSelectedRows', JSON.stringify(Array.from(clientViewSelectedRows)));
     }, [clientViewSelectedRows]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewSearchClient', clientViewSearchClient || '');
+    }, [clientViewSearchClient]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewSearchVessel', clientViewSearchVessel || '');
+    }, [clientViewSearchVessel]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewVesselFilter', clientViewVesselFilter || 'null');
+    }, [clientViewVesselFilter]);
 
     // Persist Stock View / Edit filter states to sessionStorage
     useEffect(() => {
@@ -725,6 +752,9 @@ export default function Stocks() {
             vesselViewVessel,
             vesselViewStatuses: Array.from(vesselViewStatuses), // Convert Set to Array for serialization
             clientViewClient,
+            clientViewSearchClient,
+            clientViewSearchVessel,
+            clientViewVesselFilter,
             clientViewStatuses: Array.from(clientViewStatuses), // Convert Set to Array for serialization
             stockViewClient,
             stockViewVessel,
@@ -1622,6 +1652,32 @@ export default function Stocks() {
             });
         }
 
+        // Apply client text search filter
+        if (clientViewSearchClient) {
+            const searchTerm = clientViewSearchClient.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const clientName = getClientName(item.client_id || item.client).toLowerCase();
+                return clientName.includes(searchTerm);
+            });
+        }
+
+        // Apply vessel dropdown filter
+        if (clientViewVesselFilter) {
+            filtered = filtered.filter((item) => {
+                const vesselId = item.vessel_id || item.vessel;
+                return String(vesselId) === String(clientViewVesselFilter);
+            });
+        }
+
+        // Apply vessel text search filter
+        if (clientViewSearchVessel) {
+            const searchTerm = clientViewSearchVessel.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const vesselName = getVesselName(item.vessel_id || item.vessel).toLowerCase();
+                return vesselName.includes(searchTerm);
+            });
+        }
+
         // Apply status filter
         filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
 
@@ -1709,19 +1765,10 @@ export default function Stocks() {
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
 
-        // Build HTML table
-        let htmlTable = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif;">';
+        // Build HTML table (without headers - only data rows)
+        let htmlTable = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif;"><tbody>';
 
-        // Add header row
-        htmlTable += '<thead><tr style="background-color: #f0f0f0; font-weight: bold;">';
-        if (clientViewFilterType === 'filter1') {
-            htmlTable += '<th>SUPPLIER</th><th>PO NUMBER</th><th>BOXES</th><th>WEIGHT KGS</th><th>STOCK STATUS</th><th>DESTINATION</th>';
-        } else {
-            htmlTable += '<th>SUPPLIER</th><th>PO NUMBER</th><th>STOCK STATUS</th><th>ORIGIN</th><th>DESTINATION</th><th>SHIPPING DOCS</th><th>EXPORT DOC 1</th><th>EXPORT DOC 2</th><th>BOXES</th><th>WEIGHT KGS</th>';
-        }
-        htmlTable += '</tr></thead><tbody>';
-
-        // Add data rows
+        // Add data rows (no header row)
         selectedItems.forEach(item => {
             const statusStyle = getStatusStyle(item.stock_status);
             htmlTable += '<tr>';
@@ -3333,8 +3380,106 @@ export default function Stocks() {
 
                                 {/* Tab 2: Stocklist By Client */}
                                 <TabPanel px="0" pt="20px">
+                                    {/* Basic Filters Section - Similar to Stock View / Edit */}
+                                    <Box px="25px" mb="20px">
+                                        <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
+                                            <VStack spacing="4" align="stretch">
+                                                {/* Basic Filters */}
+                                                <Box>
+                                                    <HStack mb="3" justify="space-between">
+                                                        <HStack>
+                                                            <Icon as={MdFilterList} color="blue.500" />
+                                                            <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
+                                                        </HStack>
+                                                        <HStack>
+                                                            {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel) && (
+                                                                <Button
+                                                                    size="xs"
+                                                                    leftIcon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => {
+                                                                        setClientViewClient(null);
+                                                                        setClientViewVesselFilter(null);
+                                                                        setClientViewSearchClient("");
+                                                                        setClientViewSearchVessel("");
+                                                                    }}
+                                                                >
+                                                                    Clear All
+                                                                </Button>
+                                                            )}
+                                                        </HStack>
+                                                    </HStack>
+                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                        {/* Client Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={clientViewClient}
+                                                                        onChange={(value) => setClientViewClient(value)}
+                                                                        options={clients}
+                                                                        placeholder="Filter by Client"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Client ${option.id}`}
+                                                                        isLoading={isLoadingClients}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {clientViewClient && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setClientViewClient(null)}
+                                                                        aria-label="Clear client filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+
+                                                        {/* Vessel Filter */}
+                                                        <Box w="220px">
+                                                            <HStack spacing="1">
+                                                                <Box flex="1">
+                                                                    <SimpleSearchableSelect
+                                                                        value={clientViewVesselFilter}
+                                                                        onChange={(value) => setClientViewVesselFilter(value)}
+                                                                        options={vessels}
+                                                                        placeholder="Filter by Vessel"
+                                                                        displayKey="name"
+                                                                        valueKey="id"
+                                                                        formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                                        isLoading={isLoadingVessels}
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                    />
+                                                                </Box>
+                                                                {clientViewVesselFilter && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setClientViewVesselFilter(null)}
+                                                                        aria-label="Clear vessel filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+                                                    </Flex>
+                                                </Box>
+                                            </VStack>
+                                        </Card>
+                                    </Box>
+
                                     {/* Filters for By Client View */}
-                                    <Box mb="20px">
+                                    <Flex direction={{ base: "column", lg: "row" }} gap="4" mb="20px" align="flex-start">
                                         <Box flex="0 0 auto" minW={{ base: "100%", lg: "400px" }}>
                                             {/* Client Filter - Two Input Fields */}
                                             <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
@@ -3394,6 +3539,80 @@ export default function Stocks() {
                                                     </FormControl>
                                                 </Flex>
                                             </Box>
+
+                                            {/* Client and Vessel Text Search Filters */}
+                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
+                                                    SEARCH BY CLIENT OR VESSEL NAME
+                                                </Text>
+                                                <Flex direction="row" gap="4" align="stretch">
+                                                    {/* Client Name Search */}
+                                                    <FormControl flex="1">
+                                                        <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
+                                                            Search by Client Name
+                                                        </FormLabel>
+                                                        <HStack spacing="1">
+                                                            <InputGroup size="md">
+                                                                <InputLeftElement pointerEvents="none">
+                                                                    <Icon as={MdSearch} color="gray.400" />
+                                                                </InputLeftElement>
+                                                                <Input
+                                                                    value={clientViewSearchClient}
+                                                                    onChange={(e) => setClientViewSearchClient(e.target.value)}
+                                                                    placeholder="Type client name to search..."
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                    pl="10"
+                                                                />
+                                                            </InputGroup>
+                                                            {clientViewSearchClient && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewSearchClient("")}
+                                                                    aria-label="Clear client search"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </FormControl>
+
+                                                    {/* Vessel Name Search */}
+                                                    <FormControl flex="1">
+                                                        <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
+                                                            Search by Vessel Name
+                                                        </FormLabel>
+                                                        <HStack spacing="1">
+                                                            <InputGroup size="md">
+                                                                <InputLeftElement pointerEvents="none">
+                                                                    <Icon as={MdSearch} color="gray.400" />
+                                                                </InputLeftElement>
+                                                                <Input
+                                                                    value={clientViewSearchVessel}
+                                                                    onChange={(e) => setClientViewSearchVessel(e.target.value)}
+                                                                    placeholder="Type vessel name to search..."
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                    pl="10"
+                                                                />
+                                                            </InputGroup>
+                                                            {clientViewSearchVessel && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewSearchVessel("")}
+                                                                    aria-label="Clear vessel search"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </FormControl>
+                                                </Flex>
+                                            </Box>
                                         </Box>
                                         {/* Right Side: Status Filter Boxes */}
                                         <Box flex="1" minW="0">
@@ -3445,7 +3664,7 @@ export default function Stocks() {
                                                 </Text>
                                             </Box>
                                         </Box>
-                                    </Box>
+                                    </Flex>
                                 </TabPanel>
 
                             </TabPanels>
@@ -4358,6 +4577,104 @@ export default function Stocks() {
 
                             {/* Tab 2: Stocklist view for clients */}
                             <TabPanel px="0" pt="20px">
+                                {/* Basic Filters Section - Similar to Stock View / Edit */}
+                                <Box px="25px" mb="20px">
+                                    <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
+                                        <VStack spacing="4" align="stretch">
+                                            {/* Basic Filters */}
+                                            <Box>
+                                                <HStack mb="3" justify="space-between">
+                                                    <HStack>
+                                                        <Icon as={MdFilterList} color="blue.500" />
+                                                        <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
+                                                    </HStack>
+                                                    <HStack>
+                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel) && (
+                                                            <Button
+                                                                size="xs"
+                                                                leftIcon={<Icon as={MdClose} />}
+                                                                colorScheme="red"
+                                                                variant="ghost"
+                                                                onClick={() => {
+                                                                    setClientViewClient(null);
+                                                                    setClientViewVesselFilter(null);
+                                                                    setClientViewSearchClient("");
+                                                                    setClientViewSearchVessel("");
+                                                                }}
+                                                            >
+                                                                Clear All
+                                                            </Button>
+                                                        )}
+                                                    </HStack>
+                                                </HStack>
+                                                <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                    {/* Client Filter */}
+                                                    <Box w="220px">
+                                                        <HStack spacing="1">
+                                                            <Box flex="1">
+                                                                <SimpleSearchableSelect
+                                                                    value={clientViewClient}
+                                                                    onChange={(value) => setClientViewClient(value)}
+                                                                    options={clients}
+                                                                    placeholder="Filter by Client"
+                                                                    displayKey="name"
+                                                                    valueKey="id"
+                                                                    formatOption={(option) => option.name || `Client ${option.id}`}
+                                                                    isLoading={isLoadingClients}
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                />
+                                                            </Box>
+                                                            {clientViewClient && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewClient(null)}
+                                                                    aria-label="Clear client filter"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </Box>
+
+                                                    {/* Vessel Filter */}
+                                                    <Box w="220px">
+                                                        <HStack spacing="1">
+                                                            <Box flex="1">
+                                                                <SimpleSearchableSelect
+                                                                    value={clientViewVesselFilter}
+                                                                    onChange={(value) => setClientViewVesselFilter(value)}
+                                                                    options={vessels}
+                                                                    placeholder="Filter by Vessel"
+                                                                    displayKey="name"
+                                                                    valueKey="id"
+                                                                    formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                                    isLoading={isLoadingVessels}
+                                                                    bg={inputBg}
+                                                                    color={inputText}
+                                                                    borderColor={borderColor}
+                                                                />
+                                                            </Box>
+                                                            {clientViewVesselFilter && (
+                                                                <IconButton
+                                                                    size="sm"
+                                                                    icon={<Icon as={MdClose} />}
+                                                                    colorScheme="red"
+                                                                    variant="ghost"
+                                                                    onClick={() => setClientViewVesselFilter(null)}
+                                                                    aria-label="Clear vessel filter"
+                                                                />
+                                                            )}
+                                                        </HStack>
+                                                    </Box>
+                                                </Flex>
+                                            </Box>
+                                        </VStack>
+                                    </Card>
+                                </Box>
+
                                 {/* Status Filter Checkboxes Section for Client View */}
                                 <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
                                     <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
@@ -4437,6 +4754,8 @@ export default function Stocks() {
                                                     </Th>
                                                     {clientViewFilterType === 'filter1' ? (
                                                         <>
+                                                            <Th {...headerProps}>CLIENT</Th>
+                                                            <Th {...headerProps}>VESSEL</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO NUMBER</Th>
                                                             <Th {...headerProps}>BOXES</Th>
@@ -4446,6 +4765,8 @@ export default function Stocks() {
                                                         </>
                                                     ) : (
                                                         <>
+                                                            <Th {...headerProps}>CLIENT</Th>
+                                                            <Th {...headerProps}>VESSEL</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO NUMBER</Th>
                                                             <Th {...headerProps}>STOCK STATUS</Th>
@@ -4464,7 +4785,7 @@ export default function Stocks() {
                                         <Tbody>
                                             {isLoading ? (
                                                 <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 9 : 13} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
                                                             {/* Placeholder to maintain table structure */}
                                                         </Box>
@@ -4472,7 +4793,7 @@ export default function Stocks() {
                                                 </Tr>
                                             ) : filteredAndSortedStock.length === 0 ? (
                                                 <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 7 : 11} textAlign="center" py="40px">
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 9 : 13} textAlign="center" py="40px">
                                                         <Text color={tableTextColorSecondary}>
                                                             {stockList.length === 0
                                                                 ? "No stock items available."
@@ -4496,6 +4817,8 @@ export default function Stocks() {
                                                             </Td>
                                                             {clientViewFilterType === 'filter1' ? (
                                                                 <>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
@@ -4517,6 +4840,8 @@ export default function Stocks() {
                                                                 </>
                                                             ) : (
                                                                 <>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                                     <Td {...cellProps} bg={rowBg}>
@@ -4793,7 +5118,7 @@ export default function Stocks() {
                                                         ? "Try adjusting your filters to see more results."
                                                         : "No stock items found.";
                                                 } else {
-                                                    return (clientViewClient || clientViewStatuses.size > 0)
+                                                    return (clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0)
                                                         ? "Try adjusting your filters to see more results."
                                                         : "No stock items found.";
                                                 }
@@ -4832,7 +5157,7 @@ export default function Stocks() {
                                             if (activeTab === 0) {
                                                 return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             } else {
-                                                return (clientViewClient || clientViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
+                                                return (clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected) ? " (filtered)" : "";
                                             }
                                         })()}
                                         {filteredAndSortedStock.length !== stockList.length && ` of ${stockList.length} total`}
