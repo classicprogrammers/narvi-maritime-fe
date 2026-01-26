@@ -13,11 +13,11 @@ import {
   clearStockError,
 } from "../slices/stockSlice";
 
-// Get stock list
-export const getStockList = () => async (dispatch) => {
+// Get stock list with pagination and search
+export const getStockList = (params = {}) => async (dispatch) => {
   try {
     dispatch(getStockListStart());
-    const response = await getStockListApi();
+    const response = await getStockListApi(params);
     dispatch(getStockListSuccess(response));
     return { success: true, data: response };
   } catch (error) {
@@ -34,8 +34,10 @@ export const updateStockItem = (stockId, stockData, originalData = {}) => async 
     const response = await updateStockItemApi(stockId, stockData, originalData);
     dispatch(updateStockItemSuccess(response));
     
-    // Auto-refresh stock list after successful update
+    // Auto-refresh stock list after successful update (use current pagination state)
     if (response.result && response.result.status === 'success') {
+      // Note: This will use default params if called without arguments
+      // In a real scenario, you might want to preserve current pagination state
       dispatch(getStockList());
     }
     

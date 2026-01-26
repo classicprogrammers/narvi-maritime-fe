@@ -45,20 +45,88 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
-// Get stock list
-export const getStockListApi = async () => {
+// Get stock list with pagination and search
+export const getStockListApi = async (params = {}) => {
   try {
-    const response = await api.get(getApiEndpoint("STOCK_LIST"));
+    const {
+      page = 1,
+      page_size = 50,
+      sort_by = "id",
+      sort_order = "desc",
+      search = "",
+    } = params;
 
-    // Check if response has error status (JSON-RPC format)
-    if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch stock list');
+    const requestParams = {
+      page,
+      page_size,
+      sort_by,
+      sort_order,
+    };
+
+    // Include search parameter if provided
+    const trimmedSearch = search ? search.trim() : "";
+    if (trimmedSearch) {
+      requestParams.search = trimmedSearch;
+      requestParams.name = trimmedSearch;
     }
 
-    return response.data;
+    const response = await api.get(getApiEndpoint("STOCK_LIST"), {
+      params: requestParams,
+    });
+
+    const data = response.data || response;
+
+    // Check if response has error status (JSON-RPC format)
+    if (data.result && data.result.status === 'error') {
+      throw new Error(data.result.message || 'Failed to fetch stock list');
+    }
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch stock list");
+    }
+
+    // Return full response with pagination metadata
+    if (data.status === "success") {
+      return {
+        stock_list: Array.isArray(data.stock_list) ? data.stock_list : [],
+        count: data.count || 0,
+        total_count: data.total_count || 0,
+        page: data.page || page,
+        page_size: data.page_size || page_size,
+        total_pages: data.total_pages || 0,
+        has_next: data.has_next || false,
+        has_previous: data.has_previous || false,
+        sort_by: data.sort_by || sort_by,
+        sort_order: data.sort_order || sort_order,
+      };
+    }
+
+    // Fallback for non-standard response format
+    const stockList = Array.isArray(data.stock_list)
+      ? data.stock_list
+      : Array.isArray(data)
+        ? data
+        : Array.isArray(data?.result)
+          ? data.result
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+    return {
+      stock_list: stockList,
+      count: stockList.length,
+      total_count: stockList.length,
+      page: page,
+      page_size: page_size,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+      sort_by: sort_by,
+      sort_order: sort_order,
+    };
   } catch (error) {
     console.error("Get stock list error:", error);
     handleApiError(error, "Get stock list");
+    throw error;
   }
 };
 

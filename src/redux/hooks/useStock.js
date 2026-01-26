@@ -16,6 +16,12 @@ export const useStock = () => {
     updateLoading,
     updateError,
     count,
+    total_count,
+    page,
+    page_size,
+    total_pages,
+    has_next,
+    has_previous,
   } = useSelector((state) => state.stock);
 
   const fetchStockList = useCallback(() => {
@@ -42,6 +48,12 @@ export const useStock = () => {
     updateLoading,
     updateError,
     count,
+    total_count,
+    page,
+    page_size,
+    total_pages,
+    has_next,
+    has_previous,
     
     // Actions
     getStockList: fetchStockList,

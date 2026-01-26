@@ -1,16 +1,83 @@
 import api from './axios';
 
-// Get all shipping orders
-export const getShippingOrders = async () => {
+// Get all shipping orders with pagination and search
+export const getShippingOrders = async (params = {}) => {
   try {
-    const response = await api.get('/api/shipping/orders');
+    const {
+      page = 1,
+      page_size = 80,
+      sort_by = "id",
+      sort_order = "desc",
+      search = "",
+    } = params;
+
+    const requestParams = {
+      page,
+      page_size,
+      sort_by,
+      sort_order,
+    };
+
+    // Include search parameter if provided
+    const trimmedSearch = search ? search.trim() : "";
+    if (trimmedSearch) {
+      requestParams.search = trimmedSearch;
+      requestParams.name = trimmedSearch;
+    }
+
+    const response = await api.get('/api/shipping/orders', {
+      params: requestParams,
+    });
+    
+    const data = response.data || response;
     
     // Check if response has error status (JSON-RPC format)
-    if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch shipping orders');
+    if (data.result && data.result.status === 'error') {
+      throw new Error(data.result.message || 'Failed to fetch shipping orders');
     }
-    
-    return response.data;
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch shipping orders");
+    }
+
+    // Return full response with pagination metadata
+    if (data.status === "success") {
+      return {
+        orders: Array.isArray(data.orders) ? data.orders : [],
+        count: data.count || 0,
+        total_count: data.total_count || 0,
+        page: data.page || page,
+        page_size: data.page_size || page_size,
+        total_pages: data.total_pages || 0,
+        has_next: data.has_next || false,
+        has_previous: data.has_previous || false,
+        sort_by: data.sort_by || sort_by,
+        sort_order: data.sort_order || sort_order,
+      };
+    }
+
+    // Fallback for non-standard response format
+    const orders = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.orders)
+        ? data.orders
+        : Array.isArray(data?.result)
+          ? data.result
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+
+    return {
+      orders: orders,
+      count: orders.length,
+      total_count: orders.length,
+      page: page,
+      page_size: page_size,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+      sort_by: sort_by,
+      sort_order: sort_order,
+    };
   } catch (error) {
     throw error;
   }

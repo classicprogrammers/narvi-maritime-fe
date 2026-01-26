@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
     Box,
     Flex,
@@ -39,9 +39,9 @@ import {
     Grid,
     Collapse,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload } from "react-icons/md";
+import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { Checkbox, Input, Select, InputGroup, InputLeftElement, Divider } from "@chakra-ui/react";
+import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
@@ -69,6 +69,13 @@ export default function StockList() {
         error,
         updateLoading,
         getStockList,
+        count,
+        total_count: reduxTotalCount,
+        page: reduxPage,
+        page_size: reduxPageSize,
+        total_pages: reduxTotalPages,
+        has_next: reduxHasNext,
+        has_previous: reduxHasPrevious,
     } = useStock();
 
     const { user } = useUser();
@@ -165,9 +172,21 @@ export default function StockList() {
     const [filterDI, setFilterDI] = useState(() => {
         return sessionStorage.getItem('stockListMainFilterDI') || "";
     });
+    // Search state
     const [searchFilter, setSearchFilter] = useState(() => {
         return sessionStorage.getItem('stockListMainSearchFilter') || "";
     });
+    const [searchQuery, setSearchQuery] = useState("");
+    
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [hasNext, setHasNext] = useState(false);
+    const [hasPrevious, setHasPrevious] = useState(false);
+    const [sortBy, setSortBy] = useState("id");
+    const [sortOrder, setSortOrder] = useState("desc");
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -226,10 +245,69 @@ export default function StockList() {
         sessionStorage.setItem('stockListMainFiltersOpen', String(isFiltersOpen));
     }, [isFiltersOpen]);
 
-    // Fetch stock list on component mount
+    // Fetch stock list with pagination and search
+    const fetchStockList = useCallback(() => {
+        return getStockList({
+            page,
+            page_size: pageSize,
+            sort_by: sortBy,
+            sort_order: sortOrder,
+            search: searchQuery,
+        });
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchQuery]);
+
+    // Fetch stock list on component mount and when pagination/search changes
     useEffect(() => {
-        getStockList();
-    }, [getStockList]);
+        fetchStockList().then((result) => {
+            if (result?.success && result?.data) {
+                setTotalCount(result.data.total_count || 0);
+                setTotalPages(result.data.total_pages || 0);
+                setHasNext(result.data.has_next || false);
+                setHasPrevious(result.data.has_previous || false);
+            }
+        });
+    }, [fetchStockList]);
+
+    // Sync pagination state from Redux (as fallback)
+    useEffect(() => {
+        if (reduxTotalCount > 0 && totalCount === 0) {
+            setTotalCount(reduxTotalCount);
+        }
+        if (reduxTotalPages > 0 && totalPages === 0) {
+            setTotalPages(reduxTotalPages);
+        }
+        if (reduxHasNext !== undefined) {
+            setHasNext(reduxHasNext);
+        }
+        if (reduxHasPrevious !== undefined) {
+            setHasPrevious(reduxHasPrevious);
+        }
+    }, [reduxTotalCount, reduxTotalPages, reduxHasNext, reduxHasPrevious, totalCount, totalPages]);
+
+    // Reset to first page when page size or search changes
+    useEffect(() => {
+        setPage(1);
+    }, [pageSize, searchQuery]);
+
+    // Handle search button click
+    const handleSearch = () => {
+        setSearchQuery(searchFilter.trim());
+        setPage(1); // Reset to first page when searching
+    };
+
+    // Handle Enter key in search input
+    const handleSearchKeyPress = (e) => {
+        if (e.key === "Enter") {
+            handleSearch();
+        }
+    };
+
+    // Handle clear search
+    const handleClearSearch = () => {
+        setSearchFilter("");
+        setSearchQuery("");
+        setPage(1);
+    };
 
     // Restore filter state from location.state when returning from edit mode
     useEffect(() => {
@@ -661,7 +739,10 @@ export default function StockList() {
             });
         }
 
-        // General search filter - searches across multiple fields
+        // Note: General search is now handled server-side via searchQuery
+        // Client-side search (searchFilter) is removed since we use server-side search
+        // Keeping this commented for reference:
+        /*
         if (searchFilter) {
             const searchTerm = searchFilter.toLowerCase().trim();
             filtered = filtered.filter(item => {
@@ -706,6 +787,7 @@ export default function StockList() {
                 return searchableFields.includes(searchTerm);
             });
         }
+        */
 
         // Apply sorting
         if (sortField) {
@@ -858,7 +940,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, searchFilter, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
 
     // Get selected items for the view modal
     const viewSelectedItems = useMemo(() => {
@@ -1394,7 +1476,7 @@ export default function StockList() {
                         <AlertDescription>{error}</AlertDescription>
                     </Box>
                 </Alert>
-                <Button mt="4" onClick={() => getStockList()} leftIcon={<Icon as={MdRefresh} />}>
+                <Button mt="4" onClick={() => fetchStockList()} leftIcon={<Icon as={MdRefresh} />}>
                     Retry
                 </Button>
             </Box>
@@ -1435,7 +1517,7 @@ export default function StockList() {
                             icon={<Icon as={MdRefresh} />}
                             variant="ghost"
                             aria-label="Refresh"
-                            onClick={() => getStockList()}
+                            onClick={() => fetchStockList()}
                             isLoading={isLoading}
                         />
                     </HStack>
@@ -1878,25 +1960,50 @@ export default function StockList() {
                                             <Box w="220px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
+                                                        <InputLeftElement pointerEvents="none">
+                                                            <Icon as={MdSearch} color="gray.400" />
+                                                        </InputLeftElement>
                                                         <Input
                                                             value={searchFilter}
                                                             onChange={(e) => setSearchFilter(e.target.value)}
+                                                            onKeyPress={handleSearchKeyPress}
                                                             placeholder="Search all fields..."
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
                                                             pl="8"
                                                         />
+                                                        {searchFilter && (
+                                                            <InputRightElement>
+                                                                <IconButton
+                                                                    aria-label="Clear search"
+                                                                    icon={<Icon as={MdClear} />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    onClick={handleClearSearch}
+                                                                    h="1.5rem"
+                                                                    w="1.5rem"
+                                                                />
+                                                            </InputRightElement>
+                                                        )}
                                                     </InputGroup>
-                                                    {searchFilter && (
-                                                        <IconButton
+                                                    <Button
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdSearch} />}
+                                                        colorScheme="blue"
+                                                        onClick={handleSearch}
+                                                        isLoading={isLoading}
+                                                    >
+                                                        Search
+                                                    </Button>
+                                                    {searchQuery && (
+                                                        <Button
                                                             size="sm"
-                                                            icon={<Icon as={MdClose} />}
-                                                            colorScheme="red"
-                                                            variant="ghost"
-                                                            onClick={() => setSearchFilter("")}
-                                                            aria-label="Clear search filter"
-                                                        />
+                                                            variant="outline"
+                                                            onClick={handleClearSearch}
+                                                        >
+                                                            Clear
+                                                        </Button>
                                                     )}
                                                 </HStack>
                                             </Box>
@@ -1935,8 +2042,8 @@ export default function StockList() {
 
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
-                                        Showing {filteredAndSortedStock.length} of {stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchFilter || isViewingSelected) && " (filtered)"}
+                                        Showing {filteredAndSortedStock.length} of {totalCount || stockList.length} stock items
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchQuery || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -2323,6 +2430,106 @@ export default function StockList() {
                             )}
                         </Tbody>
                     </Table>
+
+                    {/* Pagination Controls */}
+                    {(totalPages > 0 || totalCount > pageSize || stockList.length >= pageSize) && (
+                        <Box px="25px" mt={4}>
+                            <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+                                {/* Page Size Selector and Info */}
+                                <HStack spacing={3}>
+                                    <Text fontSize="sm" color="gray.600">
+                                        Show
+                                    </Text>
+                                    <Select
+                                        size="sm"
+                                        w="80px"
+                                        value={pageSize}
+                                        onChange={(e) => setPageSize(Number(e.target.value))}
+                                    >
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                        <option value={80}>80</option>
+                                        <option value={100}>100</option>
+                                    </Select>
+                                    <Text fontSize="sm" color="gray.600">
+                                        per page
+                                    </Text>
+                                    <Text fontSize="sm" color="gray.600" ml={2}>
+                                        Showing {stockList.length} of {totalCount || stockList.length} records
+                                    </Text>
+                                </HStack>
+
+                                {/* Pagination buttons */}
+                                <HStack spacing={2}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setPage(1)}
+                                        isDisabled={!hasPrevious || page === 1}
+                                    >
+                                        First
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setPage(page - 1)}
+                                        isDisabled={!hasPrevious || page === 1}
+                                    >
+                                        Previous
+                                    </Button>
+
+                                    {/* Page numbers */}
+                                    {totalPages > 0 && (
+                                        <HStack spacing={1}>
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                let pageNum;
+                                                if (totalPages <= 5) {
+                                                    pageNum = i + 1;
+                                                } else if (page <= 3) {
+                                                    pageNum = i + 1;
+                                                } else if (page >= totalPages - 2) {
+                                                    pageNum = totalPages - 4 + i;
+                                                } else {
+                                                    pageNum = page - 2 + i;
+                                                }
+
+                                                return (
+                                                    <Button
+                                                        key={pageNum}
+                                                        size="sm"
+                                                        variant={page === pageNum ? "solid" : "outline"}
+                                                        colorScheme={page === pageNum ? "blue" : "gray"}
+                                                        onClick={() => setPage(pageNum)}
+                                                    >
+                                                        {pageNum}
+                                                    </Button>
+                                                );
+                                            })}
+                                        </HStack>
+                                    )}
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setPage(page + 1)}
+                                        isDisabled={!hasNext || (totalPages > 0 && page >= totalPages)}
+                                    >
+                                        Next
+                                    </Button>
+                                    {totalPages > 0 && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setPage(totalPages)}
+                                            isDisabled={!hasNext || page === totalPages}
+                                        >
+                                            Last
+                                        </Button>
+                                    )}
+                                </HStack>
+                            </Flex>
+                        </Box>
+                    )}
                 </Box>
 
             </Card>

@@ -13,17 +13,81 @@ const getCurrentUserId = () => {
 };
 
 /**
- * Get all vessels
- * @returns {Promise<Object>} - The API response
+ * Get all vessels with pagination and search
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Page number (default: 1)
+ * @param {number} params.page_size - Items per page (default: 80)
+ * @param {string} params.sort_by - Sort field (default: "id")
+ * @param {string} params.sort_order - Sort order (default: "desc")
+ * @param {string} params.search - Search query (optional)
+ * @returns {Promise<Object>} - The API response with pagination metadata
  */
-export const getVessels = async () => {
+export const getVessels = async (params = {}) => {
   try {
-    const response = await axios.get('/api/vessels');
+    const {
+      page = 1,
+      page_size = 80,
+      sort_by = "id",
+      sort_order = "desc",
+      search = "",
+    } = params;
+
+    const requestParams = {
+      page,
+      page_size,
+      sort_by,
+      sort_order,
+    };
+
+    // Include search parameter if provided
+    const trimmedSearch = search ? search.trim() : "";
+    if (trimmedSearch) {
+      requestParams.name = trimmedSearch;
+      requestParams.search = trimmedSearch;
+    }
+
+    const response = await axios.get('/api/vessels', {
+      params: requestParams,
+    });
+    const data = response.data || response;
+
+    // If backend reports an error status, surface that up to caller
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch vessels");
+    }
+
+    // Return full response with pagination metadata
+    if (data.status === "success") {
+      return {
+        vessels: Array.isArray(data.vessels) ? data.vessels : [],
+        count: data.count || 0,
+        total_count: data.total_count || 0,
+        page: data.page || page,
+        page_size: data.page_size || page_size,
+        total_pages: data.total_pages || 0,
+        has_next: data.has_next || false,
+        has_previous: data.has_previous || false,
+        sort_by: data.sort_by || sort_by,
+        sort_order: data.sort_order || sort_order,
+        success: true,
+        message: data.message || 'Vessels retrieved successfully',
+      };
+    }
+
+    // Fallback for non-standard response format
     return {
+      vessels: Array.isArray(data.vessels) ? data.vessels : [],
+      count: data.vessels?.length || 0,
+      total_count: data.vessels?.length || 0,
+      page: page,
+      page_size: page_size,
+      total_pages: 1,
+      has_next: false,
+      has_previous: false,
+      sort_by: sort_by,
+      sort_order: sort_order,
       success: true,
-      result: response.data,
-      vessels: response.data.vessels || [],
-      message: response.data.message || 'Vessels retrieved successfully',
+      message: 'Vessels retrieved successfully',
     };
   } catch (error) {
     throw error;
@@ -134,7 +198,7 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       if ((!newAttachments || newAttachments.length === 0) && (!oldAttachments || oldAttachments.length === 0)) {
         return false;
       }
-      
+
       // If lengths differ, changed
       if (!newAttachments || !oldAttachments || newAttachments.length !== oldAttachments.length) {
         return true;
@@ -189,7 +253,7 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       payload.imo = vesselData.imo || "";
       payload.vessel_type = vesselData.vessel_type || "";
       payload.status = vesselData.status || "active";
-      
+
       // Add attachments if provided
       if (vesselData.attachments && vesselData.attachments.length > 0) {
         payload.attachments = vesselData.attachments;

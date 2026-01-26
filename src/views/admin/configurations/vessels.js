@@ -7,6 +7,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   Table,
   Thead,
   Tbody,
@@ -37,9 +38,8 @@ import {
   AlertDialogHeader,
   AlertDialogContent,
   AlertDialogOverlay,
-
   Badge,
-
+  Spinner,
 } from "@chakra-ui/react";
 import {
   MdAdd,
@@ -49,6 +49,7 @@ import {
   MdDirectionsBoat,
   MdVisibility,
   MdPrint,
+  MdClear,
 } from "react-icons/md";
 import { CloseIcon } from "@chakra-ui/icons";
 import { List, ListItem } from "@chakra-ui/react";
@@ -62,10 +63,22 @@ export default function Vessels() {
   const history = useHistory();
   const [vessels, setVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Search state
   const [searchValue, setSearchValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(80);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+  const [sortBy, setSortBy] = useState("id");
+  const [sortOrder, setSortOrder] = useState("desc");
+  
   const [editingVessel, setEditingVessel] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
 
 
@@ -137,15 +150,29 @@ export default function Vessels() {
   };
 
 
-  // Fetch vessels
+  // Fetch vessels with pagination and search
   const fetchVessels = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await vesselsAPI.getVessels();
+      const response = await vesselsAPI.getVessels({
+        page,
+        page_size: pageSize,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        search: searchQuery,
+      });
       if (response.vessels && Array.isArray(response.vessels)) {
         setVessels(response.vessels);
+        setTotalCount(response.total_count || 0);
+        setTotalPages(response.total_pages || 0);
+        setHasNext(response.has_next || false);
+        setHasPrevious(response.has_previous || false);
       } else {
         setVessels([]);
+        setTotalCount(0);
+        setTotalPages(0);
+        setHasNext(false);
+        setHasPrevious(false);
       }
     } catch (error) {
       toast({
@@ -156,10 +183,14 @@ export default function Vessels() {
         isClosable: true,
       });
       setVessels([]);
+      setTotalCount(0);
+      setTotalPages(0);
+      setHasNext(false);
+      setHasPrevious(false);
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
 
   // Fetch API data for dropdowns (customers only)
   const fetchApiData = useCallback(async () => {
@@ -189,24 +220,30 @@ export default function Vessels() {
     fetchApiData();
   }, [fetchVessels, fetchApiData]);
 
-  // Filter vessels based on search
-  const filteredVessels = useMemo(() => {
-    if (!searchValue) return vessels;
-    return vessels.filter(vessel =>
-      vessel.name?.toLowerCase().includes(searchValue.toLowerCase())
-    );
-  }, [vessels, searchValue]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredVessels.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedVessels = filteredVessels.slice(startIndex, endIndex);
-
-  // Reset to first page when search or items per page changes
+  // Reset to first page when page size or search changes
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchValue, itemsPerPage]);
+    setPage(1);
+  }, [pageSize, searchQuery]);
+
+  // Handle search button click
+  const handleSearch = () => {
+    setSearchQuery(searchValue.trim());
+    setPage(1); // Reset to first page when searching
+  };
+
+  // Handle Enter key in search input
+  const handleSearchKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchValue("");
+    setSearchQuery("");
+    setPage(1);
+  };
 
   // Handle form input changes
   const handleInputChange = (field, value) => {
@@ -469,23 +506,57 @@ export default function Vessels() {
 
         {/* Search Section */}
         <Box px="25px">
-          <InputGroup w={{ base: "100%", md: "400px" }}>
-            <InputLeftElement>
-              <Icon as={MdSearch} color={searchIconColor} w="15px" h="15px" />
-            </InputLeftElement>
-            <Input
-              variant="outline"
-              fontSize="sm"
-              bg={inputBg}
-              color={inputText}
-              fontWeight="500"
-              _placeholder={{ color: "gray.400", fontSize: "14px" }}
-              borderRadius="8px"
-              placeholder="Search by vessel name..."
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-            />
-          </InputGroup>
+          <Flex gap={2} align="center">
+            <InputGroup flex={1} maxW={{ base: "100%", md: "500px" }}>
+              <InputLeftElement pointerEvents="none">
+                <Icon as={MdSearch} color={searchIconColor} w="15px" h="15px" />
+              </InputLeftElement>
+              <Input
+                variant="outline"
+                fontSize="sm"
+                bg={inputBg}
+                color={inputText}
+                fontWeight="500"
+                _placeholder={{ color: "gray.400", fontSize: "14px" }}
+                borderRadius="8px"
+                placeholder="Search by vessel name or IMO..."
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+              />
+              {searchValue && (
+                <InputRightElement>
+                  <IconButton
+                    aria-label="Clear search"
+                    icon={<MdClear />}
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleClearSearch}
+                    h="1.75rem"
+                    w="1.75rem"
+                  />
+                </InputRightElement>
+              )}
+            </InputGroup>
+            <Button
+              leftIcon={<MdSearch />}
+              colorScheme="blue"
+              onClick={handleSearch}
+              isLoading={isLoading}
+              size="sm"
+            >
+              Search
+            </Button>
+            {searchQuery && (
+              <Button
+                variant="outline"
+                onClick={handleClearSearch}
+                size="sm"
+              >
+                Clear
+              </Button>
+            )}
+          </Flex>
         </Box>
 
         {/* Vessels Table */}
@@ -541,8 +612,14 @@ export default function Vessels() {
                 </Tr>
               </Thead>
               <Tbody>
-                {paginatedVessels.length > 0 ? (
-                  paginatedVessels.map((vessel, index) => {
+                {isLoading ? (
+                  <Tr>
+                    <Td colSpan={6} py="40px" textAlign="center">
+                      <Spinner size="lg" />
+                    </Td>
+                  </Tr>
+                ) : vessels.length > 0 ? (
+                  vessels.map((vessel, index) => {
                     // Get attachments information
                     const attachments = vessel.attachments || [];
 
@@ -658,95 +735,100 @@ export default function Vessels() {
         </Box>
 
         {/* Pagination Controls */}
-        <Box px="25px">
-          <Flex justify="space-between" align="center" py={4}>
-            {/* Records per page selector */}
-            <HStack spacing={3}>
-              <Text fontSize="sm" color="gray.600">
-                Records per page:
-              </Text>
-              <Select
-                size="sm"
-                w="80px"
-                value={itemsPerPage}
-                onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </Select>
-              <Text fontSize="sm" color="gray.600">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredVessels.length)} of {filteredVessels.length} records
-              </Text>
-            </HStack>
-
-            {/* Pagination buttons */}
-            <HStack spacing={2}>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(1)}
-                isDisabled={currentPage === 1}
-              >
-                First
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(currentPage - 1)}
-                isDisabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-
-              {/* Page numbers */}
-              <HStack spacing={1}>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-
-                  return (
-                    <Button
-                      key={pageNum}
-                      size="sm"
-                      variant={currentPage === pageNum ? "solid" : "outline"}
-                      colorScheme={currentPage === pageNum ? "blue" : "gray"}
-                      onClick={() => setCurrentPage(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+        {totalPages > 0 && (
+          <Box px="25px">
+            <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+              {/* Records per page selector */}
+              <HStack spacing={3}>
+                <Text fontSize="sm" color="gray.600">
+                  Show
+                </Text>
+                <Select
+                  size="sm"
+                  w="80px"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                >
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={80}>80</option>
+                  <option value={100}>100</option>
+                </Select>
+                <Text fontSize="sm" color="gray.600">
+                  per page
+                </Text>
+                <Text fontSize="sm" color="gray.600" ml={2}>
+                  Showing {vessels.length} of {totalCount} records
+                </Text>
               </HStack>
 
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(currentPage + 1)}
-                isDisabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentPage(totalPages)}
-                isDisabled={currentPage === totalPages}
-              >
-                Last
-              </Button>
-            </HStack>
-          </Flex>
-        </Box>
+              {/* Pagination buttons */}
+              <HStack spacing={2}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage(1)}
+                  isDisabled={!hasPrevious || page === 1}
+                >
+                  First
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage(page - 1)}
+                  isDisabled={!hasPrevious}
+                >
+                  Previous
+                </Button>
+
+                {/* Page numbers */}
+                <HStack spacing={1}>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (page <= 3) {
+                      pageNum = i + 1;
+                    } else if (page >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = page - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        size="sm"
+                        variant={page === pageNum ? "solid" : "outline"}
+                        colorScheme={page === pageNum ? "blue" : "gray"}
+                        onClick={() => setPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </HStack>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage(page + 1)}
+                  isDisabled={!hasNext}
+                >
+                  Next
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPage(totalPages)}
+                  isDisabled={!hasNext || page === totalPages}
+                >
+                  Last
+                </Button>
+              </HStack>
+            </Flex>
+          </Box>
+        )}
       </VStack>
 
       {/* Create/Edit Modal */}

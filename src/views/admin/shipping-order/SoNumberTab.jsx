@@ -19,6 +19,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -65,6 +66,7 @@ import {
   MdArrowUpward,
   MdArrowDownward,
   MdFilterList,
+  MdClear,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import {
@@ -132,7 +134,21 @@ const SoNumberTab = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Search state
   const [searchValue, setSearchValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(80);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+  const [sortBy, setSortBy] = useState("id");
+  const [sortOrder, setSortOrder] = useState("desc");
+  
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -290,12 +306,18 @@ const SoNumberTab = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await getShippingOrders();
+      const data = await getShippingOrders({
+        page,
+        page_size: pageSize,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        search: searchQuery,
+      });
 
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.orders)
-          ? data.orders
+      const list = Array.isArray(data.orders)
+        ? data.orders
+        : Array.isArray(data)
+          ? data
           : Array.isArray(data?.result)
             ? data.result
             : Array.isArray(data?.data)
@@ -308,6 +330,10 @@ const SoNumberTab = () => {
         .sort((a, b) => (b.id || 0) - (a.id || 0));
 
       setOrders(normalized);
+      setTotalCount(data.total_count || normalized.length);
+      setTotalPages(data.total_pages || 1);
+      setHasNext(data.has_next || false);
+      setHasPrevious(data.has_previous || false);
     } catch (error) {
       console.error("Failed to fetch shipping orders", error);
       const apiMessage =
@@ -321,14 +347,44 @@ const SoNumberTab = () => {
         duration: 5000,
         isClosable: true,
       });
+      setOrders([]);
+      setTotalCount(0);
+      setTotalPages(0);
+      setHasNext(false);
+      setHasPrevious(false);
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Reset to first page when page size or search changes
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, searchQuery]);
+
+  // Handle search button click
+  const handleSearch = () => {
+    setSearchQuery(searchValue.trim());
+    setPage(1); // Reset to first page when searching
+  };
+
+  // Handle Enter key in search input
+  const handleSearchKeyPress = (e) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
+
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchValue("");
+    setSearchQuery("");
+    setPage(1);
+  };
 
   // Fetch lookup data for client, vessel, destination selects
   useEffect(() => {
@@ -632,27 +688,8 @@ const SoNumberTab = () => {
   const filteredOrders = useMemo(() => {
     let filtered = [...orders];
 
-    // Apply text search filter
-    if (searchValue) {
-      const lowered = searchValue.toLowerCase();
-      filtered = filtered.filter((order) => {
-        const candidateValues = [
-          order.so_number,
-          getVesselName(order.vessel_id),
-          getClientName(order.client_id),
-          getDestinationDisplay(order),
-          getPICName(order.pic_new) || order.pic_name,
-          order.internal_remark,
-          order.client_case_invoice_ref,
-          order.vsls_agent_dtls,
-          order.next_action,
-        ];
-
-        return candidateValues.some((value) =>
-          value ? value.toString().toLowerCase().includes(lowered) : false
-        );
-      });
-    }
+    // Note: Text search is now handled server-side via searchQuery
+    // Client-side search (searchValue) is removed since we use server-side search
 
     // Helper function to normalize PIC ID for comparison
     const normalizePicId = (picId) => {
@@ -813,7 +850,6 @@ const SoNumberTab = () => {
     return filtered;
   }, [
     orders,
-    searchValue,
     activeFilters,
     activeATHPics,
     activeSINPics,
@@ -1321,7 +1357,7 @@ const SoNumberTab = () => {
           SO Number Tracker
         </Text>
         <HStack spacing="3">
-          <InputGroup maxW="260px">
+          <InputGroup maxW="400px">
             <InputLeftElement pointerEvents="none">
               <Icon as={MdSearch} color={placeholderColor} />
             </InputLeftElement>
@@ -1329,12 +1365,44 @@ const SoNumberTab = () => {
               placeholder="Search SO, client, vessel..."
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
+              onKeyPress={handleSearchKeyPress}
               bg={inputBg}
               color={inputText}
               borderColor={borderColor}
               size="sm"
             />
+            {searchValue && (
+              <InputRightElement>
+                <IconButton
+                  aria-label="Clear search"
+                  icon={<Icon as={MdClear} />}
+                  size="xs"
+                  variant="ghost"
+                  onClick={handleClearSearch}
+                  h="1.5rem"
+                  w="1.5rem"
+                />
+              </InputRightElement>
+            )}
           </InputGroup>
+          <Button
+            size="sm"
+            leftIcon={<Icon as={MdSearch} />}
+            colorScheme="blue"
+            onClick={handleSearch}
+            isLoading={isLoading}
+          >
+            Search
+          </Button>
+          {searchQuery && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleClearSearch}
+            >
+              Clear
+            </Button>
+          )}
           <IconButton
             size="sm"
             icon={<Icon as={MdRefresh} />}
@@ -1696,6 +1764,102 @@ const SoNumberTab = () => {
           <Tbody>{renderTableBody()}</Tbody>
         </Table>
       </Box>
+
+      {/* Pagination Controls */}
+      {totalPages > 0 && (
+        <Box px="25px">
+          <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+            {/* Page Size Selector and Info */}
+            <HStack spacing={3}>
+              <Text fontSize="sm" color="gray.600">
+                Show
+              </Text>
+              <Select
+                size="sm"
+                w="80px"
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+              >
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={80}>80</option>
+                <option value={100}>100</option>
+              </Select>
+              <Text fontSize="sm" color="gray.600">
+                per page
+              </Text>
+              <Text fontSize="sm" color="gray.600" ml={2}>
+                Showing {orders.length} of {totalCount} records
+              </Text>
+            </HStack>
+
+            {/* Pagination buttons */}
+            <HStack spacing={2}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage(1)}
+                isDisabled={!hasPrevious || page === 1}
+              >
+                First
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage(page - 1)}
+                isDisabled={!hasPrevious}
+              >
+                Previous
+              </Button>
+
+              {/* Page numbers */}
+              <HStack spacing={1}>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (page <= 3) {
+                    pageNum = i + 1;
+                  } else if (page >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = page - 2 + i;
+                  }
+
+                  return (
+                    <Button
+                      key={pageNum}
+                      size="sm"
+                      variant={page === pageNum ? "solid" : "outline"}
+                      colorScheme={page === pageNum ? "blue" : "gray"}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </HStack>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage(page + 1)}
+                isDisabled={!hasNext}
+              >
+                Next
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPage(totalPages)}
+                isDisabled={!hasNext || page === totalPages}
+              >
+                Last
+              </Button>
+            </HStack>
+          </Flex>
+        </Box>
+      )}
 
       <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
         <ModalOverlay />

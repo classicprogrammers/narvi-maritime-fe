@@ -7,6 +7,12 @@ const initialState = {
   updateLoading: false,
   updateError: null,
   count: 0,
+  total_count: 0,
+  page: 1,
+  page_size: 50,
+  total_pages: 0,
+  has_next: false,
+  has_previous: false,
 };
 
 const stockSlice = createSlice({
@@ -20,8 +26,14 @@ const stockSlice = createSlice({
     },
     getStockListSuccess: (state, action) => {
       state.isLoading = false;
-      state.stockList = action.payload.stock_list || [];
+      state.stockList = action.payload.stock_list || action.payload.stockList || [];
       state.count = action.payload.count || 0;
+      state.total_count = action.payload.total_count || 0;
+      state.page = action.payload.page || 1;
+      state.page_size = action.payload.page_size || 80;
+      state.total_pages = action.payload.total_pages || 0;
+      state.has_next = action.payload.has_next || false;
+      state.has_previous = action.payload.has_previous || false;
       state.error = null;
     },
     getStockListFailure: (state, action) => {
