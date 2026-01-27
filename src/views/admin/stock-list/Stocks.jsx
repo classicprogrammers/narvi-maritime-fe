@@ -1757,6 +1757,16 @@ export default function Stocks() {
         }
     };
 
+    // Handle select all button
+    const handleClientViewSelectAllClick = () => {
+        setClientViewSelectedRows(new Set(filteredAndSortedStock.map(item => item.id || item.stock_item_id)));
+    };
+
+    // Handle clear selection button
+    const handleClientViewClearSelection = () => {
+        setClientViewSelectedRows(new Set());
+    };
+
     // Copy selected rows as HTML table
     const handleCopySelectedRows = async () => {
         if (clientViewSelectedRows.size === 0) return;
@@ -1765,10 +1775,33 @@ export default function Stocks() {
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
 
-        // Build HTML table (without headers - only data rows)
-        let htmlTable = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif;"><tbody>';
+        // Build HTML table with headers
+        let htmlTable = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; font-family: Arial, sans-serif;"><thead><tr>';
 
-        // Add data rows (no header row)
+        // Add header row based on filter type
+        if (clientViewFilterType === 'filter1') {
+            htmlTable += '<th>SUPPLIER</th>';
+            htmlTable += '<th>PO NUMBER</th>';
+            htmlTable += '<th>BOXES</th>';
+            htmlTable += '<th>WEIGHT KGS</th>';
+            htmlTable += '<th>STOCK STATUS</th>';
+            htmlTable += '<th>DESTINATION</th>';
+        } else {
+            htmlTable += '<th>SUPPLIER</th>';
+            htmlTable += '<th>PO NUMBER</th>';
+            htmlTable += '<th>STOCK STATUS</th>';
+            htmlTable += '<th>ORIGIN</th>';
+            htmlTable += '<th>DESTINATION</th>';
+            htmlTable += '<th>SHIPPING DOCS</th>';
+            htmlTable += '<th>EXPORT DOC 1</th>';
+            htmlTable += '<th>EXPORT DOC 2</th>';
+            htmlTable += '<th>BOXES</th>';
+            htmlTable += '<th>WEIGHT KGS</th>';
+        }
+
+        htmlTable += '</tr></thead><tbody>';
+
+        // Add data rows
         selectedItems.forEach(item => {
             const statusStyle = getStatusStyle(item.stock_status);
             htmlTable += '<tr>';
@@ -1816,19 +1849,60 @@ export default function Stocks() {
 
         htmlTable += '</tbody></table>';
 
+        // Generate plain text version with headers and proper formatting
+        const generatePlainText = () => {
+            let plainText = '';
+            
+            // Add header row
+            if (clientViewFilterType === 'filter1') {
+                plainText += 'SUPPLIER\tPO NUMBER\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
+            } else {
+                plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
+            }
+            
+            // Add data rows
+            selectedItems.forEach(item => {
+                if (clientViewFilterType === 'filter1') {
+                    const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                    const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
+                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
+                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
+                    const status = getStatusLabel(item.stock_status);
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
+                    
+                    plainText += `${supplier}\t${poNumber}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
+                } else {
+                    const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                    const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
+                    const status = getStatusLabel(item.stock_status);
+                    const origin = item.origin_text || item.origin || getCountryName(item.origin_id) || '-';
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
+                    const shippingDoc = item.shipping_doc || '-';
+                    const exportDoc = item.export_doc || '-';
+                    const exportDoc2 = item.export_doc_2 || '-';
+                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
+                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
+                    
+                    plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
+                }
+            });
+            
+            return plainText;
+        };
+
         try {
             // Try modern Clipboard API with HTML support
             if (navigator.clipboard && window.ClipboardItem) {
                 await navigator.clipboard.write([
                     new ClipboardItem({
                         'text/html': new Blob([htmlTable], { type: 'text/html' }),
-                        'text/plain': new Blob([htmlTable.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')], { type: 'text/plain' })
+                        'text/plain': new Blob([generatePlainText()], { type: 'text/plain' })
                     })
                 ]);
             } else {
                 // Fallback: Create a temporary element and copy
                 const textarea = document.createElement('textarea');
-                textarea.value = htmlTable.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/<br>/g, '\n');
+                textarea.value = generatePlainText();
                 textarea.style.position = 'fixed';
                 textarea.style.opacity = '0';
                 document.body.appendChild(textarea);
@@ -4719,6 +4793,39 @@ export default function Stocks() {
                                         ))}
                                     </Flex>
                                 </Card>
+
+                                {/* Selection Controls */}
+                                <Box px="25px" mb="4">
+                                    <Flex justify="space-between" align="center">
+                                        <HStack spacing={3}>
+                                            <Button
+                                                size="sm"
+                                                leftIcon={<Icon as={MdCheckBox} />}
+                                                colorScheme="blue"
+                                                variant="outline"
+                                                onClick={handleClientViewSelectAllClick}
+                                                isDisabled={filteredAndSortedStock.length === 0}
+                                            >
+                                                Select All
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                leftIcon={<Icon as={MdCheckBoxOutlineBlank} />}
+                                                colorScheme="gray"
+                                                variant="outline"
+                                                onClick={handleClientViewClearSelection}
+                                                isDisabled={clientViewSelectedRows.size === 0}
+                                            >
+                                                Clear Selection
+                                            </Button>
+                                            {clientViewSelectedRows.size > 0 && (
+                                                <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                    {clientViewSelectedRows.size} item(s) selected
+                                                </Text>
+                                            )}
+                                        </HStack>
+                                    </Flex>
+                                </Box>
 
                                 {/* Table with fields for client view only */}
                                 <Box overflowX="auto" position="relative" minH="400px">
