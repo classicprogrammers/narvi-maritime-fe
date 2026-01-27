@@ -84,6 +84,7 @@ import {
   updateShippingOrder,
   deleteShippingOrder,
 } from "../../../api/shippingOrders";
+import { useHistory, Link } from "react-router-dom";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -132,6 +133,7 @@ const SoNumberTab = () => {
   const hoverBg = useColorModeValue("gray.100", "gray.600");
 
   const toast = useToast();
+  const history = useHistory();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -427,6 +429,17 @@ const SoNumberTab = () => {
   useEffect(() => {
     sessionStorage.setItem('soNextActionSortOption', nextActionSortOption);
   }, [nextActionSortOption]);
+
+  // Persist form data to sessionStorage when in create mode (not edit mode)
+  useEffect(() => {
+    if (formData && !editingOrder && formDisclosure.isOpen) {
+      try {
+        sessionStorage.setItem('soCreateFormDraft', JSON.stringify(formData));
+      } catch (error) {
+        console.error('Failed to save form draft:', error);
+      }
+    }
+  }, [formData, editingOrder, formDisclosure.isOpen]);
 
   // Fetch quotations for searchable quotation field
   useEffect(() => {
@@ -869,7 +882,28 @@ const SoNumberTab = () => {
 
   const handleCreate = () => {
     setEditingOrder(null);
-    resetForm();
+    
+    // Try to restore draft from sessionStorage
+    try {
+      const savedDraft = sessionStorage.getItem('soCreateFormDraft');
+      if (savedDraft) {
+        const draftData = JSON.parse(savedDraft);
+        setFormData(draftData);
+        toast({
+          title: "Draft restored",
+          description: "Your previous form data has been restored. You can continue where you left off.",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+      } else {
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Failed to restore draft:', error);
+      resetForm();
+    }
+    
     formDisclosure.onOpen();
   };
 
@@ -879,9 +913,16 @@ const SoNumberTab = () => {
     formDisclosure.onOpen();
   };
 
-  const handleFormClose = () => {
+  const handleFormClose = (clearDraft = false) => {
     setEditingOrder(null);
     setFormData(null);
+    
+    // Clear draft only if explicitly requested (e.g., after successful submit)
+    if (clearDraft) {
+      sessionStorage.removeItem('soCreateFormDraft');
+    }
+    // Otherwise, draft is preserved automatically by the useEffect that saves formData
+    
     formDisclosure.onClose();
   };
 
@@ -1198,7 +1239,13 @@ const SoNumberTab = () => {
       }
 
       await fetchOrders();
-      handleFormClose();
+      
+      // Clear draft on successful submit
+      if (!editingOrder) {
+        sessionStorage.removeItem('soCreateFormDraft');
+      }
+      
+      handleFormClose(true); // Clear draft on successful submit
     } catch (error) {
       console.error("Failed to save shipping order", error);
       toast({
@@ -1962,7 +2009,31 @@ const SoNumberTab = () => {
                       />
                     </FormControl>
                     <FormControl flex="1" isRequired minW="260px">
-                      <FormLabel>Vessel</FormLabel>
+                      <Flex justify="space-between" align="center" mb={1}>
+                        <FormLabel mb={0}>Vessel</FormLabel>
+                        {!editingOrder && (
+                          <Button
+                            as={Link}
+                            to="/admin/configurations/vessels"
+                            target="_blank"
+                            size="xs"
+                            variant="link"
+                            colorScheme="blue"
+                            onClick={() => {
+                              // Save draft before navigating
+                              try {
+                                if (formData) {
+                                  sessionStorage.setItem('soCreateFormDraft', JSON.stringify(formData));
+                                }
+                              } catch (error) {
+                                console.error('Failed to save draft:', error);
+                              }
+                            }}
+                          >
+                            Open Vessel DB →
+                          </Button>
+                        )}
+                      </Flex>
                       <SimpleSearchableSelect
                         value={formData.vessel_id}
                         onChange={(value) =>
@@ -2222,6 +2293,60 @@ const SoNumberTab = () => {
             )}
           </ModalBody>
           <ModalFooter>
+            {!editingOrder && (
+              <>
+                <Button
+                  as={Link}
+                  to="/admin/configurations/vessels"
+                  target="_blank"
+                  variant="outline"
+                  mr={3}
+                  onClick={() => {
+                    // Save draft before navigating
+                    try {
+                      if (formData) {
+                        sessionStorage.setItem('soCreateFormDraft', JSON.stringify(formData));
+                      }
+                    } catch (error) {
+                      console.error('Failed to save draft:', error);
+                    }
+                  }}
+                >
+                  Open Vessel DB
+                </Button>
+                <Button
+                  variant="outline"
+                  mr={3}
+                  onClick={() => {
+                    // Save draft and close modal
+                    try {
+                      if (formData) {
+                        sessionStorage.setItem('soCreateFormDraft', JSON.stringify(formData));
+                        toast({
+                          title: "Draft saved",
+                          description: "Your form has been saved. You can continue later by clicking 'New SO' again.",
+                          status: "success",
+                          duration: 3000,
+                          isClosable: true,
+                        });
+                      }
+                    } catch (error) {
+                      console.error('Failed to save draft:', error);
+                      toast({
+                        title: "Save failed",
+                        description: "Unable to save draft. Please try again.",
+                        status: "error",
+                        duration: 2000,
+                        isClosable: true,
+                      });
+                    }
+                    handleFormClose();
+                  }}
+                >
+                  Save Draft & Close
+                </Button>
+              </>
+            )}
             <Button variant="ghost" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>
