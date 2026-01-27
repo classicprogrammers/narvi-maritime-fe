@@ -67,6 +67,7 @@ import {
   MdArrowDownward,
   MdFilterList,
   MdClear,
+  MdContentCopy,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import {
@@ -134,11 +135,11 @@ const SoNumberTab = () => {
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Search state
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(80);
@@ -148,7 +149,7 @@ const SoNumberTab = () => {
   const [hasPrevious, setHasPrevious] = useState(false);
   const [sortBy, setSortBy] = useState("id");
   const [sortOrder, setSortOrder] = useState("desc");
-  
+
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -1009,88 +1010,88 @@ const SoNumberTab = () => {
 
       // Check each field for changes
       const fields = [
-        { 
-          key: 'client_id', 
+        {
+          key: 'client_id',
           value: data.client_id || null,
           originalValue: originalData.client_id || null
         },
-        { 
-          key: 'vessel_id', 
+        {
+          key: 'vessel_id',
           value: data.vessel_id || null,
           originalValue: originalData.vessel_id || null
         },
-        { 
-          key: 'destination_type', 
+        {
+          key: 'destination_type',
           value: data.destination_type || null,
           originalValue: originalData.destination_type || null
         },
-        { 
-          key: 'destination', 
+        {
+          key: 'destination',
           value: data.destination || null,
           originalValue: originalData.destination || null
         },
-        { 
-          key: 'country_id', 
+        {
+          key: 'country_id',
           value: data.country_id || null,
           originalValue: originalData.country_id || null
         },
-        { 
-          key: 'destination_id', 
+        {
+          key: 'destination_id',
           value: data.destination_id || null,
           originalValue: originalData.destination_id || null
         },
-        { 
-          key: 'done', 
+        {
+          key: 'done',
           value: data.done || "active",
           originalValue: originalData.done || null
         },
-        { 
-          key: 'pic_new', 
+        {
+          key: 'pic_new',
           value: data.pic_new || null,
           originalValue: originalData.pic_new || null
         },
-        { 
-          key: 'quotation_id', 
+        {
+          key: 'quotation_id',
           value: data.quotation_id === null || data.quotation_id === undefined ? "" : data.quotation_id,
           originalValue: originalData.quotation_id === null || originalData.quotation_id === undefined ? "" : originalData.quotation_id
         },
-        { 
-          key: 'eta_date', 
+        {
+          key: 'eta_date',
           value: toDateTime(data.eta_date),
           originalValue: normalizeOriginalDateTime(originalData.eta_date),
           compareValue: data.eta_date ? data.eta_date.split(' ')[0] : null
         },
-        { 
-          key: 'etb', 
+        {
+          key: 'etb',
           value: data.etb && data.etb !== false ? toDateOnly(data.etb) : false,
           originalValue: normalizeOriginalDate(originalData.etb),
           compareValue: data.etb && data.etb !== false ? toDateOnly(data.etb) : null
         },
-        { 
-          key: 'etd', 
+        {
+          key: 'etd',
           value: data.etd && data.etd !== false ? toDateOnly(data.etd) : false,
           originalValue: normalizeOriginalDate(originalData.etd),
           compareValue: data.etd && data.etd !== false ? toDateOnly(data.etd) : null
         },
-        { 
-          key: 'date_order', 
+        {
+          key: 'date_order',
           value: toDateTime(data.date_created || data.date_order),
           originalValue: normalizeOriginalDateTime(originalData.date_order || originalData.date_created),
           compareValue: data.date_created || data.date_order ? (data.date_created || data.date_order).split(' ')[0] : null
         },
-        { 
-          key: 'next_action', 
+        {
+          key: 'next_action',
           value: data.next_action ? toDateOnly(data.next_action) : null,
           originalValue: normalizeOriginalDate(originalData.next_action),
           compareValue: data.next_action ? toDateOnly(data.next_action) : null
         },
-        { 
-          key: 'internal_remark', 
+        {
+          key: 'internal_remark',
           value: data.internal_remark || null,
           originalValue: originalData.internal_remark || null
         },
-        { 
-          key: 'client_case_invoice_ref', 
+        {
+          key: 'client_case_invoice_ref',
           value: data.client_case_invoice_ref || null,
           originalValue: originalData.client_case_invoice_ref || null
         },
@@ -1137,19 +1138,19 @@ const SoNumberTab = () => {
     if (data.quotation_id !== null && data.quotation_id !== undefined) {
       payload.quotation_id = data.quotation_id;
     }
-    
+
     const etaDate = toDateTime(data.eta_date);
     if (hasValue(etaDate)) payload.eta_date = etaDate;
-    
+
     const etbDate = data.etb && data.etb !== false ? toDateOnly(data.etb) : false;
     if (hasValue(etbDate)) payload.etb = etbDate;
-    
+
     const etdDate = data.etd && data.etd !== false ? toDateOnly(data.etd) : false;
     if (hasValue(etdDate)) payload.etd = etdDate;
-    
+
     const dateOrder = toDateTime(data.date_created || data.date_order);
     if (hasValue(dateOrder)) payload.date_order = dateOrder;
-    
+
     if (hasValue(data.next_action)) payload.next_action = toDateOnly(data.next_action);
     if (hasValue(data.internal_remark)) payload.internal_remark = data.internal_remark;
     if (hasValue(data.client_case_invoice_ref)) payload.client_case_invoice_ref = data.client_case_invoice_ref;
@@ -1223,7 +1224,7 @@ const SoNumberTab = () => {
   };
 
   const renderTableBody = () => {
-      if (isLoading && orders.length === 0) {
+    if (isLoading && orders.length === 0) {
       return (
         <Tr>
           <Td colSpan={19}>
@@ -1250,6 +1251,7 @@ const SoNumberTab = () => {
     return filteredOrders.map((order) => (
       <Tr key={order.id || order.so_number}>
         <Td>{getSoNumber(order)}</Td>
+        <Td>{order.next_action ? formatDate(order.next_action) : "-"}</Td>
         <Td>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Td>
         <Td>
           <Badge
@@ -1284,7 +1286,6 @@ const SoNumberTab = () => {
         <Td>{getClientCode(order.client_id)}</Td>
         <Td>{getVesselName(order.vessel_id)}</Td>
         <Td>{getDestinationDisplay(order)}</Td>
-        <Td>{order.next_action ? formatDate(order.next_action) : "-"}</Td>
         <Td>{getEtaDisplay(order)}</Td>
         <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>
         <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
@@ -1391,6 +1392,7 @@ const SoNumberTab = () => {
             colorScheme="blue"
             onClick={handleSearch}
             isLoading={isLoading}
+            px={10}
           >
             Search
           </Button>
@@ -1416,7 +1418,7 @@ const SoNumberTab = () => {
             leftIcon={<Icon as={MdAdd} />}
             colorScheme="blue"
             onClick={handleCreate}
-            px={6}
+            px={10}
           >
             New SO
           </Button>
@@ -1715,13 +1717,13 @@ const SoNumberTab = () => {
             <Tr>
               {[
                 { label: "SO Number", field: "so_number", sortable: true },
+                { label: "Next Action", field: "next_action", sortable: true },
                 { label: "Date Created", field: "date_created", sortable: true },
                 { label: "Status", field: "done", sortable: false },
                 { label: "Person in Charge", field: "pic", sortable: true },
                 { label: "Client Code", field: "client", sortable: true },
                 { label: "Vessel Name", field: "vessel_name", sortable: false },
                 { label: "Destination", field: "destination", sortable: false },
-                { label: "Next Action", field: "next_action", sortable: true },
                 { label: "ETA", field: "eta_date", sortable: false },
                 { label: "ETB", field: "etb", sortable: false },
                 { label: "ETD", field: "etd", sortable: false },
@@ -2251,6 +2253,33 @@ const SoNumberTab = () => {
                   setVslsAgentDtlsModalValue(e.target.value);
                 }
               }}
+              onPaste={(e) => {
+                if (vslsAgentDtlsModalMode === "edit") {
+                  e.preventDefault();
+                  const pastedText = e.clipboardData.getData('text');
+                  // Normalize line breaks: convert all line break types to single LF
+                  // This prevents CRLF (\r\n) from creating double line breaks
+                  const normalizedText = pastedText
+                    .replace(/\r\n/g, '\n')  // Convert Windows line breaks (CRLF) to single LF
+                    .replace(/\r/g, '\n');  // Convert old Mac line breaks (CR) to LF
+                  
+                  // Get current cursor position
+                  const textarea = e.target;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const currentValue = vslsAgentDtlsModalValue;
+                  
+                  // Insert normalized text at cursor position
+                  const newValue = currentValue.substring(0, start) + normalizedText + currentValue.substring(end);
+                  
+                  setVslsAgentDtlsModalValue(newValue);
+                  
+                  // Set cursor position after pasted text
+                  setTimeout(() => {
+                    textarea.selectionStart = textarea.selectionEnd = start + normalizedText.length;
+                  }, 0);
+                }
+              }}
               isReadOnly={vslsAgentDtlsModalMode !== "edit"}
               rows={16}
               resize="vertical"
@@ -2258,17 +2287,81 @@ const SoNumberTab = () => {
             />
           </ModalBody>
           <ModalFooter>
+            {/* Copy button - available in both view and edit modes */}
+            <Button
+              leftIcon={<Icon as={MdContentCopy} />}
+              variant="outline"
+              mr={3}
+              onClick={async () => {
+                try {
+                  if (vslsAgentDtlsModalValue && vslsAgentDtlsModalValue.trim() !== "") {
+                    await navigator.clipboard.writeText(vslsAgentDtlsModalValue);
+                    toast({
+                      title: "Copied to clipboard",
+                      description: "VSLS Agent Details copied to clipboard",
+                      status: "success",
+                      duration: 2000,
+                      isClosable: true,
+                    });
+                  } else {
+                    toast({
+                      title: "Nothing to copy",
+                      description: "The field is empty",
+                      status: "warning",
+                      duration: 2000,
+                      isClosable: true,
+                    });
+                  }
+                } catch (err) {
+                  console.error("Failed to copy:", err);
+                  toast({
+                    title: "Copy failed",
+                    description: "Unable to copy to clipboard. Please try again.",
+                    status: "error",
+                    duration: 2000,
+                    isClosable: true,
+                  });
+                }
+              }}
+            >
+              Copy
+            </Button>
             {vslsAgentDtlsModalMode === "edit" && (
               <Button
                 colorScheme="blue"
                 mr={3}
-                onClick={() => {
+                onClick={async () => {
                   if (vslsAgentDtlsModalTargetField && formData) {
                     setFormData((prev) => ({
                       ...prev,
                       [vslsAgentDtlsModalTargetField]: vslsAgentDtlsModalValue,
                     }));
                   }
+
+                  // Copy to clipboard when saving
+                  try {
+                    if (vslsAgentDtlsModalValue && vslsAgentDtlsModalValue.trim() !== "") {
+                      await navigator.clipboard.writeText(vslsAgentDtlsModalValue);
+                      toast({
+                        title: "Saved and copied",
+                        description: "VSLS Agent Details saved and copied to clipboard",
+                        status: "success",
+                        duration: 2000,
+                        isClosable: true,
+                      });
+                    }
+                  } catch (err) {
+                    console.error("Failed to copy:", err);
+                    // Still show success for save, but warn about copy failure
+                    toast({
+                      title: "Saved",
+                      description: "VSLS Agent Details saved (copy to clipboard failed)",
+                      status: "warning",
+                      duration: 2000,
+                      isClosable: true,
+                    });
+                  }
+
                   vslsAgentDtlsDisclosure.onClose();
                   setVslsAgentDtlsModalTargetField(null);
                 }}
