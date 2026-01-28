@@ -179,6 +179,26 @@ export default function Stocks() {
         const stored = sessionStorage.getItem('stocksActiveTab');
         return stored ? Number(stored) : 0;
     });
+
+    // Pagination state for Stock View / Edit tab (activeTab === 0)
+    const [stockViewPage, setStockViewPage] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewPage');
+        return stored ? Number(stored) : 1;
+    });
+    const [stockViewPageSize, setStockViewPageSize] = useState(() => {
+        const stored = sessionStorage.getItem('stocksStockViewPageSize');
+        return stored ? Number(stored) : 50;
+    });
+
+    // Pagination state for Client View tab (activeTab === 1)
+    const [clientViewPage, setClientViewPage] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewPage');
+        return stored ? Number(stored) : 1;
+    });
+    const [clientViewPageSize, setClientViewPageSize] = useState(() => {
+        const stored = sessionStorage.getItem('stocksClientViewPageSize');
+        return stored ? Number(stored) : 50;
+    });
     const [editingRowIds, setEditingRowIds] = useState(() => {
         const stored = sessionStorage.getItem('stocksEditingRowIds');
         return stored ? new Set(JSON.parse(stored)) : new Set();
@@ -536,6 +556,23 @@ export default function Stocks() {
     useEffect(() => {
         sessionStorage.setItem('stocksActiveTab', activeTab.toString());
     }, [activeTab]);
+
+    // Persist pagination state to sessionStorage
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewPage', stockViewPage.toString());
+    }, [stockViewPage]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksStockViewPageSize', stockViewPageSize.toString());
+    }, [stockViewPageSize]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewPage', clientViewPage.toString());
+    }, [clientViewPage]);
+
+    useEffect(() => {
+        sessionStorage.setItem('stocksClientViewPageSize', clientViewPageSize.toString());
+    }, [clientViewPageSize]);
 
     useEffect(() => {
         sessionStorage.setItem('stocksEditingRowIds', JSON.stringify(Array.from(editingRowIds)));
@@ -1748,18 +1785,40 @@ export default function Stocks() {
         });
     };
 
-    // Handle select all for client view
+    // Handle select all for client view (selects all items on current page)
     const handleClientViewSelectAll = () => {
-        if (clientViewSelectedRows.size === filteredAndSortedStock.length) {
-            setClientViewSelectedRows(new Set());
-        } else {
-            setClientViewSelectedRows(new Set(filteredAndSortedStock.map(item => item.id || item.stock_item_id)));
+        if (activeTab === 1) {
+            const currentPageItems = displayedItems.map(item => item.id || item.stock_item_id);
+            const allCurrentPageSelected = currentPageItems.every(id => clientViewSelectedRows.has(id));
+
+            if (allCurrentPageSelected) {
+                // Deselect all items on current page
+                setClientViewSelectedRows(prev => {
+                    const newSet = new Set(prev);
+                    currentPageItems.forEach(id => newSet.delete(id));
+                    return newSet;
+                });
+            } else {
+                // Select all items on current page
+                setClientViewSelectedRows(prev => {
+                    const newSet = new Set(prev);
+                    currentPageItems.forEach(id => newSet.add(id));
+                    return newSet;
+                });
+            }
         }
     };
 
-    // Handle select all button
+    // Handle select all button (selects all items on current page)
     const handleClientViewSelectAllClick = () => {
-        setClientViewSelectedRows(new Set(filteredAndSortedStock.map(item => item.id || item.stock_item_id)));
+        if (activeTab === 1) {
+            const currentPageItems = displayedItems.map(item => item.id || item.stock_item_id);
+            setClientViewSelectedRows(prev => {
+                const newSet = new Set(prev);
+                currentPageItems.forEach(id => newSet.add(id));
+                return newSet;
+            });
+        }
     };
 
     // Handle clear selection button
@@ -1852,14 +1911,14 @@ export default function Stocks() {
         // Generate plain text version with headers and proper formatting
         const generatePlainText = () => {
             let plainText = '';
-            
+
             // Add header row
             if (clientViewFilterType === 'filter1') {
                 plainText += 'SUPPLIER\tPO NUMBER\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
             } else {
                 plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
             }
-            
+
             // Add data rows
             selectedItems.forEach(item => {
                 if (clientViewFilterType === 'filter1') {
@@ -1869,7 +1928,7 @@ export default function Stocks() {
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                     const status = getStatusLabel(item.stock_status);
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                    
+
                     plainText += `${supplier}\t${poNumber}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
                 } else {
                     const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
@@ -1882,11 +1941,11 @@ export default function Stocks() {
                     const exportDoc2 = item.export_doc_2 || '-';
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                    
+
                     plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
                 }
             });
-            
+
             return plainText;
         };
 
@@ -1967,22 +2026,58 @@ export default function Stocks() {
     // Handle select all
     const handleSelectAll = (isSelected) => {
         if (isSelected) {
-            // Use the same filtered data that's displayed in the table
-            const filteredItems = activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
-            const allIds = filteredItems.map(item => item.id);
-            setSelectedRows(new Set(allIds));
+            // Select all items on current page
+            const allIds = displayedItems.map(item => item.id);
+            setSelectedRows(prev => {
+                const newSet = new Set(prev);
+                allIds.forEach(id => newSet.add(id));
+                return newSet;
+            });
         } else {
-            setSelectedRows(new Set());
+            // Deselect all items on current page
+            const allIds = displayedItems.map(item => item.id);
+            setSelectedRows(prev => {
+                const newSet = new Set(prev);
+                allIds.forEach(id => newSet.delete(id));
+                return newSet;
+            });
         }
+    };
+
+    // Get paginated items for display
+    const getPaginatedItems = (items, page, pageSize) => {
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        return items.slice(startIndex, endIndex);
     };
 
     // Check if all items are selected - use the same filtered data that's displayed in the table
     const getDisplayedItems = () => {
-        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
+        const allItems = activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
+        // Return paginated items for display
+        if (activeTab === 0) {
+            return getPaginatedItems(allItems, stockViewPage, stockViewPageSize);
+        } else {
+            return getPaginatedItems(allItems, clientViewPage, clientViewPageSize);
+        }
     };
     const displayedItems = getDisplayedItems();
+
+    // Get all filtered items (for selection and counts)
+    const getAllFilteredItems = () => {
+        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
+    };
+    const allFilteredItems = getAllFilteredItems();
     const allItemsSelected = displayedItems.length > 0 && displayedItems.every(item => selectedRows.has(item.id));
     const someItemsSelected = displayedItems.some(item => selectedRows.has(item.id));
+
+    // For Stock View tab - check if all items on current page are selected
+    const allPageItemsSelected = activeTab === 0
+        ? displayedItems.length > 0 && displayedItems.every(item => selectedRows.has(item.id))
+        : allItemsSelected;
+    const somePageItemsSelected = activeTab === 0
+        ? displayedItems.some(item => selectedRows.has(item.id))
+        : someItemsSelected;
 
     // Handle inline edit start - for single row
     // Helper to extract ID value (handles false, null, undefined, objects, and primitives)
@@ -4233,7 +4328,7 @@ export default function Stocks() {
 
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                    Showing {getFilteredStockByStatus().length} of {stockList.length} stock items
+                                                    {allFilteredItems.length} of {stockList.length} stock items
                                                     {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
@@ -4288,15 +4383,15 @@ export default function Stocks() {
 
                                 {/* Select All and Bulk Action Buttons */}
                                 <Flex px="25px" mb="20px" align="center" gap="3" flexWrap="wrap">
-                                    {getFilteredStockByStatus().length > 0 && (
+                                    {allFilteredItems.length > 0 && (
                                         <Button
-                                            leftIcon={<Icon as={allItemsSelected ? MdCheckBox : MdCheckBoxOutlineBlank} />}
+                                            leftIcon={<Icon as={allPageItemsSelected ? MdCheckBox : MdCheckBoxOutlineBlank} />}
                                             colorScheme="blue"
                                             size="sm"
-                                            variant={allItemsSelected ? "solid" : "outline"}
-                                            onClick={() => handleSelectAll(!allItemsSelected)}
+                                            variant={allPageItemsSelected ? "solid" : "outline"}
+                                            onClick={() => handleSelectAll(!allPageItemsSelected)}
                                         >
-                                            {allItemsSelected ? "Deselect All" : `Select All (${getFilteredStockByStatus().length})`}
+                                            {allPageItemsSelected ? "Deselect Page" : `Select Page (${displayedItems.length})`}
                                         </Button>
                                     )}
                                     {selectedRows.size > 0 && (
@@ -4467,7 +4562,7 @@ export default function Stocks() {
                                                     </Td>
                                                 </Tr>
                                             ) : (
-                                                getFilteredStockByStatus().map((item, index) => {
+                                                displayedItems.map((item, index) => {
                                                     const statusStyle = getStatusStyle(item.stock_status);
                                                     const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                     return (
@@ -4647,6 +4742,132 @@ export default function Stocks() {
                                         </Tbody>
                                     </Table>
                                 </Box>
+
+                                {/* Pagination Controls for Stock View / Edit */}
+                                {allFilteredItems.length > 0 && (() => {
+                                    const totalRows = allFilteredItems.length;
+                                    const totalPages = Math.ceil(totalRows / stockViewPageSize);
+                                    const hasNext = stockViewPage < totalPages;
+                                    const hasPrevious = stockViewPage > 1;
+                                    const startRow = (stockViewPage - 1) * stockViewPageSize + 1;
+                                    const endRow = Math.min(stockViewPage * stockViewPageSize, totalRows);
+
+                                    return (
+                                        <Box px="25px" py={4}>
+                                            <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
+                                                {/* Page Size Selector and Info */}
+                                                <HStack spacing={3}>
+                                                    <Text fontSize="sm" color={textColor}>
+                                                        Show
+                                                    </Text>
+                                                    <Select
+                                                        size="sm"
+                                                        w="80px"
+                                                        value={stockViewPageSize}
+                                                        onChange={(e) => {
+                                                            setStockViewPageSize(Number(e.target.value));
+                                                            setStockViewPage(1); // Reset to first page when changing page size
+                                                        }}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        <option value={20}>20</option>
+                                                        <option value={50}>50</option>
+                                                        <option value={100}>100</option>
+                                                        <option value={200}>200</option>
+                                                    </Select>
+                                                    <Text fontSize="sm" color={textColor}>
+                                                        per page
+                                                    </Text>
+                                                    <Text fontSize="sm" color={textColor} ml={2}>
+                                                        Showing {startRow}-{endRow} of {totalRows} items
+                                                    </Text>
+                                                </HStack>
+
+                                                {/* Pagination buttons */}
+                                                <HStack spacing={2}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setStockViewPage(1)}
+                                                        isDisabled={!hasPrevious || stockViewPage === 1}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        First
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setStockViewPage(stockViewPage - 1)}
+                                                        isDisabled={!hasPrevious}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Previous
+                                                    </Button>
+
+                                                    {/* Page numbers */}
+                                                    <HStack spacing={1}>
+                                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                            let pageNum;
+                                                            if (totalPages <= 5) {
+                                                                pageNum = i + 1;
+                                                            } else if (stockViewPage <= 3) {
+                                                                pageNum = i + 1;
+                                                            } else if (stockViewPage >= totalPages - 2) {
+                                                                pageNum = totalPages - 4 + i;
+                                                            } else {
+                                                                pageNum = stockViewPage - 2 + i;
+                                                            }
+
+                                                            return (
+                                                                <Button
+                                                                    key={pageNum}
+                                                                    size="sm"
+                                                                    variant={stockViewPage === pageNum ? "solid" : "outline"}
+                                                                    colorScheme={stockViewPage === pageNum ? "blue" : "gray"}
+                                                                    onClick={() => setStockViewPage(pageNum)}
+                                                                    bg={stockViewPage === pageNum ? undefined : inputBg}
+                                                                    color={stockViewPage === pageNum ? undefined : inputText}
+                                                                    borderColor={borderColor}
+                                                                >
+                                                                    {pageNum}
+                                                                </Button>
+                                                            );
+                                                        })}
+                                                    </HStack>
+
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setStockViewPage(stockViewPage + 1)}
+                                                        isDisabled={!hasNext}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Next
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setStockViewPage(totalPages)}
+                                                        isDisabled={!hasNext || stockViewPage === totalPages}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Last
+                                                    </Button>
+                                                </HStack>
+                                            </Flex>
+                                        </Box>
+                                    );
+                                })()}
                             </TabPanel>
 
                             {/* Tab 2: Stocklist view for clients */}
@@ -4853,8 +5074,8 @@ export default function Stocks() {
                                                 <Tr>
                                                     <Th {...headerProps} w="40px">
                                                         <Checkbox
-                                                            isChecked={clientViewSelectedRows.size > 0 && clientViewSelectedRows.size === filteredAndSortedStock.length}
-                                                            isIndeterminate={clientViewSelectedRows.size > 0 && clientViewSelectedRows.size < filteredAndSortedStock.length}
+                                                            isChecked={displayedItems.length > 0 && displayedItems.every(item => clientViewSelectedRows.has(item.id || item.stock_item_id))}
+                                                            isIndeterminate={displayedItems.some(item => clientViewSelectedRows.has(item.id || item.stock_item_id)) && !displayedItems.every(item => clientViewSelectedRows.has(item.id || item.stock_item_id))}
                                                             onChange={handleClientViewSelectAll}
                                                             colorScheme="blue"
                                                         />
@@ -4909,7 +5130,7 @@ export default function Stocks() {
                                                     </Td>
                                                 </Tr>
                                             ) : (
-                                                filteredAndSortedStock.map((item, index) => {
+                                                displayedItems.map((item, index) => {
                                                     const statusStyle = getStatusStyle(item.stock_status);
                                                     const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                     const itemId = item.id || item.stock_item_id;
@@ -4980,6 +5201,132 @@ export default function Stocks() {
                                         </Tbody>
                                     </Table>
                                 </Box>
+
+                                {/* Pagination Controls for Client View */}
+                                {allFilteredItems.length > 0 && (() => {
+                                    const totalRows = allFilteredItems.length;
+                                    const totalPages = Math.ceil(totalRows / clientViewPageSize);
+                                    const hasNext = clientViewPage < totalPages;
+                                    const hasPrevious = clientViewPage > 1;
+                                    const startRow = (clientViewPage - 1) * clientViewPageSize + 1;
+                                    const endRow = Math.min(clientViewPage * clientViewPageSize, totalRows);
+
+                                    return (
+                                        <Box px="25px" py={4}>
+                                            <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
+                                                {/* Page Size Selector and Info */}
+                                                <HStack spacing={3}>
+                                                    <Text fontSize="sm" color={textColor}>
+                                                        Show
+                                                    </Text>
+                                                    <Select
+                                                        size="sm"
+                                                        w="80px"
+                                                        value={clientViewPageSize}
+                                                        onChange={(e) => {
+                                                            setClientViewPageSize(Number(e.target.value));
+                                                            setClientViewPage(1); // Reset to first page when changing page size
+                                                        }}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        <option value={20}>20</option>
+                                                        <option value={50}>50</option>
+                                                        <option value={100}>100</option>
+                                                        <option value={200}>200</option>
+                                                    </Select>
+                                                    <Text fontSize="sm" color={textColor}>
+                                                        per page
+                                                    </Text>
+                                                    <Text fontSize="sm" color={textColor} ml={2}>
+                                                        Showing {startRow}-{endRow} of {totalRows} items
+                                                    </Text>
+                                                </HStack>
+
+                                                {/* Pagination buttons */}
+                                                <HStack spacing={2}>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setClientViewPage(1)}
+                                                        isDisabled={!hasPrevious || clientViewPage === 1}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        First
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setClientViewPage(clientViewPage - 1)}
+                                                        isDisabled={!hasPrevious}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Previous
+                                                    </Button>
+
+                                                    {/* Page numbers */}
+                                                    <HStack spacing={1}>
+                                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                            let pageNum;
+                                                            if (totalPages <= 5) {
+                                                                pageNum = i + 1;
+                                                            } else if (clientViewPage <= 3) {
+                                                                pageNum = i + 1;
+                                                            } else if (clientViewPage >= totalPages - 2) {
+                                                                pageNum = totalPages - 4 + i;
+                                                            } else {
+                                                                pageNum = clientViewPage - 2 + i;
+                                                            }
+
+                                                            return (
+                                                                <Button
+                                                                    key={pageNum}
+                                                                    size="sm"
+                                                                    variant={clientViewPage === pageNum ? "solid" : "outline"}
+                                                                    colorScheme={clientViewPage === pageNum ? "blue" : "gray"}
+                                                                    onClick={() => setClientViewPage(pageNum)}
+                                                                    bg={clientViewPage === pageNum ? undefined : inputBg}
+                                                                    color={clientViewPage === pageNum ? undefined : inputText}
+                                                                    borderColor={borderColor}
+                                                                >
+                                                                    {pageNum}
+                                                                </Button>
+                                                            );
+                                                        })}
+                                                    </HStack>
+
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setClientViewPage(clientViewPage + 1)}
+                                                        isDisabled={!hasNext}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Next
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setClientViewPage(totalPages)}
+                                                        isDisabled={!hasNext || clientViewPage === totalPages}
+                                                        bg={inputBg}
+                                                        color={inputText}
+                                                        borderColor={borderColor}
+                                                    >
+                                                        Last
+                                                    </Button>
+                                                </HStack>
+                                            </Flex>
+                                        </Box>
+                                    );
+                                })()}
                             </TabPanel>
                         </TabPanels>
                     </Tabs>
