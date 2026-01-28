@@ -77,7 +77,7 @@ export default function VendorsTable(props) {
     city: "",
     country: "",
   });
-  const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
+  const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
   const {
     updateVendor,
@@ -432,7 +432,7 @@ export default function VendorsTable(props) {
     clearAllFilters();
     clearAllSorting();
     setSearchValue("");
-    setSortOrder("newest");
+    setSortOrder("alphabetical");
   };
 
   const handleEditInputChange = (field, value) => {

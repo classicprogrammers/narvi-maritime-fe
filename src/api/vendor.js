@@ -185,6 +185,13 @@ const buildAgentPayload = (agentData = {}, userId) => {
     children,
     // NEW CNEE payload structure
     agent_cnee_ids: agentCneeIds,
+    // Include attachments if provided
+    attachments: Array.isArray(agentData.attachments) && agentData.attachments.length > 0
+      ? agentData.attachments
+      : undefined,
+    attachment_to_delete: Array.isArray(agentData.attachment_to_delete) && agentData.attachment_to_delete.length > 0
+      ? agentData.attachment_to_delete
+      : undefined,
   };
 
   return payload;

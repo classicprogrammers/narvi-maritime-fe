@@ -86,6 +86,10 @@ export const registerCustomerApi = async (customerData) => {
     const payload = removeUndefined({
       ...customerData,
       user_id: getCurrentUserId(),
+      // Include attachments if provided
+      attachments: Array.isArray(customerData.attachments) && customerData.attachments.length > 0
+        ? customerData.attachments
+        : undefined,
       // Ensure children is only sent when it's a non-empty array
       children: Array.isArray(customerData.children) && customerData.children.length > 0
         ? customerData.children.map((c) => removeUndefined(c))
@@ -180,6 +184,13 @@ export const updateCustomerApi = async (customerId, data) => {
       vessel_type1: data.vessel_type1,
       vessel_type2: data.vessel_type2,
       vessel_type3: data.vessel_type3,
+      // Include attachments if provided
+      attachments: Array.isArray(data.attachments) && data.attachments.length > 0
+        ? data.attachments
+        : undefined,
+      attachment_to_delete: Array.isArray(data.attachment_to_delete) && data.attachment_to_delete.length > 0
+        ? data.attachment_to_delete
+        : undefined,
       // Include children array if provided (with operations: update, delete, create)
       children: Array.isArray(data.children) && data.children.length > 0
         ? data.children.map((child) => removeUndefined(child))

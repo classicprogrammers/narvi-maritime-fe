@@ -78,7 +78,7 @@ export default function CustomerTable(props) {
     client_category: "",
     email: "",
   });
-  const [sortOrder, setSortOrder] = useState("newest"); // newest, oldest, alphabetical
+  const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
   const {
     updateCustomer,
@@ -340,7 +340,7 @@ export default function CustomerTable(props) {
     clearAllFilters();
     clearAllSorting();
     setSearchValue("");
-    setSortOrder("newest");
+    setSortOrder("alphabetical");
   };
 
 

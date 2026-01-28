@@ -11,6 +11,7 @@ import {
     Text,
     useColorModeValue,
     VStack,
+    HStack,
     Icon,
     Heading,
     Table,
@@ -40,7 +41,7 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 // Assets
-import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew } from "react-icons/md";
+import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
 import { getVesselTypes } from "api/vessels";
@@ -106,6 +107,7 @@ function CustomerRegistration() {
         // Replace LinkedIn with WhatsApp (checkbox)
         { key: "whatsapp", label: "WhatsApp" },
         { key: "remarks", label: "Remark" },
+        { key: "attachments", label: "Attachments" },
     ];
 
     const peoplePlaceholders = {
@@ -134,6 +136,9 @@ function CustomerRegistration() {
         tel_other: "",
         whatsapp: false,
         remarks: "",
+        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+        attachment_to_delete: [], // Array of attachment IDs to delete (for updates)
+        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
     };
 
     const [peopleRows, setPeopleRows] = React.useState([]);
@@ -224,6 +229,9 @@ function CustomerRegistration() {
         client_invoicing: "",
         prefix: "",
         job_title: "",
+        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+        attachment_to_delete: [], // Array of attachment IDs to delete (for updates)
+        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
     });
 
     // Vessel types for dropdown
@@ -315,6 +323,13 @@ function CustomerRegistration() {
                 client_invoicing: editingClient.client_invoicing || "",
                 prefix: editingClient.prefix || "",
                 job_title: editingClient.job_title || "",
+                attachments: [], // New uploads
+                attachment_to_delete: [], // IDs to delete
+                existingAttachments: Array.isArray(editingClient.attachments) ? editingClient.attachments.map(att => ({
+                    id: att.id,
+                    filename: att.filename || att.name,
+                    mimetype: att.mimetype || att.type
+                })) : [], // Existing attachments from API
             });
 
             // Determine how many address fields to show based on existing data
@@ -355,6 +370,13 @@ function CustomerRegistration() {
                         tel_other: getValue(child.tel_other),
                         whatsapp: !!child.whatsapp,
                         remarks: getValue(child.remarks),
+                        attachments: [], // Array of { filename, mimetype, datas } for new uploads
+                        attachment_to_delete: [], // Array of attachment IDs to delete (for updates)
+                        existingAttachments: Array.isArray(child.attachments) ? child.attachments.map(att => ({
+                            id: att.id,
+                            filename: att.filename || att.name,
+                            mimetype: att.mimetype || att.type
+                        })) : [], // Array of existing attachments from API
                     };
                 });
                 setPeopleRows(childrenRows);
@@ -518,6 +540,107 @@ function CustomerRegistration() {
         }));
     });
 
+    // Handle file upload for customer attachments
+    const handleCustomerFileUpload = (files) => {
+        const fileArray = Array.from(files || []);
+        const filePromises = fileArray.map(file => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result || '';
+                // Extract base64 data without data URL prefix
+                const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
+                resolve({
+                    filename: file.name,
+                    datas: base64data,
+                    mimetype: file.type || 'application/octet-stream'
+                });
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(filePromises).then(newAttachments => {
+            setFormData(prev => ({
+                ...prev,
+                attachments: [...(prev.attachments || []), ...newAttachments]
+            }));
+        });
+    };
+
+    // Handle file upload for child/person attachments
+    const handleChildFileUpload = (rowIndex, files) => {
+        const fileArray = Array.from(files || []);
+        const filePromises = fileArray.map(file => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result || '';
+                // Extract base64 data without data URL prefix
+                const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
+                resolve({
+                    filename: file.name,
+                    datas: base64data,
+                    mimetype: file.type || 'application/octet-stream'
+                });
+            };
+            reader.readAsDataURL(file);
+        }));
+
+        Promise.all(filePromises).then(newAttachments => {
+            setPeopleRows(prevRows => prevRows.map((row, idx) => {
+                if (idx === rowIndex) {
+                    return {
+                        ...row,
+                        attachments: [...(row.attachments || []), ...newAttachments]
+                    };
+                }
+                return row;
+            }));
+        });
+    };
+
+    // Handle delete customer attachment (new uploads)
+    const handleDeleteCustomerAttachment = (attachmentIndex) => {
+        setFormData(prev => ({
+            ...prev,
+            attachments: prev.attachments.filter((_, idx) => idx !== attachmentIndex)
+        }));
+    };
+
+    // Handle delete existing customer attachment
+    const handleDeleteExistingCustomerAttachment = (attachmentId) => {
+        setFormData(prev => ({
+            ...prev,
+            existingAttachments: prev.existingAttachments.filter(att => att.id !== attachmentId),
+            attachment_to_delete: [...(prev.attachment_to_delete || []), attachmentId]
+        }));
+    };
+
+    // Handle delete child attachment (new uploads)
+    const handleDeleteChildAttachment = (rowIndex, attachmentIndex) => {
+        setPeopleRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                return {
+                    ...row,
+                    attachments: (row.attachments || []).filter((_, attIdx) => attIdx !== attachmentIndex)
+                };
+            }
+            return row;
+        }));
+    };
+
+    // Handle delete existing child attachment
+    const handleDeleteExistingChildAttachment = (rowIndex, attachmentId) => {
+        setPeopleRows(prevRows => prevRows.map((row, idx) => {
+            if (idx === rowIndex) {
+                return {
+                    ...row,
+                    existingAttachments: (row.existingAttachments || []).filter(att => att.id !== attachmentId),
+                    attachment_to_delete: [...(row.attachment_to_delete || []), attachmentId]
+                };
+            }
+            return row;
+        }));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -584,6 +707,8 @@ function CustomerRegistration() {
                             tel_other: row.tel_other || undefined,
                             whatsapp: row.whatsapp ? true : false,
                             remarks: row.remarks || undefined,
+                            attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
+                            attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
@@ -610,6 +735,8 @@ function CustomerRegistration() {
                             tel_other: row.tel_other || undefined,
                             whatsapp: row.whatsapp ? true : false,
                             remarks: row.remarks || undefined,
+                            attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
+                            attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
@@ -681,12 +808,15 @@ function CustomerRegistration() {
                 tariffs: formData.tariffs || "",
                 client_invoicing: formData.client_invoicing || "",
                 company_type: "company",
+                attachments: formData.attachments && formData.attachments.length > 0 ? formData.attachments : undefined,
                 children: children.length ? children : undefined,
             });
             const doUpdate = async () => updateCustomerApi(editingClient.id, {
                 ...formData,
                 country_id: parseInt(formData.country_id) || null,
                 company_type_text: formData.company_type_text || "",
+                attachments: formData.attachments && formData.attachments.length > 0 ? formData.attachments : undefined,
+                attachment_to_delete: formData.attachment_to_delete && formData.attachment_to_delete.length > 0 ? formData.attachment_to_delete : undefined,
                 children: children.length ? children : undefined,
             });
 
@@ -1466,6 +1596,91 @@ function CustomerRegistration() {
                                     </Box>
                                 </Box>
 
+                                {/* Customer Attachments Section */}
+                                <Box>
+                                    <Flex align="center" mb="20px">
+                                        <Icon as={MdAttachFile} color={textColorBrand} fontSize="18px" mr="8px" />
+                                        <Text fontSize="lg" fontWeight="600" color={textColor}>
+                                            Customer Attachments
+                                        </Text>
+                                    </Flex>
+                                    <Box border="1px solid" borderColor={borderColor} borderRadius="md" p={4} bg={inputBg}>
+                                        <VStack spacing={3} align="stretch">
+                                            <Input
+                                                type="file"
+                                                multiple
+                                                accept="application/pdf,image/*,.doc,.docx"
+                                                onChange={(e) => handleCustomerFileUpload(e.target.files)}
+                                                display="none"
+                                                id="customer-file-upload"
+                                            />
+                                            <label htmlFor="customer-file-upload">
+                                                <Button
+                                                    as="span"
+                                                    leftIcon={<Icon as={MdAttachFile} />}
+                                                    colorScheme="blue"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    cursor="pointer"
+                                                    w="100%"
+                                                >
+                                                    Upload Files
+                                                </Button>
+                                            </label>
+
+                                            {/* Display existing attachments */}
+                                            {(formData.existingAttachments || []).map((att, idx) => (
+                                                <Flex key={`existing-${att.id || idx}`} align="center" justify="space-between" p={2} bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                    <Text fontSize="sm" isTruncated flex={1} title={att.filename}>
+                                                        {att.filename}
+                                                    </Text>
+                                                    <HStack spacing={2}>
+                                                        <IconButton
+                                                            aria-label="View file"
+                                                            icon={<Icon as={MdVisibility} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="blue"
+                                                        />
+                                                        <IconButton
+                                                            aria-label="Delete attachment"
+                                                            icon={<Icon as={MdRemove} />}
+                                                            size="xs"
+                                                            variant="ghost"
+                                                            colorScheme="red"
+                                                            onClick={() => handleDeleteExistingCustomerAttachment(att.id)}
+                                                        />
+                                                    </HStack>
+                                                </Flex>
+                                            ))}
+
+                                            {/* Display newly uploaded attachments */}
+                                            {(formData.attachments || []).map((att, idx) => (
+                                                <Flex key={`new-${idx}`} align="center" justify="space-between" p={2} bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
+                                                    <Text fontSize="sm" isTruncated flex={1} title={att.filename}>
+                                                        {att.filename}
+                                                    </Text>
+                                                    <IconButton
+                                                        aria-label="Remove attachment"
+                                                        icon={<Icon as={MdRemove} />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        colorScheme="red"
+                                                        onClick={() => handleDeleteCustomerAttachment(idx)}
+                                                    />
+                                                </Flex>
+                                            ))}
+
+                                            {(!formData.existingAttachments || formData.existingAttachments.length === 0) && 
+                                             (!formData.attachments || formData.attachments.length === 0) && (
+                                                <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={2}>
+                                                    No attachments uploaded
+                                                </Text>
+                                            )}
+                                        </VStack>
+                                    </Box>
+                                </Box>
+
                                 {/* Client People Section (mirrors ClientDetail.jsx) */}
                                 <Box>
                                     <Flex justify="space-between" align="center" mb={4}>
@@ -1504,7 +1719,7 @@ function CustomerRegistration() {
                                             <Tbody>
                                                 {peopleRows.length === 0 ? (
                                                     <Tr>
-                                                        <Td colSpan={peopleTableColumns.length} textAlign="center" py={8}>
+                                                        <Td colSpan={peopleTableColumns.length + 1} textAlign="center" py={8}>
                                                             <Text color={textColorSecondary}>No client people added yet.</Text>
                                                         </Td>
                                                     </Tr>
@@ -1590,6 +1805,80 @@ function CustomerRegistration() {
                                                                             maxW="90ch"
                                                                             cols={getAutoCols(row[column.key], "Type and press Enter to create numbered list...", { min: 24, max: 90 })}
                                                                         />
+                                                                    ) : column.key === "attachments" ? (
+                                                                        <VStack spacing={2} align="stretch">
+                                                                            <Input
+                                                                                type="file"
+                                                                                multiple
+                                                                                accept="application/pdf,image/*,.doc,.docx"
+                                                                                onChange={(e) => handleChildFileUpload(rowIndex, e.target.files)}
+                                                                                display="none"
+                                                                                id={`child-file-upload-${rowIndex}`}
+                                                                            />
+                                                                            <label htmlFor={`child-file-upload-${rowIndex}`}>
+                                                                                <Button
+                                                                                    as="span"
+                                                                                    leftIcon={<Icon as={MdAttachFile} />}
+                                                                                    size="xs"
+                                                                                    variant="outline"
+                                                                                    colorScheme="blue"
+                                                                                    cursor="pointer"
+                                                                                    w="100%"
+                                                                                >
+                                                                                    Upload Files
+                                                                                </Button>
+                                                                            </label>
+
+                                                                            {/* Display existing attachments */}
+                                                                            {(row.existingAttachments || []).map((att, attIdx) => (
+                                                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                                                    <Text isTruncated flex={1} title={att.filename}>
+                                                                                        {att.filename}
+                                                                                    </Text>
+                                                                                    <HStack spacing={0}>
+                                                                                        <IconButton
+                                                                                            aria-label="View file"
+                                                                                            icon={<Icon as={MdVisibility} />}
+                                                                                            size="xs"
+                                                                                            variant="ghost"
+                                                                                            colorScheme="blue"
+                                                                                        />
+                                                                                        <IconButton
+                                                                                            aria-label="Delete attachment"
+                                                                                            icon={<Icon as={MdRemove} />}
+                                                                                            size="xs"
+                                                                                            variant="ghost"
+                                                                                            colorScheme="red"
+                                                                                            onClick={() => handleDeleteExistingChildAttachment(rowIndex, att.id)}
+                                                                                        />
+                                                                                    </HStack>
+                                                                                </Flex>
+                                                                            ))}
+
+                                                                            {/* Display newly uploaded attachments */}
+                                                                            {(row.attachments || []).map((att, attIdx) => (
+                                                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                                                    <Text isTruncated flex={1} title={att.filename}>
+                                                                                        {att.filename}
+                                                                                    </Text>
+                                                                                    <IconButton
+                                                                                        aria-label="Remove attachment"
+                                                                                        icon={<Icon as={MdRemove} />}
+                                                                                        size="xs"
+                                                                                        variant="ghost"
+                                                                                        colorScheme="red"
+                                                                                        onClick={() => handleDeleteChildAttachment(rowIndex, attIdx)}
+                                                                                    />
+                                                                                </Flex>
+                                                                            ))}
+
+                                                                            {(!row.existingAttachments || row.existingAttachments.length === 0) && 
+                                                                             (!row.attachments || row.attachments.length === 0) && (
+                                                                                <Text fontSize="xs" color={textColorSecondary} textAlign="center" py={1}>
+                                                                                    No files
+                                                                                </Text>
+                                                                            )}
+                                                                        </VStack>
                                                                     ) : (
                                                                         <Tooltip
                                                                             label={row[column.key]}
