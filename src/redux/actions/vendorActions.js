@@ -36,10 +36,10 @@ export const getCountries = () => async (dispatch) => {
 };
 
 // Get Agents Action
-export const getAgents = () => async (dispatch) => {
+export const getAgents = (page = 1, page_size = 80) => async (dispatch) => {
   try {
     dispatch(getAgentsStart());
-    const result = await getVendorsApi();
+    const result = await getVendorsApi(page, page_size);
     dispatch(getAgentsSuccess(result));
     return { success: true, data: result };
   } catch (error) {
@@ -88,8 +88,9 @@ export const registerAgent = (agentData) => async (dispatch) => {
   try {
     const result = await registerVendorApi(agentData);
     if (result.success) {
-      // Refresh the agents list after successful registration
-      dispatch(getAgents());
+      // Refresh the agents list after successful registration (use current page)
+      const currentPage = 1; // Reset to first page after registration
+      dispatch(getAgents(currentPage, 80));
     }
     return { success: true, data: result };
   } catch (error) {

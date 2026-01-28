@@ -69,7 +69,7 @@ import {
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
-  const { columnsData, tableData, isLoading = false } = props;
+  const { columnsData, tableData, isLoading = false, pagination, page = 1, pageSize = 80, onPageChange } = props;
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
@@ -88,7 +88,8 @@ export default function CustomerTable(props) {
     getCustomers,
   } = useCustomer();
 
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  // Remove client-side pagination state - use backend pagination
+  // const [itemsPerPage, setItemsPerPage] = useState(10);
   const [countries, setCountries] = useState([]);
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
@@ -273,31 +274,33 @@ export default function CustomerTable(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredCustomers, sortOrder]);
 
+  // Use backend pagination - no client-side pagination needed
   const tableInstance = useTable(
     {
       columns,
       data,
-      initialState: { pageIndex: 0, pageSize: itemsPerPage },
+      manualPagination: true, // Tell react-table we're handling pagination server-side
     },
     useGlobalFilter,
-    useSortBy,
-    usePagination
+    useSortBy
   );
 
   const {
     getTableProps,
     headerGroups,
-    page,
+    rows: tableRows, // Use all rows since pagination is server-side
     prepareRow,
-    pageCount,
-    gotoPage,
-    nextPage,
-    previousPage,
-    canNextPage,
-    canPreviousPage,
-    setPageSize,
-    state: { pageIndex },
   } = tableInstance;
+
+  // Use backend pagination data
+  const paginationData = pagination || {
+    page: page || 1,
+    page_size: pageSize || 80,
+    total_count: tableData.length || 0,
+    total_pages: 1,
+    has_next: false,
+    has_previous: false,
+  };
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -982,7 +985,7 @@ export default function CustomerTable(props) {
                     </Text>
                   </Td>
                 </Tr>
-              ) : page.length === 0 ? (
+              ) : tableRows.length === 0 ? (
                 <Tr>
                   <Td
                     colSpan={headerGroups[0]?.headers.length + 1}
@@ -997,7 +1000,7 @@ export default function CustomerTable(props) {
                   </Td>
                 </Tr>
               ) : (
-                page.map((row, index) => {
+                tableRows.map((row, index) => {
                   prepareRow(row);
                   return (
                     <Tr
@@ -1170,56 +1173,22 @@ export default function CustomerTable(props) {
           </Table>
         </Box>
 
-        {/* Enhanced Pagination */}
+        {/* Backend Pagination */}
         <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
           {/* Results Info */}
           <Text fontSize="sm" color={tableTextColorSecondary}>
-            Showing {data.length === 0 ? 0 : pageIndex * itemsPerPage + 1} to {Math.min((pageIndex + 1) * itemsPerPage, data.length)} of {data.length} results
+            Showing {paginationData.total_count === 0 ? 0 : ((paginationData.page - 1) * paginationData.page_size + 1)} to {Math.min(paginationData.page * paginationData.page_size, paginationData.total_count)} of {paginationData.total_count} results
           </Text>
 
           {/* Pagination Controls */}
           <HStack spacing={2} align="center">
-            {/* Page Size Selector */}
-            <HStack spacing={2} align="center">
-              <Text fontSize="sm" color={tableTextColorSecondary}>
-                Show:
-              </Text>
-              <Select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  const newPageSize = Number(e.target.value);
-                  setItemsPerPage(newPageSize);
-                  setPageSize(newPageSize);
-                }}
-                size="sm"
-                w="80px"
-                bg={inputBg}
-                color={inputText}
-                border="1px"
-                borderColor={borderColor}
-                _focus={{
-                  borderColor: "blue.400",
-                  boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                }}
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </Select>
-              <Text fontSize="sm" color={tableTextColorSecondary}>
-                per page
-              </Text>
-            </HStack>
-
             {/* Page Navigation */}
             <HStack spacing={1}>
               {/* First Page */}
               <Button
                 size="sm"
-                onClick={() => gotoPage(0)}
-                isDisabled={!canPreviousPage}
+                onClick={() => onPageChange && onPageChange(1)}
+                isDisabled={!paginationData.has_previous}
                 variant="outline"
                 aria-label="First page"
               >
@@ -1229,8 +1198,8 @@ export default function CustomerTable(props) {
               {/* Previous Page */}
               <Button
                 size="sm"
-                onClick={() => previousPage()}
-                isDisabled={!canPreviousPage}
+                onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
+                isDisabled={!paginationData.has_previous}
                 variant="outline"
                 aria-label="Previous page"
               >
@@ -1240,16 +1209,16 @@ export default function CustomerTable(props) {
               {/* Page Numbers */}
               {(() => {
                 const pageNumbers = [];
-                const totalPages = pageCount;
-                const currentPage = pageIndex;
+                const totalPages = paginationData.total_pages || 1;
+                const currentPage = paginationData.page || 1;
                 const maxVisiblePages = 5;
 
-                let startPage = Math.max(0, currentPage - Math.floor(maxVisiblePages / 2));
-                let endPage = Math.min(totalPages - 1, startPage + maxVisiblePages - 1);
+                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
                 // Adjust start page if we're near the end
                 if (endPage - startPage < maxVisiblePages - 1) {
-                  startPage = Math.max(0, endPage - maxVisiblePages + 1);
+                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
                 }
 
                 for (let i = startPage; i <= endPage; i++) {
@@ -1257,13 +1226,13 @@ export default function CustomerTable(props) {
                     <Button
                       key={i}
                       size="sm"
-                      onClick={() => gotoPage(i)}
+                      onClick={() => onPageChange && onPageChange(i)}
                       variant={i === currentPage ? "solid" : "outline"}
                       colorScheme={i === currentPage ? "blue" : "gray"}
                       minW="40px"
-                      aria-label={`Page ${i + 1}`}
+                      aria-label={`Page ${i}`}
                     >
-                      {i + 1}
+                      {i}
                     </Button>
                   );
                 }
@@ -1274,8 +1243,8 @@ export default function CustomerTable(props) {
               {/* Next Page */}
               <Button
                 size="sm"
-                onClick={() => nextPage()}
-                isDisabled={!canNextPage}
+                onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
+                isDisabled={!paginationData.has_next}
                 variant="outline"
                 aria-label="Next page"
               >
@@ -1285,8 +1254,8 @@ export default function CustomerTable(props) {
               {/* Last Page */}
               <Button
                 size="sm"
-                onClick={() => gotoPage(pageCount - 1)}
-                isDisabled={!canNextPage}
+                onClick={() => onPageChange && onPageChange(paginationData.total_pages)}
+                isDisabled={!paginationData.has_next}
                 variant="outline"
                 aria-label="Last page"
               >
@@ -1296,7 +1265,7 @@ export default function CustomerTable(props) {
 
             {/* Page Info */}
             <Text fontSize="sm" color={tableTextColorSecondary}>
-              Page {pageIndex + 1} of {pageCount}
+              Page {paginationData.page} of {paginationData.total_pages}
             </Text>
           </HStack>
         </Flex>

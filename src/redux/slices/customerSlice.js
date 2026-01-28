@@ -9,6 +9,15 @@ const initialState = {
   updateError: null,
   deleteLoading: false,
   deleteError: null,
+  // Pagination metadata
+  pagination: {
+    page: 1,
+    page_size: 80,
+    total_count: 0,
+    total_pages: 0,
+    has_next: false,
+    has_previous: false,
+  },
 };
 
 const customerSlice = createSlice({
@@ -38,7 +47,21 @@ const customerSlice = createSlice({
     getCustomersSuccess: (state, action) => {
       state.isLoading = false;
       // Extract customers array from the API response
-      state.customers = action.payload.customers || action.payload || [];
+      const response = action.payload;
+      state.customers = response.customers || response || [];
+      
+      // Update pagination metadata if available
+      if (response.page !== undefined) {
+        state.pagination = {
+          page: response.page || 1,
+          page_size: response.page_size || 80,
+          total_count: response.total_count || 0,
+          total_pages: response.total_pages || 0,
+          has_next: response.has_next || false,
+          has_previous: response.has_previous || false,
+        };
+      }
+      
       state.error = null;
     },
     getCustomersFailure: (state, action) => {

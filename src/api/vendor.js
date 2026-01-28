@@ -298,28 +298,17 @@ export const registerVendorApi = async (agentData) => {
 };
 
 // Get Agents API
-export const getVendorsApi = async () => {
+export const getVendorsApi = async (page = 1, page_size = 80) => {
   try {
-    // Get user ID from localStorage
-    // const userData = localStorage.getItem("user");
-    // let userId = null;
-
-    // if (userData) {
-    //   try {
-    //     const user = JSON.parse(userData);
-    //     userId = user.id;
-    //   } catch (parseError) {
-    //     console.warn(
-    //       "Failed to parse user data from localStorage:",
-    //       parseError
-    //     );
-    //   }
-    // }
-
     // Add user_id as query parameter
     const url = getApiEndpoint("VENDORS");
 
-    const response = await api.get(url);
+    const response = await api.get(url, {
+      params: {
+        page,
+        page_size,
+      },
+    });
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch agents');
@@ -327,20 +316,33 @@ export const getVendorsApi = async () => {
 
     const responseData = response.data;
 
+    // Check if response has error status (JSON-RPC format)
+    if (responseData.result && responseData.result.status === 'error') {
+      throw new Error(responseData.result.message || 'Failed to fetch agents');
+    }
+
+    // Handle different response formats
+    // If response has result wrapper, extract it
+    if (responseData.result && responseData.result.status === 'success') {
+      return responseData.result;
+    }
+
+    // Return direct response if it has the expected structure (status: "success")
+    if (responseData.status === "success") {
+      return responseData;
+    }
+
+    // Fallback for backward compatibility
     if (Array.isArray(responseData)) {
       return responseData;
     }
 
     if (Array.isArray(responseData.agents)) {
-      return responseData.agents;
+      return responseData;
     }
 
     if (Array.isArray(responseData.vendors)) {
-      return responseData.vendors;
-    }
-
-    if (responseData.result && Array.isArray(responseData.result.agents)) {
-      return responseData.result.agents;
+      return responseData;
     }
 
     return responseData;

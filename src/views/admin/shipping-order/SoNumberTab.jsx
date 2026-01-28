@@ -252,6 +252,16 @@ const SoNumberTab = () => {
       quotation: "",
       quotation_id: null,
       timestamp: localTimestamp,
+      dimensions: [{
+        id: null,
+        calculation_method: "lwh", // "lwh" or "volume"
+        length_cm: "",
+        width_cm: "",
+        height_cm: "",
+        volume_dim: "",
+        volume_cbm: 0.0,
+        cw_air_freight: 0.0,
+      }],
     });
   };
 
@@ -909,7 +919,20 @@ const SoNumberTab = () => {
 
   const handleEdit = (order) => {
     setEditingOrder(order);
-    setFormData({ ...order });
+    // Initialize dimensions if not present
+    const dimensions = Array.isArray(order.dimensions) && order.dimensions.length > 0
+      ? order.dimensions
+      : [{
+          id: null,
+          calculation_method: order.dimensions?.[0]?.calculation_method || "lwh",
+          length_cm: order.dimensions?.[0]?.length_cm || "",
+          width_cm: order.dimensions?.[0]?.width_cm || "",
+          height_cm: order.dimensions?.[0]?.height_cm || "",
+          volume_dim: order.dimensions?.[0]?.volume_dim || "",
+          volume_cbm: order.dimensions?.[0]?.volume_cbm || 0.0,
+          cw_air_freight: order.dimensions?.[0]?.cw_air_freight || 0.0,
+        }];
+    setFormData({ ...order, dimensions });
     formDisclosure.onOpen();
   };
 
@@ -1141,6 +1164,11 @@ const SoNumberTab = () => {
           value: data.vsls_agent_dtls || null,
           originalValue: originalData.vsls_agent_dtls || null
         },
+        {
+          key: 'dimensions',
+          value: data.dimensions || null,
+          originalValue: originalData.dimensions || null
+        },
       ];
 
       fields.forEach(({ key, value, originalValue, compareValue }) => {
@@ -1158,6 +1186,42 @@ const SoNumberTab = () => {
           }
         }
       });
+
+      // Handle dimensions separately for updates
+      if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
+        const originalDimensions = Array.isArray(originalData.dimensions) ? originalData.dimensions : [];
+        // Check if dimensions have changed
+        const dimensionsChanged = JSON.stringify(data.dimensions.map(d => ({
+          calculation_method: d.calculation_method,
+          length_cm: d.length_cm,
+          width_cm: d.width_cm,
+          height_cm: d.height_cm,
+          volume_dim: d.volume_dim,
+          volume_cbm: d.volume_cbm,
+          cw_air_freight: d.cw_air_freight,
+        }))) !== JSON.stringify(originalDimensions.map(d => ({
+          calculation_method: d.calculation_method,
+          length_cm: d.length_cm,
+          width_cm: d.width_cm,
+          height_cm: d.height_cm,
+          volume_dim: d.volume_dim,
+          volume_cbm: d.volume_cbm,
+          cw_air_freight: d.cw_air_freight,
+        })));
+        
+        if (dimensionsChanged) {
+          payload.dimensions = data.dimensions.map(dim => ({
+            id: dim.id || undefined,
+            calculation_method: dim.calculation_method || "lwh",
+            length_cm: dim.calculation_method === "lwh" ? (dim.length_cm ? parseFloat(dim.length_cm) : 0.0) : 0.0,
+            width_cm: dim.calculation_method === "lwh" ? (dim.width_cm ? parseFloat(dim.width_cm) : 0.0) : 0.0,
+            height_cm: dim.calculation_method === "lwh" ? (dim.height_cm ? parseFloat(dim.height_cm) : 0.0) : 0.0,
+            volume_dim: dim.calculation_method === "volume" ? (dim.volume_dim ? parseFloat(dim.volume_dim) : false) : false,
+            volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
+            cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
+          }));
+        }
+      }
 
       return payload;
     }
@@ -1196,6 +1260,20 @@ const SoNumberTab = () => {
     if (hasValue(data.internal_remark)) payload.internal_remark = data.internal_remark;
     if (hasValue(data.client_case_invoice_ref)) payload.client_case_invoice_ref = data.client_case_invoice_ref;
     if (hasValue(data.vsls_agent_dtls)) payload.vsls_agent_dtls = data.vsls_agent_dtls;
+    
+    // Include dimensions if present
+    if (Array.isArray(data.dimensions) && data.dimensions.length > 0) {
+      payload.dimensions = data.dimensions.map(dim => ({
+        id: dim.id || undefined,
+        calculation_method: dim.calculation_method || "lwh",
+        length_cm: dim.calculation_method === "lwh" ? (dim.length_cm ? parseFloat(dim.length_cm) : 0.0) : 0.0,
+        width_cm: dim.calculation_method === "lwh" ? (dim.width_cm ? parseFloat(dim.width_cm) : 0.0) : 0.0,
+        height_cm: dim.calculation_method === "lwh" ? (dim.height_cm ? parseFloat(dim.height_cm) : 0.0) : 0.0,
+        volume_dim: dim.calculation_method === "volume" ? (dim.volume_dim ? parseFloat(dim.volume_dim) : false) : false,
+        volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
+        cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
+      }));
+    }
 
     return payload;
   };
@@ -2245,6 +2323,183 @@ const SoNumberTab = () => {
                       }
                     />
                   </FormControl>
+                </Box>
+
+                {/* Dimensions */}
+                <Box>
+                  <FormLabel mb="3" fontSize="md" fontWeight="600">Dimensions</FormLabel>
+                  {formData.dimensions && formData.dimensions.length > 0 && formData.dimensions.map((dim, dimIndex) => (
+                    <Box key={dimIndex} mb="4" p="4" border="1px" borderColor={borderColor} borderRadius="md" bg={inputBg}>
+                      <VStack spacing="4" align="stretch">
+                        <FormControl>
+                          <FormLabel>Calculation Method</FormLabel>
+                          <Select
+                            size="sm"
+                            bg={inputBg}
+                            color={inputText}
+                            borderColor={borderColor}
+                            value={dim.calculation_method || "lwh"}
+                            onChange={(e) => {
+                              const newDimensions = [...formData.dimensions];
+                              newDimensions[dimIndex] = {
+                                ...newDimensions[dimIndex],
+                                calculation_method: e.target.value,
+                                // Clear fields when switching methods
+                                ...(e.target.value === "lwh" ? {
+                                  volume_dim: "",
+                                  volume_cbm: 0.0,
+                                } : {
+                                  length_cm: "",
+                                  width_cm: "",
+                                  height_cm: "",
+                                }),
+                              };
+                              setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                            }}
+                          >
+                            <option value="lwh">LWH (Length × Width × Height)</option>
+                            <option value="volume">Volume</option>
+                          </Select>
+                        </FormControl>
+
+                        {dim.calculation_method === "lwh" ? (
+                          <Flex gap="4" flexWrap="wrap">
+                            <FormControl flex="1" minW="150px">
+                              <FormLabel>Length (cm)</FormLabel>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                size="sm"
+                                bg={inputBg}
+                                color={inputText}
+                                borderColor={borderColor}
+                                value={dim.length_cm || ""}
+                                onChange={(e) => {
+                                  const newDimensions = [...formData.dimensions];
+                                  newDimensions[dimIndex] = {
+                                    ...newDimensions[dimIndex],
+                                    length_cm: e.target.value,
+                                  };
+                                  setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                                }}
+                                placeholder="0.0"
+                              />
+                            </FormControl>
+                            <FormControl flex="1" minW="150px">
+                              <FormLabel>Width (cm)</FormLabel>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                size="sm"
+                                bg={inputBg}
+                                color={inputText}
+                                borderColor={borderColor}
+                                value={dim.width_cm || ""}
+                                onChange={(e) => {
+                                  const newDimensions = [...formData.dimensions];
+                                  newDimensions[dimIndex] = {
+                                    ...newDimensions[dimIndex],
+                                    width_cm: e.target.value,
+                                  };
+                                  setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                                }}
+                                placeholder="0.0"
+                              />
+                            </FormControl>
+                            <FormControl flex="1" minW="150px">
+                              <FormLabel>Height (cm)</FormLabel>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                size="sm"
+                                bg={inputBg}
+                                color={inputText}
+                                borderColor={borderColor}
+                                value={dim.height_cm || ""}
+                                onChange={(e) => {
+                                  const newDimensions = [...formData.dimensions];
+                                  newDimensions[dimIndex] = {
+                                    ...newDimensions[dimIndex],
+                                    height_cm: e.target.value,
+                                  };
+                                  setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                                }}
+                                placeholder="0.0"
+                              />
+                            </FormControl>
+                          </Flex>
+                        ) : (
+                          <FormControl>
+                            <FormLabel>Volume Dimension</FormLabel>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              size="sm"
+                              bg={inputBg}
+                              color={inputText}
+                              borderColor={borderColor}
+                              value={dim.volume_dim || ""}
+                              onChange={(e) => {
+                                const newDimensions = [...formData.dimensions];
+                                newDimensions[dimIndex] = {
+                                  ...newDimensions[dimIndex],
+                                  volume_dim: e.target.value,
+                                };
+                                setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                              }}
+                              placeholder="0.0"
+                            />
+                          </FormControl>
+                        )}
+
+                        {/* Additional fields that are always visible */}
+                        <Flex gap="4" flexWrap="wrap">
+                          <FormControl flex="1" minW="150px">
+                            <FormLabel>Volume CBM</FormLabel>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              size="sm"
+                              bg={inputBg}
+                              color={inputText}
+                              borderColor={borderColor}
+                              value={dim.volume_cbm || ""}
+                              onChange={(e) => {
+                                const newDimensions = [...formData.dimensions];
+                                newDimensions[dimIndex] = {
+                                  ...newDimensions[dimIndex],
+                                  volume_cbm: e.target.value,
+                                };
+                                setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                              }}
+                              placeholder="0.0"
+                            />
+                          </FormControl>
+                          <FormControl flex="1" minW="150px">
+                            <FormLabel>CW Air Freight</FormLabel>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              size="sm"
+                              bg={inputBg}
+                              color={inputText}
+                              borderColor={borderColor}
+                              value={dim.cw_air_freight || ""}
+                              onChange={(e) => {
+                                const newDimensions = [...formData.dimensions];
+                                newDimensions[dimIndex] = {
+                                  ...newDimensions[dimIndex],
+                                  cw_air_freight: e.target.value,
+                                };
+                                setFormData((prev) => ({ ...prev, dimensions: newDimensions }));
+                              }}
+                              placeholder="0.0"
+                            />
+                          </FormControl>
+                        </Flex>
+                      </VStack>
+                    </Box>
+                  ))}
                 </Box>
 
                 {/* Quotation & Timestamp */}

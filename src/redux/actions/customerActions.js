@@ -36,10 +36,10 @@ export const getCountries = () => async (dispatch) => {
 };
 
 // Get Customers Action
-export const getCustomers = () => async (dispatch) => {
+export const getCustomers = (page = 1, page_size = 80) => async (dispatch) => {
   try {
     dispatch(getCustomersStart());
-    const result = await getCustomersApi();
+    const result = await getCustomersApi(page, page_size);
     dispatch(getCustomersSuccess(result));
     return { success: true, data: result };
   } catch (error) {
@@ -82,8 +82,9 @@ export const registerCustomer = (customerData) => async (dispatch) => {
   try {
     const result = await registerCustomerApi(customerData);
     if (result.success) {
-      // Refresh the customers list after successful registration
-      dispatch(getCustomers());
+      // Refresh the customers list after successful registration (use current page)
+      const currentPage = 1; // Reset to first page after registration
+      dispatch(getCustomers(currentPage, 80));
     }
     return { success: true, data: result };
   } catch (error) {

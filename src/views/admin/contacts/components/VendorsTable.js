@@ -67,7 +67,7 @@ import {
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
-  const { columnsData, tableData, isLoading = false } = props;
+  const { columnsData, tableData, isLoading = false, pagination, page = 1, pageSize = 80, onPageChange } = props;
   const history = useHistory();
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({
@@ -89,7 +89,8 @@ export default function VendorsTable(props) {
   } = useVendor();
   const toast = useToast();
 
-  const [itemsPerPage] = useState(10);
+  // Remove client-side pagination state - use backend pagination
+  // const [itemsPerPage] = useState(10);
   const [newVendor, setNewVendor] = useState({
     name: "",
     agentsdb_id: "",
@@ -359,28 +360,33 @@ export default function VendorsTable(props) {
     //eslint-disable-next-line
   }, [filteredData, sortOrder]);
 
+  // Use backend pagination - no client-side pagination needed
   const tableInstance = useTable(
     {
       columns,
       data,
-      initialState: { pageIndex: 0, pageSize: itemsPerPage },
+      manualPagination: true, // Tell react-table we're handling pagination server-side
     },
     useGlobalFilter,
-    useSortBy,
-    usePagination
+    useSortBy
   );
 
   const {
     getTableProps,
     headerGroups,
-    page,
+    rows: tableRows, // Use all rows since pagination is server-side
     prepareRow,
-    nextPage,
-    previousPage,
-    canNextPage,
-    canPreviousPage,
-    state: { pageIndex },
   } = tableInstance;
+
+  // Use backend pagination data
+  const paginationData = pagination || {
+    page: page || 1,
+    page_size: pageSize || 80,
+    total_count: tableData.length || 0,
+    total_pages: 1,
+    has_next: false,
+    has_previous: false,
+  };
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -1031,7 +1037,7 @@ export default function VendorsTable(props) {
                     </Text>
                   </Td>
                 </Tr>
-              ) : page.length === 0 ? (
+              ) : tableRows.length === 0 ? (
                 <Tr>
                   <Td
                     colSpan={headerGroups[0]?.headers.length + 1}
@@ -1046,7 +1052,7 @@ export default function VendorsTable(props) {
                   </Td>
                 </Tr>
               ) : (
-                page.map((row, index) => {
+                tableRows.map((row, index) => {
                   prepareRow(row);
                   return (
                     <Tr
@@ -1324,26 +1330,24 @@ export default function VendorsTable(props) {
           </Table>
         </Box>
 
-        {/* Pagination */}
-        <Flex px="25px" justify="space-between" align="center" py="20px">
+        {/* Backend Pagination */}
+        <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
           <Text fontSize="sm" color={tableTextColorSecondary}>
-            Showing {pageIndex * itemsPerPage + 1} to{" "}
-            {Math.min((pageIndex + 1) * itemsPerPage, Array.isArray(data) ? data.length : 0)} of{" "}
-            {Array.isArray(data) ? data.length : 0} results
+            Showing {paginationData.total_count === 0 ? 0 : ((paginationData.page - 1) * paginationData.page_size + 1)} to {Math.min(paginationData.page * paginationData.page_size, paginationData.total_count)} of {paginationData.total_count} results
           </Text>
           <HStack spacing={2}>
             <Button
               size="sm"
-              onClick={() => previousPage()}
-              isDisabled={!canPreviousPage}
+              onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
+              isDisabled={!paginationData.has_previous}
               variant="outline"
             >
               Previous
             </Button>
             <Button
               size="sm"
-              onClick={() => nextPage()}
-              isDisabled={!canNextPage}
+              onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
+              isDisabled={!paginationData.has_next}
               variant="outline"
             >
               Next

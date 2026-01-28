@@ -19,7 +19,7 @@ export const useCustomer = () => {
     [dispatch]
   );
   const getCustomersCallback = useCallback(
-    () => dispatch(getCustomers()),
+    (page = 1, page_size = 80) => dispatch(getCustomers(page, page_size)),
     [dispatch]
   );
   const registerCustomerCallback = useCallback(
@@ -49,6 +49,7 @@ export const useCustomer = () => {
     deleteLoading: customerState.deleteLoading,
     updateError: customerState.updateError,
     deleteError: customerState.deleteError,
+    pagination: customerState.pagination,
 
     // Actions
     getCountries: getCountriesCallback,

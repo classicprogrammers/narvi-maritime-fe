@@ -19,7 +19,7 @@ export const useVendor = () => {
     [dispatch]
   );
   const getAgentsCallback = useCallback(
-    () => dispatch(getAgents()),
+    (page = 1, page_size = 80) => dispatch(getAgents(page, page_size)),
     [dispatch]
   );
   const registerAgentCallback = useCallback(
@@ -50,6 +50,7 @@ export const useVendor = () => {
     deleteLoading: vendorState.deleteLoading,
     updateError: vendorState.updateError,
     deleteError: vendorState.deleteError,
+    pagination: vendorState.pagination,
 
     // Actions
     getCountries: getCountriesCallback,
