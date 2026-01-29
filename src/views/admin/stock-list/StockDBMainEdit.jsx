@@ -1902,7 +1902,7 @@ export default function StockDBMainEdit() {
                                             placeholder="Select Vessel"
                                             displayKey="name"
                                             valueKey="id"
-                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                            formatOption={(option) => option.name || String(option.id ?? "")}
                                             isLoading={isLoadingVessels}
                                             bg={inputBg}
                                             color={inputText}

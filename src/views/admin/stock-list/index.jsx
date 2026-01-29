@@ -563,7 +563,7 @@ export default function StockList() {
     const getVesselName = (vesselId) => {
         if (!vesselId) return "-";
         const vessel = vessels.find(v => String(v.id) === String(vesselId));
-        return vessel ? vessel.name : `Vessel ${vesselId}`;
+        return vessel ? vessel.name : String(vesselId);
     };
 
     const getSupplierName = (supplierId) => {
@@ -1660,7 +1660,7 @@ export default function StockList() {
                                                             placeholder="Filter by Vessel"
                                                             displayKey="name"
                                                             valueKey="id"
-                                                            formatOption={(option) => option.name || `Vessel ${option.id}`}
+                                                            formatOption={(option) => option.name || String(option.id ?? "")}
                                                             isLoading={isLoadingVessels}
                                                             bg={inputBg}
                                                             color={inputText}
