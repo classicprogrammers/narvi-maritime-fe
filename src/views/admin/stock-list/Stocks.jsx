@@ -2010,11 +2010,11 @@ export default function Stocks() {
 
         let headerRow = "<tr>";
         if (clientViewFilterType === "filter1") {
-            ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
+            ["SUPPLIER", "PO NUMBER", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else {
-            ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+            ["SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         }
@@ -2025,16 +2025,12 @@ export default function Stocks() {
             const statusStyle = getStatusStyle(item.stock_status);
             bodyRows += "<tr>";
             if (clientViewFilterType === "filter1") {
-                const client = getClientName(item.client_id || item.client);
-                const vessel = getVesselName(item.vessel_id || item.vessel);
                 const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
                 const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
                 const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                 const weight = item.weight_kg ?? item.weight_kgs ?? "-";
                 const status = getStatusLabel(item.stock_status);
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vessel}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
@@ -2042,8 +2038,6 @@ export default function Stocks() {
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
             } else {
-                const client = getClientName(item.client_id || item.client);
-                const vessel = getVesselName(item.vessel_id || item.vessel);
                 const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
                 const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
                 const status = getStatusLabel(item.stock_status);
@@ -2054,8 +2048,6 @@ export default function Stocks() {
                 const exportDoc2 = item.export_doc_2 || "-";
                 const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                 const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vessel}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
