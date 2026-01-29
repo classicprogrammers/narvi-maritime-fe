@@ -55,7 +55,7 @@ import {
     Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -2004,6 +2004,112 @@ export default function Stocks() {
         }
     };
 
+    // Build print/PDF document HTML for client view items
+    const buildClientViewPrintHtml = (items) => {
+        if (!items || items.length === 0) return "";
+
+        let headerRow = "<tr>";
+        if (clientViewFilterType === "filter1") {
+            ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
+                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
+            });
+        } else {
+            ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
+            });
+        }
+        headerRow += "</tr>";
+
+        let bodyRows = "";
+        items.forEach(item => {
+            const statusStyle = getStatusStyle(item.stock_status);
+            bodyRows += "<tr>";
+            if (clientViewFilterType === "filter1") {
+                const client = getClientName(item.client_id || item.client);
+                const vessel = getVesselName(item.vessel_id || item.vessel);
+                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
+                const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
+                const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+                const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                const status = getStatusLabel(item.stock_status);
+                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vessel}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
+            } else {
+                const client = getClientName(item.client_id || item.client);
+                const vessel = getVesselName(item.vessel_id || item.vessel);
+                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
+                const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
+                const status = getStatusLabel(item.stock_status);
+                const origin = item.origin_text || item.origin || getCountryName(item.origin_id) || "-";
+                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                const shippingDoc = item.shipping_doc || "-";
+                const exportDoc = item.export_doc || "-";
+                const exportDoc2 = item.export_doc_2 || "-";
+                const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+                const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vessel}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc2}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+            }
+            bodyRows += "</tr>";
+        });
+
+        return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stocklist - Client View</title>
+<style>body{font-family:Arial,sans-serif;margin:12px;} table{border-collapse:collapse;width:100%;} @media print{body{margin:0;} .no-print{display:none;}}</style></head>
+<body><h2 style="margin-bottom:12px;">Stocklist – Client View</h2>
+<p class="no-print" style="margin-bottom:8px;">Use browser Print (Ctrl+P) and choose "Save as PDF" to export as PDF.</p>
+<table><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table>
+<script>window.onload=function(){window.print();}</script></body></html>`;
+    };
+
+    // Print single row (client view) – opens print window for one item
+    const handlePrintClientViewRow = (item) => {
+        const printHtml = buildClientViewPrintHtml([item]);
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+            toast({ title: "Blocked", description: "Please allow popups to print.", status: "warning", duration: 3000, isClosable: true });
+            return;
+        }
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        toast({ title: "Print", description: "Print dialog opened. Choose 'Save as PDF' to export.", status: "info", duration: 2000, isClosable: true });
+    };
+
+    // Print selected rows (client view) – opens print window for selected items as PDF-ready table
+    const handlePrintClientViewSelected = () => {
+        if (clientViewSelectedRows.size === 0) {
+            toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
+            return;
+        }
+        const selectedItems = filteredAndSortedStock.filter(item =>
+            clientViewSelectedRows.has(item.id || item.stock_item_id)
+        );
+        const printHtml = buildClientViewPrintHtml(selectedItems);
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+            toast({ title: "Blocked", description: "Please allow popups to print.", status: "warning", duration: 3000, isClosable: true });
+            return;
+        }
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        toast({ title: "Print", description: `${selectedItems.length} row(s). Use Print → Save as PDF to export.`, status: "info", duration: 2500, isClosable: true });
+    };
 
     // Handle create new - navigate to form page
     const handleCreateNew = () => {
@@ -5040,9 +5146,20 @@ export default function Stocks() {
                                                 Clear Selection
                                             </Button>
                                             {clientViewSelectedRows.size > 0 && (
-                                                <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                    {clientViewSelectedRows.size} item(s) selected
-                                                </Text>
+                                                <>
+                                                    <Text fontSize="sm" color={tableTextColorSecondary}>
+                                                        {clientViewSelectedRows.size} item(s) selected
+                                                    </Text>
+                                                    <Button
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdPrint} />}
+                                                        colorScheme="blue"
+                                                        variant="outline"
+                                                        onClick={handlePrintClientViewSelected}
+                                                    >
+                                                        Print Selected
+                                                    </Button>
+                                                </>
                                             )}
                                         </HStack>
                                     </Flex>
@@ -5090,6 +5207,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>WEIGHT KGS</Th>
                                                             <Th {...headerProps}>STOCK STATUS</Th>
                                                             <Th {...headerProps}>DESTINATION</Th>
+                                                            <Th {...headerProps}>ACTION</Th>
                                                         </>
                                                     ) : (
                                                         <>
@@ -5105,6 +5223,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>EXPORT DOC 2</Th>
                                                             <Th {...headerProps}>BOXES</Th>
                                                             <Th {...headerProps}>WEIGHT KGS</Th>
+                                                            <Th {...headerProps}>ACTION</Th>
                                                         </>
                                                     )}
                                                 </Tr>
@@ -5113,7 +5232,7 @@ export default function Stocks() {
                                         <Tbody>
                                             {isLoading ? (
                                                 <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 9 : 13} textAlign="center" py="40px">
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
                                                             {/* Placeholder to maintain table structure */}
                                                         </Box>
@@ -5121,7 +5240,7 @@ export default function Stocks() {
                                                 </Tr>
                                             ) : filteredAndSortedStock.length === 0 ? (
                                                 <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 9 : 13} textAlign="center" py="40px">
+                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
                                                         <Text color={tableTextColorSecondary}>
                                                             {stockList.length === 0
                                                                 ? "No stock items available."
@@ -5165,6 +5284,16 @@ export default function Stocks() {
                                                                         </Badge>
                                                                     </Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}>
+                                                                        <IconButton
+                                                                            aria-label="Print row"
+                                                                            icon={<MdPrint />}
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={() => handlePrintClientViewRow(item)}
+                                                                        />
+                                                                    </Td>
                                                                 </>
                                                             ) : (
                                                                 <>
@@ -5192,6 +5321,16 @@ export default function Stocks() {
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}>
+                                                                        <IconButton
+                                                                            aria-label="Print row"
+                                                                            icon={<MdPrint />}
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            colorScheme="blue"
+                                                                            onClick={() => handlePrintClientViewRow(item)}
+                                                                        />
+                                                                    </Td>
                                                                 </>
                                                             )}
                                                         </Tr>
