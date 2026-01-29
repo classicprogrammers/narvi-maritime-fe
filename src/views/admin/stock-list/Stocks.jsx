@@ -5738,34 +5738,55 @@ export default function Stocks() {
                                                         ID: {dim.id}
                                                     </Badge>
                                                 )}
+                                                {/* Calculation Method Badge */}
+                                                <Badge 
+                                                    colorScheme={dim.calculation_method === "volume" ? "purple" : "blue"} 
+                                                    fontSize="xs" 
+                                                    px={2} 
+                                                    py={1}
+                                                >
+                                                    Method: {dim.calculation_method === "volume" ? "Volume" : "LWH"}
+                                                </Badge>
                                             </HStack>
                                         </Flex>
-                                        <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={3}>
-                                            <Box>
+                                        {/* Conditional display based on calculation_method */}
+                                        {dim.calculation_method === "lwh" || !dim.calculation_method ? (
+                                            <Grid templateColumns="repeat(3, 1fr)" gap={4} mb={3}>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                        Length
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                        {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                        Width
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                        {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                        Height
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="semibold" color={textColor}>
+                                                        {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    </Text>
+                                                </Box>
+                                            </Grid>
+                                        ) : (
+                                            <Box mb={3}>
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
-                                                    Length
+                                                    Volume Dimension
                                                 </Text>
                                                 <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.length_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
+                                                    {renderText(dim.volume_dim) || "-"}
                                                 </Text>
                                             </Box>
-                                            <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
-                                                    Width
-                                                </Text>
-                                                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.width_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
-                                                </Text>
-                                            </Box>
-                                            <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
-                                                    Height
-                                                </Text>
-                                                <Text fontSize="lg" fontWeight="semibold" color={textColor}>
-                                                    {renderText(dim.height_cm)} <Text as="span" fontSize="sm" color={useColorModeValue("gray.500", "gray.400")}>cm</Text>
-                                                </Text>
-                                            </Box>
-                                        </Grid>
+                                        )}
                                         <Divider my={3} />
                                         <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                                             <Box>

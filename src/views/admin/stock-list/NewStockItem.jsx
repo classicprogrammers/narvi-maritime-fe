@@ -2350,14 +2350,123 @@ export default function StockForm() {
                                             }}
                                         />
                                     </Flex>
-                                    <Flex gap={3} wrap="wrap">
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Length (cm)</FormLabel>
+                                    {/* Calculation Method Selector */}
+                                    <FormControl mb={3}>
+                                        <FormLabel fontSize="sm" fontWeight="600">Calculation Method</FormLabel>
+                                        <Select
+                                            value={dim.calculation_method || "lwh"}
+                                            onChange={(e) => {
+                                                const updated = [...dimensionsList];
+                                                // Strict conditions: clear irrelevant fields when switching methods
+                                                if (e.target.value === "lwh") {
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        calculation_method: "lwh",
+                                                        volume_dim: "", // Clear volume_dim when switching to lwh
+                                                    };
+                                                } else {
+                                                    // Switching to "volume"
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        calculation_method: "volume",
+                                                        length_cm: "", // Clear LWH fields when switching to volume
+                                                        width_cm: "",
+                                                        height_cm: "",
+                                                    };
+                                                }
+                                                setDimensionsList(updated);
+                                            }}
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="lwh">LWH (Length × Width × Height)</option>
+                                            <option value="volume">Volume</option>
+                                        </Select>
+                                    </FormControl>
+                                    {/* Conditional Fields based on calculation_method */}
+                                    {dim.calculation_method === "lwh" || !dim.calculation_method ? (
+                                        <Flex gap={3} wrap="wrap">
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Length (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.length_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = {
+                                                            ...updated[index],
+                                                            calculation_method: "lwh",
+                                                            length_cm: value,
+                                                            volume_dim: "", // Ensure volume_dim is cleared
+                                                        };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Width (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.width_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = {
+                                                            ...updated[index],
+                                                            calculation_method: "lwh",
+                                                            width_cm: value,
+                                                            volume_dim: "", // Ensure volume_dim is cleared
+                                                        };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Height (cm)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.height_cm || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = {
+                                                            ...updated[index],
+                                                            calculation_method: "lwh",
+                                                            height_cm: value,
+                                                            volume_dim: "", // Ensure volume_dim is cleared
+                                                        };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
+                                        </Flex>
+                                    ) : (
+                                        <FormControl>
+                                            <FormLabel fontSize="sm">Volume Dimension</FormLabel>
                                             <NumberInput
-                                                value={dim.length_cm || ""}
+                                                value={dim.volume_dim || ""}
                                                 onChange={(value) => {
                                                     const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], length_cm: value };
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        calculation_method: "volume",
+                                                        volume_dim: value,
+                                                        length_cm: "", // Ensure LWH fields are cleared
+                                                        width_cm: "",
+                                                        height_cm: "",
+                                                    };
                                                     setDimensionsList(updated);
                                                 }}
                                                 min={0}
@@ -2367,63 +2476,46 @@ export default function StockForm() {
                                                 <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             </NumberInput>
                                         </FormControl>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Width (cm)</FormLabel>
-                                            <NumberInput
-                                                value={dim.width_cm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], width_cm: value };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                        <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Height (cm)</FormLabel>
-                                            <NumberInput
-                                                value={dim.height_cm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = { ...updated[index], height_cm: value };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
-                                        </FormControl>
-                                    </Flex>
+                                    )}
+                                    {/* Additional fields that are always visible */}
                                     <Flex gap={3} wrap="wrap" mt={3}>
                                         <FormControl flex="1" minW="150px">
-                                            <FormLabel fontSize="sm">Volume (CBM)</FormLabel>
-                                            <Input
+                                            <FormLabel fontSize="sm">Volume CBM</FormLabel>
+                                            <NumberInput
                                                 value={dim.volume_cbm || ""}
-                                                isReadOnly
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        volume_cbm: value,
+                                                    };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
                                                 size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                placeholder="Calculated by backend"
-                                            />
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
                                         </FormControl>
                                         <FormControl flex="1" minW="150px">
                                             <FormLabel fontSize="sm">CW Air Freight</FormLabel>
-                                            <Input
+                                            <NumberInput
                                                 value={dim.cw_air_freight || ""}
-                                                isReadOnly
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        cw_air_freight: value,
+                                                    };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
                                                 size="sm"
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                                placeholder="Calculated by backend"
-                                            />
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
                                         </FormControl>
                                     </Flex>
                                 </Box>
@@ -2433,11 +2525,13 @@ export default function StockForm() {
                                 onClick={() => {
                                     setDimensionsList([...dimensionsList, {
                                         id: null,
+                                        calculation_method: "lwh",
                                         length_cm: "",
                                         width_cm: "",
                                         height_cm: "",
-                                        volume_cbm: "",
-                                        cw_air_freight: "",
+                                        volume_dim: "",
+                                        volume_cbm: 0.0,
+                                        cw_air_freight: 0.0,
                                     }]);
                                 }}
                                 colorScheme="blue"
@@ -2459,6 +2553,21 @@ export default function StockForm() {
                                     ...updatedRows[currentRowIndexForDimensions],
                                     dimensions: dimensionsList,
                                 };
+                                // Recalculate volume_cbm if needed
+                                if (dimensionsList.length > 0 && dimensionsList[0]) {
+                                    const dim = dimensionsList[0];
+                                    if (dim.calculation_method === "lwh") {
+                                        const length = parseFloat(dim.length_cm || 0);
+                                        const width = parseFloat(dim.width_cm || 0);
+                                        const height = parseFloat(dim.height_cm || 0);
+                                        if (length > 0 && width > 0 && height > 0) {
+                                            const calculatedCbm = ((length * width * height) / 1000000).toFixed(2);
+                                            updatedRows[currentRowIndexForDimensions].volumeCbm = calculatedCbm;
+                                        }
+                                    } else if (dim.calculation_method === "volume" && dim.volume_dim) {
+                                        updatedRows[currentRowIndexForDimensions].volumeCbm = parseFloat(dim.volume_dim);
+                                    }
+                                }
                                 setFormRows(updatedRows);
                                 onDimensionsModalClose();
                             }}

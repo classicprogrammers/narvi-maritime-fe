@@ -91,10 +91,17 @@ export default function StockForm() {
         shippingDoc: "",
         items: "",
         weightKgs: "",
-        lengthCm: "",
-        widthCm: "",
-        heightCm: "",
-        volumeNoDim: "",
+        // Dimensions array structure
+        dimensions: [{
+            id: null,
+            calculation_method: "lwh", // "lwh" or "volume"
+            length_cm: "",
+            width_cm: "",
+            height_cm: "",
+            volume_dim: "",
+            volume_cbm: 0.0,
+            cw_air_freight: 0.0,
+        }],
         // Allow multiple LWH entries via multi-line text (one per line)
         lwhText: "",
         details: "",
@@ -544,13 +551,31 @@ export default function StockForm() {
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
             weightKgs: getFieldValue(stock.weight_kg ?? stock.weight_kgs, ""),
-            lengthCm: getFieldValue(stock.length_cm, ""),
-            widthCm: getFieldValue(stock.width_cm, ""),
-            heightCm: getFieldValue(stock.height_cm, ""),
-            volumeNoDim: getFieldValue(
-                stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm,
-                ""
-            ),
+            // Load dimensions from API or create default
+            dimensions: Array.isArray(stock.dimensions) && stock.dimensions.length > 0
+                ? stock.dimensions.map(dim => ({
+                    id: dim.id || null,
+                    calculation_method: dim.calculation_method || "lwh",
+                    length_cm: dim.length_cm || "",
+                    width_cm: dim.width_cm || "",
+                    height_cm: dim.height_cm || "",
+                    volume_dim: dim.volume_dim || "",
+                    volume_cbm: dim.volume_cbm || 0.0,
+                    cw_air_freight: dim.cw_air_freight || 0.0,
+                }))
+                : [{
+                    id: null,
+                    calculation_method: (stock.length_cm || stock.width_cm || stock.height_cm) ? "lwh" : "volume",
+                    length_cm: getFieldValue(stock.length_cm, ""),
+                    width_cm: getFieldValue(stock.width_cm, ""),
+                    height_cm: getFieldValue(stock.height_cm, ""),
+                    volume_dim: getFieldValue(
+                        stock.volume_no_dim ?? stock.volume_dim ?? stock.volume_cbm,
+                        ""
+                    ),
+                    volume_cbm: getFieldValue(stock.volume_cbm, 0.0),
+                    cw_air_freight: 0.0,
+                }],
             lwhText: getFieldValue(stock.lwh_text),
             details: getFieldValue(stock.details) || getFieldValue(stock.item_desc),
             value: getFieldValue(stock.value, ""),
@@ -682,16 +707,36 @@ export default function StockForm() {
                 }
             }
 
-            // Calculate volume_cbm from dimensions if available
-            if (field === "lengthCm" || field === "widthCm" || field === "heightCm" || field === "volumeNoDim") {
-                const length = toNumber(updatedRow.lengthCm || 0);
-                const width = toNumber(updatedRow.widthCm || 0);
-                const height = toNumber(updatedRow.heightCm || 0);
-                if (length > 0 && width > 0 && height > 0) {
-                    // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
-                    updatedRow.volumeCbm = ((length * width * height) / 1000000).toFixed(2);
-                } else if (updatedRow.volumeNoDim) {
-                    updatedRow.volumeCbm = updatedRow.volumeNoDim;
+            // Calculate volume_cbm from dimensions if available - with strict method conditions
+            if (field === "dimensions" && updatedRow.dimensions && updatedRow.dimensions[0]) {
+                const dim = updatedRow.dimensions[0];
+                const method = dim.calculation_method || "lwh";
+                
+                if (method === "lwh") {
+                    // Only calculate from LWH if method is lwh
+                    const length = toNumber(dim.length_cm || 0);
+                    const width = toNumber(dim.width_cm || 0);
+                    const height = toNumber(dim.height_cm || 0);
+                    if (length > 0 && width > 0 && height > 0) {
+                        // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
+                        const calculatedCbm = ((length * width * height) / 1000000).toFixed(2);
+                        updatedRow.dimensions[0].volume_cbm = calculatedCbm;
+                        updatedRow.volumeCbm = calculatedCbm;
+                    } else {
+                        // Reset to 0 if any dimension is missing
+                        updatedRow.dimensions[0].volume_cbm = 0.0;
+                        updatedRow.volumeCbm = 0.0;
+                    }
+                } else if (method === "volume") {
+                    // Only use volume_dim if method is volume
+                    if (dim.volume_dim) {
+                        const volumeValue = toNumber(dim.volume_dim);
+                        updatedRow.dimensions[0].volume_cbm = volumeValue;
+                        updatedRow.volumeCbm = volumeValue;
+                    } else {
+                        updatedRow.dimensions[0].volume_cbm = 0.0;
+                        updatedRow.volumeCbm = 0.0;
+                    }
                 }
             }
 
@@ -766,12 +811,44 @@ export default function StockForm() {
             client_access: Boolean(rowData.clientAccess),
             remarks: rowData.remarks || "",
             weight_kg: toNumber(rowData.weightKgs) || 0,
-            width_cm: toNumber(rowData.widthCm) || 0,
-            length_cm: toNumber(rowData.lengthCm) || 0,
-            height_cm: toNumber(rowData.heightCm) || 0,
-            volume_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_no_dim: toNumber(rowData.volumeNoDim) || 0,
-            volume_cbm: toNumber(rowData.volumeCbm || rowData.volumeNoDim) || 0,
+            // Include dimensions array if present - with strict conditions based on calculation_method
+            dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0
+                ? rowData.dimensions.map(dim => {
+                    const method = dim.calculation_method || "lwh";
+                    // Strict conditions: only include relevant fields based on method
+                    if (method === "lwh") {
+                        return {
+                            id: dim.id || undefined,
+                            calculation_method: "lwh",
+                            length_cm: dim.length_cm ? parseFloat(dim.length_cm) : 0.0,
+                            width_cm: dim.width_cm ? parseFloat(dim.width_cm) : 0.0,
+                            height_cm: dim.height_cm ? parseFloat(dim.height_cm) : 0.0,
+                            volume_dim: false, // Always false for lwh method
+                            volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
+                            cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
+                        };
+                    } else {
+                        // method === "volume"
+                        return {
+                            id: dim.id || undefined,
+                            calculation_method: "volume",
+                            length_cm: 0.0, // Always 0.0 for volume method
+                            width_cm: 0.0, // Always 0.0 for volume method
+                            height_cm: 0.0, // Always 0.0 for volume method
+                            volume_dim: dim.volume_dim ? parseFloat(dim.volume_dim) : false,
+                            volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
+                            cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
+                        };
+                    }
+                })
+                : undefined,
+            // Legacy fields for backward compatibility (use first dimension if available)
+            width_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].width_cm) || 0) : 0,
+            length_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].length_cm) || 0) : 0,
+            height_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].height_cm) || 0) : 0,
+            volume_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
+            volume_no_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
+            volume_cbm: rowData.dimensions?.[0]?.volume_cbm ? (toNumber(rowData.dimensions[0].volume_cbm) || 0) : (toNumber(rowData.volumeCbm) || 0),
             // Send raw text plus parsed array of LWH entries (one per line)
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
@@ -1095,10 +1172,13 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Method</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Length cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume dim</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume CBM</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Air Freight</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
@@ -1272,10 +1352,223 @@ export default function StockForm() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
+                                    {/* Dimensions - Method */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Select
+                                            value={row.dimensions?.[0]?.calculation_method || "lwh"}
+                                            onChange={(e) => {
+                                                const newDimensions = [...(row.dimensions || [{
+                                                    id: null,
+                                                    calculation_method: "lwh",
+                                                    length_cm: "",
+                                                    width_cm: "",
+                                                    height_cm: "",
+                                                    volume_dim: "",
+                                                    volume_cbm: 0.0,
+                                                    cw_air_freight: 0.0,
+                                                }])];
+                                                // Strict conditions: clear irrelevant fields when switching methods
+                                                if (e.target.value === "lwh") {
+                                                    newDimensions[0] = {
+                                                        ...newDimensions[0],
+                                                        calculation_method: "lwh",
+                                                        volume_dim: "", // Clear volume_dim when switching to lwh
+                                                        // Keep existing LWH values or initialize to empty
+                                                        length_cm: newDimensions[0].length_cm || "",
+                                                        width_cm: newDimensions[0].width_cm || "",
+                                                        height_cm: newDimensions[0].height_cm || "",
+                                                    };
+                                                } else {
+                                                    // Switching to "volume"
+                                                    newDimensions[0] = {
+                                                        ...newDimensions[0],
+                                                        calculation_method: "volume",
+                                                        length_cm: "", // Clear LWH fields when switching to volume
+                                                        width_cm: "",
+                                                        height_cm: "",
+                                                        // Keep existing volume_dim or initialize to empty
+                                                        volume_dim: newDimensions[0].volume_dim || "",
+                                                    };
+                                                }
+                                                handleInputChange(rowIndex, "dimensions", newDimensions);
+                                            }}
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="lwh">LWH</option>
+                                            <option value="volume">Volume</option>
+                                        </Select>
+                                    </Td>
+                                    {/* Dimensions - Length (shown ONLY when method is lwh) */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        {row.dimensions?.[0]?.calculation_method === "lwh" ? (
+                                            <NumberInput
+                                                value={row.dimensions[0].length_cm || ""}
+                                                onChange={(value) => {
+                                                    const newDimensions = [...(row.dimensions || [])];
+                                                    if (!newDimensions[0]) {
+                                                        newDimensions[0] = {
+                                                            id: null,
+                                                            calculation_method: "lwh",
+                                                            length_cm: "",
+                                                            width_cm: "",
+                                                            height_cm: "",
+                                                            volume_dim: "",
+                                                            volume_cbm: 0.0,
+                                                            cw_air_freight: 0.0,
+                                                        };
+                                                    }
+                                                    // Strict condition: only update length_cm when method is lwh
+                                                    newDimensions[0].calculation_method = "lwh";
+                                                    newDimensions[0].length_cm = value;
+                                                    // Ensure volume_dim is cleared for lwh method
+                                                    newDimensions[0].volume_dim = "";
+                                                    handleInputChange(rowIndex, "dimensions", newDimensions);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        ) : (
+                                            <Text fontSize="xs" color="gray.400">-</Text>
+                                        )}
+                                    </Td>
+                                    {/* Dimensions - Width (shown ONLY when method is lwh) */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        {row.dimensions?.[0]?.calculation_method === "lwh" ? (
+                                            <NumberInput
+                                                value={row.dimensions[0].width_cm || ""}
+                                                onChange={(value) => {
+                                                    const newDimensions = [...(row.dimensions || [])];
+                                                    if (!newDimensions[0]) {
+                                                        newDimensions[0] = {
+                                                            id: null,
+                                                            calculation_method: "lwh",
+                                                            length_cm: "",
+                                                            width_cm: "",
+                                                            height_cm: "",
+                                                            volume_dim: "",
+                                                            volume_cbm: 0.0,
+                                                            cw_air_freight: 0.0,
+                                                        };
+                                                    }
+                                                    // Strict condition: only update width_cm when method is lwh
+                                                    newDimensions[0].calculation_method = "lwh";
+                                                    newDimensions[0].width_cm = value;
+                                                    // Ensure volume_dim is cleared for lwh method
+                                                    newDimensions[0].volume_dim = "";
+                                                    handleInputChange(rowIndex, "dimensions", newDimensions);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        ) : (
+                                            <Text fontSize="xs" color="gray.400">-</Text>
+                                        )}
+                                    </Td>
+                                    {/* Dimensions - Height (shown ONLY when method is lwh) */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        {row.dimensions?.[0]?.calculation_method === "lwh" ? (
+                                            <NumberInput
+                                                value={row.dimensions[0].height_cm || ""}
+                                                onChange={(value) => {
+                                                    const newDimensions = [...(row.dimensions || [])];
+                                                    if (!newDimensions[0]) {
+                                                        newDimensions[0] = {
+                                                            id: null,
+                                                            calculation_method: "lwh",
+                                                            length_cm: "",
+                                                            width_cm: "",
+                                                            height_cm: "",
+                                                            volume_dim: "",
+                                                            volume_cbm: 0.0,
+                                                            cw_air_freight: 0.0,
+                                                        };
+                                                    }
+                                                    // Strict condition: only update height_cm when method is lwh
+                                                    newDimensions[0].calculation_method = "lwh";
+                                                    newDimensions[0].height_cm = value;
+                                                    // Ensure volume_dim is cleared for lwh method
+                                                    newDimensions[0].volume_dim = "";
+                                                    handleInputChange(rowIndex, "dimensions", newDimensions);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        ) : (
+                                            <Text fontSize="xs" color="gray.400">-</Text>
+                                        )}
+                                    </Td>
+                                    {/* Dimensions - Volume dim (shown ONLY when method is volume) */}
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        {row.dimensions?.[0]?.calculation_method === "volume" ? (
+                                            <NumberInput
+                                                value={row.dimensions[0].volume_dim || ""}
+                                                onChange={(value) => {
+                                                    const newDimensions = [...(row.dimensions || [])];
+                                                    if (!newDimensions[0]) {
+                                                        newDimensions[0] = {
+                                                            id: null,
+                                                            calculation_method: "volume",
+                                                            length_cm: "",
+                                                            width_cm: "",
+                                                            height_cm: "",
+                                                            volume_dim: "",
+                                                            volume_cbm: 0.0,
+                                                            cw_air_freight: 0.0,
+                                                        };
+                                                    }
+                                                    // Strict condition: only update volume_dim when method is volume
+                                                    newDimensions[0].calculation_method = "volume";
+                                                    newDimensions[0].volume_dim = value;
+                                                    // Ensure LWH fields are cleared for volume method
+                                                    newDimensions[0].length_cm = "";
+                                                    newDimensions[0].width_cm = "";
+                                                    newDimensions[0].height_cm = "";
+                                                    handleInputChange(rowIndex, "dimensions", newDimensions);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        ) : (
+                                            <Text fontSize="xs" color="gray.400">-</Text>
+                                        )}
+                                    </Td>
+                                    {/* Dimensions - Volume CBM */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <NumberInput
-                                            value={row.lengthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "lengthCm", value)}
+                                            value={row.dimensions?.[0]?.volume_cbm || row.volumeCbm || ""}
+                                            onChange={(value) => {
+                                                const newDimensions = [...(row.dimensions || [])];
+                                                if (!newDimensions[0]) {
+                                                    newDimensions[0] = {
+                                                        id: null,
+                                                        calculation_method: row.dimensions?.[0]?.calculation_method || "lwh",
+                                                        length_cm: "",
+                                                        width_cm: "",
+                                                        height_cm: "",
+                                                        volume_dim: "",
+                                                        volume_cbm: 0.0,
+                                                        cw_air_freight: 0.0,
+                                                    };
+                                                }
+                                                newDimensions[0].volume_cbm = value;
+                                                handleInputChange(rowIndex, "dimensions", newDimensions);
+                                                handleInputChange(rowIndex, "volumeCbm", value);
+                                            }}
                                             min={0}
                                             precision={2}
                                             size="sm"
@@ -1283,32 +1576,27 @@ export default function StockForm() {
                                             <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                         </NumberInput>
                                     </Td>
+                                    {/* Dimensions - CW Air Freight */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <NumberInput
-                                            value={row.widthCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "widthCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <NumberInput
-                                            value={row.heightCm}
-                                            onChange={(value) => handleInputChange(rowIndex, "heightCm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
-                                    </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <NumberInput
-                                            value={row.volumeNoDim}
-                                            onChange={(value) => handleInputChange(rowIndex, "volumeNoDim", value)}
+                                            value={row.dimensions?.[0]?.cw_air_freight || ""}
+                                            onChange={(value) => {
+                                                const newDimensions = [...(row.dimensions || [])];
+                                                if (!newDimensions[0]) {
+                                                    newDimensions[0] = {
+                                                        id: null,
+                                                        calculation_method: row.dimensions?.[0]?.calculation_method || "lwh",
+                                                        length_cm: "",
+                                                        width_cm: "",
+                                                        height_cm: "",
+                                                        volume_dim: "",
+                                                        volume_cbm: 0.0,
+                                                        cw_air_freight: 0.0,
+                                                    };
+                                                }
+                                                newDimensions[0].cw_air_freight = value;
+                                                handleInputChange(rowIndex, "dimensions", newDimensions);
+                                            }}
                                             min={0}
                                             precision={2}
                                             size="sm"
