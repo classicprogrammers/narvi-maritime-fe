@@ -95,7 +95,29 @@ export const getVessels = async (params = {}) => {
 };
 
 /**
- * Get a single vessel by ID
+ * Get a single vessel by ID (GET /api/vessels/:id)
+ * Use this for edit forms to load the current vessel instead of filtering from the list.
+ * @param {number|string} vesselId - The vessel ID
+ * @returns {Promise<Object>} - The vessel data { id, name, ... }
+ */
+export const getVesselById = async (vesselId) => {
+  try {
+    const id = vesselId == null || vesselId === "" ? null : String(vesselId).trim();
+    if (!id) return null;
+    const response = await axios.get(`/api/vessels/${id}`);
+    const data = response.data || response;
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch vessel");
+    }
+    const vessel = data.vessel ?? data;
+    return vessel && typeof vessel === "object" ? vessel : null;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get a single vessel by ID (POST /api/vessel - legacy)
  * @param {number} vesselId - The vessel ID
  * @returns {Promise<Object>} - The vessel data
  */
@@ -293,6 +315,7 @@ export const deleteVessel = async (id) => {
 const vessels = {
   getVessels,
   getVessel,
+  getVesselById,
   getVesselTypes,
   createVessel,
   updateVessel,

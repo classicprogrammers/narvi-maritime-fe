@@ -65,6 +65,7 @@ import {
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
 import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
+import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
 import countriesAPI from "../../../api/countries";
@@ -658,6 +659,33 @@ export default function StockDBMainEdit() {
         );
     }, [countries]);
 
+    // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list
+    useEffect(() => {
+        if (!formRows.length) return;
+        const vesselIdsInForm = [...new Set(formRows.map((r) => r.vessel).filter(Boolean))];
+        const missingIds = vesselIdsInForm.filter(
+            (id) => !vessels.some((v) => String(v.id) === String(id))
+        );
+        if (missingIds.length === 0) return;
+        let cancelled = false;
+        missingIds.forEach(async (id) => {
+            try {
+                const vessel = await vesselsAPI.getVesselById(id);
+                if (!cancelled && vessel) {
+                    setVessels((prev) => {
+                        if (prev.some((v) => String(v.id) === String(id))) return prev;
+                        return [...prev, vessel];
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch vessel by id", id, e);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [formRows, vessels]);
+
     // Handle file upload for attachments
     const handleFileUpload = (rowIndex, files) => {
         const fileArray = Array.from(files || []);
@@ -736,7 +764,7 @@ export default function StockDBMainEdit() {
                     setIsLoadingAttachment(true);
                     // Use new endpoint for viewing: /api/stock/list/${stockId}/attachment/${attachmentId}/download
                     const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
-                    
+
                     if (response.data instanceof Blob) {
                         const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                         fileUrl = URL.createObjectURL(response.data);
@@ -953,11 +981,11 @@ export default function StockDBMainEdit() {
             try {
                 // Use new endpoint for force download: /api/stock/list/${stockId}/attachment/${attachmentId}/download?download=true
                 const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, true);
-                
+
                 if (response.data instanceof Blob) {
                     const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                     const filename = response.filename || attachment.filename || attachment.name || 'download';
-                    
+
                     // Create download link
                     const url = URL.createObjectURL(response.data);
                     const link = document.createElement('a');
@@ -1230,7 +1258,7 @@ export default function StockDBMainEdit() {
                 if (!dim.id) {
                     // New dimension - no id means it's new
                     const method = dim.calculation_method || "lwh";
-                    
+
                     if (method === "lwh") {
                         const length = normalizeDimValue(dim.length_cm);
                         const width = normalizeDimValue(dim.width_cm);
@@ -1265,51 +1293,51 @@ export default function StockDBMainEdit() {
                             });
                         }
                     }
-                    } else {
-                        // Check if this dimension exists in original
-                        const originalDim = originalDimensions.find(od => od.id === dim.id);
-                        if (!originalDim) {
-                            // New dimension with id (shouldn't happen, but handle it)
-                            const method = dim.calculation_method || "lwh";
-                            
-                            if (method === "lwh") {
-                                const length = normalizeDimValue(dim.length_cm);
-                                const width = normalizeDimValue(dim.width_cm);
-                                const height = normalizeDimValue(dim.height_cm);
+                } else {
+                    // Check if this dimension exists in original
+                    const originalDim = originalDimensions.find(od => od.id === dim.id);
+                    if (!originalDim) {
+                        // New dimension with id (shouldn't happen, but handle it)
+                        const method = dim.calculation_method || "lwh";
 
-                                if (length > 0 || width > 0 || height > 0) {
-                                    dimensionsPayload.push({
-                                        op: "create",
-                                        calculation_method: "lwh",
-                                        length_cm: length,
-                                        width_cm: width,
-                                        height_cm: height,
-                                        volume_dim: false,
-                                        volume_cbm: normalizeDimValue(dim.volume_cbm),
-                                        cw_air_freight: normalizeDimValue(dim.cw_air_freight),
-                                    });
-                                }
-                            } else {
-                                // method === "volume"
-                                const volumeDim = normalizeDimValue(dim.volume_dim);
-                                if (volumeDim > 0) {
-                                    dimensionsPayload.push({
-                                        op: "create",
-                                        calculation_method: "volume",
-                                        length_cm: 0.0,
-                                        width_cm: 0.0,
-                                        height_cm: 0.0,
-                                        volume_dim: volumeDim,
-                                        volume_cbm: normalizeDimValue(dim.volume_cbm),
-                                        cw_air_freight: normalizeDimValue(dim.cw_air_freight),
-                                    });
-                                }
+                        if (method === "lwh") {
+                            const length = normalizeDimValue(dim.length_cm);
+                            const width = normalizeDimValue(dim.width_cm);
+                            const height = normalizeDimValue(dim.height_cm);
+
+                            if (length > 0 || width > 0 || height > 0) {
+                                dimensionsPayload.push({
+                                    op: "create",
+                                    calculation_method: "lwh",
+                                    length_cm: length,
+                                    width_cm: width,
+                                    height_cm: height,
+                                    volume_dim: false,
+                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
+                                    cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                });
                             }
+                        } else {
+                            // method === "volume"
+                            const volumeDim = normalizeDimValue(dim.volume_dim);
+                            if (volumeDim > 0) {
+                                dimensionsPayload.push({
+                                    op: "create",
+                                    calculation_method: "volume",
+                                    length_cm: 0.0,
+                                    width_cm: 0.0,
+                                    height_cm: 0.0,
+                                    volume_dim: volumeDim,
+                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
+                                    cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                });
+                            }
+                        }
                     } else {
                         // Check if dimension values changed - normalize both for comparison
                         const method = dim.calculation_method || "lwh";
                         const originalMethod = originalDim.calculation_method || "lwh";
-                        
+
                         let hasChanged = false;
                         let updatePayload = {
                             op: "update",
