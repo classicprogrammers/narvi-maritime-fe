@@ -12,7 +12,7 @@ const initialState = {
   // Pagination metadata
   pagination: {
     page: 1,
-    page_size: 80,
+    page_size: 50,
     total_count: 0,
     total_pages: 0,
     has_next: false,
@@ -54,7 +54,7 @@ const customerSlice = createSlice({
       if (response.page !== undefined) {
         state.pagination = {
           page: response.page || 1,
-          page_size: response.page_size || 80,
+          page_size: response.page_size || 50,
           total_count: response.total_count || 0,
           total_pages: response.total_pages || 0,
           has_next: response.has_next || false,

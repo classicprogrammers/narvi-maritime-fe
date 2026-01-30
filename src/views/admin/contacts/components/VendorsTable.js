@@ -373,7 +373,7 @@ export default function VendorsTable(props) {
   // Use backend pagination data
   const paginationData = pagination || {
     page: page || 1,
-    page_size: pageSize || 80,
+    page_size: pageSize || 50,
     total_count: tableData.length || 0,
     total_pages: 1,
     has_next: false,

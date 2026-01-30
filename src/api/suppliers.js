@@ -1,28 +1,22 @@
 import api from "./axios";
 
-// Fetch list of suppliers with pagination
+// Fetch list of suppliers - use page_size=all to get all records (pagination handled client-side if needed)
 export async function getSuppliers(params = {}) {
   const {
-    page = 1,
-    page_size = 80,
     sort_by = "id",
     sort_order = "desc",
     search = "",
   } = params;
 
   const requestParams = {
-    page,
-    page_size,
+    page_size: "all",
     sort_by,
     sort_order,
   };
 
-  // Include search parameter - many backends use 'name' for searching supplier names
+  // Include search parameter if provided (API uses ?search=)
   const trimmedSearch = search ? search.trim() : "";
   if (trimmedSearch) {
-    // Try 'name' parameter first (common for supplier name searches)
-    requestParams.name = trimmedSearch;
-    // Also include 'search' as fallback
     requestParams.search = trimmedSearch;
   }
 
@@ -37,18 +31,19 @@ export async function getSuppliers(params = {}) {
   }
 
   // Return full response with pagination metadata
+  const suppliersList = Array.isArray(data.suppliers) ? data.suppliers : [];
   if (data.status === "success") {
     return {
-      suppliers: Array.isArray(data.suppliers) ? data.suppliers : [],
-      count: data.count || 0,
-      total_count: data.total_count || 0,
-      page: data.page || page,
-      page_size: data.page_size || page_size,
-      total_pages: data.total_pages || 0,
-      has_next: data.has_next || false,
-      has_previous: data.has_previous || false,
-      sort_by: data.sort_by || sort_by,
-      sort_order: data.sort_order || sort_order,
+      suppliers: suppliersList,
+      count: data.count ?? suppliersList.length,
+      total_count: data.total_count ?? suppliersList.length,
+      page: data.page ?? 1,
+      page_size: data.page_size ?? "all",
+      total_pages: data.total_pages ?? 1,
+      has_next: data.has_next ?? false,
+      has_previous: data.has_previous ?? false,
+      sort_by: data.sort_by ?? sort_by,
+      sort_order: data.sort_order ?? sort_order,
     };
   }
 
@@ -57,7 +52,7 @@ export async function getSuppliers(params = {}) {
     count: 0,
     total_count: 0,
     page: 1,
-    page_size: page_size,
+    page_size: "all",
     total_pages: 0,
     has_next: false,
     has_previous: false,
