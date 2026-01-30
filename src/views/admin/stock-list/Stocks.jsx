@@ -60,9 +60,7 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
 import api from "../../../api/axios";
-import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
-import destinationsAPI from "../../../api/destinations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
@@ -324,13 +322,10 @@ export default function Stocks() {
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
-    const { clients, vessels, suppliers: vendors, countries } = useMasterData();
+    const { clients, vessels, suppliers: vendors, countries, destinations, currencies } = useMasterData();
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
-    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
-    // Lookup data for IDs -> Names (countries from master cache)
-    const [destinations, setDestinations] = useState([]);
-    const [currencies, setCurrencies] = useState([]);
+    // Lookup data for IDs -> Names (destinations, currencies from master cache)
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
@@ -400,13 +395,10 @@ export default function Stocks() {
             try {
                 hasFetchedLookupData.current = true;
                 setIsLoadingWarehouses(true);
-                setIsLoadingCurrencies(true);
                 setIsLoadingShippingOrders(true);
 
-                // Fetch lookup data (clients, vessels, vendors, countries from master cache)
+                // Destinations and currencies from master cache; fetch locations and shipping orders
                 const promises = [
-                    destinationsAPI.getDestinations().catch(() => ({ destinations: [] })).then(data => ({ type: 'destinations', data: Array.isArray(data) ? data : (data?.destinations || data?.result?.destinations || []) })),
-                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
                     locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
                     getShippingOrders().catch(() => ({ orders: [] })).then(data => {
                         let orders = [];
@@ -427,12 +419,6 @@ export default function Stocks() {
 
                 results.forEach(({ type, data }) => {
                     switch (type) {
-                        case 'destinations':
-                            setDestinations(data || []);
-                            break;
-                        case 'currencies':
-                            setCurrencies(data?.currencies || data || []);
-                            break;
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
@@ -446,7 +432,6 @@ export default function Stocks() {
                 hasFetchedLookupData.current = false; // Reset on error to allow retry
             } finally {
                 setIsLoadingWarehouses(false);
-                setIsLoadingCurrencies(false);
                 setIsLoadingShippingOrders(false);
             }
         };

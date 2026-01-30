@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   getCached,
   refreshMasterData,
@@ -5,9 +6,9 @@ import {
 } from '../utils/masterDataCache';
 
 /**
- * Returns master data (clients, agents, countries, vessels, suppliers) from localStorage cache.
+ * Returns master data (clients, agents, countries, vessels, suppliers, pics, destinations, currencies) from localStorage cache.
  * Data is filled by preloadAll() after login. Use refresh* when the user edits that module.
- * Reads from cache on every render so navigating to the page shows latest cached data.
+ * /api/destinations and /api/currencies are cached so they are not called again and again.
  */
 export function useMasterData() {
   const clients = getCached(MASTER_KEYS.CLIENTS) ?? [];
@@ -15,12 +16,18 @@ export function useMasterData() {
   const countries = getCached(MASTER_KEYS.COUNTRIES) ?? [];
   const vessels = getCached(MASTER_KEYS.VESSELS) ?? [];
   const suppliers = getCached(MASTER_KEYS.SUPPLIERS) ?? [];
+  const pics = getCached(MASTER_KEYS.PICS) ?? [];
+  const destinations = getCached(MASTER_KEYS.DESTINATIONS) ?? [];
+  const currencies = getCached(MASTER_KEYS.CURRENCIES) ?? [];
 
-  const refreshClients = () => refreshMasterData(MASTER_KEYS.CLIENTS);
-  const refreshAgents = () => refreshMasterData(MASTER_KEYS.AGENTS);
-  const refreshCountries = () => refreshMasterData(MASTER_KEYS.COUNTRIES);
-  const refreshVessels = () => refreshMasterData(MASTER_KEYS.VESSELS);
-  const refreshSuppliers = () => refreshMasterData(MASTER_KEYS.SUPPLIERS);
+  const refreshClients = useCallback(() => refreshMasterData(MASTER_KEYS.CLIENTS), []);
+  const refreshAgents = useCallback(() => refreshMasterData(MASTER_KEYS.AGENTS), []);
+  const refreshCountries = useCallback(() => refreshMasterData(MASTER_KEYS.COUNTRIES), []);
+  const refreshVessels = useCallback(() => refreshMasterData(MASTER_KEYS.VESSELS), []);
+  const refreshSuppliers = useCallback(() => refreshMasterData(MASTER_KEYS.SUPPLIERS), []);
+  const refreshPics = useCallback(() => refreshMasterData(MASTER_KEYS.PICS), []);
+  const refreshDestinations = useCallback(() => refreshMasterData(MASTER_KEYS.DESTINATIONS), []);
+  const refreshCurrencies = useCallback(() => refreshMasterData(MASTER_KEYS.CURRENCIES), []);
 
   return {
     clients,
@@ -28,11 +35,17 @@ export function useMasterData() {
     countries,
     vessels,
     suppliers,
+    pics,
+    destinations,
+    currencies,
     refreshClients,
     refreshAgents,
     refreshCountries,
     refreshVessels,
     refreshSuppliers,
+    refreshPics,
+    refreshDestinations,
+    refreshCurrencies,
   };
 }
 

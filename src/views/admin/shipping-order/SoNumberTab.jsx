@@ -70,9 +70,7 @@ import {
   MdContentCopy,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import { getDestinationsForSelect } from "../../../api/entitySelects";
 import quotationsAPI from "../../../api/quotations";
-import picAPI from "../../../api/pic";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
   getShippingOrders,
@@ -151,13 +149,9 @@ const SoNumberTab = () => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
-  const { clients, vessels, countries } = useMasterData();
-  const [destinations, setDestinations] = useState([]);
+  const { clients, vessels, countries, pics, destinations } = useMasterData();
   const [quotations, setQuotations] = useState([]);
-  const [pics, setPics] = useState([]);
-  const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
-  const [isLoadingPICs, setIsLoadingPICs] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -380,29 +374,7 @@ const SoNumberTab = () => {
     setPage(1);
   };
 
-  // Fetch destinations only (clients, vessels, countries come from master data cache)
-  useEffect(() => {
-    const fetchDestinations = async () => {
-      try {
-        setIsLoadingDestinations(true);
-        const destinationsData = await getDestinationsForSelect().catch(() => []);
-        setDestinations(destinationsData || []);
-      } catch (error) {
-        console.error("Failed to fetch SO destinations", error);
-        toast({
-          title: "Lookup load failed",
-          description: "Unable to load destinations",
-          status: "warning",
-          duration: 4000,
-          isClosable: true,
-        });
-      } finally {
-        setIsLoadingDestinations(false);
-      }
-    };
-
-    fetchDestinations();
-  }, [toast]);
+  // Destinations come from master cache (/api/destinations stored) - no fetch here
 
   // Persist Next Action sort option to sessionStorage
   useEffect(() => {
@@ -451,40 +423,7 @@ const SoNumberTab = () => {
     fetchQuotations();
   }, []);
 
-  // Fetch PICs for Person in Charge field
-  useEffect(() => {
-    const fetchPICs = async () => {
-      try {
-        setIsLoadingPICs(true);
-        const response = await picAPI.getPICs();
-
-        // Handle API response format: { status: "success", count: 1, persons: [...] }
-        let picList = [];
-        if (response && response.persons && Array.isArray(response.persons)) {
-          picList = response.persons;
-        } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
-          picList = response.result.persons;
-        } else if (Array.isArray(response)) {
-          picList = response;
-        }
-
-        // Normalize PICs for the dropdown
-        const normalizedPICs = picList.map((pic) => ({
-          id: pic.id,
-          name: pic.name || "",
-        }));
-
-        setPics(normalizedPICs);
-      } catch (error) {
-        console.error("Failed to fetch PICs for PIC field", error);
-        setPics([]);
-      } finally {
-        setIsLoadingPICs(false);
-      }
-    };
-
-    fetchPICs();
-  }, []);
+  // PICs come from cache (useMasterData) - /api/person/incharge/list stored in cache, no repeated calls
 
   // Initialize default PICs when PICs are loaded
   useEffect(() => {
@@ -1931,7 +1870,7 @@ const SoNumberTab = () => {
                         placeholder="Select person in charge"
                         displayKey="name"
                         valueKey="id"
-                        isLoading={isLoadingPICs}
+                        isLoading={false}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}

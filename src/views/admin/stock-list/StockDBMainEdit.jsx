@@ -64,15 +64,12 @@ import {
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
-import { getDestinationsForSelect } from "../../../api/entitySelects";
 import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
-import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
 import { useMasterData, getMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { getShippingOrders } from "../../../api/shippingOrders";
-import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockDBMainEdit() {
@@ -80,9 +77,11 @@ export default function StockDBMainEdit() {
     const location = useLocation();
     const toast = useToast();
     const { getStockList, updateLoading } = useStock();
-    const { clients, suppliers, countries } = useMasterData();
+    const { clients, suppliers, countries, pics, destinations, currencies } = useMasterData();
     // Initialize vessels from cache once at mount; setVessels used to add vessel-by-id when missing
     const [vessels, setVessels] = useState(() => getMasterData(MASTER_KEYS.VESSELS));
+    const vesselsRef = useRef(vessels);
+    vesselsRef.current = vessels;
 
     // Get selected items and filter state from location.state
     const stateData = location.state || {};
@@ -117,15 +116,9 @@ export default function StockDBMainEdit() {
     // Confirmation dialog for back button
     const { isOpen: isBackConfirmOpen, onOpen: onBackConfirmOpen, onClose: onBackConfirmClose } = useDisclosure();
     const cancelRef = React.useRef();
-    const [destinations, setDestinations] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-    const [currencies, setCurrencies] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
-    const [pics, setPics] = useState([]);
-    const [isLoadingPICs, setIsLoadingPICs] = useState(false);
-    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
@@ -501,19 +494,13 @@ export default function StockDBMainEdit() {
         }
     }, [selectedItemsFromState, loadFormDataFromStock, history, toast]);
 
-    // Fetch lookup data (clients, vessels, suppliers, countries from master cache)
+    // Fetch lookup data once on mount (locations, shipping orders). Destinations, currencies, PICs from cache.
+    const hasFetchedLookupDataRef = useRef(false);
     useEffect(() => {
-        const fetchLookupData = async () => {
-            try {
-                setIsLoadingDestinations(true);
-                const destinationsData = await getDestinationsForSelect();
-                setDestinations(destinationsData || []);
-            } catch (error) {
-                console.error('Failed to fetch destinations:', error);
-            } finally {
-                setIsLoadingDestinations(false);
-            }
+        if (hasFetchedLookupDataRef.current) return;
+        hasFetchedLookupDataRef.current = true;
 
+        const fetchLookupData = async () => {
             try {
                 setIsLoadingLocations(true);
                 const locationsResponse = await locationsAPI.getLocations();
@@ -527,20 +514,6 @@ export default function StockDBMainEdit() {
                 setIsLoadingLocations(false);
             }
 
-
-            try {
-                setIsLoadingCurrencies(true);
-                const currenciesResponse = await currenciesAPI.getCurrencies();
-                const currenciesData = (currenciesResponse && Array.isArray(currenciesResponse.currencies))
-                    ? currenciesResponse.currencies
-                    : (Array.isArray(currenciesResponse) ? currenciesResponse : []);
-                setCurrencies(currenciesData || []);
-            } catch (error) {
-                console.error('Failed to fetch currencies:', error);
-            } finally {
-                setIsLoadingCurrencies(false);
-            }
-
             try {
                 setIsLoadingShippingOrders(true);
                 const shippingOrdersResponse = await getShippingOrders();
@@ -552,29 +525,6 @@ export default function StockDBMainEdit() {
                 console.error('Failed to fetch shipping orders:', error);
             } finally {
                 setIsLoadingShippingOrders(false);
-            }
-
-            // Fetch PICs
-            try {
-                setIsLoadingPICs(true);
-                const response = await picAPI.getPICs();
-                let picList = [];
-                if (response && response.persons && Array.isArray(response.persons)) {
-                    picList = response.persons;
-                } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
-                    picList = response.result.persons;
-                } else if (Array.isArray(response)) {
-                    picList = response;
-                }
-                const normalizedPICs = picList.map((pic) => ({
-                    id: pic.id,
-                    name: pic.name || "",
-                }));
-                setPics(normalizedPICs);
-            } catch (error) {
-                console.error('Failed to fetch PICs:', error);
-            } finally {
-                setIsLoadingPICs(false);
             }
         };
 
@@ -610,12 +560,14 @@ export default function StockDBMainEdit() {
         );
     }, [formRows]);
 
-    // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list
+    // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list.
+    // Use vesselsRef so we only depend on formRows – avoids re-running when setVessels updates state.
     useEffect(() => {
         if (!formRows.length) return;
+        const currentVessels = vesselsRef.current;
         const vesselIdsInForm = [...new Set(formRows.map((r) => r.vessel).filter(Boolean))];
         const missingIds = vesselIdsInForm.filter(
-            (id) => !vessels.some((v) => String(v.id) === String(id))
+            (id) => !currentVessels.some((v) => String(v.id) === String(id))
         );
         if (missingIds.length === 0) return;
         let cancelled = false;
@@ -635,7 +587,7 @@ export default function StockDBMainEdit() {
         return () => {
             cancelled = true;
         };
-    }, [formRows, vessels]);
+    }, [formRows]);
 
     // Handle file upload for attachments
     const handleFileUpload = (rowIndex, files) => {
@@ -2255,7 +2207,7 @@ export default function StockDBMainEdit() {
                                                     displayKey="name"
                                                     valueKey="id"
                                                     formatOption={(option) => option.name || option.code || `Dest ${option.id}`}
-                                                    isLoading={isLoadingDestinations}
+                                                    isLoading={false}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
@@ -2708,7 +2660,7 @@ export default function StockDBMainEdit() {
                                                 const fullName = option.full_name || option.description || "";
                                                 return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
                                             }}
-                                            isLoading={isLoadingCurrencies}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2843,7 +2795,7 @@ export default function StockDBMainEdit() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `PIC ${option.id}`}
-                                            isLoading={isLoadingPICs}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

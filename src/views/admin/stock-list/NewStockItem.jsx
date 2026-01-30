@@ -55,11 +55,9 @@ import {
 } from "react-icons/md";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
-import currenciesAPI from "../../../api/currencies";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
-import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -72,14 +70,11 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, suppliers, countries, refreshClients, refreshVessels } = useMasterData();
+    const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
-    const [currencies, setCurrencies] = useState([]);
-    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
-    const [pics, setPics] = useState([]);
-    const [isLoadingPICs, setIsLoadingPICs] = useState(false);
+    const hasFetchedCurrenciesRef = React.useRef(false);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -275,65 +270,13 @@ export default function StockForm() {
         ensureStockData,
     ]);
 
-    // Fetch currencies and PICs on mount (clients, vessels, suppliers, countries from master cache)
+    // Currencies and PICs come from cache (useMasterData). Ensure clients/vessels cache on mount.
     useEffect(() => {
-        const fetchCurrenciesAndPICs = async () => {
-            // Fetch currencies
-            try {
-                setIsLoadingCurrencies(true);
-                const currenciesResponse = await currenciesAPI.getCurrencies();
-                const currenciesData = (currenciesResponse && Array.isArray(currenciesResponse.currencies))
-                    ? currenciesResponse.currencies
-                    : (Array.isArray(currenciesResponse) ? currenciesResponse : []);
-                setCurrencies(currenciesData || []);
-            } catch (error) {
-                console.error('Failed to fetch currencies:', error);
-                toast({
-                    title: 'Warning',
-                    description: 'Failed to load currencies',
-                    status: 'warning',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            } finally {
-                setIsLoadingCurrencies(false);
-            }
-
-            // Fetch PICs
-            try {
-                setIsLoadingPICs(true);
-                const response = await picAPI.getPICs();
-                let picList = [];
-                if (response && response.persons && Array.isArray(response.persons)) {
-                    picList = response.persons;
-                } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
-                    picList = response.result.persons;
-                } else if (Array.isArray(response)) {
-                    picList = response;
-                }
-                const normalizedPICs = picList.map((pic) => ({
-                    id: pic.id,
-                    name: pic.name || "",
-                }));
-                setPics(normalizedPICs);
-            } catch (error) {
-                console.error('Failed to fetch PICs:', error);
-                toast({
-                    title: 'Warning',
-                    description: 'Failed to load PICs',
-                    status: 'warning',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            } finally {
-                setIsLoadingPICs(false);
-            }
-        };
-
+        if (hasFetchedCurrenciesRef.current) return;
+        hasFetchedCurrenciesRef.current = true;
         refreshClients();
         refreshVessels();
-        fetchCurrenciesAndPICs();
-    }, [toast, refreshClients, refreshVessels]);
+    }, [refreshClients, refreshVessels]);
 
     // Normalize currency values when currencies are loaded
     useEffect(() => {
@@ -1391,7 +1334,7 @@ export default function StockForm() {
                                                 displayKey="name"
                                                 valueKey="id"
                                                 formatOption={(option) => option.name || `PIC ${option.id}`}
-                                                isLoading={isLoadingPICs}
+                                                isLoading={false}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1622,7 +1565,7 @@ export default function StockForm() {
                                                     const fullName = option.full_name || option.description || "";
                                                     return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
                                                 }}
-                                                isLoading={isLoadingCurrencies}
+                                                isLoading={false}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}

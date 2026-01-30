@@ -46,9 +46,12 @@ import {
   MdPerson,
 } from "react-icons/md";
 import picAPI from "../../../api/pic";
+import { useMasterData } from "../../../hooks/useMasterData";
+import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 export default function PIC() {
-  const [pics, setPics] = useState([]);
+  const { refreshPics } = useMasterData();
+  const [pics, setPics] = useState(() => getCached(MASTER_KEYS.PICS) ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingPIC, setEditingPIC] = useState(null);
@@ -72,25 +75,17 @@ export default function PIC() {
     name: "",
   });
 
-  // Fetch PICs
-  const fetchPICs = async () => {
+  // Load PICs from cache then refresh (API data is stored in cache, so we don't call again and again elsewhere)
+  const loadPICs = async () => {
     try {
       setIsLoading(true);
-      const response = await picAPI.getPICs();
-      // Handle API response format: { status: "success", count: 1, persons: [...] }
-      if (response && response.persons && Array.isArray(response.persons)) {
-        setPics(response.persons);
-      } else if (response.result && response.result.persons && Array.isArray(response.result.persons)) {
-        setPics(response.result.persons);
-      } else if (Array.isArray(response)) {
-        setPics(response);
-      } else {
-        setPics([]);
-      }
+      setPics(getCached(MASTER_KEYS.PICS) ?? []);
+      const list = await refreshPics();
+      setPics(Array.isArray(list) ? list : []);
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to fetch PICs: ${error.message}`,
+        description: `Failed to load PICs: ${error.message}`,
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -101,11 +96,10 @@ export default function PIC() {
     }
   };
 
-  // Load PICs on component mount
+  // Load PICs on mount: show cached first, then refresh and update cache
   useEffect(() => {
-    fetchPICs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadPICs();
+  }, [refreshPics]);
 
   // Filter PICs based on search
   const filteredPICs = useMemo(() => {
@@ -186,7 +180,7 @@ export default function PIC() {
 
       onModalClose();
       resetForm();
-      fetchPICs();
+      refreshPics().then((list) => setPics(Array.isArray(list) ? list : []));
     } catch (error) {
       toast({
         title: "Error",
@@ -236,7 +230,7 @@ export default function PIC() {
       });
       onDeleteClose();
       setDeletePICId(null);
-      fetchPICs();
+      refreshPics().then((list) => setPics(Array.isArray(list) ? list : []));
     } catch (error) {
       // Extract error message from API response
       let errorMessage = "Failed to delete PIC";

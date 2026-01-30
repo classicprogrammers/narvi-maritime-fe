@@ -44,8 +44,6 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
-import { getDestinationsForSelect } from "../../../api/entitySelects";
-import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -78,7 +76,7 @@ export default function StockList() {
     } = useStock();
 
     const { user } = useUser();
-    const { clients, vessels, agents: vendors, countries } = useMasterData();
+    const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
 
     // Check if current user is authorized to edit (Igor or Martin only)
     const isAuthorizedToEdit = React.useMemo(() => {
@@ -122,9 +120,7 @@ export default function StockList() {
     });
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
-    // Lookup data for IDs -> Names (clients, vessels, vendors, countries from master cache)
-    const [destinations, setDestinations] = useState([]);
-    const [currencies, setCurrencies] = useState([]);
+    // Lookup data for IDs -> Names (clients, vessels, vendors, countries, destinations, currencies from master cache)
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
@@ -173,7 +169,7 @@ export default function StockList() {
         return sessionStorage.getItem('stockListMainSearchFilter') || "";
     });
     const [searchQuery, setSearchQuery] = useState("");
-    
+
     // Pagination state
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(50);
@@ -442,10 +438,8 @@ export default function StockList() {
             try {
                 hasFetchedLookupData.current = true;
 
-                // Fetch lookup data (clients, vessels, vendors, countries come from master cache)
+                // Destinations and currencies come from master cache; only fetch locations and shipping orders
                 const promises = [
-                    getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
-                    currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
                     locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
                     getShippingOrders().catch(() => ({ orders: [] })).then(data => ({ type: 'shippingOrders', data }))
                 ];
@@ -454,12 +448,6 @@ export default function StockList() {
 
                 results.forEach(({ type, data }) => {
                     switch (type) {
-                        case 'destinations':
-                            setDestinations(data || []);
-                            break;
-                        case 'currencies':
-                            setCurrencies(data?.currencies || data || []);
-                            break;
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
@@ -902,7 +890,7 @@ export default function StockList() {
                         const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
                         const normalizedA = normalizeStatus(a.stock_status);
                         const normalizedB = normalizeStatus(b.stock_status);
-                        
+
                         // If same hub and both are "in_stock", sort by date_on_stock
                         if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "in_stock" && normalizedB === "in_stock") {
                             const dateA = a.date_on_stock ? new Date(a.date_on_stock) : new Date(0);
@@ -1153,7 +1141,7 @@ export default function StockList() {
                     setIsLoadingAttachment(true);
                     // Use new endpoint for viewing: /api/stock/list/${stockId}/attachment/${attachmentId}/download
                     const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
-                    
+
                     if (response.data instanceof Blob) {
                         const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                         fileUrl = URL.createObjectURL(response.data);
@@ -1188,7 +1176,7 @@ export default function StockList() {
                             stockId = urlMatch[1];
                         }
                     }
-                    
+
                     if (!stockId) {
                         throw new Error('Unable to determine stock item ID from attachment URL');
                     }
@@ -1201,7 +1189,7 @@ export default function StockList() {
 
                         // Handle response - could be blob (direct file) or JSON (metadata)
                         let attachmentData = null;
-                        
+
                         // If response is a blob (direct file data)
                         if (response.data instanceof Blob) {
                             const mimeType = response.type || attachment.mimetype || "application/octet-stream";
@@ -1209,7 +1197,7 @@ export default function StockList() {
                             window.open(fileUrl, '_blank');
                             return;
                         }
-                        
+
                         // If response is JSON (metadata or error)
                         if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
                             // Find the specific attachment by ID if available
@@ -1370,11 +1358,11 @@ export default function StockList() {
             try {
                 // Use new endpoint for force download: /api/stock/list/${stockId}/attachment/${attachmentId}/download?download=true
                 const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, true);
-                
+
                 if (response.data instanceof Blob) {
                     const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                     const filename = response.filename || attachment.filename || attachment.name || 'download';
-                    
+
                     // Create download link
                     const url = URL.createObjectURL(response.data);
                     const link = document.createElement('a');

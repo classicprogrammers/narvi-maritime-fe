@@ -41,9 +41,12 @@ import {
   MdLocationOn,
 } from "react-icons/md";
 import destinationsAPI from "../../../api/destinations";
+import { useMasterData } from "../../../hooks/useMasterData";
+import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 export default function Destinations() {
-  const [destinations, setDestinations] = useState([]);
+  const { refreshDestinations } = useMasterData();
+  const [destinations, setDestinations] = useState(() => getCached(MASTER_KEYS.DESTINATIONS) ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [editingDestination, setEditingDestination] = useState(null);
@@ -65,20 +68,17 @@ export default function Destinations() {
     name: "",
   });
 
-  // Fetch destinations
-  const fetchDestinations = async () => {
+  // Load from cache then refresh (API data stored in cache so we don't call again and again elsewhere)
+  const loadDestinations = async () => {
     try {
       setIsLoading(true);
-      const response = await destinationsAPI.getDestinations();
-      if (response.destinations && Array.isArray(response.destinations)) {
-        setDestinations(response.destinations);
-      } else {
-        setDestinations([]);
-      }
+      setDestinations(getCached(MASTER_KEYS.DESTINATIONS) ?? []);
+      const list = await refreshDestinations();
+      setDestinations(Array.isArray(list) ? list : []);
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to fetch destinations: ${error.message}`,
+        description: `Failed to load destinations: ${error.message}`,
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -89,11 +89,9 @@ export default function Destinations() {
     }
   };
 
-  // Load destinations on component mount
   useEffect(() => {
-    fetchDestinations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadDestinations();
+  }, [refreshDestinations]);
 
   // Filter destinations based on search
   const filteredDestinations = useMemo(() => {
@@ -210,7 +208,7 @@ export default function Destinations() {
 
       onModalClose();
       resetForm();
-      fetchDestinations();
+      refreshDestinations().then((list) => setDestinations(Array.isArray(list) ? list : []));
     } catch (error) {
       // Extract error message from API response
       let errorMessage = `Failed to ${editingDestination ? 'update' : 'create'} destination`;
@@ -266,10 +264,10 @@ export default function Destinations() {
           description: successMessage,
           status: status,
           duration: 3000,
-          isClosable: true,
-        });
+        isClosable: true,
+      });
 
-        fetchDestinations();
+        refreshDestinations().then((list) => setDestinations(Array.isArray(list) ? list : []));
       } catch (error) {
         let errorMessage = "Failed to delete destination";
         let status = "error";

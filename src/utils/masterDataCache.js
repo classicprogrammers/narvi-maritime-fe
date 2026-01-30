@@ -1,7 +1,8 @@
 /**
- * Master data cache: clients, agents, countries, vessels, suppliers.
+ * Master data cache: clients, agents, countries, vessels, suppliers, pics, destinations, currencies.
  * Fetched once after login and stored in localStorage. Refreshed only when
- * the user makes changes in the respective module (Clients, Agents, Countries, Vessels, Suppliers).
+ * the user makes changes in the respective module.
+ * /api/destinations and /api/currencies are stored so we do not call again and again.
  */
 
 import { getCustomersForSelect } from '../api/entitySelects';
@@ -9,6 +10,9 @@ import { getVesselsForSelect } from '../api/entitySelects';
 import { getVendorsApi } from '../api/vendor';
 import countriesAPI from '../api/countries';
 import { getSuppliers } from '../api/suppliers';
+import picAPI from '../api/pic';
+import destinationsAPI from '../api/destinations';
+import currenciesAPI from '../api/currencies';
 
 const STORAGE_PREFIX = 'narvi_master_';
 
@@ -18,6 +22,9 @@ export const MASTER_KEYS = {
   COUNTRIES: 'countries',
   VESSELS: 'vessels',
   SUPPLIERS: 'suppliers',
+  PICS: 'pics',
+  DESTINATIONS: 'destinations',
+  CURRENCIES: 'currencies',
 };
 
 function storageKey(key) {
@@ -125,12 +132,69 @@ async function fetchAndCacheSuppliers() {
   }
 }
 
+/**
+ * Fetch persons in charge (PICs) from API and cache.
+ * /api/person/incharge/list - stored so we do not call again and again.
+ */
+async function fetchAndCachePics() {
+  try {
+    const response = await picAPI.getPICs();
+    let list = [];
+    if (response?.persons && Array.isArray(response.persons)) {
+      list = response.persons;
+    } else if (response?.result?.persons && Array.isArray(response.result.persons)) {
+      list = response.result.persons;
+    } else if (Array.isArray(response)) {
+      list = response;
+    }
+    const normalized = list.map((p) => ({ id: p.id, name: p.name || '' }));
+    setCached(MASTER_KEYS.PICS, normalized);
+    return normalized;
+  } catch (err) {
+    console.error('[masterDataCache] fetch PICs failed:', err);
+    return getCached(MASTER_KEYS.PICS) ?? [];
+  }
+}
+
+/**
+ * Fetch destinations from /api/destinations and cache.
+ */
+async function fetchAndCacheDestinations() {
+  try {
+    const response = await destinationsAPI.getDestinations();
+    const list = Array.isArray(response?.destinations) ? response.destinations : (response?.result?.destinations ?? []);
+    setCached(MASTER_KEYS.DESTINATIONS, list);
+    return list;
+  } catch (err) {
+    console.error('[masterDataCache] fetch destinations failed:', err);
+    return getCached(MASTER_KEYS.DESTINATIONS) ?? [];
+  }
+}
+
+/**
+ * Fetch currencies from /api/currencies and cache.
+ */
+async function fetchAndCacheCurrencies() {
+  try {
+    const response = await currenciesAPI.getCurrencies();
+    const list = Array.isArray(response?.currencies) ? response.currencies : (Array.isArray(response) ? response : []);
+    setCached(MASTER_KEYS.CURRENCIES, list);
+    return list;
+  } catch (err) {
+    console.error('[masterDataCache] fetch currencies failed:', err);
+    return getCached(MASTER_KEYS.CURRENCIES) ?? [];
+  }
+}
+
 const fetchers = {
   [MASTER_KEYS.CLIENTS]: fetchAndCacheClients,
   [MASTER_KEYS.AGENTS]: fetchAndCacheAgents,
   [MASTER_KEYS.COUNTRIES]: fetchAndCacheCountries,
   [MASTER_KEYS.VESSELS]: fetchAndCacheVessels,
   [MASTER_KEYS.SUPPLIERS]: fetchAndCacheSuppliers,
+  [MASTER_KEYS.PICS]: fetchAndCachePics,
+  [MASTER_KEYS.DESTINATIONS]: fetchAndCacheDestinations,
+  [MASTER_KEYS.CURRENCIES]: fetchAndCacheCurrencies,
 };
 
 /**
@@ -147,6 +211,9 @@ export async function preloadAll() {
     fetchAndCacheCountries(),
     fetchAndCacheVessels(),
     fetchAndCacheSuppliers(),
+    fetchAndCachePics(),
+    fetchAndCacheDestinations(),
+    fetchAndCacheCurrencies(),
   ]);
 }
 

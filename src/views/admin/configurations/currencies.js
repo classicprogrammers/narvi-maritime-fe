@@ -41,9 +41,12 @@ import {
   MdEdit,
 } from "react-icons/md";
 import currenciesAPI from "../../../api/currencies";
+import { useMasterData } from "../../../hooks/useMasterData";
+import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 export default function Currencies() {
-  const [currencies, setCurrencies] = useState([]);
+  const { refreshCurrencies } = useMasterData();
+  const [currencies, setCurrencies] = useState(() => getCached(MASTER_KEYS.CURRENCIES) ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -69,20 +72,17 @@ export default function Currencies() {
     active: true,
   });
 
-  // Fetch currencies
-  const fetchCurrencies = async () => {
+  // Load from cache then refresh (API data stored in cache so we don't call again and again elsewhere)
+  const loadCurrencies = async () => {
     try {
       setIsLoading(true);
-      const response = await currenciesAPI.getCurrencies();
-      if (response.currencies && Array.isArray(response.currencies)) {
-        setCurrencies(response.currencies);
-      } else {
-        setCurrencies([]);
-      }
+      setCurrencies(getCached(MASTER_KEYS.CURRENCIES) ?? []);
+      const list = await refreshCurrencies();
+      setCurrencies(Array.isArray(list) ? list : []);
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to fetch currencies: ${error.message}`,
+        description: `Failed to load currencies: ${error.message}`,
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -93,11 +93,9 @@ export default function Currencies() {
     }
   };
 
-  // Load currencies on component mount
   useEffect(() => {
-    fetchCurrencies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadCurrencies();
+  }, [refreshCurrencies]);
 
   // Filter currencies based on search and status
   const filteredCurrencies = useMemo(() => {
@@ -228,7 +226,7 @@ export default function Currencies() {
 
       onModalClose();
       resetForm();
-      fetchCurrencies();
+      refreshCurrencies().then((list) => setCurrencies(Array.isArray(list) ? list : []));
     } catch (error) {
       // Extract error message from API response
       let errorMessage = `Failed to ${editingCurrency ? 'update' : 'create'} currency`;
