@@ -19,7 +19,7 @@ export const useVendor = () => {
     [dispatch]
   );
   const getAgentsCallback = useCallback(
-    (page = 1, page_size = 80) => dispatch(getAgents(page, page_size)),
+    (filterParams = {}) => dispatch(getAgents(filterParams)),
     [dispatch]
   );
   const registerAgentCallback = useCallback(

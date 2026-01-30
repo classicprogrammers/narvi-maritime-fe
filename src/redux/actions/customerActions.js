@@ -35,11 +35,11 @@ export const getCountries = () => async (dispatch) => {
   }
 };
 
-// Get Customers Action
-export const getCustomers = (page = 1, page_size = 80) => async (dispatch) => {
+// Get Customers Action - no page/page_size; backend returns all. filterParams for filters.
+export const getCustomers = (filterParams = {}) => async (dispatch) => {
   try {
     dispatch(getCustomersStart());
-    const result = await getCustomersApi(page, page_size);
+    const result = await getCustomersApi(filterParams);
     dispatch(getCustomersSuccess(result));
     return { success: true, data: result };
   } catch (error) {
@@ -82,9 +82,8 @@ export const registerCustomer = (customerData) => async (dispatch) => {
   try {
     const result = await registerCustomerApi(customerData);
     if (result.success) {
-      // Refresh the customers list after successful registration (use current page)
-      const currentPage = 1; // Reset to first page after registration
-      dispatch(getCustomers(currentPage, 80));
+      // Refresh the customers list after successful registration
+      dispatch(getCustomers({}));
     }
     return { success: true, data: result };
   } catch (error) {

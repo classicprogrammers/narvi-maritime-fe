@@ -297,18 +297,24 @@ export const registerVendorApi = async (agentData) => {
   }
 };
 
-// Get Agents API
-export const getVendorsApi = async (page = 1, page_size = 80) => {
+// Get Agents API - no page/page_size; backend returns all. Filter params when provided.
+export const getVendorsApi = async (filterParams = {}) => {
   try {
-    // Add user_id as query parameter
     const url = getApiEndpoint("VENDORS");
-
-    const response = await api.get(url, {
-      params: {
-        page,
-        page_size,
-      },
-    });
+    const params = {};
+    if (filterParams) {
+      if (filterParams.name != null && String(filterParams.name).trim() !== "")
+        params.name = String(filterParams.name).trim();
+      if (filterParams.agentsdb_id != null && String(filterParams.agentsdb_id).trim() !== "")
+        params.agentsdb_id = String(filterParams.agentsdb_id).trim();
+      if (filterParams.reg_no != null && String(filterParams.reg_no).trim() !== "")
+        params.reg_no = String(filterParams.reg_no).trim();
+      if (filterParams.city != null && String(filterParams.city).trim() !== "")
+        params.city = String(filterParams.city).trim();
+      if (filterParams.country != null && String(filterParams.country).trim() !== "")
+        params.country = String(filterParams.country).trim();
+    }
+    const response = await api.get(url, { params });
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch agents');

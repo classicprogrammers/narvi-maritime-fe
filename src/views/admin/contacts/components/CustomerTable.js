@@ -69,15 +69,37 @@ import {
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
-  const { columnsData, tableData, isLoading = false, pagination, page = 1, pageSize = 80, onPageChange } = props;
+  const {
+    columnsData,
+    tableData,
+    isLoading = false,
+    pagination,
+    page = 1,
+    pageSize = 80,
+    onPageChange,
+    onPageSizeChange,
+    searchValue: propsSearchValue,
+    onSearchChange: propsOnSearchChange,
+    filters: propsFilters,
+    onFilterChange: propsOnFilterChange,
+    onClearAll: propsOnClearAll,
+    onRefresh: propsOnRefresh,
+  } = props;
   const history = useHistory();
-  const [searchValue, setSearchValue] = useState("");
-  const [filters, setFilters] = useState({
+  const [internalSearch, setInternalSearch] = useState("");
+  const [internalFilters, setInternalFilters] = useState({
     client_code: "",
     name: "",
     type_client: "",
     email: "",
   });
+  const isControlled = propsSearchValue !== undefined && propsOnSearchChange != null && propsFilters !== undefined && propsOnFilterChange != null;
+  const searchValue = isControlled ? propsSearchValue : internalSearch;
+  const setSearchValue = isControlled ? propsOnSearchChange : setInternalSearch;
+  const filters = isControlled ? propsFilters : internalFilters;
+  const setFiltersOrNotify = isControlled
+    ? (field, value) => propsOnFilterChange(field, value)
+    : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
   const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
   const {
@@ -126,87 +148,66 @@ export default function CustomerTable(props) {
     return data;
   };
 
-  // Filter data based on search and filters
+  // Filter data: when API params are used (isControlled) only filter by parent_id; else apply search + filters client-side
   const filteredCustomers = useMemo(() => {
     let filtered = Array.isArray(tableData) ? [...tableData] : [];
 
     // Filter to show only parent companies (parent_id === false, null, or undefined)
-    // Children have parent_id as a number (their parent's ID)
     filtered = filtered.filter((item) =>
       item.parent_id === false || item.parent_id === null || item.parent_id === undefined
     );
 
-    // Apply search filter
-    if (searchValue) {
-      filtered = filtered.filter(
-        (item) =>
-          (item.name &&
-            item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.client_code &&
-            item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.type_client &&
-            item.type_client.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.client_category &&
-            item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.street &&
-            item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.street2 &&
-            item.street2.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.zip &&
-            item.zip.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.city &&
-            item.city.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.country_name &&
-            item.country_name.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.reg_no &&
-            item.reg_no.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.email &&
-            item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.email2 &&
-            item.email2.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.phone && item.phone.toString().includes(searchValue)) ||
-          (item.phone2 && item.phone2.toString().includes(searchValue)) ||
-          (item.website &&
-            item.website.toLowerCase().includes(searchValue.toLowerCase())) ||
-          (item.remarks &&
-            item.remarks.toLowerCase().includes(searchValue.toLowerCase()))
-      );
-    }
-
-    // Apply client code filter
-    if (filters.client_code) {
-      filtered = filtered.filter(
-        (item) =>
-          item.client_code &&
-          item.client_code.toLowerCase().includes(filters.client_code.toLowerCase())
-      );
-    }
-
-    // Apply name filter
-    if (filters.name) {
-      filtered = filtered.filter(
-        (item) =>
-          item.name &&
-          item.name.toLowerCase().includes(filters.name.toLowerCase())
-      );
-    }
-
-    // Apply client type filter
-    if (filters.type_client) {
-      filtered = filtered.filter(
-        (item) =>
-          item.type_client &&
-          item.type_client.toLowerCase().includes(filters.type_client.toLowerCase())
-      );
-    }
-
-    // Apply email filter
-    if (filters.email) {
-      filtered = filtered.filter(
-        (item) =>
-          (item.email && item.email.toLowerCase().includes(filters.email.toLowerCase())) ||
-          (item.email2 && item.email2.toLowerCase().includes(filters.email.toLowerCase()))
-      );
+    if (!isControlled) {
+      // Client-side search and filters (when not using API params)
+      if (searchValue) {
+        filtered = filtered.filter(
+          (item) =>
+            (item.name && item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.client_code && item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.type_client && item.type_client.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.client_category && item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.street && item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.street2 && item.street2.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.zip && item.zip.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.city && item.city.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.country_name && item.country_name.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.reg_no && item.reg_no.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.email && item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.email2 && item.email2.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.phone && item.phone.toString().includes(searchValue)) ||
+            (item.phone2 && item.phone2.toString().includes(searchValue)) ||
+            (item.website && item.website.toLowerCase().includes(searchValue.toLowerCase())) ||
+            (item.remarks && item.remarks.toLowerCase().includes(searchValue.toLowerCase()))
+        );
+      }
+      if (filters.client_code) {
+        filtered = filtered.filter(
+          (item) =>
+            item.client_code &&
+            item.client_code.toLowerCase().includes(filters.client_code.toLowerCase())
+        );
+      }
+      if (filters.name) {
+        filtered = filtered.filter(
+          (item) =>
+            item.name &&
+            item.name.toLowerCase().includes(filters.name.toLowerCase())
+        );
+      }
+      if (filters.type_client) {
+        filtered = filtered.filter(
+          (item) =>
+            item.type_client &&
+            item.type_client.toLowerCase().includes(filters.type_client.toLowerCase())
+        );
+      }
+      if (filters.email) {
+        filtered = filtered.filter(
+          (item) =>
+            (item.email && item.email.toLowerCase().includes(filters.email.toLowerCase())) ||
+            (item.email2 && item.email2.toLowerCase().includes(filters.email.toLowerCase()))
+        );
+      }
     }
 
     return filtered.map((item) => {
@@ -268,7 +269,7 @@ export default function CustomerTable(props) {
         children_display: normalizedChildren,
       };
     });
-  }, [tableData, searchValue, filters]);
+  }, [tableData, searchValue, filters, isControlled]);
 
   const data = useMemo(() => {
     const sortedData = applyCustomSorting(filteredCustomers);
@@ -322,19 +323,16 @@ export default function CustomerTable(props) {
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
 
   const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFiltersOrNotify(field, value);
   };
 
   const clearAllFilters = () => {
-    setFilters({
-      client_code: "",
-      name: "",
-      type_client: "",
-      email: "",
-    });
+    if (isControlled && propsOnClearAll) {
+      propsOnClearAll();
+    } else {
+      setInternalFilters({ client_code: "", name: "", type_client: "", email: "" });
+      setInternalSearch("");
+    }
   };
 
   const clearAllSorting = () => {
@@ -344,7 +342,7 @@ export default function CustomerTable(props) {
   const clearAllFiltersAndSorting = () => {
     clearAllFilters();
     clearAllSorting();
-    setSearchValue("");
+    if (!isControlled) setSearchValue("");
     setSortOrder("alphabetical");
   };
 
@@ -484,7 +482,8 @@ export default function CustomerTable(props) {
         setSuccessMessage("Client updated successfully!");
         setIsSuccessOpen(true);
         // Refresh the customers list to show updated data
-        getCustomers();
+        if (propsOnRefresh) propsOnRefresh();
+        else getCustomers({});
       }
       // Error handling is done by the API modal system
     } catch (error) {
@@ -561,7 +560,8 @@ export default function CustomerTable(props) {
         onDeleteClose();
         setCustomerToDelete(null);
         // Refresh the customers list to show updated data
-        getCustomers();
+        if (propsOnRefresh) propsOnRefresh();
+        else getCustomers({});
       }
       // Error handling is done by the API modal system
     } catch (error) {
@@ -647,10 +647,10 @@ export default function CustomerTable(props) {
             flexWrap="wrap"
             mb={4}
           >
-            {/* Search */}
+            {/* Client Name search */}
             <Box flex="1" minW="280px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                Search Clients
+                Client Name
               </Text>
               <InputGroup>
                 <InputLeftElement>
@@ -664,7 +664,7 @@ export default function CustomerTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search clients by name, client code, client type, email, phone, address..."
+                  placeholder="Search by client name..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -740,6 +740,7 @@ export default function CustomerTable(props) {
               filters.name ||
               filters.type_client ||
               filters.email ||
+              searchValue ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -804,32 +805,34 @@ export default function CustomerTable(props) {
                   />
                 </Box>
 
-                {/* Name Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Client Name
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., ACME Shipping Co..."
-                    value={filters.name}
-                    onChange={(e) => handleFilterChange("name", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
+                {/* Name Filter - only when not using API params (main search is Client Name when isControlled) */}
+                {!isControlled && (
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Client Name
+                    </Text>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., ACME Shipping Co..."
+                      value={filters.name}
+                      onChange={(e) => handleFilterChange("name", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{
+                        borderColor: "blue.300",
+                      }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    />
+                  </Box>
+                )}
 
                 {/* Client Type Filter */}
                 <Box minW="200px" flex="1">
@@ -1178,7 +1181,30 @@ export default function CustomerTable(props) {
           </Text>
 
           {/* Pagination Controls */}
-          <HStack spacing={2} align="center">
+          <HStack spacing={4} align="center" flexWrap="wrap">
+            {/* Rows per page */}
+            <HStack spacing={2} align="center">
+              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
+                Show
+              </Text>
+              <Select
+                size="sm"
+                value={paginationData.page_size}
+                onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
+                w="70px"
+                bg={inputBg}
+                borderColor={borderColor}
+                _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+              >
+                <option value={50}>50</option>
+                <option value={80}>80</option>
+                <option value={100}>100</option>
+              </Select>
+              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
+                per page
+              </Text>
+            </HStack>
+            <HStack spacing={2} align="center">
             {/* Page Navigation */}
             <HStack spacing={1}>
               {/* First Page */}
@@ -1264,6 +1290,7 @@ export default function CustomerTable(props) {
             <Text fontSize="sm" color={tableTextColorSecondary}>
               Page {paginationData.page} of {paginationData.total_pages}
             </Text>
+            </HStack>
           </HStack>
         </Flex>
       </Card>

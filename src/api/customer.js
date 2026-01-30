@@ -133,14 +133,22 @@ export const registerCustomerApi = async (customerData) => {
   }
 };
 
-// Get Customers API
-export const getCustomersApi = async (page = 1, page_size = 80) => {
+// Get Customers API - no page/page_size; backend returns all records. Filter params when provided.
+export const getCustomersApi = async (filterParams = {}) => {
   try {
+    const params = {};
+    if (filterParams) {
+      if (filterParams.name != null && String(filterParams.name).trim() !== "")
+        params.name = String(filterParams.name).trim();
+      if (filterParams.client_code != null && String(filterParams.client_code).trim() !== "")
+        params.client_code = String(filterParams.client_code).trim();
+      if (filterParams.type_client != null && String(filterParams.type_client).trim() !== "")
+        params.type_client = String(filterParams.type_client).trim();
+      if (filterParams.email != null && String(filterParams.email).trim() !== "")
+        params.email = String(filterParams.email).trim();
+    }
     const response = await api.get(getApiEndpoint("CUSTOMERS"), {
-      params: {
-        page,
-        page_size,
-      },
+      params,
     });
     const responseData = response.data;
     

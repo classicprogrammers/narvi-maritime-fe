@@ -67,17 +67,43 @@ import {
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
-  const { columnsData, tableData, isLoading = false, pagination, page = 1, pageSize = 80, onPageChange } = props;
+  const {
+    columnsData,
+    tableData,
+    isLoading = false,
+    pagination,
+    page = 1,
+    pageSize = 80,
+    onPageChange,
+    onPageSizeChange,
+    searchValue: propsSearchValue,
+    onSearchChange: propsOnSearchChange,
+    filters: propsFilters,
+    onFilterChange: propsOnFilterChange,
+    onClearAll: propsOnClearAll,
+    onRefresh: propsOnRefresh,
+  } = props;
   const history = useHistory();
-  const [searchValue, setSearchValue] = useState("");
-  const [filters, setFilters] = useState({
+  const [internalSearch, setInternalSearch] = useState("");
+  const [internalFilters, setInternalFilters] = useState({
     agent_id: "",
     company: "",
     reg_no: "",
     city: "",
     country: "",
   });
-  const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
+  const isControlled =
+    propsSearchValue !== undefined &&
+    propsOnSearchChange != null &&
+    propsFilters !== undefined &&
+    propsOnFilterChange != null;
+  const searchValue = isControlled ? propsSearchValue : internalSearch;
+  const setSearchValue = isControlled ? propsOnSearchChange : setInternalSearch;
+  const filters = isControlled ? propsFilters : internalFilters;
+  const setFiltersOrNotify = isControlled
+    ? (field, value) => propsOnFilterChange(field, value)
+    : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
+  const [sortOrder, setSortOrder] = useState("alphabetical");
   const [showFilterFields, setShowFilterFields] = useState(false);
   const {
     updateVendor,
@@ -149,7 +175,7 @@ export default function VendorsTable(props) {
     return data;
   };
 
-  // Filter data based on search and filters
+  // Filter data: when API params used (isControlled) only filter top-level; else apply search + filters client-side
   const filteredData = useMemo(() => {
     let filtered = Array.isArray(tableData) ? tableData : [];
 
@@ -165,80 +191,69 @@ export default function VendorsTable(props) {
 
     filtered = filtered.filter(isTopLevelAgent);
 
-    // Apply search filter
-    if (searchValue) {
-      const searchLower = searchValue.toLowerCase();
-      filtered = filtered.filter(
-        (item) => {
-          const name = (item.name || "").toLowerCase();
-          const agentsdbId = (item.agentsdb_id || "").toLowerCase();
-          const regNo = (item.reg_no || item.registration_no || item.registrationNo || "").toLowerCase();
-          const city = (item.city || "").toLowerCase();
-          const countryObj = countries.find(
+    if (!isControlled) {
+      if (searchValue) {
+        const searchLower = searchValue.toLowerCase();
+        filtered = filtered.filter(
+          (item) => {
+            const name = (item.name || "").toLowerCase();
+            const agentsdbId = (item.agentsdb_id || "").toLowerCase();
+            const regNo = (item.reg_no || item.registration_no || item.registrationNo || "").toLowerCase();
+            const city = (item.city || "").toLowerCase();
+            const countryObj = countries.find(
+              (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
+            );
+            const countryName = (countryObj ? countryObj.name : item.country_name || "").toLowerCase();
+            const email = (item.email || item.email2 || "").toLowerCase();
+            const phone = (item.phone || item.phone2 || "").toString().toLowerCase();
+            return (
+              name.includes(searchLower) ||
+              agentsdbId.includes(searchLower) ||
+              regNo.includes(searchLower) ||
+              city.includes(searchLower) ||
+              countryName.includes(searchLower) ||
+              email.includes(searchLower) ||
+              phone.includes(searchLower)
+            );
+          }
+        );
+      }
+      if (filters.agent_id) {
+        filtered = filtered.filter(
+          (item) =>
+            item.agentsdb_id &&
+            String(item.agentsdb_id).toLowerCase().includes(filters.agent_id.toLowerCase())
+        );
+      }
+      if (filters.company) {
+        filtered = filtered.filter(
+          (item) => (item.name || "").toLowerCase().includes(filters.company.toLowerCase())
+        );
+      }
+      if (filters.reg_no) {
+        filtered = filtered.filter(
+          (item) => {
+            const regNo = item.reg_no || item.registration_no || item.registrationNo || "";
+            return String(regNo).toLowerCase().includes(filters.reg_no.toLowerCase());
+          }
+        );
+      }
+      if (filters.city) {
+        filtered = filtered.filter(
+          (item) => (item.city || "").toLowerCase().includes(filters.city.toLowerCase())
+        );
+      }
+      if (filters.country) {
+        const needle = filters.country.toLowerCase();
+        filtered = filtered.filter((item) => {
+          const country = countries.find(
             (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
           );
-          const countryName = (countryObj ? countryObj.name : item.country_name || "").toLowerCase();
-          const email = (item.email || item.email2 || "").toLowerCase();
-          const phone = (item.phone || item.phone2 || "").toString().toLowerCase();
-
-          return (
-            name.includes(searchLower) ||
-            agentsdbId.includes(searchLower) ||
-            regNo.includes(searchLower) ||
-            city.includes(searchLower) ||
-            countryName.includes(searchLower) ||
-            email.includes(searchLower) ||
-            phone.includes(searchLower)
-          );
-        }
-      );
+          const countryName = country ? country.name : item.country_name || "";
+          return (countryName || "").toLowerCase().includes(needle);
+        });
+      }
     }
-
-    // Apply agent id filter
-    if (filters.agent_id) {
-      filtered = filtered.filter(
-        (item) =>
-          item.agentsdb_id &&
-          String(item.agentsdb_id).toLowerCase().includes(filters.agent_id.toLowerCase())
-      );
-    }
-
-    // Apply company filter
-    if (filters.company) {
-      filtered = filtered.filter(
-        (item) => (item.name || "").toLowerCase().includes(filters.company.toLowerCase())
-      );
-    }
-
-    // Apply registration no filter
-    if (filters.reg_no) {
-      filtered = filtered.filter(
-        (item) => {
-          const regNo = item.reg_no || item.registration_no || item.registrationNo || "";
-          return String(regNo).toLowerCase().includes(filters.reg_no.toLowerCase());
-        }
-      );
-    }
-
-    // Apply city filter
-    if (filters.city) {
-      filtered = filtered.filter(
-        (item) => (item.city || "").toLowerCase().includes(filters.city.toLowerCase())
-      );
-    }
-
-    // Apply country filter (by country name)
-    if (filters.country) {
-      const needle = filters.country.toLowerCase();
-      filtered = filtered.filter((item) => {
-        const country = countries.find(
-          (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
-        );
-        const countryName = country ? country.name : item.country_name || "";
-        return (countryName || "").toLowerCase().includes(needle);
-      });
-    }
-
 
     // Add computed display fields
     const withComputed = filtered.map((item) => {
@@ -352,7 +367,7 @@ export default function VendorsTable(props) {
     });
 
     return withComputed;
-  }, [tableData, searchValue, filters, countries]);
+  }, [tableData, searchValue, filters, countries, isControlled]);
 
   const data = useMemo(() => {
     const sortedData = applyCustomSorting(Array.isArray(filteredData) ? filteredData : []);
@@ -420,14 +435,16 @@ export default function VendorsTable(props) {
   };
 
   const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setFiltersOrNotify(field, value);
   };
 
   const clearAllFilters = () => {
-    setFilters({ agent_id: "", company: "", reg_no: "", city: "", country: "" });
+    if (isControlled && propsOnClearAll) {
+      propsOnClearAll();
+    } else {
+      setInternalFilters({ agent_id: "", company: "", reg_no: "", city: "", country: "" });
+      setInternalSearch("");
+    }
   };
 
   const clearAllSorting = () => {
@@ -437,7 +454,7 @@ export default function VendorsTable(props) {
   const clearAllFiltersAndSorting = () => {
     clearAllFilters();
     clearAllSorting();
-    setSearchValue("");
+    if (!isControlled) setSearchValue("");
     setSortOrder("alphabetical");
   };
 
@@ -525,7 +542,8 @@ export default function VendorsTable(props) {
         onEditClose();
         setEditingVendor(null);
         // Refresh the vendors list to show updated data
-        getVendors();
+        if (propsOnRefresh) propsOnRefresh();
+        else getVendors({});
       }
       // Error handling is done by the API modal system
     } catch (error) {
@@ -588,7 +606,8 @@ export default function VendorsTable(props) {
         onDeleteClose();
         setVendorToDelete(null);
         // Refresh the vendors list to show updated data
-        getVendors();
+        if (propsOnRefresh) propsOnRefresh();
+        else getVendors({});
 
         // Show success message
         toast({
@@ -703,10 +722,10 @@ export default function VendorsTable(props) {
             flexWrap="wrap"
             mb={4}
           >
-            {/* Search */}
+            {/* Company Name search */}
             <Box flex="1" minW="280px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                Search Agents
+                Company Name
               </Text>
               <InputGroup>
                 <InputLeftElement>
@@ -720,7 +739,7 @@ export default function VendorsTable(props) {
                   fontWeight="500"
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
-                  placeholder="Search agents by name, shortname, email, phone, city..."
+                  placeholder="Search by company name..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
                   border="2px"
@@ -797,6 +816,7 @@ export default function VendorsTable(props) {
               filters.reg_no ||
               filters.city ||
               filters.country ||
+              searchValue ||
               sortOrder !== "newest") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -854,27 +874,29 @@ export default function VendorsTable(props) {
                   />
                 </Box>
 
-                {/* Company Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Company Name
-                  </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., Transcoma, ABC Shipping..."
-                    value={filters.company}
-                    onChange={(e) => handleFilterChange("company", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
+                {/* Company Filter - only when not using API params (main search is Company Name when isControlled) */}
+                {!isControlled && (
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Company Name
+                    </Text>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., Transcoma, ABC Shipping..."
+                      value={filters.company}
+                      onChange={(e) => handleFilterChange("company", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                    />
+                  </Box>
+                )}
 
                 {/* City Filter */}
                 <Box minW="200px" flex="1">
@@ -1335,23 +1357,46 @@ export default function VendorsTable(props) {
           <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {paginationData.total_count === 0 ? 0 : ((paginationData.page - 1) * paginationData.page_size + 1)} to {Math.min(paginationData.page * paginationData.page_size, paginationData.total_count)} of {paginationData.total_count} results
           </Text>
-          <HStack spacing={2}>
-            <Button
-              size="sm"
-              onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
-              isDisabled={!paginationData.has_previous}
-              variant="outline"
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
-              isDisabled={!paginationData.has_next}
-              variant="outline"
-            >
-              Next
-            </Button>
+          <HStack spacing={4} align="center">
+            <HStack spacing={2} align="center">
+              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
+                Show
+              </Text>
+              <Select
+                size="sm"
+                value={paginationData.page_size}
+                onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
+                w="70px"
+                bg={inputBg}
+                borderColor={borderColor}
+                _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+              >
+                <option value={50}>50</option>
+                <option value={80}>80</option>
+                <option value={100}>100</option>
+              </Select>
+              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
+                per page
+              </Text>
+            </HStack>
+            <HStack spacing={2}>
+              <Button
+                size="sm"
+                onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
+                isDisabled={!paginationData.has_previous}
+                variant="outline"
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
+                isDisabled={!paginationData.has_next}
+                variant="outline"
+              >
+                Next
+              </Button>
+            </HStack>
           </HStack>
         </Flex>
       </Card>

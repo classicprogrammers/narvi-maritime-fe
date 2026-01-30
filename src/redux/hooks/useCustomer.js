@@ -19,7 +19,7 @@ export const useCustomer = () => {
     [dispatch]
   );
   const getCustomersCallback = useCallback(
-    (page = 1, page_size = 80) => dispatch(getCustomers(page, page_size)),
+    (filterParams = {}) => dispatch(getCustomers(filterParams)),
     [dispatch]
   );
   const registerCustomerCallback = useCallback(

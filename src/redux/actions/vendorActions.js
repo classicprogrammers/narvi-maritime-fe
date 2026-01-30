@@ -35,11 +35,11 @@ export const getCountries = () => async (dispatch) => {
   }
 };
 
-// Get Agents Action
-export const getAgents = (page = 1, page_size = 80) => async (dispatch) => {
+// Get Agents Action - no page/page_size; backend returns all. filterParams for filters.
+export const getAgents = (filterParams = {}) => async (dispatch) => {
   try {
     dispatch(getAgentsStart());
-    const result = await getVendorsApi(page, page_size);
+    const result = await getVendorsApi(filterParams);
     dispatch(getAgentsSuccess(result));
     return { success: true, data: result };
   } catch (error) {
@@ -88,9 +88,7 @@ export const registerAgent = (agentData) => async (dispatch) => {
   try {
     const result = await registerVendorApi(agentData);
     if (result.success) {
-      // Refresh the agents list after successful registration (use current page)
-      const currentPage = 1; // Reset to first page after registration
-      dispatch(getAgents(currentPage, 80));
+      dispatch(getAgents({}));
     }
     return { success: true, data: result };
   } catch (error) {
