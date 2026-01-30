@@ -10,8 +10,15 @@ import { switchStyles } from "./components/switch";
 import { linkStyles } from "./components/link";
 import { breakpoints } from "./foundations/breakpoints";
 import { globalStyles } from "./styles";
+
+// Force light mode only; dark mode toggle removed
+const config = {
+  initialColorMode: "light",
+  useSystemColorMode: false,
+};
+
 export default extendTheme(
-  { breakpoints }, // Breakpoints
+  { config, breakpoints }, // Config + Breakpoints
   globalStyles,
   badgeStyles, // badge styles
   buttonStyles, // button styles

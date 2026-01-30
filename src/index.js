@@ -11,6 +11,18 @@ import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
 
+// Remove unwanted localStorage keys (analytics/session/color-mode) on app load
+const STORAGE_KEYS_TO_REMOVE = [
+  "ajs_anonymous_id",
+  "awc.session.expiry",
+  "awc.session.id",
+  "awc.ui.viewed.last.sent",
+  "chakra-ui-color-mode",
+];
+try {
+  STORAGE_KEYS_TO_REMOVE.forEach((key) => localStorage.removeItem(key));
+} catch (_) {}
+
 const container = document.getElementById("root");
 const root = createRoot(container);
 root.render(
