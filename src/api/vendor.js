@@ -297,25 +297,37 @@ export const registerVendorApi = async (agentData) => {
   }
 };
 
-// Get Agents API - no page/page_size; backend returns all. Filter params when provided.
+// Serialize query params: space as %20 (not +), keep @ as literal for email (API supports space and @ as-is)
+const serializeVendorParams = (params) =>
+  Object.entries(params)
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => {
+      const encoded = encodeURIComponent(String(v).trim());
+      const value = k === "email" ? encoded.replace(/%40/g, "@") : encoded;
+      return `${encodeURIComponent(k)}=${value}`;
+    })
+    .join("&");
+
+// Get Agents API - filter params + page_size=all to get all records. No + for space; @ as-is in email.
 export const getVendorsApi = async (filterParams = {}) => {
   try {
-    const url = getApiEndpoint("VENDORS");
+    const baseUrl = getApiEndpoint("VENDORS");
     const params = {};
     if (filterParams) {
       const nameOrSearch = filterParams.search ?? filterParams.name;
       if (nameOrSearch != null && String(nameOrSearch).trim() !== "")
-        params.search = String(nameOrSearch).trim();
+        params.search = String(nameOrSearch).trim().replace(/\s+/g, " ");
       if (filterParams.agentsdb_id != null && String(filterParams.agentsdb_id).trim() !== "")
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
-      if (filterParams.reg_no != null && String(filterParams.reg_no).trim() !== "")
-        params.reg_no = String(filterParams.reg_no).trim();
-      if (filterParams.city != null && String(filterParams.city).trim() !== "")
-        params.city = String(filterParams.city).trim();
+      if (filterParams.agent_type != null && String(filterParams.agent_type).trim() !== "")
+        params.agent_type = String(filterParams.agent_type).trim();
       if (filterParams.country != null && String(filterParams.country).trim() !== "")
         params.country = String(filterParams.country).trim();
     }
-    const response = await api.get(url, { params });
+    params.page_size = "all";
+    const queryString = serializeVendorParams(params);
+    const url = baseUrl + (queryString ? `?${queryString}` : "");
+    const response = await api.get(url);
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch agents');

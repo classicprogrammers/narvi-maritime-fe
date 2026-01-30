@@ -133,24 +133,34 @@ export const registerCustomerApi = async (customerData) => {
   }
 };
 
-// Get Customers API - no page/page_size; backend returns all records. Filter params when provided.
+// Serialize query params: space as %20 (not +), keep @ as literal in email (API supports space and @ as-is)
+const serializeCustomerParams = (params) =>
+  Object.entries(params)
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => {
+      const encoded = encodeURIComponent(String(v).trim());
+      const value = k === "email" ? encoded.replace(/%40/g, "@") : encoded;
+      return `${encodeURIComponent(k)}=${value}`;
+    })
+    .join("&");
+
+// Get Customers API - backend params: search (client name), client_code, email only (no sort_by, sort_order, page, page_size)
 export const getCustomersApi = async (filterParams = {}) => {
   try {
     const params = {};
     if (filterParams) {
-      const nameOrSearch = filterParams.search ?? filterParams.name;
-      if (nameOrSearch != null && String(nameOrSearch).trim() !== "")
-        params.search = String(nameOrSearch).trim();
+      const searchVal = filterParams.search;
+      if (searchVal != null && String(searchVal).trim() !== "")
+        params.search = String(searchVal).trim().replace(/\s+/g, " ");
       if (filterParams.client_code != null && String(filterParams.client_code).trim() !== "")
         params.client_code = String(filterParams.client_code).trim();
-      if (filterParams.type_client != null && String(filterParams.type_client).trim() !== "")
-        params.type_client = String(filterParams.type_client).trim();
       if (filterParams.email != null && String(filterParams.email).trim() !== "")
         params.email = String(filterParams.email).trim();
     }
-    const response = await api.get(getApiEndpoint("CUSTOMERS"), {
-      params,
-    });
+    params.page_size = "all";
+    const queryString = serializeCustomerParams(params);
+    const url = getApiEndpoint("CUSTOMERS") + (queryString ? `?${queryString}` : "");
+    const response = await api.get(url);
     const responseData = response.data;
     
     // Check if response has error status (JSON-RPC format)

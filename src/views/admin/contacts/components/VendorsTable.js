@@ -75,7 +75,7 @@ export default function VendorsTable(props) {
     isLoading = false,
     pagination,
     page = 1,
-    pageSize = 80,
+    pageSize = 50,
     onPageChange,
     onPageSizeChange,
     searchValue: propsSearchValue,
@@ -84,14 +84,13 @@ export default function VendorsTable(props) {
     onFilterChange: propsOnFilterChange,
     onClearAll: propsOnClearAll,
     onRefresh: propsOnRefresh,
+    onSearch: propsOnSearch,
   } = props;
   const history = useHistory();
   const [internalSearch, setInternalSearch] = useState("");
   const [internalFilters, setInternalFilters] = useState({
     agent_id: "",
-    company: "",
-    reg_no: "",
-    city: "",
+    agent_type: "",
     country: "",
   });
   const isControlled =
@@ -109,7 +108,7 @@ export default function VendorsTable(props) {
   const [showFilterFields, setShowFilterFields] = useState(false);
 
   // Auto-open advanced filters when any advance filter has data
-  const hasAnyAdvanceFilter = filters.agent_id || filters.reg_no || filters.city || filters.country || (!isControlled && filters.company);
+  const hasAnyAdvanceFilter = filters.agent_id || filters.agent_type || filters.country;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
@@ -202,29 +201,8 @@ export default function VendorsTable(props) {
 
     if (!isControlled) {
       if (searchValue) {
-        const searchLower = searchValue.toLowerCase();
         filtered = filtered.filter(
-          (item) => {
-            const name = (item.name || "").toLowerCase();
-            const agentsdbId = (item.agentsdb_id || "").toLowerCase();
-            const regNo = (item.reg_no || item.registration_no || item.registrationNo || "").toLowerCase();
-            const city = (item.city || "").toLowerCase();
-            const countryObj = countries.find(
-              (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
-            );
-            const countryName = (countryObj ? countryObj.name : item.country_name || "").toLowerCase();
-            const email = (item.email || item.email2 || "").toLowerCase();
-            const phone = (item.phone || item.phone2 || "").toString().toLowerCase();
-            return (
-              name.includes(searchLower) ||
-              agentsdbId.includes(searchLower) ||
-              regNo.includes(searchLower) ||
-              city.includes(searchLower) ||
-              countryName.includes(searchLower) ||
-              email.includes(searchLower) ||
-              phone.includes(searchLower)
-            );
-          }
+          (item) => (item.name || "").toLowerCase().includes(searchValue.toLowerCase())
         );
       }
       if (filters.agent_id) {
@@ -234,23 +212,12 @@ export default function VendorsTable(props) {
             String(item.agentsdb_id).toLowerCase().includes(filters.agent_id.toLowerCase())
         );
       }
-      if (filters.company) {
-        filtered = filtered.filter(
-          (item) => (item.name || "").toLowerCase().includes(filters.company.toLowerCase())
-        );
-      }
-      if (filters.reg_no) {
-        filtered = filtered.filter(
-          (item) => {
-            const regNo = item.reg_no || item.registration_no || item.registrationNo || "";
-            return String(regNo).toLowerCase().includes(filters.reg_no.toLowerCase());
-          }
-        );
-      }
-      if (filters.city) {
-        filtered = filtered.filter(
-          (item) => (item.city || "").toLowerCase().includes(filters.city.toLowerCase())
-        );
+      if (filters.agent_type) {
+        const typeLower = filters.agent_type.toLowerCase();
+        filtered = filtered.filter((item) => {
+          const type = (item.agent_type || item.type_client || item.company_type || "").toLowerCase();
+          return type.includes(typeLower);
+        });
       }
       if (filters.country) {
         const needle = filters.country.toLowerCase();
@@ -451,7 +418,7 @@ export default function VendorsTable(props) {
     if (isControlled && propsOnClearAll) {
       propsOnClearAll();
     } else {
-      setInternalFilters({ agent_id: "", company: "", reg_no: "", city: "", country: "" });
+      setInternalFilters({ agent_id: "", agent_type: "", country: "" });
       setInternalSearch("");
     }
   };
@@ -751,6 +718,7 @@ export default function VendorsTable(props) {
                   placeholder="Search by company name..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && propsOnSearch?.()}
                   border="2px"
                   borderColor={borderColor}
                   _focus={{
@@ -777,6 +745,26 @@ export default function VendorsTable(props) {
               </InputGroup>
             </Box>
 
+            {/* Search Button - API call only on click */}
+            {propsOnSearch && (
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  &nbsp;
+                </Text>
+                <Button
+                  size="md"
+                  colorScheme="blue"
+                  leftIcon={<Icon as={MdSearch} />}
+                  onClick={() => propsOnSearch()}
+                  borderRadius="10px"
+                  border="2px"
+                  borderColor={borderColor}
+                >
+                  Search
+                </Button>
+              </Box>
+            )}
+
             {/* Filter Button */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -785,12 +773,12 @@ export default function VendorsTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.agent_id || filters.company || filters.city || filters.country || filters.email
+                  filters.agent_id || filters.agent_type || filters.country
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.agent_id || filters.company || filters.city || filters.country || filters.email
+                  filters.agent_id || filters.agent_type || filters.country
                     ? "blue"
                     : "gray"
                 }
@@ -834,9 +822,7 @@ export default function VendorsTable(props) {
 
             {/* Clear All */}
             {(filters.agent_id ||
-              filters.company ||
-              filters.reg_no ||
-              filters.city ||
+              filters.agent_type ||
               filters.country ||
               searchValue ||
               sortOrder !== "newest") && (
@@ -887,7 +873,7 @@ export default function VendorsTable(props) {
                       color={inputText}
                       borderRadius="8px"
                       placeholder="e.g., ABC, XYZ..."
-                      value={filters.agent_id}
+                      value={filters.agent_id ?? ""}
                       onChange={(e) => handleFilterChange("agent_id", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
@@ -911,49 +897,10 @@ export default function VendorsTable(props) {
                   </InputGroup>
                 </Box>
 
-                {/* Company Filter - only when not using API params (main search is Company Name when isControlled) */}
-                {!isControlled && (
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Company Name
-                    </Text>
-                    <InputGroup>
-                      <Input
-                        variant="outline"
-                        fontSize="sm"
-                        bg={inputBg}
-                        color={inputText}
-                        borderRadius="8px"
-                        placeholder="e.g., Transcoma, ABC Shipping..."
-                        value={filters.company}
-                        onChange={(e) => handleFilterChange("company", e.target.value)}
-                        border="2px"
-                        borderColor={borderColor}
-                        _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                        _hover={{ borderColor: "blue.300" }}
-                        _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                        pr={filters.company ? "32px" : undefined}
-                      />
-                      {filters.company && (
-                        <InputRightElement width="32px">
-                          <IconButton
-                            aria-label="Clear Company Name"
-                            size="xs"
-                            variant="ghost"
-                            icon={<Icon as={MdClose} />}
-                            onClick={() => handleFilterChange("company", "")}
-                            _hover={{ bg: "gray.200" }}
-                          />
-                        </InputRightElement>
-                      )}
-                    </InputGroup>
-                  </Box>
-                )}
-
-                {/* City Filter */}
+                {/* Agent Type Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    City
+                    Agent Type
                   </Text>
                   <InputGroup>
                     <Input
@@ -962,61 +909,24 @@ export default function VendorsTable(props) {
                       bg={inputBg}
                       color={inputText}
                       borderRadius="8px"
-                      placeholder="e.g., Algeciras, Singapore..."
-                      value={filters.city}
-                      onChange={(e) => handleFilterChange("city", e.target.value)}
+                      placeholder="e.g., Forwarder, Carrier..."
+                      value={filters.agent_type ?? ""}
+                      onChange={(e) => handleFilterChange("agent_type", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
                       _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
                       _hover={{ borderColor: "blue.300" }}
                       _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                      pr={filters.city ? "32px" : undefined}
+                      pr={filters.agent_type ? "32px" : undefined}
                     />
-                    {filters.city && (
+                    {filters.agent_type && (
                       <InputRightElement width="32px">
                         <IconButton
-                          aria-label="Clear City"
+                          aria-label="Clear Agent Type"
                           size="xs"
                           variant="ghost"
                           icon={<Icon as={MdClose} />}
-                          onClick={() => handleFilterChange("city", "")}
-                          _hover={{ bg: "gray.200" }}
-                        />
-                      </InputRightElement>
-                    )}
-                  </InputGroup>
-                </Box>
-
-                {/* Registration No Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Registration No
-                  </Text>
-                  <InputGroup>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
-                      placeholder="e.g., REG-1234..."
-                      value={filters.reg_no}
-                      onChange={(e) => handleFilterChange("reg_no", e.target.value)}
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                      _hover={{ borderColor: "blue.300" }}
-                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                      pr={filters.reg_no ? "32px" : undefined}
-                    />
-                    {filters.reg_no && (
-                      <InputRightElement width="32px">
-                        <IconButton
-                          aria-label="Clear Registration No"
-                          size="xs"
-                          variant="ghost"
-                          icon={<Icon as={MdClose} />}
-                          onClick={() => handleFilterChange("reg_no", "")}
+                          onClick={() => handleFilterChange("agent_type", "")}
                           _hover={{ bg: "gray.200" }}
                         />
                       </InputRightElement>
@@ -1037,7 +947,7 @@ export default function VendorsTable(props) {
                       color={inputText}
                       borderRadius="8px"
                       placeholder="e.g., Spain, Singapore..."
-                      value={filters.country}
+                      value={filters.country ?? ""}
                       onChange={(e) => handleFilterChange("country", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
@@ -1060,7 +970,6 @@ export default function VendorsTable(props) {
                     )}
                   </InputGroup>
                 </Box>
-
               </HStack>
             </Box>
           )}

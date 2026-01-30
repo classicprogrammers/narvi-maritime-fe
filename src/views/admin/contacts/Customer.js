@@ -14,14 +14,14 @@ function loadReturnToEdit() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (data && data.clientId != null && data.client) return data;
-  } catch (_) {}
+  } catch (_) { }
   return null;
 }
 
 function clearReturnToEdit() {
   try {
     sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
-  } catch (_) {}
+  } catch (_) { }
 }
 
 function loadPersistedState() {
@@ -34,70 +34,65 @@ function loadPersistedState() {
         searchValue: typeof data.searchValue === "string" ? data.searchValue : "",
         filters: data.filters && typeof data.filters === "object"
           ? {
-              client_code: data.filters.client_code ?? "",
-              type_client: data.filters.type_client ?? "",
-              email: data.filters.email ?? "",
-            }
-          : { client_code: "", type_client: "", email: "" },
+            client_code: data.filters.client_code ?? "",
+            email: data.filters.email ?? "",
+          }
+          : { client_code: "", email: "" },
+        sortOrder: ["newest", "oldest", "alphabetical"].includes(data.sortOrder) ? data.sortOrder : "alphabetical",
         page: typeof data.page === "number" && data.page >= 1 ? data.page : 1,
-        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 80,
+        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 50,
       };
     }
-  } catch (_) {}
+  } catch (_) { }
   return null;
 }
 
-function savePersistedState(searchValue, filters, page, pageSize) {
+function savePersistedState(searchValue, filters, sortOrder, page, pageSize) {
   try {
     sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ searchValue, filters, page, pageSize })
+      JSON.stringify({ searchValue, filters, sortOrder, page, pageSize })
     );
-  } catch (_) {}
+  } catch (_) { }
 }
 
 export default function Customer() {
   const history = useHistory();
   const { customers, isLoading, getCustomers, pagination } = useCustomer();
   const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 80);
+  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
   const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
-  const [debouncedName, setDebouncedName] = useState(() => loadPersistedState()?.searchValue?.trim() ?? "");
-  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { client_code: "", type_client: "", email: "" });
-  const isFirstMount = useRef(true);
+  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { client_code: "", email: "" });
+  const [sortOrder, setSortOrder] = useState(() => loadPersistedState()?.sortOrder ?? "alphabetical");
 
-  // Persist search/filters/page/pageSize so they survive navigation
+  // Persist search/filters/sort/page/pageSize so they survive navigation
   useEffect(() => {
-    savePersistedState(searchValue, filters, page, pageSize);
-  }, [searchValue, filters, page, pageSize]);
+    savePersistedState(searchValue, filters, sortOrder, page, pageSize);
+  }, [searchValue, filters, sortOrder, page, pageSize]);
 
-  // Debounce client name for API (400ms); reset to page 1 when name changes (skip on initial mount so restored state is kept)
-  useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      return;
-    }
-    const t = setTimeout(() => {
-      setDebouncedName(searchValue.trim());
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [searchValue]);
-
-  // Fetch customers with API params only (no pagination in API)
-  const fetchParams = useMemo(
+  // Build params for API (used only when Search is clicked)
+  const buildFetchParams = useCallback(
     () => ({
-      name: debouncedName || undefined,
+      search: searchValue?.trim() || undefined,
       client_code: filters.client_code?.trim() || undefined,
-      type_client: filters.type_client?.trim() || undefined,
       email: filters.email?.trim() || undefined,
     }),
-    [debouncedName, filters]
+    [searchValue, filters]
   );
 
+  // Fetch only when user clicks Search (and initial load once)
+  const hasFetchedRef = useRef(false);
   useEffect(() => {
-    getCustomers(fetchParams);
-  }, [getCustomers, fetchParams]);
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      getCustomers({});
+    }
+  }, [getCustomers]);
+
+  const handleSearch = useCallback(() => {
+    setPage(1);
+    getCustomers(buildFetchParams());
+  }, [getCustomers, buildFetchParams]);
 
   // If user was editing a client and navigated away, re-open that client's edit page when they return to Clients tab
   useEffect(() => {
@@ -115,17 +110,23 @@ export default function Customer() {
   }, [history]);
 
   const refreshCustomers = useCallback(() => {
-    getCustomers(fetchParams);
-  }, [getCustomers, fetchParams]);
+    getCustomers(buildFetchParams());
+  }, [getCustomers, buildFetchParams]);
 
-  // Frontend-only pagination: slice full list for current page
+  // Client-side pagination and sort: API returns all matching records
   const fullList = customers || [];
+  const sortedList = useMemo(() => {
+    const list = [...fullList];
+    if (sortOrder === "newest") return list.sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
+    if (sortOrder === "oldest") return list.sort((a, b) => new Date(a.created_at || a.id) - new Date(b.created_at || b.id));
+    return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [fullList, sortOrder]);
   const tableData = useMemo(
-    () => fullList.slice((page - 1) * pageSize, page * pageSize),
-    [fullList, page, pageSize]
+    () => sortedList.slice((page - 1) * pageSize, page * pageSize),
+    [sortedList, page, pageSize]
   );
   const frontendPagination = useMemo(() => {
-    const total_count = fullList.length;
+    const total_count = sortedList.length;
     const total_pages = Math.ceil(total_count / pageSize) || 1;
     return {
       page,
@@ -135,7 +136,7 @@ export default function Customer() {
       has_next: page < total_pages,
       has_previous: page > 1,
     };
-  }, [fullList.length, page, pageSize]);
+  }, [sortedList.length, page, pageSize]);
 
   const handleFilterChange = useCallback((field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -144,12 +145,14 @@ export default function Customer() {
 
   const handleClearAll = useCallback(() => {
     setSearchValue("");
-    setFilters({ client_code: "", type_client: "", email: "" });
+    setFilters({ client_code: "", email: "" });
+    setSortOrder("alphabetical");
     setPage(1);
+    getCustomers({});
     try {
       sessionStorage.removeItem(STORAGE_KEY);
-    } catch (_) {}
-  }, []);
+    } catch (_) { }
+  }, [getCustomers]);
 
   const handlePageSizeChange = useCallback((newSize) => {
     setPageSize(newSize);
@@ -172,8 +175,14 @@ export default function Customer() {
           onSearchChange={setSearchValue}
           filters={filters}
           onFilterChange={handleFilterChange}
+          sortOrder={sortOrder}
+          onSortOrderChange={(v) => {
+            setSortOrder(v);
+            setPage(1);
+          }}
           onClearAll={handleClearAll}
           onRefresh={refreshCustomers}
+          onSearch={handleSearch}
         />
       </VStack>
     </Box>

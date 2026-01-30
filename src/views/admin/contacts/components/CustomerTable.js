@@ -77,7 +77,7 @@ export default function CustomerTable(props) {
     isLoading = false,
     pagination,
     page = 1,
-    pageSize = 80,
+    pageSize = 50,
     onPageChange,
     onPageSizeChange,
     searchValue: propsSearchValue,
@@ -86,13 +86,14 @@ export default function CustomerTable(props) {
     onFilterChange: propsOnFilterChange,
     onClearAll: propsOnClearAll,
     onRefresh: propsOnRefresh,
+    onSearch: propsOnSearch,
+    sortOrder: propsSortOrder,
+    onSortOrderChange: propsOnSortOrderChange,
   } = props;
   const history = useHistory();
   const [internalSearch, setInternalSearch] = useState("");
   const [internalFilters, setInternalFilters] = useState({
     client_code: "",
-    name: "",
-    type_client: "",
     email: "",
   });
   const isControlled = propsSearchValue !== undefined && propsOnSearchChange != null && propsFilters !== undefined && propsOnFilterChange != null;
@@ -102,11 +103,14 @@ export default function CustomerTable(props) {
   const setFiltersOrNotify = isControlled
     ? (field, value) => propsOnFilterChange(field, value)
     : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
-  const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
+  const sortOrderControlled = propsSortOrder !== undefined && propsOnSortOrderChange != null;
+  const [internalSortOrder, setInternalSortOrder] = useState("alphabetical");
+  const sortOrder = sortOrderControlled ? propsSortOrder : internalSortOrder;
+  const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
   const [showFilterFields, setShowFilterFields] = useState(false);
 
   // Auto-open advanced filters when any advance filter has data
-  const hasAnyAdvanceFilter = filters.client_code || filters.type_client || filters.email || (!isControlled && filters.name);
+  const hasAnyAdvanceFilter = filters.client_code || filters.email;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
@@ -167,26 +171,12 @@ export default function CustomerTable(props) {
     );
 
     if (!isControlled) {
-      // Client-side search and filters (when not using API params)
+      // Client-side: main search = client name only; advance filters = client_code, email
       if (searchValue) {
         filtered = filtered.filter(
           (item) =>
-            (item.name && item.name.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.client_code && item.client_code.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.type_client && item.type_client.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.client_category && item.client_category.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.street && item.street.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.street2 && item.street2.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.zip && item.zip.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.city && item.city.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.country_name && item.country_name.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.reg_no && item.reg_no.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.email && item.email.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.email2 && item.email2.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.phone && item.phone.toString().includes(searchValue)) ||
-            (item.phone2 && item.phone2.toString().includes(searchValue)) ||
-            (item.website && item.website.toLowerCase().includes(searchValue.toLowerCase())) ||
-            (item.remarks && item.remarks.toLowerCase().includes(searchValue.toLowerCase()))
+            item.name &&
+            item.name.toLowerCase().includes(searchValue.toLowerCase())
         );
       }
       if (filters.client_code) {
@@ -194,20 +184,6 @@ export default function CustomerTable(props) {
           (item) =>
             item.client_code &&
             item.client_code.toLowerCase().includes(filters.client_code.toLowerCase())
-        );
-      }
-      if (filters.name) {
-        filtered = filtered.filter(
-          (item) =>
-            item.name &&
-            item.name.toLowerCase().includes(filters.name.toLowerCase())
-        );
-      }
-      if (filters.type_client) {
-        filtered = filtered.filter(
-          (item) =>
-            item.type_client &&
-            item.type_client.toLowerCase().includes(filters.type_client.toLowerCase())
         );
       }
       if (filters.email) {
@@ -281,10 +257,10 @@ export default function CustomerTable(props) {
   }, [tableData, searchValue, filters, isControlled]);
 
   const data = useMemo(() => {
-    const sortedData = applyCustomSorting(filteredCustomers);
-    return sortedData;
+    if (isControlled) return filteredCustomers;
+    return applyCustomSorting(filteredCustomers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredCustomers, sortOrder]);
+  }, [filteredCustomers, sortOrder, isControlled]);
 
   // Use backend pagination - no client-side pagination needed
   const tableInstance = useTable(
@@ -339,7 +315,7 @@ export default function CustomerTable(props) {
     if (isControlled && propsOnClearAll) {
       propsOnClearAll();
     } else {
-      setInternalFilters({ client_code: "", name: "", type_client: "", email: "" });
+      setInternalFilters({ client_code: "", email: "" });
       setInternalSearch("");
     }
   };
@@ -676,6 +652,7 @@ export default function CustomerTable(props) {
                   placeholder="Search by client name..."
                   value={searchValue}
                   onChange={(e) => setSearchValue(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && propsOnSearch?.()}
                   border="2px"
                   borderColor={borderColor}
                   _focus={{
@@ -702,6 +679,26 @@ export default function CustomerTable(props) {
               </InputGroup>
             </Box>
 
+            {/* Search Button - API call only on click */}
+            {propsOnSearch && (
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  &nbsp;
+                </Text>
+                <Button
+                  size="md"
+                  colorScheme="blue"
+                  leftIcon={<Icon as={MdSearch} />}
+                  onClick={() => propsOnSearch()}
+                  borderRadius="10px"
+                  border="2px"
+                  borderColor={borderColor}
+                >
+                  Search
+                </Button>
+              </Box>
+            )}
+
             {/* Filter Button */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -710,12 +707,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.client_code || filters.name || filters.type_client || filters.email
+                  filters.client_code || filters.email
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.client_code || filters.name || filters.type_client || filters.email
+                  filters.client_code || filters.email
                     ? "blue"
                     : "gray"
                 }
@@ -751,19 +748,17 @@ export default function CustomerTable(props) {
                   borderColor: "blue.300",
                 }}
               >
+                <option value="alphabetical">A-Z Alphabetical</option>
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
-                <option value="alphabetical">A-Z Alphabetical</option>
               </Select>
             </Box>
 
             {/* Clear All */}
             {(filters.client_code ||
-              filters.name ||
-              filters.type_client ||
               filters.email ||
               searchValue ||
-              sortOrder !== "newest") && (
+              sortOrder !== "alphabetical") && (
                 <Box>
                   <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                     &nbsp;
@@ -803,7 +798,7 @@ export default function CustomerTable(props) {
                 {/* Client Code Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Client Code
+                    Code
                   </Text>
                   <InputGroup>
                     <Input
@@ -813,7 +808,7 @@ export default function CustomerTable(props) {
                       color={inputText}
                       borderRadius="8px"
                       placeholder="e.g., CPH, ACME123..."
-                      value={filters.client_code}
+                      value={filters.client_code ?? ""}
                       onChange={(e) => handleFilterChange("client_code", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
@@ -830,97 +825,11 @@ export default function CustomerTable(props) {
                     {filters.client_code && (
                       <InputRightElement width="32px">
                         <IconButton
-                          aria-label="Clear Client Code"
+                          aria-label="Clear Code"
                           size="xs"
                           variant="ghost"
                           icon={<Icon as={MdClose} />}
                           onClick={() => handleFilterChange("client_code", "")}
-                          _hover={{ bg: "gray.200" }}
-                        />
-                      </InputRightElement>
-                    )}
-                  </InputGroup>
-                </Box>
-
-                {/* Name Filter - only when not using API params (main search is Client Name when isControlled) */}
-                {!isControlled && (
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Client Name
-                    </Text>
-                    <InputGroup>
-                      <Input
-                        variant="outline"
-                        fontSize="sm"
-                        bg={inputBg}
-                        color={inputText}
-                        borderRadius="8px"
-                        placeholder="e.g., ACME Shipping Co..."
-                        value={filters.name}
-                        onChange={(e) => handleFilterChange("name", e.target.value)}
-                        border="2px"
-                        borderColor={borderColor}
-                        _focus={{
-                          borderColor: "blue.400",
-                          boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                        }}
-                        _hover={{
-                          borderColor: "blue.300",
-                        }}
-                        _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                        pr={filters.name ? "32px" : undefined}
-                      />
-                      {filters.name && (
-                        <InputRightElement width="32px">
-                          <IconButton
-                            aria-label="Clear Client Name"
-                            size="xs"
-                            variant="ghost"
-                            icon={<Icon as={MdClose} />}
-                            onClick={() => handleFilterChange("name", "")}
-                            _hover={{ bg: "gray.200" }}
-                          />
-                        </InputRightElement>
-                      )}
-                    </InputGroup>
-                  </Box>
-                )}
-
-                {/* Client Type Filter */}
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Client Type
-                  </Text>
-                  <InputGroup>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
-                      placeholder="e.g. Key, Regular, Prospect..."
-                      value={filters.type_client}
-                      onChange={(e) => handleFilterChange("type_client", e.target.value)}
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{
-                        borderColor: "blue.300",
-                      }}
-                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                      pr={filters.type_client ? "32px" : undefined}
-                    />
-                    {filters.type_client && (
-                      <InputRightElement width="32px">
-                        <IconButton
-                          aria-label="Clear Client Type"
-                          size="xs"
-                          variant="ghost"
-                          icon={<Icon as={MdClose} />}
-                          onClick={() => handleFilterChange("type_client", "")}
                           _hover={{ bg: "gray.200" }}
                         />
                       </InputRightElement>
@@ -941,7 +850,7 @@ export default function CustomerTable(props) {
                       color={inputText}
                       borderRadius="8px"
                       placeholder="e.g., example@email.com..."
-                      value={filters.email}
+                      value={filters.email ?? ""}
                       onChange={(e) => handleFilterChange("email", e.target.value)}
                       border="2px"
                       borderColor={borderColor}

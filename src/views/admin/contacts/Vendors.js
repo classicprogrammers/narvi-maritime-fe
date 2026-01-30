@@ -35,13 +35,12 @@ function loadPersistedState() {
         filters: data.filters && typeof data.filters === "object"
           ? {
               agent_id: data.filters.agent_id ?? "",
-              reg_no: data.filters.reg_no ?? "",
-              city: data.filters.city ?? "",
+              agent_type: data.filters.agent_type ?? "",
               country: data.filters.country ?? "",
             }
-          : { agent_id: "", reg_no: "", city: "", country: "" },
+          : { agent_id: "", agent_type: "", country: "" },
         page: typeof data.page === "number" && data.page >= 1 ? data.page : 1,
-        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 80,
+        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 50,
       };
     }
   } catch (_) {}
@@ -61,45 +60,39 @@ export default function Vendors() {
   const history = useHistory();
   const { vendors, isLoading, getVendors, pagination } = useVendor();
   const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 80);
+  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
   const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
-  const [debouncedName, setDebouncedName] = useState(() => loadPersistedState()?.searchValue?.trim() ?? "");
-  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { agent_id: "", reg_no: "", city: "", country: "" });
-  const isFirstMount = useRef(true);
+  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { agent_id: "", agent_type: "", country: "" });
 
   // Persist search/filters/page/pageSize so they survive navigation
   useEffect(() => {
     savePersistedState(searchValue, filters, page, pageSize);
   }, [searchValue, filters, page, pageSize]);
 
-  // Debounce company name for API (400ms); reset to page 1 when name changes (skip on initial mount)
-  useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      return;
-    }
-    const t = setTimeout(() => {
-      setDebouncedName(searchValue.trim());
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [searchValue]);
-
-  // Fetch agents with API params only (no pagination in API)
-  const fetchParams = useMemo(
+  // Build params for API (used only when Search is clicked)
+  const buildFetchParams = useCallback(
     () => ({
-      name: debouncedName || undefined,
+      search: searchValue?.trim() || undefined,
       agentsdb_id: filters.agent_id?.trim() || undefined,
-      reg_no: filters.reg_no?.trim() || undefined,
-      city: filters.city?.trim() || undefined,
+      agent_type: filters.agent_type?.trim() || undefined,
       country: filters.country?.trim() || undefined,
     }),
-    [debouncedName, filters]
+    [searchValue, filters]
   );
 
+  // Fetch only when user clicks Search (and initial load once)
+  const hasFetchedRef = useRef(false);
   useEffect(() => {
-    getVendors(fetchParams);
-  }, [getVendors, fetchParams]);
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      getVendors({});
+    }
+  }, [getVendors]);
+
+  const handleSearch = useCallback(() => {
+    setPage(1);
+    getVendors(buildFetchParams());
+  }, [getVendors, buildFetchParams]);
 
   // If user was editing an agent and navigated away, re-open that agent's edit page when they return to Agents tab
   useEffect(() => {
@@ -116,8 +109,8 @@ export default function Vendors() {
   }, [history]);
 
   const refreshAgents = useCallback(() => {
-    getVendors(fetchParams);
-  }, [getVendors, fetchParams]);
+    getVendors(buildFetchParams());
+  }, [getVendors, buildFetchParams]);
 
   // Filter top-level agents (backend may return all; keep for safety)
   const topLevelAgents = useMemo(() => {
@@ -158,12 +151,13 @@ export default function Vendors() {
 
   const handleClearAll = useCallback(() => {
     setSearchValue("");
-    setFilters({ agent_id: "", reg_no: "", city: "", country: "" });
+    setFilters({ agent_id: "", agent_type: "", country: "" });
     setPage(1);
+    getVendors({});
     try {
       sessionStorage.removeItem(STORAGE_KEY);
     } catch (_) {}
-  }, []);
+  }, [getVendors]);
 
   const handlePageSizeChange = useCallback((newSize) => {
     setPageSize(newSize);
@@ -188,6 +182,7 @@ export default function Vendors() {
           onFilterChange={handleFilterChange}
           onClearAll={handleClearAll}
           onRefresh={refreshAgents}
+          onSearch={handleSearch}
         />
       </VStack>
     </Box>
