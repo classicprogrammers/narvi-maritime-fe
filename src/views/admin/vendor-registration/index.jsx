@@ -40,7 +40,7 @@ import { DeleteIcon } from "@chakra-ui/icons";
 import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack, MdOpenInNew, MdContentCopy, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
-import { registerVendorApi, updateVendorApi } from "api/vendor";
+import { registerVendorApi, updateVendorApi, getAgentAttachmentApi } from "api/vendor";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 
@@ -382,6 +382,7 @@ function VendorRegistration() {
     const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
     const [modalMessage, setModalMessage] = React.useState("");
     const [isLoading, setIsLoading] = React.useState(false);
+    const [isLoadingAttachment, setIsLoadingAttachment] = React.useState(false);
 
     const textColor = useColorModeValue("secondaryGray.900", "white");
     const textColorSecondary = useColorModeValue("gray.700", "gray.400");
@@ -1242,6 +1243,57 @@ function VendorRegistration() {
             }
             return row;
         }));
+    };
+
+    // View agent/person attachment: call /api/agents/{id}/attachments/{attachmentId}/download and open in new tab
+    const handleViewAgentAttachment = async (attachment) => {
+        if (!id) {
+            toast({
+                title: "Cannot view attachment",
+                description: "Save the agent first to view attachments.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+        if (!attachment?.id) {
+            toast({
+                title: "Cannot view attachment",
+                description: "Attachment ID is missing.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+        try {
+            setIsLoadingAttachment(true);
+            const response = await getAgentAttachmentApi(id, attachment.id, false);
+            if (response?.data instanceof Blob) {
+                const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                const fileUrl = URL.createObjectURL(response.data);
+                window.open(fileUrl, "_blank");
+            } else {
+                toast({
+                    title: "Error",
+                    description: "Failed to load attachment from server.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        } catch (err) {
+            toast({
+                title: "Error",
+                description: err?.message || "Failed to view attachment",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoadingAttachment(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -2145,6 +2197,8 @@ function VendorRegistration() {
                                                 size="xs"
                                                 variant="ghost"
                                                 colorScheme="blue"
+                                                onClick={() => handleViewAgentAttachment(att)}
+                                                isLoading={isLoadingAttachment}
                                             />
                                             <IconButton
                                                 aria-label="Delete attachment"
@@ -2336,6 +2390,8 @@ function VendorRegistration() {
                                                                             size="xs"
                                                                             variant="ghost"
                                                                             colorScheme="blue"
+                                                                            onClick={() => handleViewAgentAttachment(att)}
+                                                                            isLoading={isLoadingAttachment}
                                                                         />
                                                                         <IconButton
                                                                             aria-label="Delete attachment"

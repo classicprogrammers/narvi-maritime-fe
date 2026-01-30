@@ -815,7 +815,7 @@ export default function StockList() {
                 let normalized = String(status).toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
                 // Map status variations
                 const statusVariations = {
-                    "stock": "in_stock",
+                    "stock": "stock",
                     "on_a_shipping_instr": "on_shipping",
                     "on_a_delivery_instr": "on_delivery",
                     "arrived_dest": "arrived",
@@ -863,11 +863,11 @@ export default function StockList() {
                 if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
-                        "in_stock",       // "Stock"
-                        "in_transit",     // "In Transit"
-                        "arrived",        // "Arrived Destination"
-                        "on_shipping",    // "On a Shipping Instruction"
-                        "on_delivery"     // "On a Delivery Instruction"
+                        "stock",         // "Stock"
+                        "in_transit",    // "In Transit"
+                        "arrived",       // "Arrived Destination"
+                        "on_shipping",   // "On a Shipping Instruction"
+                        "on_delivery"    // "On a Delivery Instruction"
                     ];
 
                     const getStatusOrder = (status) => {
@@ -891,8 +891,8 @@ export default function StockList() {
                         const normalizedA = normalizeStatus(a.stock_status);
                         const normalizedB = normalizeStatus(b.stock_status);
 
-                        // If same hub and both are "in_stock", sort by date_on_stock
-                        if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "in_stock" && normalizedB === "in_stock") {
+                        // If same hub and both are "stock", sort by date_on_stock
+                        if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "stock" && normalizedB === "stock") {
                             const dateA = a.date_on_stock ? new Date(a.date_on_stock) : new Date(0);
                             const dateB = b.date_on_stock ? new Date(b.date_on_stock) : new Date(0);
                             if (dateA.getTime() !== dateB.getTime()) {
@@ -1405,7 +1405,6 @@ export default function StockList() {
         switch (status) {
             case "pending":
                 return "blue";      // Cornflower-style blue
-            case "in_stock":
             case "stock":
                 return "gray";      // Stock = Grey
             case "on_shipping":
@@ -1693,7 +1692,7 @@ export default function StockList() {
                                                         >
                                                             <option value="">All Statuses</option>
                                                             <option value="pending">Pending</option>
-                                                            <option value="in_stock">Stock</option>
+                                                            <option value="stock">Stock</option>
                                                             <option value="on_shipping">On Shipping Instr</option>
                                                             <option value="on_delivery">On Delivery Instr</option>
                                                             <option value="in_transit">In Transit</option>
@@ -2181,7 +2180,6 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("weight_kg")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         WEIGHT KG {sortField === "weight_kg" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps}>VOLUME NO DIM</Th>
                                     <Th {...headerProps}>LWH TEXT</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("total_volume_cbm")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         TOTAL VOLUME CBM {sortField === "total_volume_cbm" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -2213,7 +2211,7 @@ export default function StockList() {
                         <Tbody>
                             {isLoading ? (
                                 <Tr>
-                                    <Td colSpan={46} textAlign="center" py="40px">
+                                    <Td colSpan={45} textAlign="center" py="40px">
                                         <Box visibility="hidden" h="100px">
                                             {/* Placeholder to maintain table structure */}
                                         </Box>
@@ -2221,7 +2219,7 @@ export default function StockList() {
                                 </Tr>
                             ) : filteredAndSortedStock.length === 0 ? (
                                 <Tr>
-                                    <Td colSpan={46} textAlign="center" py="40px">
+                                    <Td colSpan={45} textAlign="center" py="40px">
                                         <Text color={tableTextColorSecondary}>
                                             {stockList.length === 0
                                                 ? "No stock items available."
@@ -2296,7 +2294,6 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
                                         <Td
                                             {...cellProps}

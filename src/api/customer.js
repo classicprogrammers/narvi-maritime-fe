@@ -310,3 +310,49 @@ export const deleteCustomerApi = async (customerId) => {
     handleApiError(error, "Delete customer");
   }
 };
+
+/**
+ * Get customer attachment file for viewing or download.
+ * View: GET /api/customers/{customerId}/attachment/{attachmentId}/download
+ * Download: GET /api/customers/{customerId}/attachment/{attachmentId}/download?download=true
+ * Returns { data: Blob, type, filename }.
+ */
+export const getCustomerAttachmentApi = async (customerId, attachmentId, forceDownload = false) => {
+  try {
+    const baseUrl = getApiEndpoint("CUSTOMERS");
+    const url = `${baseUrl}/${customerId}/attachment/${attachmentId}/download${forceDownload ? "?download=true" : ""}`;
+    const response = await api.get(url, {
+      responseType: "blob",
+    });
+
+    if (response.data instanceof Blob && response.data.type === "application/json") {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result && jsonData.result.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to fetch attachment");
+      }
+      return jsonData;
+    }
+
+    return {
+      data: response.data,
+      type: response.headers["content-type"] || "application/octet-stream",
+      filename:
+        response.headers["content-disposition"]?.match(/filename="?(.+)"?/)?.[1] ?? null,
+    };
+  } catch (error) {
+    if (error.response?.data instanceof Blob && error.response.data.type === "application/json") {
+      try {
+        const text = await error.response.data.text();
+        const jsonData = JSON.parse(text);
+        if (jsonData.result && jsonData.result.status === "error") {
+          throw new Error(jsonData.result.message || "Failed to fetch attachment");
+        }
+      } catch (e) {
+        if (e instanceof Error) throw e;
+      }
+    }
+    console.error("Get customer attachment error:", error);
+    handleApiError(error, "Get customer attachment");
+  }
+};

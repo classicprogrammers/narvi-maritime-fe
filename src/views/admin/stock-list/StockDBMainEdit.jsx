@@ -1099,7 +1099,7 @@ export default function StockDBMainEdit() {
             ["widthCm", "width_cm", (v) => toNumber(v) || 0],
             ["lengthCm", "length_cm", (v) => toNumber(v) || 0],
             ["heightCm", "height_cm", (v) => toNumber(v) || 0],
-            ["volumeNoDim", "volume_dim", (v) => toNumber(v) || 0],
+            // volume_dim is set from dimensions only (see below)
             ["volumeCbm", "volume_cbm", (v) => toNumber(v) || 0],
             ["lwhText", "lwh_text", (v) => v || ""],
             ["cwAirfreight", "cw_air_freight_new", (v) => toNumber(v) || 0],
@@ -1342,6 +1342,12 @@ export default function StockDBMainEdit() {
                 }
             }
         });
+
+        // volume_dim now comes from dimensions only (no standalone Volume no dim field)
+        const dims = Array.isArray(rowData.dimensions) ? rowData.dimensions : [];
+        if (dims[0]?.calculation_method === "volume" && (dims[0].volume_dim != null && dims[0].volume_dim !== "")) {
+            payload.volume_dim = toNumber(dims[0].volume_dim) || 0;
+        }
 
         // Always include shipment_type as empty string if it's in the original payload structure
         // (This might be needed by the API, but only if other fields changed)
@@ -1767,7 +1773,6 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight KG</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume cbm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Airfreight</Th>
@@ -2004,7 +2009,7 @@ export default function StockDBMainEdit() {
                                         >
                                             <option value="">Select</option>
                                             <option value="pending">Pending</option>
-                                            <option value="in_stock">Stock</option>
+                                            <option value="stock">Stock</option>
                                             <option value="on_shipping">On Shipping Instr</option>
                                             <option value="on_delivery">On Delivery Instr</option>
                                             <option value="in_transit">In Transit</option>
@@ -2560,19 +2565,6 @@ export default function StockDBMainEdit() {
                                         >
                                             Dimensions ({row.dimensions?.length || 0})
                                         </Button>
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Input
-                                            value={row.volumeNoDim}
-                                            onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
-                                            placeholder="Volume no dim"
-                                            size="sm"
-                                            w="auto"
-                                            htmlSize={getAutoHtmlSize(row.volumeNoDim, "Volume no dim", { min: 16, max: 30 })}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
                                     </Td>
                                     <Td {...cellProps}>
                                         <NumberInput

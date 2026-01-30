@@ -44,7 +44,7 @@ import { SuccessModal, FailureModal } from "components/modals";
 // Assets
 import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
 // API
-import { registerCustomerApi, updateCustomerApi } from "api/customer";
+import { registerCustomerApi, updateCustomerApi, getCustomerAttachmentApi } from "api/customer";
 import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
@@ -309,6 +309,7 @@ function CustomerRegistration() {
     // Vessel types for dropdown
     const [vesselTypes, setVesselTypes] = React.useState([]);
     const [isLoadingVesselTypes, setIsLoadingVesselTypes] = React.useState(false);
+    const [isLoadingAttachment, setIsLoadingAttachment] = React.useState(false);
 
     // Address fields visibility state (default: 2, max: 7)
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
@@ -749,6 +750,58 @@ function CustomerRegistration() {
             }
             return row;
         }));
+    };
+
+    // View customer/person attachment: call /api/customers/{id}/attachments (or /attachments/{attachmentId}) and open in new tab
+    const handleViewCustomerAttachment = async (attachment) => {
+        const customerId = editingClient?.id;
+        if (!customerId) {
+            toast({
+                title: "Cannot view attachment",
+                description: "Save the client first to view attachments.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+        if (!attachment?.id) {
+            toast({
+                title: "Cannot view attachment",
+                description: "Attachment ID is missing.",
+                status: "warning",
+                duration: 5000,
+                isClosable: true,
+            });
+            return;
+        }
+        try {
+            setIsLoadingAttachment(true);
+            const response = await getCustomerAttachmentApi(customerId, attachment.id, false);
+            if (response?.data instanceof Blob) {
+                const mimeType = response.type || attachment.mimetype || "application/octet-stream";
+                const fileUrl = URL.createObjectURL(response.data);
+                window.open(fileUrl, "_blank");
+            } else {
+                toast({
+                    title: "Error",
+                    description: "Failed to load attachment from server.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        } catch (err) {
+            toast({
+                title: "Error",
+                description: err?.message || "Failed to view attachment",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setIsLoadingAttachment(false);
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -1754,6 +1807,8 @@ function CustomerRegistration() {
                                                             size="xs"
                                                             variant="ghost"
                                                             colorScheme="blue"
+                                                            onClick={() => handleViewCustomerAttachment(att)}
+                                                            isLoading={isLoadingAttachment}
                                                         />
                                                         <IconButton
                                                             aria-label="Delete attachment"
@@ -1955,6 +2010,8 @@ function CustomerRegistration() {
                                                                                             size="xs"
                                                                                             variant="ghost"
                                                                                             colorScheme="blue"
+                                                                                            onClick={() => handleViewCustomerAttachment(att)}
+                                                                                            isLoading={isLoadingAttachment}
                                                                                         />
                                                                                         <IconButton
                                                                                             aria-label="Delete attachment"

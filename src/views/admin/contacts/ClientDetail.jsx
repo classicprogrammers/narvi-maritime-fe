@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -26,6 +26,7 @@ import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
 import { useCustomer } from "redux/hooks/useCustomer";
+import { getCustomerAttachmentApi } from "api/customer";
 
 const prettyValue = (value) => {
   if (value === null || value === undefined || value === "") {
@@ -127,43 +128,85 @@ const ClientDetail = () => {
   const toast = useToast();
 
   const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+  const [loadingAttachmentId, setLoadingAttachmentId] = useState(null);
 
-  const getAttachmentViewUrl = (att) => {
-    if (att.url) return att.url;
-    if (att.datas) return `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
-    if (att.id && baseUrl) return `${baseUrl}/web/content/${att.id}`;
-    if (att.path) return att.path;
-    return null;
-  };
-
-  const getAttachmentDownloadUrl = (att) => {
-    if (att.url) return att.url;
-    if (att.datas) return `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
-    if (att.id && baseUrl) return `${baseUrl}/web/content/${att.id}?download=true`;
-    if (att.path) return att.path;
-    return null;
-  };
-
-  const handleViewAttachment = (att) => {
-    const url = getAttachmentViewUrl(att);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-    else toast({ title: "Cannot view", description: "File data not available.", status: "warning", duration: 2000, isClosable: true });
-  };
-
-  const handleDownloadAttachment = (att) => {
-    const url = getAttachmentDownloadUrl(att);
-    const filename = att.filename || att.name || "download";
-    if (!url) {
-      toast({ title: "Cannot download", description: "File data not available.", status: "warning", duration: 2000, isClosable: true });
+  // View: call /api/customers/{id}/attachments/{attachmentId} and open in new tab
+  const handleViewAttachment = async (att) => {
+    if (!client?.id || !att?.id) {
+      toast({ title: "Cannot view", description: "Client or attachment ID missing.", status: "warning", duration: 2000, isClosable: true });
       return;
     }
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (att.datas) {
+      const url = `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      setLoadingAttachmentId(att.id);
+      const response = await getCustomerAttachmentApi(client.id, att.id, false);
+      if (response?.data instanceof Blob) {
+        const fileUrl = URL.createObjectURL(response.data);
+        window.open(fileUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast({ title: "Error", description: "Failed to load attachment.", status: "error", duration: 3000, isClosable: true });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err?.message || "Failed to view attachment", status: "error", duration: 3000, isClosable: true });
+    } finally {
+      setLoadingAttachmentId(null);
+    }
+  };
+
+  // Download: call /api/customers/{id}/attachments/{attachmentId}?download=true and trigger download
+  const handleDownloadAttachment = async (att) => {
+    if (!client?.id || !att?.id) {
+      if (att?.datas) {
+        const url = `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = att.filename || att.name || "download";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      toast({ title: "Cannot download", description: "Client or attachment ID missing.", status: "warning", duration: 2000, isClosable: true });
+      return;
+    }
+    if (att.datas) {
+      const url = `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = att.filename || att.name || "download";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    try {
+      setLoadingAttachmentId(att.id);
+      const response = await getCustomerAttachmentApi(client.id, att.id, true);
+      if (response?.data instanceof Blob) {
+        const filename = response.filename || att.filename || att.name || "download";
+        const url = URL.createObjectURL(response.data);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        toast({ title: "Error", description: "Failed to download attachment.", status: "error", duration: 3000, isClosable: true });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err?.message || "Failed to download attachment", status: "error", duration: 3000, isClosable: true });
+    } finally {
+      setLoadingAttachmentId(null);
+    }
   };
 
   const client = useMemo(() => {
@@ -552,6 +595,7 @@ const ClientDetail = () => {
                                 variant="ghost"
                                 colorScheme="blue"
                                 onClick={() => handleViewAttachment(att)}
+                                isLoading={loadingAttachmentId === att.id}
                               />
                             </Tooltip>
                             <Tooltip label="Download">
@@ -562,6 +606,7 @@ const ClientDetail = () => {
                                 variant="ghost"
                                 colorScheme="blue"
                                 onClick={() => handleDownloadAttachment(att)}
+                                isLoading={loadingAttachmentId === att.id}
                               />
                             </Tooltip>
                           </HStack>

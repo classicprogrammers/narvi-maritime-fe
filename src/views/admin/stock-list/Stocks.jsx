@@ -81,7 +81,7 @@ const STATUS_CONFIG = {
         lightBg: "#c9daf7"
     },
     // Stock = #d8d8d8
-    in_stock: {
+    stock: {
         label: "Stock",
         color: "gray",
         bgColor: "#d8d8d8",
@@ -156,7 +156,7 @@ const STATUS_CONFIG = {
 
 // Status mapping for backward compatibility with old status keys
 const STATUS_VARIATIONS = {
-    "stock": "in_stock",
+    "stock": "stock",
     "on_a_shipping_instr": "on_shipping",
     "on_a_delivery_instr": "on_delivery",
     "arrived_dest": "arrived",
@@ -702,7 +702,6 @@ export default function Stocks() {
         switch (status) {
             case "pending":
                 return "blue";
-            case "in_stock":
             case "stock":
                 return "gray";
             case "on_shipping":
@@ -1485,7 +1484,7 @@ export default function Stocks() {
                 let normalized = String(status).toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
                 // Map status variations
                 const statusVariations = {
-                    "stock": "in_stock",
+                    "stock": "stock",
                     "on_a_shipping_instr": "on_shipping",
                     "on_a_delivery_instr": "on_delivery",
                     "arrived_dest": "arrived",
@@ -1533,8 +1532,8 @@ export default function Stocks() {
                 if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
-                        "in_stock",       // "Stock"
-                        "in_transit",     // "In Transit"
+                        "stock",         // "Stock"
+                        "in_transit",    // "In Transit"
                         "arrived",        // "Arrived Destination"
                         "on_shipping",    // "On a Shipping Instruction"
                         "on_delivery"     // "On a Delivery Instruction"
@@ -1561,8 +1560,8 @@ export default function Stocks() {
                         const normalizedA = normalizeStatusForSort(a.stock_status);
                         const normalizedB = normalizeStatusForSort(b.stock_status);
 
-                        // If same hub and both are "in_stock", sort by date_on_stock
-                        if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "in_stock" && normalizedB === "in_stock") {
+                        // If same hub and both are "stock", sort by date_on_stock
+                        if (viaHubA === viaHubB && viaHubA !== "" && normalizedA === "stock" && normalizedB === "stock") {
                             const dateA = a.date_on_stock ? new Date(a.date_on_stock) : new Date(0);
                             const dateB = b.date_on_stock ? new Date(b.date_on_stock) : new Date(0);
                             if (dateA.getTime() !== dateB.getTime()) {
@@ -2956,9 +2955,6 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "volume_no_dim", item.volume_no_dim || item.volume_dim, "number") : <Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text>}
-                        </Td>
-                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "lwh_text", item.lwh_text, "textarea") : <Text {...cellText}>{renderText(item.lwh_text)}</Text>}
                         </Td>
                         <Td
@@ -4093,7 +4089,7 @@ export default function Stocks() {
                                                                     >
                                                                         <option value="">All Statuses</option>
                                                                         <option value="pending">Pending</option>
-                                                                        <option value="in_stock">Stock</option>
+                                                                        <option value="stock">Stock</option>
                                                                         <option value="on_shipping">On Shipping Instr</option>
                                                                         <option value="on_delivery">On Delivery Instr</option>
                                                                         <option value="in_transit">In Transit</option>
@@ -4574,7 +4570,6 @@ export default function Stocks() {
                                                     <Th {...headerProps}>REMARKS</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>WEIGHT KGS</Th>
-                                                    <Th {...headerProps}>VOLUME NO DIM</Th>
                                                     <Th {...headerProps}>LWH TEXT</Th>
                                                     <Th {...headerProps}>TOTAL VOLUME CBM</Th>
                                                     <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
@@ -4590,7 +4585,7 @@ export default function Stocks() {
                                         <Tbody>
                                             {isLoading ? (
                                                 <Tr>
-                                                    <Td colSpan={21} textAlign="center" py="40px">
+                                                    <Td colSpan={20} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
                                                             {/* Placeholder to maintain table structure */}
                                                         </Box>
@@ -4598,7 +4593,7 @@ export default function Stocks() {
                                                 </Tr>
                                             ) : getFilteredStockByStatus().length === 0 ? (
                                                 <Tr>
-                                                    <Td colSpan={21} textAlign="center" py="40px">
+                                                    <Td colSpan={20} textAlign="center" py="40px">
                                                         <Text color={tableTextColorSecondary}>
                                                             {stockList.length === 0
                                                                 ? "No stock items available."
@@ -4688,7 +4683,6 @@ export default function Stocks() {
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.volume_no_dim || item.volume_dim)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
                                                             <Td
                                                                 {...cellProps}
@@ -5562,7 +5556,6 @@ export default function Stocks() {
                                                     <Th {...headerProps}>REMARKS</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>WEIGHT KGS</Th>
-                                                    <Th {...headerProps}>VOLUME NO DIM</Th>
                                                     <Th {...headerProps}>LWH TEXT</Th>
                                                     <Th {...headerProps}>TOTAL VOLUME CBM</Th>
                                                     <Th {...headerProps}>TOTAL CW AIR FREIGHT</Th>
@@ -5615,7 +5608,7 @@ export default function Stocks() {
                                 <Tbody>
                                     {isLoading ? (
                                         <Tr>
-                                            <Td colSpan={activeTab === 0 ? 21 : 33} textAlign="center" py="40px">
+                                            <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
                                                 <Box visibility="hidden" h="100px">
                                                     {/* Placeholder to maintain table structure */}
                                                 </Box>
@@ -5623,7 +5616,7 @@ export default function Stocks() {
                                         </Tr>
                                     ) : paginatedStock.length === 0 ? (
                                         <Tr>
-                                            <Td colSpan={activeTab === 0 ? 21 : 33} textAlign="center" py="40px">
+                                            <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
                                                 <Text color={tableTextColorSecondary}>
                                                     {stockList.length === 0
                                                         ? "No stock items available."
@@ -5817,10 +5810,10 @@ export default function Stocks() {
                                                     </Badge>
                                                 )}
                                                 {/* Calculation Method Badge */}
-                                                <Badge 
-                                                    colorScheme={dim.calculation_method === "volume" ? "purple" : "blue"} 
-                                                    fontSize="xs" 
-                                                    px={2} 
+                                                <Badge
+                                                    colorScheme={dim.calculation_method === "volume" ? "purple" : "blue"}
+                                                    fontSize="xs"
+                                                    px={2}
                                                     py={1}
                                                 >
                                                     Method: {dim.calculation_method === "volume" ? "Volume" : "LWH"}

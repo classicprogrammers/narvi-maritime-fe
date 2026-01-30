@@ -775,16 +775,14 @@ export default function StockForm() {
                 }
             }
 
-            // Calculate volume_cbm from dimensions if available
-            if (field === "lengthCm" || field === "widthCm" || field === "heightCm" || field === "volumeNoDim") {
+            // Calculate volume_cbm from dimensions if available (LWH)
+            if (field === "lengthCm" || field === "widthCm" || field === "heightCm") {
                 const length = toNumber(updatedRow.lengthCm || 0);
                 const width = toNumber(updatedRow.widthCm || 0);
                 const height = toNumber(updatedRow.heightCm || 0);
                 if (length > 0 && width > 0 && height > 0) {
                     // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
                     updatedRow.volumeCbm = ((length * width * height) / 1000000).toFixed(2);
-                } else if (updatedRow.volumeNoDim) {
-                    updatedRow.volumeCbm = updatedRow.volumeNoDim;
                 }
             }
 
@@ -863,7 +861,7 @@ export default function StockForm() {
             width_cm: toNumber(rowData.widthCm) || 0,
             length_cm: toNumber(rowData.lengthCm) || 0,
             height_cm: toNumber(rowData.heightCm) || 0,
-            volume_dim: toNumber(rowData.volumeNoDim) || 0,
+            volume_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
             volume_cbm: toNumber(rowData.volumeCbm) || 0,
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
@@ -1246,7 +1244,6 @@ export default function StockForm() {
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PCS</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight kgs</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume no dim</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text Details</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
@@ -1358,7 +1355,7 @@ export default function StockForm() {
                                                 <option value="">Select</option>
                                                 <option value="blank">Blank</option>
                                                 <option value="pending">Pending</option>
-                                                <option value="in_stock">Stock</option>
+                                                <option value="stock">Stock</option>
                                                 <option value="on_shipping">On Shipping Instr</option>
                                                 <option value="on_delivery">On Delivery Instr</option>
                                                 <option value="in_transit">In Transit</option>
@@ -1492,19 +1489,6 @@ export default function StockForm() {
                                                     Dimensions ({row.dimensions?.length || 0})
                                                 </Button>
                                             </HStack>
-                                        </Td>
-                                        <Td {...cellProps}>
-                                            <Input
-                                                value={row.volumeNoDim}
-                                                onChange={(e) => handleInputChange(rowIndex, "volumeNoDim", e.target.value)}
-                                                placeholder="Volume no dim"
-                                                size="sm"
-                                                w="auto"
-                                                htmlSize={getAutoHtmlSize(row.volumeNoDim, "Volume no dim", { min: 16, max: 30 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
                                         </Td>
                                         <Td {...cellProps}>
                                             <Textarea

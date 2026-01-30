@@ -598,3 +598,49 @@ export const deleteVendorApi = async (agentId) => {
     throw error;
   }
 };
+
+/**
+ * Get agent attachment file for viewing or download.
+ * View: GET /api/agents/{agentId}/attachment/{attachmentId}/download
+ * Download: GET /api/agents/{agentId}/attachment/{attachmentId}/download?download=true
+ * Returns { data: Blob, type, filename }.
+ */
+export const getAgentAttachmentApi = async (agentId, attachmentId, forceDownload = false) => {
+  try {
+    const baseUrl = getApiEndpoint("VENDORS");
+    const url = `${baseUrl}/${agentId}/attachment/${attachmentId}/download${forceDownload ? "?download=true" : ""}`;
+    const response = await api.get(url, {
+      responseType: "blob",
+    });
+
+    if (response.data instanceof Blob && response.data.type === "application/json") {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result && jsonData.result.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to fetch attachment");
+      }
+      return jsonData;
+    }
+
+    return {
+      data: response.data,
+      type: response.headers["content-type"] || "application/octet-stream",
+      filename:
+        response.headers["content-disposition"]?.match(/filename="?(.+)"?/)?.[1] ?? null,
+    };
+  } catch (error) {
+    if (error.response?.data instanceof Blob && error.response.data.type === "application/json") {
+      try {
+        const text = await error.response.data.text();
+        const jsonData = JSON.parse(text);
+        if (jsonData.result && jsonData.result.status === "error") {
+          throw new Error(jsonData.result.message || "Failed to fetch attachment");
+        }
+      } catch (e) {
+        if (e instanceof Error) throw e;
+      }
+    }
+    console.error("Get agent attachment error:", error);
+    handleApiError(error, "Get agent attachment");
+  }
+};
