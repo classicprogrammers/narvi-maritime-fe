@@ -10,8 +10,8 @@ export const columnsDataClient = [
     minWidth: 100,
   },
   {
-    Header: "CATEGORY TYPE",
-    accessor: "client_category",
+    Header: "CLIENT TYPE",
+    accessor: "type_client",
     minWidth: 120,
   },
   {

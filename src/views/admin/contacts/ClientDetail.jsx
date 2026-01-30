@@ -6,6 +6,7 @@ import {
   Grid,
   GridItem,
   Heading,
+  HStack,
   Stack,
   Text,
   useColorModeValue,
@@ -20,7 +21,7 @@ import {
   IconButton,
   useToast,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew } from "react-icons/md";
+import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew, MdVisibility, MdDownload, MdAttachFile } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
@@ -124,6 +125,46 @@ const ClientDetail = () => {
   const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
   const toast = useToast();
+
+  const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
+
+  const getAttachmentViewUrl = (att) => {
+    if (att.url) return att.url;
+    if (att.datas) return `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
+    if (att.id && baseUrl) return `${baseUrl}/web/content/${att.id}`;
+    if (att.path) return att.path;
+    return null;
+  };
+
+  const getAttachmentDownloadUrl = (att) => {
+    if (att.url) return att.url;
+    if (att.datas) return `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
+    if (att.id && baseUrl) return `${baseUrl}/web/content/${att.id}?download=true`;
+    if (att.path) return att.path;
+    return null;
+  };
+
+  const handleViewAttachment = (att) => {
+    const url = getAttachmentViewUrl(att);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else toast({ title: "Cannot view", description: "File data not available.", status: "warning", duration: 2000, isClosable: true });
+  };
+
+  const handleDownloadAttachment = (att) => {
+    const url = getAttachmentDownloadUrl(att);
+    const filename = att.filename || att.name || "download";
+    if (!url) {
+      toast({ title: "Cannot download", description: "File data not available.", status: "warning", duration: 2000, isClosable: true });
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const client = useMemo(() => {
     if (location.state?.client) {
@@ -476,6 +517,60 @@ const ClientDetail = () => {
                   );
                 })}
               </Grid>
+
+              {/* Attachments (Look up) */}
+              {Array.isArray(client.attachments) && client.attachments.length > 0 && (
+                <Box>
+                  <Heading size="md" color={headingColor} mb={4}>
+                    Attachments
+                  </Heading>
+                  <Box border="1px solid" borderColor={borderColor} borderRadius="lg" overflow="hidden" bg={cardBg}>
+                    <Stack spacing={2} p={4}>
+                      {client.attachments.map((att, idx) => (
+                        <Flex
+                          key={att.id || idx}
+                          align="center"
+                          justify="space-between"
+                          p={3}
+                          bg={rowEvenBg}
+                          borderRadius="md"
+                          border="1px"
+                          borderColor={borderColor}
+                        >
+                          <Flex align="center" gap={2} minW={0} flex={1}>
+                            <Icon as={MdAttachFile} color={labelColor} boxSize={4} flexShrink={0} />
+                            <Text fontSize="sm" color={valueColor} isTruncated title={att.filename || att.name}>
+                              {att.filename || att.name || "Attachment"}
+                            </Text>
+                          </Flex>
+                          <HStack spacing={2} flexShrink={0}>
+                            <Tooltip label="View">
+                              <IconButton
+                                aria-label="View attachment"
+                                icon={<Icon as={MdVisibility} />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="blue"
+                                onClick={() => handleViewAttachment(att)}
+                              />
+                            </Tooltip>
+                            <Tooltip label="Download">
+                              <IconButton
+                                aria-label="Download attachment"
+                                icon={<Icon as={MdDownload} />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="blue"
+                                onClick={() => handleDownloadAttachment(att)}
+                              />
+                            </Tooltip>
+                          </HStack>
+                        </Flex>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Box>
+              )}
 
               <Box>
                 <Heading size="md" color={headingColor} mb={4}>

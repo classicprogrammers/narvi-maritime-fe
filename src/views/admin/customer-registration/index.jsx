@@ -156,6 +156,7 @@ function CustomerRegistration() {
     const textColorBrand = useColorModeValue("#174693", "white");
     const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
     const inputBg = useColorModeValue("white", "navy.900");
+    const cardBg = useColorModeValue("white", "navy.800");
     const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
     const rowEvenBg = useColorModeValue("gray.50", "gray.700");
     const headingColor = useColorModeValue("secondaryGray.900", "white");
@@ -1601,7 +1602,7 @@ function CustomerRegistration() {
                                     <Flex align="center" mb="20px">
                                         <Icon as={MdAttachFile} color={textColorBrand} fontSize="18px" mr="8px" />
                                         <Text fontSize="lg" fontWeight="600" color={textColor}>
-                                            Customer Attachments
+                                            Attachments
                                         </Text>
                                     </Flex>
                                     <Box border="1px solid" borderColor={borderColor} borderRadius="md" p={4} bg={inputBg}>
