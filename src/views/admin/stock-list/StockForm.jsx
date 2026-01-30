@@ -57,7 +57,7 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, countries } = useMasterData();
+    const { clients, vessels, countries, refreshClients, refreshVessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -264,8 +264,10 @@ export default function StockForm() {
             }
         };
 
-        fetchClientsAndVessels();
-    }, [toast]);
+        refreshClients();
+        refreshVessels();
+        fetchCurrenciesAndPICs();
+    }, [toast, refreshClients, refreshVessels]);
 
     useEffect(() => {
         if (!currencies.length) return;

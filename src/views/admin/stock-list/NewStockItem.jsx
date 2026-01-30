@@ -72,7 +72,7 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, suppliers, countries } = useMasterData();
+    const { clients, vessels, suppliers, countries, refreshClients, refreshVessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -330,8 +330,10 @@ export default function StockForm() {
             }
         };
 
-        fetchClientsAndVessels();
-    }, [toast]);
+        refreshClients();
+        refreshVessels();
+        fetchCurrenciesAndPICs();
+    }, [toast, refreshClients, refreshVessels]);
 
     // Normalize currency values when currencies are loaded
     useEffect(() => {

@@ -1969,6 +1969,7 @@ export default function StockList() {
                                                     </InputGroup>
                                                     <Button
                                                         size="sm"
+                                                        px="10"
                                                         leftIcon={<Icon as={MdSearch} />}
                                                         colorScheme="blue"
                                                         onClick={handleSearch}
