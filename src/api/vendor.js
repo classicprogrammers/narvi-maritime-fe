@@ -303,8 +303,9 @@ export const getVendorsApi = async (filterParams = {}) => {
     const url = getApiEndpoint("VENDORS");
     const params = {};
     if (filterParams) {
-      if (filterParams.name != null && String(filterParams.name).trim() !== "")
-        params.name = String(filterParams.name).trim();
+      const nameOrSearch = filterParams.search ?? filterParams.name;
+      if (nameOrSearch != null && String(nameOrSearch).trim() !== "")
+        params.search = String(nameOrSearch).trim();
       if (filterParams.agentsdb_id != null && String(filterParams.agentsdb_id).trim() !== "")
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
       if (filterParams.reg_no != null && String(filterParams.reg_no).trim() !== "")

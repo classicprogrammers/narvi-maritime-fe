@@ -12,6 +12,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   HStack,
   Box,
   Button,
@@ -38,7 +39,7 @@ import {
   Grid,
   Textarea,
 } from "@chakra-ui/react";
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import { useUser } from "../../../../redux/hooks/useUser";
 import {
@@ -66,6 +67,7 @@ import {
   MdFilterList,
   MdVisibility,
   MdPeople,
+  MdClose,
 } from "react-icons/md";
 
 export default function CustomerTable(props) {
@@ -102,6 +104,13 @@ export default function CustomerTable(props) {
     : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
   const [sortOrder, setSortOrder] = useState("alphabetical"); // newest, oldest, alphabetical
   const [showFilterFields, setShowFilterFields] = useState(false);
+
+  // Auto-open advanced filters when any advance filter has data
+  const hasAnyAdvanceFilter = filters.client_code || filters.type_client || filters.email || (!isControlled && filters.name);
+  useEffect(() => {
+    if (hasAnyAdvanceFilter) setShowFilterFields(true);
+  }, [hasAnyAdvanceFilter]);
+
   const {
     updateCustomer,
     deleteCustomer,
@@ -676,7 +685,20 @@ export default function CustomerTable(props) {
                   _hover={{
                     borderColor: "blue.300",
                   }}
+                  pr={searchValue ? "32px" : undefined}
                 />
+                {searchValue && (
+                  <InputRightElement width="32px">
+                    <IconButton
+                      aria-label="Clear search"
+                      size="xs"
+                      variant="ghost"
+                      icon={<Icon as={MdClose} />}
+                      onClick={() => setSearchValue("")}
+                      _hover={{ bg: "gray.200" }}
+                    />
+                  </InputRightElement>
+                )}
               </InputGroup>
             </Box>
 
@@ -783,43 +805,16 @@ export default function CustomerTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Client Code
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., CPH, ACME123..."
-                    value={filters.client_code}
-                    onChange={(e) => handleFilterChange("client_code", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
-                </Box>
-
-                {/* Name Filter - only when not using API params (main search is Client Name when isControlled) */}
-                {!isControlled && (
-                  <Box minW="200px" flex="1">
-                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Client Name
-                    </Text>
+                  <InputGroup>
                     <Input
                       variant="outline"
                       fontSize="sm"
                       bg={inputBg}
                       color={inputText}
                       borderRadius="8px"
-                      placeholder="e.g., ACME Shipping Co..."
-                      value={filters.name}
-                      onChange={(e) => handleFilterChange("name", e.target.value)}
+                      placeholder="e.g., CPH, ACME123..."
+                      value={filters.client_code}
+                      onChange={(e) => handleFilterChange("client_code", e.target.value)}
                       border="2px"
                       borderColor={borderColor}
                       _focus={{
@@ -830,7 +825,64 @@ export default function CustomerTable(props) {
                         borderColor: "blue.300",
                       }}
                       _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.client_code ? "32px" : undefined}
                     />
+                    {filters.client_code && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Client Code"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("client_code", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
+                </Box>
+
+                {/* Name Filter - only when not using API params (main search is Client Name when isControlled) */}
+                {!isControlled && (
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Client Name
+                    </Text>
+                    <InputGroup>
+                      <Input
+                        variant="outline"
+                        fontSize="sm"
+                        bg={inputBg}
+                        color={inputText}
+                        borderRadius="8px"
+                        placeholder="e.g., ACME Shipping Co..."
+                        value={filters.name}
+                        onChange={(e) => handleFilterChange("name", e.target.value)}
+                        border="2px"
+                        borderColor={borderColor}
+                        _focus={{
+                          borderColor: "blue.400",
+                          boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                        }}
+                        _hover={{
+                          borderColor: "blue.300",
+                        }}
+                        _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                        pr={filters.name ? "32px" : undefined}
+                      />
+                      {filters.name && (
+                        <InputRightElement width="32px">
+                          <IconButton
+                            aria-label="Clear Client Name"
+                            size="xs"
+                            variant="ghost"
+                            icon={<Icon as={MdClose} />}
+                            onClick={() => handleFilterChange("name", "")}
+                            _hover={{ bg: "gray.200" }}
+                          />
+                        </InputRightElement>
+                      )}
+                    </InputGroup>
                   </Box>
                 )}
 
@@ -839,25 +891,41 @@ export default function CustomerTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Client Type
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g. Key, Regular, Prospect..."
-                    value={filters.type_client}
-                    onChange={(e) => handleFilterChange("type_client", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g. Key, Regular, Prospect..."
+                      value={filters.type_client}
+                      onChange={(e) => handleFilterChange("type_client", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{
+                        borderColor: "blue.300",
+                      }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.type_client ? "32px" : undefined}
+                    />
+                    {filters.type_client && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Client Type"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("type_client", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
 
                 {/* Email Filter */}
@@ -865,26 +933,41 @@ export default function CustomerTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Email
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., example@email.com..."
-                    value={filters.email}
-                    onChange={(e) => handleFilterChange("email", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                    }}
-                    _hover={{
-                      borderColor: "blue.300",
-                    }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., example@email.com..."
+                      value={filters.email}
+                      onChange={(e) => handleFilterChange("email", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{
+                        borderColor: "blue.300",
+                      }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.email ? "32px" : undefined}
+                    />
+                    {filters.email && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Email"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("email", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
               </HStack>
 

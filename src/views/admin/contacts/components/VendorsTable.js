@@ -12,6 +12,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  InputRightElement,
   HStack,
   Box,
   Button,
@@ -36,7 +37,7 @@ import {
   AlertDialogOverlay,
   Select,
 } from "@chakra-ui/react";
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useHistory } from "react-router-dom";
 import {
   useGlobalFilter,
@@ -64,6 +65,7 @@ import {
   MdVisibility,
   MdGroups,
   MdInventory,
+  MdClose,
 } from "react-icons/md";
 
 export default function VendorsTable(props) {
@@ -105,6 +107,13 @@ export default function VendorsTable(props) {
     : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
   const [sortOrder, setSortOrder] = useState("alphabetical");
   const [showFilterFields, setShowFilterFields] = useState(false);
+
+  // Auto-open advanced filters when any advance filter has data
+  const hasAnyAdvanceFilter = filters.agent_id || filters.reg_no || filters.city || filters.country || (!isControlled && filters.company);
+  useEffect(() => {
+    if (hasAnyAdvanceFilter) setShowFilterFields(true);
+  }, [hasAnyAdvanceFilter]);
+
   const {
     updateVendor,
     deleteVendor,
@@ -751,7 +760,20 @@ export default function VendorsTable(props) {
                   _hover={{
                     borderColor: "blue.300",
                   }}
+                  pr={searchValue ? "32px" : undefined}
                 />
+                {searchValue && (
+                  <InputRightElement width="32px">
+                    <IconButton
+                      aria-label="Clear search"
+                      size="xs"
+                      variant="ghost"
+                      icon={<Icon as={MdClose} />}
+                      onClick={() => setSearchValue("")}
+                      _hover={{ bg: "gray.200" }}
+                    />
+                  </InputRightElement>
+                )}
               </InputGroup>
             </Box>
 
@@ -857,21 +879,36 @@ export default function VendorsTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Agent ID
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., ABC, XYZ..."
-                    value={filters.agent_id}
-                    onChange={(e) => handleFilterChange("agent_id", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., ABC, XYZ..."
+                      value={filters.agent_id}
+                      onChange={(e) => handleFilterChange("agent_id", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.agent_id ? "32px" : undefined}
+                    />
+                    {filters.agent_id && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Agent ID"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("agent_id", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
 
                 {/* Company Filter - only when not using API params (main search is Company Name when isControlled) */}
@@ -880,21 +917,36 @@ export default function VendorsTable(props) {
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                       Company Name
                     </Text>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
-                      bg={inputBg}
-                      color={inputText}
-                      borderRadius="8px"
-                      placeholder="e.g., Transcoma, ABC Shipping..."
-                      value={filters.company}
-                      onChange={(e) => handleFilterChange("company", e.target.value)}
-                      border="2px"
-                      borderColor={borderColor}
-                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                      _hover={{ borderColor: "blue.300" }}
-                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                    />
+                    <InputGroup>
+                      <Input
+                        variant="outline"
+                        fontSize="sm"
+                        bg={inputBg}
+                        color={inputText}
+                        borderRadius="8px"
+                        placeholder="e.g., Transcoma, ABC Shipping..."
+                        value={filters.company}
+                        onChange={(e) => handleFilterChange("company", e.target.value)}
+                        border="2px"
+                        borderColor={borderColor}
+                        _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                        _hover={{ borderColor: "blue.300" }}
+                        _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                        pr={filters.company ? "32px" : undefined}
+                      />
+                      {filters.company && (
+                        <InputRightElement width="32px">
+                          <IconButton
+                            aria-label="Clear Company Name"
+                            size="xs"
+                            variant="ghost"
+                            icon={<Icon as={MdClose} />}
+                            onClick={() => handleFilterChange("company", "")}
+                            _hover={{ bg: "gray.200" }}
+                          />
+                        </InputRightElement>
+                      )}
+                    </InputGroup>
                   </Box>
                 )}
 
@@ -903,21 +955,36 @@ export default function VendorsTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     City
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., Algeciras, Singapore..."
-                    value={filters.city}
-                    onChange={(e) => handleFilterChange("city", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., Algeciras, Singapore..."
+                      value={filters.city}
+                      onChange={(e) => handleFilterChange("city", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.city ? "32px" : undefined}
+                    />
+                    {filters.city && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear City"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("city", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
 
                 {/* Registration No Filter */}
@@ -925,21 +992,36 @@ export default function VendorsTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Registration No
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., REG-1234..."
-                    value={filters.reg_no}
-                    onChange={(e) => handleFilterChange("reg_no", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., REG-1234..."
+                      value={filters.reg_no}
+                      onChange={(e) => handleFilterChange("reg_no", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.reg_no ? "32px" : undefined}
+                    />
+                    {filters.reg_no && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Registration No"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("reg_no", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
 
                 {/* Country Filter */}
@@ -947,21 +1029,36 @@ export default function VendorsTable(props) {
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Country
                   </Text>
-                  <Input
-                    variant="outline"
-                    fontSize="sm"
-                    bg={inputBg}
-                    color={inputText}
-                    borderRadius="8px"
-                    placeholder="e.g., Spain, Singapore..."
-                    value={filters.country}
-                    onChange={(e) => handleFilterChange("country", e.target.value)}
-                    border="2px"
-                    borderColor={borderColor}
-                    _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                    _hover={{ borderColor: "blue.300" }}
-                    _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                  />
+                  <InputGroup>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="e.g., Spain, Singapore..."
+                      value={filters.country}
+                      onChange={(e) => handleFilterChange("country", e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={filters.country ? "32px" : undefined}
+                    />
+                    {filters.country && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear Country"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => handleFilterChange("country", "")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
                 </Box>
 
               </HStack>
