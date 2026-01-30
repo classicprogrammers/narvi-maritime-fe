@@ -56,9 +56,25 @@ function savePersistedState(searchValue, filters, page, pageSize) {
   } catch (_) {}
 }
 
+// Resolve free-text country filter to country_id (int) for API
+function resolveCountryId(countryFilter, countries) {
+  if (!countryFilter || String(countryFilter).trim() === "") return undefined;
+  const typed = String(countryFilter).trim();
+  const num = parseInt(typed, 10);
+  if (!Number.isNaN(num)) return num;
+  const list = Array.isArray(countries) ? countries : (countries?.countries || []);
+  const lower = typed.toLowerCase();
+  const found = list.find(
+    (c) =>
+      (c.name && c.name.toLowerCase() === lower) ||
+      (c.name && c.name.toLowerCase().includes(lower))
+  );
+  return found ? found.id : undefined;
+}
+
 export default function Vendors() {
   const history = useHistory();
-  const { vendors, isLoading, getVendors, pagination } = useVendor();
+  const { vendors, isLoading, getVendors, pagination, countries } = useVendor();
   const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
   const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
   const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
@@ -69,15 +85,15 @@ export default function Vendors() {
     savePersistedState(searchValue, filters, page, pageSize);
   }, [searchValue, filters, page, pageSize]);
 
-  // Build params for API (used only when Search is clicked)
+  // Build params for API (used only when Search is clicked); country -> country_id for API
   const buildFetchParams = useCallback(
     () => ({
       search: searchValue?.trim() || undefined,
       agentsdb_id: filters.agent_id?.trim() || undefined,
       agent_type: filters.agent_type?.trim() || undefined,
-      country: filters.country?.trim() || undefined,
+      country_id: resolveCountryId(filters.country, countries),
     }),
-    [searchValue, filters]
+    [searchValue, filters, countries]
   );
 
   // Fetch only when user clicks Search (and initial load once)

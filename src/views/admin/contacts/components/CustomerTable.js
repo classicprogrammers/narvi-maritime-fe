@@ -51,6 +51,7 @@ import {
 
 // Custom components
 import Card from "components/card/Card";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
 import { SuccessModal } from "components/modals";
 import countriesAPI from "../../../../api/countries";
@@ -110,7 +111,7 @@ export default function CustomerTable(props) {
   const [showFilterFields, setShowFilterFields] = useState(false);
 
   // Auto-open advanced filters when any advance filter has data
-  const hasAnyAdvanceFilter = filters.client_code || filters.email;
+  const hasAnyAdvanceFilter = filters.client_code || filters.email || filters.country;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
@@ -565,10 +566,11 @@ export default function CustomerTable(props) {
     try {
       setLoadingCountries(true);
       const response = await countriesAPI.getCountries();
-      if (response && response.result && Array.isArray(response.result)) {
-        setCountries(response.result);
-      } else if (Array.isArray(response)) {
-        setCountries(response);
+      const list = (response && response.countries) || (response && response.result) || response;
+      if (Array.isArray(list)) {
+        setCountries(list);
+      } else {
+        setCountries([]);
       }
     } catch (error) {
       console.error("Failed to fetch countries:", error);
@@ -707,12 +709,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.client_code || filters.email
+                  filters.client_code || filters.email || filters.country
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.client_code || filters.email
+                  filters.client_code || filters.email || filters.country
                     ? "blue"
                     : "gray"
                 }
@@ -757,6 +759,7 @@ export default function CustomerTable(props) {
             {/* Clear All */}
             {(filters.client_code ||
               filters.email ||
+              filters.country ||
               searchValue ||
               sortOrder !== "alphabetical") && (
                 <Box>
@@ -877,6 +880,38 @@ export default function CustomerTable(props) {
                       </InputRightElement>
                     )}
                   </InputGroup>
+                </Box>
+
+                {/* Country Filter - searchable select */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Country
+                  </Text>
+                  <HStack spacing={1} align="stretch">
+                    <SearchableSelect
+                      value={filters.country ?? ""}
+                      onChange={(val) => handleFilterChange("country", val)}
+                      options={Array.isArray(countries) ? countries : []}
+                      placeholder="Select country..."
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
+                      bg={inputBg}
+                      color={inputText}
+                      borderColor={borderColor}
+                      flex={1}
+                    />
+                    {filters.country && (
+                      <IconButton
+                        aria-label="Clear Country"
+                        size="md"
+                        variant="ghost"
+                        icon={<Icon as={MdClose} />}
+                        onClick={() => handleFilterChange("country", "")}
+                        _hover={{ bg: "gray.200" }}
+                      />
+                    )}
+                  </HStack>
                 </Box>
               </HStack>
 
@@ -1472,27 +1507,19 @@ export default function CustomerTable(props) {
 
                   <FormControl>
                     <FormLabel>Country</FormLabel>
-                    <Select
+                    <SearchableSelect
                       placeholder={loadingCountries ? "Loading countries..." : "Select country..."}
                       value={editingCustomer?.country_id || ""}
-                      onChange={(e) => handleEditInputChange("country_id", e.target.value)}
+                      onChange={(val) => handleEditInputChange("country_id", val)}
+                      options={Array.isArray(countries) ? countries : []}
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
+                      isLoading={loadingCountries}
                       bg={inputBg}
                       color={inputText}
-                      border="2px"
                       borderColor={borderColor}
-                      isDisabled={loadingCountries}
-                      _focus={{
-                        borderColor: "blue.400",
-                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                      }}
-                      _hover={{ borderColor: "blue.300" }}
-                    >
-                      {countries.map((country) => (
-                        <option key={country.id} value={country.id}>
-                          {country.name}
-                        </option>
-                      ))}
-                    </Select>
+                    />
                   </FormControl>
                 </Grid>
               </Box>

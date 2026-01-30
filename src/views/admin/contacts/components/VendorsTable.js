@@ -48,6 +48,7 @@ import {
 
 // Custom components
 import Card from "components/card/Card";
+import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 import { useToast } from "@chakra-ui/react";
 import countriesAPI from "../../../../api/countries";
@@ -934,41 +935,36 @@ export default function VendorsTable(props) {
                   </InputGroup>
                 </Box>
 
-                {/* Country Filter */}
+                {/* Country Filter - searchable select */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Country
                   </Text>
-                  <InputGroup>
-                    <Input
-                      variant="outline"
-                      fontSize="sm"
+                  <HStack spacing={1} align="stretch">
+                    <SearchableSelect
+                      value={filters.country ?? ""}
+                      onChange={(val) => handleFilterChange("country", val)}
+                      options={Array.isArray(countries) ? countries : []}
+                      placeholder="Select country..."
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
                       bg={inputBg}
                       color={inputText}
-                      borderRadius="8px"
-                      placeholder="e.g., Spain, Singapore..."
-                      value={filters.country ?? ""}
-                      onChange={(e) => handleFilterChange("country", e.target.value)}
-                      border="2px"
                       borderColor={borderColor}
-                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-                      _hover={{ borderColor: "blue.300" }}
-                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
-                      pr={filters.country ? "32px" : undefined}
+                      flex={1}
                     />
                     {filters.country && (
-                      <InputRightElement width="32px">
-                        <IconButton
-                          aria-label="Clear Country"
-                          size="xs"
-                          variant="ghost"
-                          icon={<Icon as={MdClose} />}
-                          onClick={() => handleFilterChange("country", "")}
-                          _hover={{ bg: "gray.200" }}
-                        />
-                      </InputRightElement>
+                      <IconButton
+                        aria-label="Clear Country"
+                        size="md"
+                        variant="ghost"
+                        icon={<Icon as={MdClose} />}
+                        onClick={() => handleFilterChange("country", "")}
+                        _hover={{ bg: "gray.200" }}
+                      />
                     )}
-                  </InputGroup>
+                  </HStack>
                 </Box>
               </HStack>
             </Box>
@@ -1767,21 +1763,18 @@ export default function VendorsTable(props) {
 
               <FormControl>
                 <FormLabel>Country</FormLabel>
-                <Select
+                <SearchableSelect
                   value={newVendor.country_id || ""}
-                  onChange={(e) => handleInputChange("country_id", e.target.value)}
-                  placeholder="Select country"
+                  onChange={(val) => handleInputChange("country_id", val)}
+                  options={Array.isArray(countries) ? countries : []}
+                  placeholder="Select country..."
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
                   bg={inputBg}
                   color={inputText}
                   borderColor={borderColor}
-                  _focus={{
-                    borderColor: "blue.400",
-                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
-                  }}
-                >
-                  <option value="">Select Country</option>
-                  {/* Add country options here if needed */}
-                </Select>
+                />
               </FormControl>
             </VStack>
           </ModalBody>

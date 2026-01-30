@@ -300,12 +300,15 @@ export const registerVendorApi = async (agentData) => {
 // Serialize query params: space as %20 (not +), keep @ as literal for email (API supports space and @ as-is)
 const serializeVendorParams = (params) =>
   Object.entries(params)
-    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .filter(([, v]) => v != null && v !== "")
     .map(([k, v]) => {
-      const encoded = encodeURIComponent(String(v).trim());
+      const strVal = typeof v === "number" ? String(v) : String(v).trim();
+      if (strVal === "") return null;
+      const encoded = encodeURIComponent(strVal);
       const value = k === "email" ? encoded.replace(/%40/g, "@") : encoded;
       return `${encodeURIComponent(k)}=${value}`;
     })
+    .filter(Boolean)
     .join("&");
 
 // Get Agents API - filter params + page_size=all to get all records. No + for space; @ as-is in email.
@@ -321,8 +324,9 @@ export const getVendorsApi = async (filterParams = {}) => {
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
       if (filterParams.agent_type != null && String(filterParams.agent_type).trim() !== "")
         params.agent_type = String(filterParams.agent_type).trim();
-      if (filterParams.country != null && String(filterParams.country).trim() !== "")
-        params.country = String(filterParams.country).trim();
+      const cid = filterParams.country_id;
+      if (cid != null && cid !== "" && !Number.isNaN(Number(cid)))
+        params.country_id = parseInt(cid, 10);
     }
     params.page_size = "all";
     const queryString = serializeVendorParams(params);

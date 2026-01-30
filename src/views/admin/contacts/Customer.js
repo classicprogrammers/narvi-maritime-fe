@@ -36,8 +36,9 @@ function loadPersistedState() {
           ? {
             client_code: data.filters.client_code ?? "",
             email: data.filters.email ?? "",
+            country: data.filters.country ?? "",
           }
-          : { client_code: "", email: "" },
+          : { client_code: "", email: "", country: "" },
         sortOrder: ["newest", "oldest", "alphabetical"].includes(data.sortOrder) ? data.sortOrder : "alphabetical",
         page: typeof data.page === "number" && data.page >= 1 ? data.page : 1,
         pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 50,
@@ -62,7 +63,7 @@ export default function Customer() {
   const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
   const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
   const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
-  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { client_code: "", email: "" });
+  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { client_code: "", email: "", country: "" });
   const [sortOrder, setSortOrder] = useState(() => loadPersistedState()?.sortOrder ?? "alphabetical");
 
   // Persist search/filters/sort/page/pageSize so they survive navigation
@@ -145,7 +146,7 @@ export default function Customer() {
 
   const handleClearAll = useCallback(() => {
     setSearchValue("");
-    setFilters({ client_code: "", email: "" });
+    setFilters({ client_code: "", email: "", country: "" });
     setSortOrder("alphabetical");
     setPage(1);
     getCustomers({});

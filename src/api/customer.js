@@ -156,6 +156,9 @@ export const getCustomersApi = async (filterParams = {}) => {
         params.client_code = String(filterParams.client_code).trim();
       if (filterParams.email != null && String(filterParams.email).trim() !== "")
         params.email = String(filterParams.email).trim();
+      const cid = filterParams.country_id;
+      if (cid != null && cid !== "" && !Number.isNaN(Number(cid)))
+        params.country_id = parseInt(cid, 10);
     }
     params.page_size = "all";
     const queryString = serializeCustomerParams(params);
