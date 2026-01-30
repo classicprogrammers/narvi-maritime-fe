@@ -292,6 +292,78 @@ const isSuccessResponse = (response) => {
     return false;
 };
 
+const DRAFT_KEY = "vendorRegistrationDraft";
+const RETURN_TO_EDIT_KEY = "vendorRegistrationReturnToEdit";
+
+function saveVendorDraft(formData, peopleRows, cneeRows, visibleAddressFields, editingVendor) {
+    try {
+        const formDataSerializable = {
+            ...formData,
+            attachments: [],
+            attachment_to_delete: formData.attachment_to_delete || [],
+            existingAttachments: formData.existingAttachments || [],
+        };
+        const peopleRowsSerializable = (peopleRows || []).map((row) => ({
+            ...row,
+            attachments: [],
+            attachment_to_delete: row.attachment_to_delete || [],
+            existingAttachments: row.existingAttachments || [],
+        }));
+        const cneeRowsSerializable = (cneeRows || []).map((row) => ({
+            ...row,
+            _originalId: row._originalId,
+        }));
+        sessionStorage.setItem(
+            DRAFT_KEY,
+            JSON.stringify({
+                formData: formDataSerializable,
+                peopleRows: peopleRowsSerializable,
+                cneeRows: cneeRowsSerializable,
+                visibleAddressFields: visibleAddressFields ?? 2,
+                mode: editingVendor ? "edit" : "add",
+                vendorId: editingVendor?.id ?? null,
+            })
+        );
+        if (editingVendor) {
+            const vendorForReturn = {
+                ...editingVendor,
+                ...formDataSerializable,
+                children: peopleRowsSerializable.map((r) => ({
+                    id: r._originalId,
+                    first_name: r.first_name,
+                    last_name: r.last_name,
+                    prefix: r.prefix,
+                    job_title: r.job_title,
+                    email: r.email,
+                    tel_direct: r.tel_direct,
+                    phone: r.phone,
+                    tel_other: r.tel_other,
+                    whatsapp: r.whatsapp,
+                    remarks: r.remarks,
+                })),
+                _cneeRows: cneeRowsSerializable,
+            };
+            sessionStorage.setItem(RETURN_TO_EDIT_KEY, JSON.stringify({ vendorId: editingVendor.id, vendor: vendorForReturn }));
+        }
+    } catch (_) {}
+}
+
+function loadVendorDraft() {
+    try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+}
+
+function clearVendorDraft() {
+    try {
+        sessionStorage.removeItem(DRAFT_KEY);
+        sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
+    } catch (_) {}
+}
+
 function VendorRegistration() {
     const history = useHistory();
     const params = useParams();
@@ -401,6 +473,7 @@ function VendorRegistration() {
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
     const cancelRef = React.useRef();
+    const submittedSuccessfully = React.useRef(false);
     // New CNEE rows structure (replaces flat cnee1–cnee12 UI)
     const emptyCneeRow = React.useMemo(
         () => ({
@@ -674,11 +747,131 @@ function VendorRegistration() {
         }
     }, [countries, getCountries]);
 
+    // Single initial-load effect: fromReturnToEdit -> restore from state; else draft -> restore draft; else edit -> loadVendorData
     React.useEffect(() => {
+        const vendorDataFromState = location.state?.vendorData;
+        const fromReturnToEdit = location.state?.fromReturnToEdit;
+
+        if (fromReturnToEdit && vendorDataFromState) {
+            clearVendorDraft();
+            setOriginalVendorData(vendorDataFromState);
+            setFormData({
+                ...INITIAL_FORM_DATA,
+                name: vendorDataFromState.name || "",
+                agentsdb_id: vendorDataFromState.agentsdb_id || "",
+                address_type: vendorDataFromState.address_type || vendorDataFromState.agents_address_type || "",
+                street: vendorDataFromState.street || "",
+                street2: vendorDataFromState.street2 || "",
+                street3: vendorDataFromState.street3 || "",
+                street4: vendorDataFromState.street4 || "",
+                street5: vendorDataFromState.street5 || "",
+                street6: vendorDataFromState.street6 || "",
+                street7: vendorDataFromState.street7 || "",
+                zip: vendorDataFromState.zip || "",
+                city: vendorDataFromState.city || "",
+                country_id: vendorDataFromState.country_id || "",
+                reg_no: vendorDataFromState.reg_no || "",
+                email: vendorDataFromState.email || "",
+                email2: vendorDataFromState.email2 || "",
+                phone: vendorDataFromState.phone || "",
+                phone2: vendorDataFromState.phone2 || "",
+                website: vendorDataFromState.website || "",
+                pic: vendorDataFromState.pic || vendorDataFromState.agents_pic || "",
+                warnings: vendorDataFromState.warnings || "",
+                narvi_approved: convertApprovalValueToBoolean(vendorDataFromState.narvi_approved ?? vendorDataFromState.narvi_maritime_approved_agent),
+                remarks: vendorDataFromState.remarks || "",
+                payment_term: vendorDataFromState.payment_term || "",
+                type_client: vendorDataFromState.type_client || "",
+                attachments: [],
+                attachment_to_delete: vendorDataFromState.attachment_to_delete || [],
+                existingAttachments: Array.isArray(vendorDataFromState.existingAttachments) ? vendorDataFromState.existingAttachments : [],
+            });
+            let maxAddressIndex = 2;
+            if (vendorDataFromState.street3) maxAddressIndex = 3;
+            if (vendorDataFromState.street4) maxAddressIndex = 4;
+            if (vendorDataFromState.street5) maxAddressIndex = 5;
+            if (vendorDataFromState.street6) maxAddressIndex = 6;
+            if (vendorDataFromState.street7) maxAddressIndex = 7;
+            setVisibleAddressFields(maxAddressIndex);
+            const children = vendorDataFromState.children || [];
+            if (children.length > 0) {
+                setOriginalChildren(children);
+                setPeopleRows(children.map((child) => ({
+                    _originalId: child.id,
+                    company_name: vendorDataFromState.name || "",
+                    first_name: getValue(child.first_name),
+                    last_name: getValue(child.last_name),
+                    prefix: getValue(child.prefix),
+                    job_title: getValue(child.job_title),
+                    email: getValue(child.email),
+                    tel_direct: getValue(child.tel_direct),
+                    phone: getValue(child.phone),
+                    tel_other: getValue(child.tel_other),
+                    whatsapp: !!child.whatsapp,
+                    remarks: getValue(child.remarks),
+                    attachments: [],
+                    attachment_to_delete: [],
+                    existingAttachments: [],
+                })));
+            } else {
+                setPeopleRows([]);
+                setOriginalChildren([]);
+            }
+            const cneeRowsFromState = vendorDataFromState._cneeRows;
+            if (Array.isArray(cneeRowsFromState) && cneeRowsFromState.length > 0) {
+                setCneeRows(cneeRowsFromState);
+                setOriginalCneeRows(cneeRowsFromState.filter((r) => r && r._originalId).map((r) => ({ id: r._originalId })));
+            } else {
+                setCneeRows([{ ...emptyCneeRow }]);
+                setOriginalCneeRows([]);
+            }
+            return;
+        }
+
+        const draft = loadVendorDraft();
+        const shouldRestoreDraft =
+            draft &&
+            !fromReturnToEdit &&
+            ((draft.mode === "add" && !id) || (draft.mode === "edit" && id && String(draft.vendorId) === String(id)));
+        if (shouldRestoreDraft) {
+            setFormData(draft.formData || INITIAL_FORM_DATA);
+            setPeopleRows(draft.peopleRows || []);
+            setCneeRows(draft.cneeRows && draft.cneeRows.length > 0 ? draft.cneeRows : [{ ...emptyCneeRow }]);
+            setVisibleAddressFields(draft.visibleAddressFields ?? 2);
+            if (draft.mode === "edit" && draft.peopleRows?.length) {
+                setOriginalChildren(draft.peopleRows.map((r) => ({ id: r._originalId, ...r })));
+                setOriginalCneeRows((draft.cneeRows || []).filter((r) => r && r._originalId).map((r) => ({ id: r._originalId })));
+            } else {
+                setOriginalChildren([]);
+                setOriginalCneeRows([]);
+            }
+            clearVendorDraft();
+            toast({
+                title: "Unsaved changes restored",
+                description: "Your previous changes have been restored.",
+                status: "info",
+                duration: 3000,
+                isClosable: true,
+            });
+            return;
+        }
+
         if (isEditMode && id) {
             loadVendorData();
         }
-    }, [isEditMode, id, loadVendorData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, isEditMode, location.state?.fromReturnToEdit, location.state?.vendorData]);
+
+    // Save draft on unmount (when navigating away without submitting)
+    React.useEffect(() => {
+        const editingVendor = isEditMode && id && originalVendorData ? { id, ...originalVendorData } : null;
+        return () => {
+            if (!submittedSuccessfully.current) {
+                saveVendorDraft(formData, peopleRows, cneeRows, visibleAddressFields, editingVendor);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData, peopleRows, cneeRows, visibleAddressFields, isEditMode, id, originalVendorData]);
 
     React.useEffect(() => {
         return () => {
@@ -1083,6 +1276,8 @@ function VendorRegistration() {
                 : await registerVendorApi(updatePayload);
 
             if (isSuccessResponse(result)) {
+                submittedSuccessfully.current = true;
+                clearVendorDraft();
                 const action = isEditMode ? "updated" : "registered";
                 setModalMessage(`Agent "${formData.name}" has been ${action} successfully!`);
                 setIsSuccessModalOpen(true);

@@ -1,10 +1,28 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Box, VStack } from "@chakra-ui/react";
+import { useHistory } from "react-router-dom";
 import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
 
 const STORAGE_KEY = "clientsListSearchState";
+const RETURN_TO_EDIT_KEY = "customerRegistrationReturnToEdit";
+
+function loadReturnToEdit() {
+  try {
+    const raw = sessionStorage.getItem(RETURN_TO_EDIT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data && data.clientId != null && data.client) return data;
+  } catch (_) {}
+  return null;
+}
+
+function clearReturnToEdit() {
+  try {
+    sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
+  } catch (_) {}
+}
 
 function loadPersistedState() {
   try {
@@ -39,6 +57,7 @@ function savePersistedState(searchValue, filters, page, pageSize) {
 }
 
 export default function Customer() {
+  const history = useHistory();
   const { customers, isLoading, getCustomers, pagination } = useCustomer();
   const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
   const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 80);
@@ -79,6 +98,21 @@ export default function Customer() {
   useEffect(() => {
     getCustomers(fetchParams);
   }, [getCustomers, fetchParams]);
+
+  // If user was editing a client and navigated away, re-open that client's edit page when they return to Clients tab
+  useEffect(() => {
+    const returnToEdit = loadReturnToEdit();
+    if (returnToEdit && returnToEdit.clientId != null && returnToEdit.client) {
+      clearReturnToEdit();
+      history.replace("/admin/customer-registration", {
+        state: {
+          clientId: returnToEdit.clientId,
+          client: returnToEdit.client,
+          fromReturnToEdit: true,
+        },
+      });
+    }
+  }, [history]);
 
   const refreshCustomers = useCallback(() => {
     getCustomers(fetchParams);

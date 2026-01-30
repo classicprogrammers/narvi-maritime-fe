@@ -1,5 +1,6 @@
 import React from "react";
 import { useHistory, useLocation } from "react-router-dom";
+import { useToast } from "@chakra-ui/react";
 // Chakra imports
 import {
     Box,
@@ -79,9 +80,77 @@ const normalizeUrl = (url) => {
     return trimmed;
 };
 
+const DRAFT_KEY = "customerRegistrationDraft";
+const RETURN_TO_EDIT_KEY = "customerRegistrationReturnToEdit";
+
+function saveDraft(formData, peopleRows, visibleAddressFields, visibleVesselTypeFields, editingClient) {
+    try {
+        const formDataSerializable = {
+            ...formData,
+            attachments: [],
+            attachment_to_delete: formData.attachment_to_delete || [],
+            existingAttachments: formData.existingAttachments || [],
+        };
+        const peopleRowsSerializable = (peopleRows || []).map((row) => ({
+            ...row,
+            attachments: [],
+            attachment_to_delete: row.attachment_to_delete || [],
+            existingAttachments: row.existingAttachments || [],
+        }));
+        sessionStorage.setItem(
+            DRAFT_KEY,
+            JSON.stringify({
+                formData: formDataSerializable,
+                peopleRows: peopleRowsSerializable,
+                visibleAddressFields: visibleAddressFields ?? 2,
+                visibleVesselTypeFields: visibleVesselTypeFields ?? 1,
+                mode: editingClient ? "edit" : "add",
+                clientId: editingClient?.id ?? null,
+            })
+        );
+        if (editingClient) {
+            const clientForReturn = {
+                ...editingClient,
+                ...formDataSerializable,
+                children: peopleRowsSerializable.map((r) => ({
+                    id: r._originalId,
+                    first_name: r.first_name,
+                    last_name: r.last_name,
+                    prefix: r.prefix,
+                    job_title: r.job_title,
+                    email: r.email,
+                    tel_direct: r.tel_direct,
+                    phone: r.phone,
+                    tel_other: r.tel_other,
+                    whatsapp: r.whatsapp,
+                    remarks: r.remarks,
+                })),
+            };
+            sessionStorage.setItem(RETURN_TO_EDIT_KEY, JSON.stringify({ clientId: editingClient.id, client: clientForReturn }));
+        }
+    } catch (_) {}
+}
+
+function loadDraft() {
+    try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch (_) {}
+    return null;
+}
+
+function clearDraft() {
+    try {
+        sessionStorage.removeItem(DRAFT_KEY);
+        sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
+    } catch (_) {}
+}
+
 function CustomerRegistration() {
     const history = useHistory();
     const location = useLocation();
+    const toast = useToast();
 
     // Redux
     const { countries, customers, isLoading: countriesLoading, getCountries, addCustomerToRedux } = useCustomer();
@@ -149,6 +218,7 @@ function CustomerRegistration() {
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
     const cancelRef = React.useRef();
+    const submittedSuccessfully = React.useRef(false);
 
     // Chakra color mode
     const textColor = useColorModeValue("secondaryGray.900", "white");
@@ -289,9 +359,37 @@ function CustomerRegistration() {
         }
     };
 
-    // Prefill when editing
+    // Prefill when editing (or restore from draft)
     React.useEffect(() => {
+        const draft = loadDraft();
+        const shouldRestoreDraft =
+            draft &&
+            ((draft.mode === "add" && !editingClient) ||
+                (draft.mode === "edit" && editingClient && String(draft.clientId) === String(editingClient.id)));
+        if (shouldRestoreDraft && !location.state?.fromReturnToEdit) {
+            setFormData(draft.formData || {});
+            setPeopleRows(draft.peopleRows || []);
+            setVisibleAddressFields(draft.visibleAddressFields ?? 2);
+            setVisibleVesselTypeFields(draft.visibleVesselTypeFields ?? 1);
+            if (draft.mode === "edit" && draft.peopleRows?.length) {
+                setOriginalChildren(draft.peopleRows.map((r) => ({ id: r._originalId, ...r })));
+            } else {
+                setOriginalChildren([]);
+            }
+            clearDraft();
+            toast({
+                title: "Unsaved changes restored",
+                description: "Your previous changes have been restored.",
+                status: "info",
+                duration: 3000,
+                isClosable: true,
+            });
+            return;
+        }
         if (editingClient) {
+            if (location.state?.fromReturnToEdit) {
+                clearDraft();
+            }
             setFormData({
                 name: editingClient.name || "",
                 client_code: editingClient.client_code || "",
@@ -391,7 +489,17 @@ function CustomerRegistration() {
             setOriginalChildren([]);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editingClient?.id]);
+    }, [editingClient?.id, location.state?.fromReturnToEdit]);
+
+    // Save draft on unmount (when navigating away without submitting)
+    React.useEffect(() => {
+        return () => {
+            if (!submittedSuccessfully.current) {
+                saveDraft(formData, peopleRows, visibleAddressFields, visibleVesselTypeFields, editingClient);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData, peopleRows, visibleAddressFields, visibleVesselTypeFields, editingClient]);
 
     // Load countries on component mount
     React.useEffect(() => {
@@ -862,6 +970,8 @@ function CustomerRegistration() {
 
                 addCustomerToRedux(newClient);
 
+                submittedSuccessfully.current = true;
+                clearDraft();
                 setModalMessage(editingClient ? "Client updated successfully!" : "Client registered successfully!");
                 setIsSuccessModalOpen(true);
 
