@@ -55,6 +55,7 @@ import { CloseIcon } from "@chakra-ui/icons";
 import { List, ListItem } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
+import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 import { getCustomersApi } from "../../../api/customer";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
@@ -400,6 +401,7 @@ export default function Vessels() {
       onModalClose();
       resetForm();
       fetchVessels();
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
     } catch (error) {
       // Extract error message from API response
       let errorMessage = `Failed to ${editingVessel ? 'update' : 'create'} vessel`;
@@ -458,6 +460,7 @@ export default function Vessels() {
       onDeleteClose();
       setDeleteVesselId(null);
       fetchVessels();
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
     } catch (error) {
       // ✅ Extract and show error toast
       const message =

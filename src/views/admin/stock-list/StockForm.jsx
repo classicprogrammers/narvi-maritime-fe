@@ -41,10 +41,10 @@ import {
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
-import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import currenciesAPI from "../../../api/currencies";
-import countriesAPI from "../../../api/countries";
 import picAPI from "../../../api/pic";
+import { useMasterData } from "../../../hooks/useMasterData";
+import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 export default function StockForm() {
@@ -57,17 +57,12 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
+    const { clients, vessels, countries } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
-    const [clients, setClients] = useState([]);
-    const [vessels, setVessels] = useState([]);
-    const [isLoadingClients, setIsLoadingClients] = useState(false);
-    const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [currencies, setCurrencies] = useState([]);
-    const [countries, setCountries] = useState([]);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
-    const [isLoadingCountries, setIsLoadingCountries] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -215,43 +210,9 @@ export default function StockForm() {
         ensureStockData,
     ]);
 
-    // Fetch clients and vessels on component mount
+    // Fetch currencies and PICs on mount (clients, vessels, countries from master cache)
     useEffect(() => {
-        const fetchClientsAndVessels = async () => {
-            try {
-                setIsLoadingClients(true);
-                const clientsData = await getCustomersForSelect();
-                setClients(clientsData || []);
-            } catch (error) {
-                console.error('Failed to fetch clients:', error);
-                toast({
-                    title: 'Warning',
-                    description: 'Failed to load clients',
-                    status: 'warning',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            } finally {
-                setIsLoadingClients(false);
-            }
-
-            try {
-                setIsLoadingVessels(true);
-                const vesselsData = await getVesselsForSelect();
-                setVessels(vesselsData || []);
-            } catch (error) {
-                console.error('Failed to fetch vessels:', error);
-                toast({
-                    title: 'Warning',
-                    description: 'Failed to load vessels',
-                    status: 'warning',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            } finally {
-                setIsLoadingVessels(false);
-            }
-
+        const fetchCurrenciesAndPICs = async () => {
             try {
                 setIsLoadingCurrencies(true);
                 const currenciesResponse = await currenciesAPI.getCurrencies();
@@ -270,26 +231,6 @@ export default function StockForm() {
                 });
             } finally {
                 setIsLoadingCurrencies(false);
-            }
-
-            try {
-                setIsLoadingCountries(true);
-                const countriesResponse = await countriesAPI.getCountries();
-                const countriesData = (countriesResponse && Array.isArray(countriesResponse.countries))
-                    ? countriesResponse.countries
-                    : (Array.isArray(countriesResponse) ? countriesResponse : []);
-                setCountries(countriesData || []);
-            } catch (error) {
-                console.error('Failed to fetch countries:', error);
-                toast({
-                    title: 'Warning',
-                    description: 'Failed to load countries',
-                    status: 'warning',
-                    duration: 3000,
-                    isClosable: true,
-                });
-            } finally {
-                setIsLoadingCountries(false);
             }
 
             // Fetch PICs
@@ -352,73 +293,58 @@ export default function StockForm() {
         );
     }, [currencies]);
 
-    // Convert origin ID to country name text when countries are loaded
+    // Sync form rows from cache (read getCached inside effect + refs to avoid infinite loop from useMasterData refs)
+    const hasSyncedCountriesRef = React.useRef(false);
+    const hasSyncedClientsRef = React.useRef(false);
+    const hasSyncedVesselsRef = React.useRef(false);
+
     useEffect(() => {
-        if (!countries.length) return;
+        if (!formRows.length) return;
+        const countriesList = getCached(MASTER_KEYS.COUNTRIES) ?? [];
+        if (!countriesList.length || hasSyncedCountriesRef.current) return;
+        hasSyncedCountriesRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.origin_text) {
-                    return row;
-                }
+                if (!row.origin_text) return row;
                 const normalizedValue = String(row.origin_text);
-                // If it's already text (not a pure number), keep it
-                if (!/^\d+$/.test(normalizedValue)) {
-                    return row;
-                }
-                // Try to find country by ID and convert to name
-                const country = countries.find((c) => {
-                    const cId = c.id || c.country_id;
-                    return String(cId) === normalizedValue;
-                });
-                if (country) {
-                    return { ...row, origin_text: country.name || country.code || normalizedValue };
-                }
+                if (!/^\d+$/.test(normalizedValue)) return row;
+                const country = countriesList.find((c) => String(c.id || c.country_id) === normalizedValue);
+                if (country) return { ...row, origin_text: country.name || country.code || normalizedValue };
                 return row;
             })
         );
-    }, [countries]);
+    }, [formRows]);
 
-    // Normalize client IDs when clients are loaded
     useEffect(() => {
-        if (!clients.length) return;
+        if (!formRows.length) return;
+        const clientsList = getCached(MASTER_KEYS.CLIENTS) ?? [];
+        if (!clientsList.length || hasSyncedClientsRef.current) return;
+        hasSyncedClientsRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.client || row.client === "" || row.client === false) {
-                    return row;
-                }
+                if (!row.client || row.client === "" || row.client === false) return row;
                 const normalizedValue = String(row.client);
-                // Try exact ID match first
-                const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
-                if (exactMatch) {
-                    console.log("Found client match:", exactMatch.id, "for value:", normalizedValue);
-                    return { ...row, client: String(exactMatch.id) };
-                }
-                // Try fallback matching by name
-                const fallbackMatch = clients.find(
-                    (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                if (fallbackMatch) {
-                    return { ...row, client: String(fallbackMatch.id) };
-                }
+                const exactMatch = clientsList.find((client) => String(client.id) === normalizedValue);
+                if (exactMatch) return { ...row, client: String(exactMatch.id) };
+                const fallbackMatch = clientsList.find((client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase());
+                if (fallbackMatch) return { ...row, client: String(fallbackMatch.id) };
                 return row;
             })
         );
-    }, [clients]);
+    }, [formRows]);
 
-    // Normalize vessel IDs when vessels are loaded and auto-fill vessel_destination and vessel_eta
     useEffect(() => {
-        if (!vessels.length) return;
+        if (!formRows.length) return;
+        const vesselsList = getCached(MASTER_KEYS.VESSELS) ?? [];
+        if (!vesselsList.length || hasSyncedVesselsRef.current) return;
+        hasSyncedVesselsRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.vessel || row.vessel === "" || row.vessel === false) {
-                    return row;
-                }
+                if (!row.vessel || row.vessel === "" || row.vessel === false) return row;
                 const normalizedValue = String(row.vessel);
-                // Try exact ID match first
-                const exactMatch = vessels.find((vessel) => String(vessel.id) === normalizedValue);
+                const exactMatch = vesselsList.find((vessel) => String(vessel.id) === normalizedValue);
                 if (exactMatch) {
                     const updatedRow = { ...row, vessel: String(exactMatch.id) };
-                    // Auto-fill destination, vessel_destination, and ap_destination from vessel data
                     const vesselDestId = exactMatch.destination_id || exactMatch.destination;
                     if (vesselDestId) {
                         const destId = String(vesselDestId);
@@ -426,22 +352,15 @@ export default function StockForm() {
                         updatedRow.vesselDestination = destId;
                         updatedRow.apDestination = destId;
                     }
-                    // Auto-fill vessel_eta from vessel data
                     if (exactMatch.eta || exactMatch.eta_date) {
                         const etaDate = exactMatch.eta_date || exactMatch.eta;
-                        updatedRow.vesselEta = etaDate instanceof Date
-                            ? etaDate.toISOString().split('T')[0]
-                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
+                        updatedRow.vesselEta = etaDate instanceof Date ? etaDate.toISOString().split('T')[0] : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
                     }
                     return updatedRow;
                 }
-                // Try fallback matching by name
-                const fallbackMatch = vessels.find(
-                    (vessel) => String(vessel.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
+                const fallbackMatch = vesselsList.find((vessel) => String(vessel.name)?.toLowerCase() === normalizedValue.toLowerCase());
                 if (fallbackMatch) {
                     const updatedRow = { ...row, vessel: String(fallbackMatch.id) };
-                    // Auto-fill destination, vessel_destination, and ap_destination from vessel data
                     const vesselDestId = fallbackMatch.destination_id || fallbackMatch.destination;
                     if (vesselDestId) {
                         const destId = String(vesselDestId);
@@ -449,71 +368,37 @@ export default function StockForm() {
                         updatedRow.vesselDestination = destId;
                         updatedRow.apDestination = destId;
                     }
-                    // Auto-fill vessel_eta from vessel data
                     if (fallbackMatch.eta || fallbackMatch.eta_date) {
                         const etaDate = fallbackMatch.eta_date || fallbackMatch.eta;
-                        updatedRow.vesselEta = etaDate instanceof Date
-                            ? etaDate.toISOString().split('T')[0]
-                            : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
+                        updatedRow.vesselEta = etaDate instanceof Date ? etaDate.toISOString().split('T')[0] : (typeof etaDate === 'string' ? etaDate.split(' ')[0] : "");
                     }
                     return updatedRow;
                 }
                 return row;
             })
         );
-    }, [vessels]);
+    }, [formRows]);
 
-    // Normalize supplier IDs when clients are loaded (suppliers use clients array)
+    // Normalize supplier IDs when clients are loaded (run once after clients sync)
     useEffect(() => {
-        if (!clients.length) return;
+        if (!formRows.length || !hasSyncedClientsRef.current) return;
+        const clientsList = getCached(MASTER_KEYS.CLIENTS) ?? [];
+        if (!clientsList.length) return;
+        const hasSyncedSupplierRef = React.useRef(false);
+        if (hasSyncedSupplierRef.current) return;
+        hasSyncedSupplierRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
-                if (!row.supplier || row.supplier === "" || row.supplier === false) {
-                    return row;
-                }
+                if (!row.supplier || row.supplier === "" || row.supplier === false) return row;
                 const normalizedValue = String(row.supplier);
-                // Try exact ID match first
-                const exactMatch = clients.find((client) => String(client.id) === normalizedValue);
-                if (exactMatch) {
-                    return { ...row, supplier: String(exactMatch.id) };
-                }
-                // Try fallback matching by name
-                const fallbackMatch = clients.find(
-                    (client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase()
-                );
-                if (fallbackMatch) {
-                    return { ...row, supplier: String(fallbackMatch.id) };
-                }
+                const exactMatch = clientsList.find((client) => String(client.id) === normalizedValue);
+                if (exactMatch) return { ...row, supplier: String(exactMatch.id) };
+                const fallbackMatch = clientsList.find((client) => String(client.name)?.toLowerCase() === normalizedValue.toLowerCase());
+                if (fallbackMatch) return { ...row, supplier: String(fallbackMatch.id) };
                 return row;
             })
         );
-    }, [clients]);
-
-    // Convert origin ID to country name text when countries are loaded
-    useEffect(() => {
-        if (!countries.length) return;
-        setFormRows((prevRows) =>
-            prevRows.map((row) => {
-                if (!row.origin_text) {
-                    return row;
-                }
-                const normalizedValue = String(row.origin_text);
-                // If it's already text (not a pure number), keep it
-                if (!/^\d+$/.test(normalizedValue)) {
-                    return row;
-                }
-                // Try to find country by ID and convert to name
-                const country = countries.find((c) => {
-                    const cId = c.id || c.country_id;
-                    return String(cId) === normalizedValue;
-                });
-                if (country) {
-                    return { ...row, origin_text: country.name || country.code || normalizedValue };
-                }
-                return row;
-            })
-        );
-    }, [countries]);
+    }, [formRows]);
 
     const toNumber = (value) => {
         if (value === "" || value === null || value === undefined) {
@@ -1217,7 +1102,7 @@ export default function StockForm() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Client ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1232,7 +1117,7 @@ export default function StockForm() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || String(option.id ?? "")}
-                                            isLoading={isLoadingVessels}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1289,7 +1174,7 @@ export default function StockForm() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

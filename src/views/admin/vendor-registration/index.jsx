@@ -741,11 +741,13 @@ function VendorRegistration() {
         }
     }, [id, isEditMode, vendorDataFromState]);
 
+    // Depend on countries length only so we don't re-run on every ref change (avoids infinite loop)
+    const countriesLength = Array.isArray(countries) ? countries.length : (countries?.countries?.length ?? 0);
     React.useEffect(() => {
-        if (!countries || countries.length === 0) {
+        if (countriesLength === 0) {
             getCountries();
         }
-    }, [countries, getCountries]);
+    }, [countriesLength, getCountries]);
 
     // Single initial-load effect: fromReturnToEdit -> restore from state; else draft -> restore draft; else edit -> loadVendorData
     React.useEffect(() => {

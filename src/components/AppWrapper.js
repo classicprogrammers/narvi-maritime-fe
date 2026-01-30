@@ -6,12 +6,13 @@ const AppWrapper = ({ children }) => {
   const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
-    // Only check authentication status once when app starts
+    // Only check authentication status once when app starts (empty deps = run once on mount)
     if (!hasCheckedAuth.current) {
       checkAuth();
       hasCheckedAuth.current = true;
     }
-  }, [checkAuth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <>{children}</>;
 };

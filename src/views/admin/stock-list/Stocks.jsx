@@ -59,13 +59,12 @@ import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdF
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
-import { getCustomersForSelect, getVesselsForSelect } from "../../../api/entitySelects";
 import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
 import destinationsAPI from "../../../api/destinations";
-import countriesAPI from "../../../api/countries";
 import { getShippingOrders } from "../../../api/shippingOrders";
+import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
 // Status definitions matching backend status keys exactly
@@ -325,20 +324,14 @@ export default function Stocks() {
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
-    const [clients, setClients] = useState([]);
-    const [isLoadingClients, setIsLoadingClients] = useState(false);
-    const [isLoadingVessels, setIsLoadingVessels] = useState(false);
-    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+    const { clients, vessels, suppliers: vendors, countries } = useMasterData();
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
-    // Lookup data for IDs -> Names
-    const [vessels, setVessels] = useState([]);
-    const [vendors, setVendors] = useState([]);
+    // Lookup data for IDs -> Names (countries from master cache)
     const [destinations, setDestinations] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [countries, setCountries] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
     // Users state removed - PIC is now a free text field, no need to fetch users
@@ -406,29 +399,16 @@ export default function Stocks() {
         const fetchLookupData = async () => {
             try {
                 hasFetchedLookupData.current = true;
-                setIsLoadingClients(true);
-                setIsLoadingVessels(true);
-                setIsLoadingSuppliers(true);
                 setIsLoadingWarehouses(true);
                 setIsLoadingCurrencies(true);
-
-                // Fetch all lookup data in parallel (excluding users if not needed)
-                // Users are only needed for PIC field display
                 setIsLoadingShippingOrders(true);
+
+                // Fetch lookup data (clients, vessels, vendors, countries from master cache)
                 const promises = [
-                    getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
-                    getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
-                    // Use supplier API instead of agents/vendors
-                    api.get("/api/suppliers").catch(() => ({ data: [] })).then(response => ({ type: 'vendors', data: Array.isArray(response.data) ? response.data : (response.data?.suppliers || response.data?.vendors || response.data?.result?.suppliers || []) })),
-                    // Use destinations API for destinations
                     destinationsAPI.getDestinations().catch(() => ({ destinations: [] })).then(data => ({ type: 'destinations', data: Array.isArray(data) ? data : (data?.destinations || data?.result?.destinations || []) })),
                     currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
                     locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    // Fetch countries for origin field
-                    countriesAPI.getCountries().catch(() => ({ countries: [] })).then(data => ({ type: 'countries', data: Array.isArray(data) ? data : (data?.countries || data?.result?.countries || []) })),
-                    // Fetch shipping orders for SO number dropdown
                     getShippingOrders().catch(() => ({ orders: [] })).then(data => {
-                        // Handle different response structures
                         let orders = [];
                         if (Array.isArray(data)) {
                             orders = data;
@@ -441,23 +421,12 @@ export default function Stocks() {
                         }
                         return { type: 'shippingOrders', data: orders };
                     })
-                    // Users API removed - PIC is now a free text field, no need to fetch users
                 ];
 
                 const results = await Promise.all(promises);
 
                 results.forEach(({ type, data }) => {
                     switch (type) {
-                        case 'clients':
-                            setClients(data || []);
-                            break;
-                        case 'vessels':
-                            setVessels(data || []);
-                            break;
-                        case 'vendors':
-                            // Data from supplier API
-                            setVendors(Array.isArray(data) ? data : []);
-                            break;
                         case 'destinations':
                             setDestinations(data || []);
                             break;
@@ -467,22 +436,15 @@ export default function Stocks() {
                         case 'locations':
                             setLocations(data?.locations || data || []);
                             break;
-                        case 'countries':
-                            setCountries(data || []);
-                            break;
                         case 'shippingOrders':
                             setShippingOrders(data || []);
                             break;
-                        // Users case removed - PIC is now free text, no need to fetch users
                     }
                 });
             } catch (error) {
                 console.error('Failed to fetch lookup data:', error);
                 hasFetchedLookupData.current = false; // Reset on error to allow retry
             } finally {
-                setIsLoadingClients(false);
-                setIsLoadingVessels(false);
-                setIsLoadingSuppliers(false);
                 setIsLoadingWarehouses(false);
                 setIsLoadingCurrencies(false);
                 setIsLoadingShippingOrders(false);
@@ -3520,7 +3482,7 @@ export default function Stocks() {
                                                                 displayKey="name"
                                                                 valueKey="id"
                                                                 formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                isLoading={isLoadingVessels}
+                                                                isLoading={false}
                                                                 bg={inputBg}
                                                                 color={inputText}
                                                                 borderColor={borderColor}
@@ -3544,7 +3506,7 @@ export default function Stocks() {
                                                                 displayKey="name"
                                                                 valueKey="id"
                                                                 formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                isLoading={isLoadingClients}
+                                                                isLoading={false}
                                                                 bg={inputBg}
                                                                 color={inputText}
                                                                 borderColor={borderColor}
@@ -3690,7 +3652,7 @@ export default function Stocks() {
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                        isLoading={isLoadingClients}
+                                                                        isLoading={false}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -3721,7 +3683,7 @@ export default function Stocks() {
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                        isLoading={isLoadingVessels}
+                                                                        isLoading={false}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -3781,7 +3743,7 @@ export default function Stocks() {
                                                             displayKey="id"
                                                             valueKey="id"
                                                             formatOption={(option) => `${option.id}`}
-                                                            isLoading={isLoadingClients}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -4082,7 +4044,7 @@ export default function Stocks() {
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                        isLoading={isLoadingClients}
+                                                                        isLoading={false}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -4113,7 +4075,7 @@ export default function Stocks() {
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                        isLoading={isLoadingVessels}
+                                                                        isLoading={false}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -5013,7 +4975,7 @@ export default function Stocks() {
                                                                     displayKey="name"
                                                                     valueKey="id"
                                                                     formatOption={(option) => option.name || `Client ${option.id}`}
-                                                                    isLoading={isLoadingClients}
+                                                                    isLoading={false}
                                                                     bg={inputBg}
                                                                     color={inputText}
                                                                     borderColor={borderColor}
@@ -5044,7 +5006,7 @@ export default function Stocks() {
                                                                     displayKey="name"
                                                                     valueKey="id"
                                                                     formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                    isLoading={isLoadingVessels}
+                                                                    isLoading={false}
                                                                     bg={inputBg}
                                                                     color={inputText}
                                                                     borderColor={borderColor}

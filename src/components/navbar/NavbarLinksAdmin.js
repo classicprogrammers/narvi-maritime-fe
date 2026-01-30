@@ -29,6 +29,7 @@ import { FaEthereum } from "react-icons/fa";
 import routes from "routes.js";
 // Redux
 import { useUser } from "redux/hooks/useUser";
+import { clearMasterData } from "utils/masterDataCache";
 // import { ThemeEditor } from "./ThemeEditor";
 
 export default function HeaderLinks(props) {
@@ -56,6 +57,7 @@ export default function HeaderLinks(props) {
   };
 
   const handleLogout = () => {
+    clearMasterData();
     logout();
     history.push("/auth/sign-in");
   };

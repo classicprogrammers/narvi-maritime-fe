@@ -51,7 +51,8 @@ import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 import { useToast } from "@chakra-ui/react";
-import countriesAPI from "../../../../api/countries";
+import { useMasterData } from "../../../../hooks/useMasterData";
+import { getCached, refreshMasterData, MASTER_KEYS } from "../../../../utils/masterDataCache";
 
 // Assets
 import {
@@ -140,7 +141,7 @@ export default function VendorsTable(props) {
   const [editingVendor, setEditingVendor] = useState(null);
   const [vendorToDelete, setVendorToDelete] = useState(null);
   const [isRegistering, setIsRegistering] = useState(false);
-  const [countries, setCountries] = useState([]);
+  const { countries } = useMasterData();
 
   const { isOpen, onClose } = useDisclosure();
   const {
@@ -155,20 +156,6 @@ export default function VendorsTable(props) {
   } = useDisclosure();
 
   const cancelRef = useRef();
-
-  // Load countries on component mount
-  React.useEffect(() => {
-    const loadCountries = async () => {
-      try {
-        const countriesData = await countriesAPI.getCountries();
-        const countriesList = countriesData.countries || countriesData || [];
-        setCountries(countriesList);
-      } catch (error) {
-        console.error('Error loading countries:', error);
-      }
-    };
-    loadCountries();
-  }, []);
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
@@ -185,7 +172,9 @@ export default function VendorsTable(props) {
   };
 
   // Filter data: when API params used (isControlled) only filter top-level; else apply search + filters client-side
+  // Read countries from cache inside useMemo so we don't depend on useMasterData() ref (avoids infinite loop on /admin/contacts/agents)
   const filteredData = useMemo(() => {
+    const countriesList = getCached(MASTER_KEYS.COUNTRIES) ?? [];
     let filtered = Array.isArray(tableData) ? tableData : [];
 
     const isTopLevelAgent = (item) => {
@@ -223,7 +212,7 @@ export default function VendorsTable(props) {
       if (filters.country) {
         const needle = filters.country.toLowerCase();
         filtered = filtered.filter((item) => {
-          const country = countries.find(
+          const country = countriesList.find(
             (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
           );
           const countryName = country ? country.name : item.country_name || "";
@@ -234,7 +223,7 @@ export default function VendorsTable(props) {
 
     // Add computed display fields
     const withComputed = filtered.map((item) => {
-      const countryObj = countries.find(
+      const countryObj = countriesList.find(
         (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
       );
       const countryName = countryObj ? countryObj.name : item.country_name || "";
@@ -344,7 +333,7 @@ export default function VendorsTable(props) {
     });
 
     return withComputed;
-  }, [tableData, searchValue, filters, countries, isControlled]);
+  }, [tableData, searchValue, filters, isControlled]);
 
   const data = useMemo(() => {
     const sortedData = applyCustomSorting(Array.isArray(filteredData) ? filteredData : []);
@@ -454,6 +443,7 @@ export default function VendorsTable(props) {
       const result = await registerVendor(newVendor);
 
       if (result.success) {
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
         onClose();
 
         // Reset form
@@ -518,11 +508,10 @@ export default function VendorsTable(props) {
       if (result.success) {
         onEditClose();
         setEditingVendor(null);
-        // Refresh the vendors list to show updated data
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
         if (propsOnRefresh) propsOnRefresh();
         else getVendors({});
       }
-      // Error handling is done by the API modal system
     } catch (error) {
       // Error handling is done by the API modal system
     }
@@ -582,7 +571,7 @@ export default function VendorsTable(props) {
       if (result.success) {
         onDeleteClose();
         setVendorToDelete(null);
-        // Refresh the vendors list to show updated data
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
         if (propsOnRefresh) propsOnRefresh();
         else getVendors({});
 

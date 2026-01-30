@@ -5,12 +5,13 @@ import Footer from "components/footer/FooterAdmin.js";
 import Navbar from "components/navbar/NavbarAdmin.js";
 import Sidebar from "components/sidebar/Sidebar.js";
 import { SidebarContext } from "contexts/SidebarContext";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Redirect, Route, Switch, useHistory } from "react-router-dom";
 import routes, { hiddenRoutes, getFilteredRoutes } from "routes.js";
 // API Modal component
 import { useUser } from "redux/hooks/useUser";
 import ApiModal from "components/ApiModal";
+import { preloadAll, getCached, MASTER_KEYS } from "utils/masterDataCache";
 
 // Custom Chakra theme
 export default function Dashboard(props) {
@@ -28,6 +29,23 @@ export default function Dashboard(props) {
     checkAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Preload master data once when user is authenticated (ref prevents re-running and infinite loop)
+  const hasPreloadedRef = useRef(false);
+  useEffect(() => {
+    if (!user || !localStorage.getItem("token")) return;
+    if (hasPreloadedRef.current) return;
+    const cachedClients = getCached(MASTER_KEYS.CLIENTS);
+    const cachedCountries = getCached(MASTER_KEYS.COUNTRIES);
+    const hasCachedData = (Array.isArray(cachedClients) && cachedClients.length > 0) ||
+      (Array.isArray(cachedCountries) && cachedCountries.length > 0);
+    if (hasCachedData) {
+      hasPreloadedRef.current = true;
+      return;
+    }
+    hasPreloadedRef.current = true;
+    preloadAll().catch((err) => console.warn("Master data preload failed:", err));
+  }, [user]);
   
   // Filter routes based on user type - use useMemo to recalculate when user changes
   const filteredRoutes = useMemo(() => {

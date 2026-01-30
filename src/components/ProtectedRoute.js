@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Route, useHistory } from "react-router-dom";
 import { useUser } from "../redux/hooks/useUser";
 import { Spinner, Center } from "@chakra-ui/react";
@@ -7,28 +7,21 @@ const ProtectedRoute = ({ component: Component, ...rest }) => {
   const history = useHistory();
   const { isAuthenticated, token, checkAuth } = useUser();
   const [isChecking, setIsChecking] = useState(true);
-  const [hasChecked, setHasChecked] = useState(false);
+  const hasCheckedRef = useRef(false);
 
-  // Memoize the authentication check to prevent unnecessary calls
-  const checkAuthentication = useCallback(async () => {
-    if (!hasChecked) {
-      try {
-        await checkAuth();
-        setHasChecked(true);
-      } catch (error) {
-        console.error("Authentication check failed:", error);
-      } finally {
-        setIsChecking(false);
-      }
-    }
-  }, [checkAuth, hasChecked]);
-
+  // Run auth check only once on mount (ref prevents effect from re-running due to checkAuth changing)
   useEffect(() => {
-    // Only check authentication once when component mounts
-    if (!hasChecked) {
-      checkAuthentication();
+    if (hasCheckedRef.current) return;
+    hasCheckedRef.current = true;
+    try {
+      checkAuth();
+    } catch (error) {
+      console.error("Authentication check failed:", error);
+    } finally {
+      setIsChecking(false);
     }
-  }, [checkAuthentication, hasChecked]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // If not authenticated and no token, redirect to login

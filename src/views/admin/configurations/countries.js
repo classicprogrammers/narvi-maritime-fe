@@ -40,6 +40,7 @@ import {
   MdPublic,
 } from "react-icons/md";
 import countriesAPI from "../../../api/countries";
+import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 export default function Countries() {
   const [countries, setCountries] = useState([]);
@@ -314,6 +315,7 @@ export default function Countries() {
       onModalClose();
       resetForm();
       fetchCountries();
+      refreshMasterData(MASTER_KEYS.COUNTRIES).catch(() => {});
     } catch (error) {
       // Extract error message from API response
       let errorMessage = `Failed to ${editingCountry ? 'update' : 'create'} country`;

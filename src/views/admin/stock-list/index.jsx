@@ -44,12 +44,11 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
-import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
-import { getVendorsApi } from "../../../api/vendor";
+import { getDestinationsForSelect } from "../../../api/entitySelects";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
-import countriesAPI from "../../../api/countries";
 import { getShippingOrders } from "../../../api/shippingOrders";
+import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 
@@ -79,6 +78,7 @@ export default function StockList() {
     } = useStock();
 
     const { user } = useUser();
+    const { clients, vessels, agents: vendors, countries } = useMasterData();
 
     // Check if current user is authorized to edit (Igor or Martin only)
     const isAuthorizedToEdit = React.useMemo(() => {
@@ -122,14 +122,10 @@ export default function StockList() {
     });
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
-    // Lookup data for IDs -> Names
-    const [clients, setClients] = useState([]);
-    const [vessels, setVessels] = useState([]);
-    const [vendors, setVendors] = useState([]);
+    // Lookup data for IDs -> Names (clients, vessels, vendors, countries from master cache)
     const [destinations, setDestinations] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [countries, setCountries] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
     // Filters state - initialize from sessionStorage
@@ -446,15 +442,11 @@ export default function StockList() {
             try {
                 hasFetchedLookupData.current = true;
 
-                // Fetch all lookup data in parallel
+                // Fetch lookup data (clients, vessels, vendors, countries come from master cache)
                 const promises = [
-                    getCustomersForSelect().catch(() => []).then(data => ({ type: 'clients', data })),
-                    getVesselsForSelect().catch(() => []).then(data => ({ type: 'vessels', data })),
-                    getVendorsApi().catch(() => []).then(data => ({ type: 'vendors', data })),
                     getDestinationsForSelect().catch(() => []).then(data => ({ type: 'destinations', data })),
                     currenciesAPI.getCurrencies().catch(() => ({ currencies: [] })).then(data => ({ type: 'currencies', data })),
                     locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    countriesAPI.getCountries().catch(() => ({ countries: [] })).then(data => ({ type: 'countries', data })),
                     getShippingOrders().catch(() => ({ orders: [] })).then(data => ({ type: 'shippingOrders', data }))
                 ];
 
@@ -462,15 +454,6 @@ export default function StockList() {
 
                 results.forEach(({ type, data }) => {
                     switch (type) {
-                        case 'clients':
-                            setClients(data || []);
-                            break;
-                        case 'vessels':
-                            setVessels(data || []);
-                            break;
-                        case 'vendors':
-                            setVendors(Array.isArray(data) ? data : data?.vendors || data?.agents || []);
-                            break;
                         case 'destinations':
                             setDestinations(data || []);
                             break;
@@ -479,9 +462,6 @@ export default function StockList() {
                             break;
                         case 'locations':
                             setLocations(data?.locations || data || []);
-                            break;
-                        case 'countries':
-                            setCountries(data?.countries || data || []);
                             break;
                         case 'shippingOrders':
                             setShippingOrders(data?.orders || data || []);

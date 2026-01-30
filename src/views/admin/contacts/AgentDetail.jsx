@@ -183,7 +183,10 @@ const AgentDetail = () => {
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
   const toast = useToast();
 
-  // Load agent data
+  // Load agent data (depend only on id to avoid loop; location.state can change reference every render)
+  const locationStateRef = React.useRef(location.state);
+  locationStateRef.current = location.state;
+
   useEffect(() => {
     const loadAgent = async () => {
       if (!id) {
@@ -192,15 +195,17 @@ const AgentDetail = () => {
         return;
       }
 
+      const stateAgent = locationStateRef.current?.agent;
+
       try {
         setIsLoading(true);
         setError(null);
         console.log("Loading agent with ID:", id);
 
         // First, try to get from location state
-        if (location.state?.agent) {
-          console.log("Found agent in location.state:", location.state.agent);
-          const agentFromState = location.state.agent;
+        if (stateAgent) {
+          console.log("Found agent in location.state:", stateAgent);
+          const agentFromState = stateAgent;
           // Add country_name if not present
           if (!agentFromState.country_name && agentFromState.country_id) {
             const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
@@ -317,16 +322,22 @@ const AgentDetail = () => {
       }
     };
 
-    // Always load vendors list to ensure it's available
+    // Always load vendors list to ensure it's available (once per id)
     getVendors();
 
     loadAgent();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, location.state]);
+  }, [id]);
 
-  // Re-check vendors list when it's loaded (if agent not already found)
+  // Re-check vendors list when it's loaded (if agent not already found) - depend on list length only to avoid loop from vendors/countries refs
+  const hasSetAgentFromVendorsRef = React.useRef(false);
+  const vendorsListLength = Array.isArray(vendors)
+    ? vendors.length
+    : (Array.isArray(vendors?.vendors) ? vendors.vendors : Array.isArray(vendors?.agents) ? vendors.agents : []).length;
+
   useEffect(() => {
-    if (!id || agent) return; // Skip if no ID or agent already loaded
+    if (!id || agent) return;
+    if (hasSetAgentFromVendorsRef.current) return;
+    if (vendorsListLength === 0) return;
 
     const list = Array.isArray(vendors)
       ? vendors
@@ -336,25 +347,24 @@ const AgentDetail = () => {
           ? vendors.agents
           : [];
 
-    if (list.length > 0) {
-      const foundInList = list.find(
-        (item) =>
-          String(item.id) === String(id) ||
-          String(item.agent_id) === String(id) ||
-          String(item.vendor_id) === String(id)
-      );
+    const foundInList = list.find(
+      (item) =>
+        String(item.id) === String(id) ||
+        String(item.agent_id) === String(id) ||
+        String(item.vendor_id) === String(id)
+    );
 
-      if (foundInList) {
-        const agentWithCountry = { ...foundInList };
-        if (!agentWithCountry.country_name && agentWithCountry.country_id) {
-          const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-          agentWithCountry.country_name = getCountryName(agentWithCountry.country_id, countryList);
-        }
-        setAgent(agentWithCountry);
-        setIsLoading(false);
+    if (foundInList) {
+      hasSetAgentFromVendorsRef.current = true;
+      const agentWithCountry = { ...foundInList };
+      if (!agentWithCountry.country_name && agentWithCountry.country_id) {
+        const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
+        agentWithCountry.country_name = getCountryName(agentWithCountry.country_id, countryList);
       }
+      setAgent(agentWithCountry);
+      setIsLoading(false);
     }
-  }, [vendors, countries, id, agent]);
+  }, [id, agent, vendorsListLength]); // vendors/countries read inside effect; avoid refs in deps to prevent infinite loop
 
   // Get agent people from children array
   const agentPeople = useMemo(() => {

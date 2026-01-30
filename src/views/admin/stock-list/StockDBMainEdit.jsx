@@ -64,12 +64,13 @@ import {
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
-import { getCustomersForSelect, getVesselsForSelect, getDestinationsForSelect } from "../../../api/entitySelects";
+import { getDestinationsForSelect } from "../../../api/entitySelects";
 import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import currenciesAPI from "../../../api/currencies";
-import countriesAPI from "../../../api/countries";
 import locationsAPI from "../../../api/locations";
+import { useMasterData, getMasterData } from "../../../hooks/useMasterData";
+import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import picAPI from "../../../api/pic";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
@@ -79,6 +80,9 @@ export default function StockDBMainEdit() {
     const location = useLocation();
     const toast = useToast();
     const { getStockList, updateLoading } = useStock();
+    const { clients, suppliers, countries } = useMasterData();
+    // Initialize vessels from cache once at mount; setVessels used to add vessel-by-id when missing
+    const [vessels, setVessels] = useState(() => getMasterData(MASTER_KEYS.VESSELS));
 
     // Get selected items and filter state from location.state
     const stateData = location.state || {};
@@ -113,23 +117,15 @@ export default function StockDBMainEdit() {
     // Confirmation dialog for back button
     const { isOpen: isBackConfirmOpen, onOpen: onBackConfirmOpen, onClose: onBackConfirmClose } = useDisclosure();
     const cancelRef = React.useRef();
-    const [clients, setClients] = useState([]);
-    const [vessels, setVessels] = useState([]);
-    const [suppliers, setSuppliers] = useState([]);
     const [destinations, setDestinations] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [isLoadingClients, setIsLoadingClients] = useState(false);
-    const [isLoadingVessels, setIsLoadingVessels] = useState(false);
-    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
     const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
     const [currencies, setCurrencies] = useState([]);
-    const [countries, setCountries] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
     const [pics, setPics] = useState([]);
     const [isLoadingPICs, setIsLoadingPICs] = useState(false);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
-    const [isLoadingCountries, setIsLoadingCountries] = useState(false);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
 
     const textColor = useColorModeValue("gray.700", "white");
@@ -505,44 +501,9 @@ export default function StockDBMainEdit() {
         }
     }, [selectedItemsFromState, loadFormDataFromStock, history, toast]);
 
-    // Fetch lookup data
+    // Fetch lookup data (clients, vessels, suppliers, countries from master cache)
     useEffect(() => {
         const fetchLookupData = async () => {
-            try {
-                setIsLoadingClients(true);
-                const clientsData = await getCustomersForSelect();
-                setClients(clientsData || []);
-            } catch (error) {
-                console.error('Failed to fetch clients:', error);
-            } finally {
-                setIsLoadingClients(false);
-            }
-
-            try {
-                setIsLoadingVessels(true);
-                const vesselsData = await getVesselsForSelect();
-                setVessels(vesselsData || []);
-            } catch (error) {
-                console.error('Failed to fetch vessels:', error);
-            } finally {
-                setIsLoadingVessels(false);
-            }
-
-            try {
-                setIsLoadingSuppliers(true);
-                const suppliersResponse = await api.get('/api/suppliers');
-                const suppliersData = (suppliersResponse.data && Array.isArray(suppliersResponse.data.suppliers))
-                    ? suppliersResponse.data.suppliers
-                    : (suppliersResponse.data && Array.isArray(suppliersResponse.data))
-                        ? suppliersResponse.data
-                        : (Array.isArray(suppliersResponse) ? suppliersResponse : []);
-                setSuppliers(suppliersData || []);
-            } catch (error) {
-                console.error('Failed to fetch suppliers:', error);
-            } finally {
-                setIsLoadingSuppliers(false);
-            }
-
             try {
                 setIsLoadingDestinations(true);
                 const destinationsData = await getDestinationsForSelect();
@@ -578,19 +539,6 @@ export default function StockDBMainEdit() {
                 console.error('Failed to fetch currencies:', error);
             } finally {
                 setIsLoadingCurrencies(false);
-            }
-
-            try {
-                setIsLoadingCountries(true);
-                const countriesResponse = await countriesAPI.getCountries();
-                const countriesData = (countriesResponse && Array.isArray(countriesResponse.countries))
-                    ? countriesResponse.countries
-                    : (Array.isArray(countriesResponse) ? countriesResponse : []);
-                setCountries(countriesData || []);
-            } catch (error) {
-                console.error('Failed to fetch countries:', error);
-            } finally {
-                setIsLoadingCountries(false);
             }
 
             try {
@@ -633,21 +581,24 @@ export default function StockDBMainEdit() {
         fetchLookupData();
     }, []);
 
-    // Convert origin ID to country name text when countries are loaded
+    // Convert origin ID to country name when formRows load (read countries from cache to avoid unstable ref loop)
+    const hasOriginCountrySyncedRef = useRef(false);
     useEffect(() => {
-        if (!countries.length) return;
+        if (!formRows.length) return;
+        const countriesList = getCached(MASTER_KEYS.COUNTRIES) ?? [];
+        if (!countriesList.length) return;
+        if (hasOriginCountrySyncedRef.current) return;
+        hasOriginCountrySyncedRef.current = true;
         setFormRows((prevRows) =>
             prevRows.map((row) => {
                 if (!row.origin_text) {
                     return row;
                 }
                 const normalizedValue = String(row.origin_text);
-                // If it's already text (not a pure number), keep it
                 if (!/^\d+$/.test(normalizedValue)) {
                     return row;
                 }
-                // Try to find country by ID and convert to name
-                const country = countries.find((c) => {
+                const country = countriesList.find((c) => {
                     const cId = c.id || c.country_id;
                     return String(cId) === normalizedValue;
                 });
@@ -657,7 +608,7 @@ export default function StockDBMainEdit() {
                 return row;
             })
         );
-    }, [countries]);
+    }, [formRows]);
 
     // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list
     useEffect(() => {
@@ -1913,7 +1864,7 @@ export default function StockDBMainEdit() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Client ${option.id}`}
-                                            isLoading={isLoadingClients}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -1931,7 +1882,7 @@ export default function StockDBMainEdit() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || String(option.id ?? "")}
-                                            isLoading={isLoadingVessels}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
@@ -2121,7 +2072,7 @@ export default function StockDBMainEdit() {
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                            isLoading={isLoadingSuppliers}
+                                            isLoading={false}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

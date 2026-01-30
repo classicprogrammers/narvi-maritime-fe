@@ -29,6 +29,7 @@ import {
   updateSupplier,
   deleteSupplier,
 } from "../../../api/suppliers";
+import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
@@ -214,6 +215,7 @@ export default function Suppliers() {
         isClosable: true,
       });
       await loadSuppliers();
+      refreshMasterData(MASTER_KEYS.SUPPLIERS).catch(() => {});
       if (editingId === id) {
         resetForm();
       }

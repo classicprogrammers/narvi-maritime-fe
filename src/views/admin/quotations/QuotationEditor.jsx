@@ -8,11 +8,9 @@ import {
 } from "@chakra-ui/react";
 import { MdViewModule, MdTableChart, MdDelete } from "react-icons/md";
 import api from "../../../api/axios";
-import { getCustomersApi } from "../../../api/customer";
-import vesselsAPI from "../../../api/vessels";
 import currenciesAPI from "../../../api/currencies";
-import countriesAPI from "../../../api/countries";
 import quotationsAPI from "../../../api/quotations";
+import { useMasterData } from "../../../hooks/useMasterData";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
 
@@ -22,21 +20,14 @@ export default function QuotationEditor() {
     const toast = useToast();
     const history = useHistory();
 
-    const [customers, setCustomers] = useState([]);
-    const [vessels, setVessels] = useState([]);
+    const { clients: customers, vessels, countries, agents } = useMasterData();
     const [currencies, setCurrencies] = useState([]);
-    const [countries, setCountries] = useState([]);
-    const [agents, setAgents] = useState([]);
     const [rateItems, setRateItems] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
     const [viewMode, setViewMode] = useState('table');
 
-    const [customersLoading, setCustomersLoading] = useState(false);
-    const [vesselsLoading, setVesselsLoading] = useState(false);
-    const [agentsLoading, setAgentsLoading] = useState(false);
     const [rateItemsLoading, setRateItemsLoading] = useState(false);
     const [currenciesLoading, setCurrenciesLoading] = useState(false);
-    const [countriesLoading, setCountriesLoading] = useState(false);
 
     const [form, setForm] = useState({
         partner_id: "",
@@ -253,31 +244,8 @@ export default function QuotationEditor() {
 
 
     const loadMaster = useCallback(async () => {
-        setCustomersLoading(true);
-        setVesselsLoading(true);
         setCurrenciesLoading(true);
-        setCountriesLoading(true);
-        setAgentsLoading(true);
         setRateItemsLoading(true);
-
-        try {
-            const custData = await getCustomersApi();
-            const customers = custData.customers || custData.data || custData || [];
-            setCustomers(customers);
-        } catch (error) {
-            setCustomers([]);
-        } finally {
-            setCustomersLoading(false);
-        }
-
-        try {
-            const vesData = await vesselsAPI.getVessels();
-            setVessels(vesData.vessels || []);
-        } catch (error) {
-            setVessels([]);
-        } finally {
-            setVesselsLoading(false);
-        }
 
         try {
             const curData = await currenciesAPI.getCurrencies();
@@ -286,30 +254,6 @@ export default function QuotationEditor() {
             setCurrencies([]);
         } finally {
             setCurrenciesLoading(false);
-        }
-
-        try {
-            const countriesData = await countriesAPI.getCountries();
-            const countriesList = countriesData.countries || countriesData || [];
-            setCountries(countriesList);
-        } catch (error) {
-            setCountries([]);
-        } finally {
-            setCountriesLoading(false);
-        }
-
-        try {
-            const vendorData = await api.get('/api/agents');
-            const result = vendorData.data;
-            const vendorsList =
-                (result && Array.isArray(result.vendors) && result.vendors) ||
-                (result && Array.isArray(result.agents) && result.agents) ||
-                (Array.isArray(result) ? result : []);
-            setAgents(vendorsList);
-        } catch (error) {
-            setAgents([]);
-        } finally {
-            setAgentsLoading(false);
         }
 
         try {
@@ -659,7 +603,7 @@ export default function QuotationEditor() {
                                         updateField('partner_id', v);
                                     }}
                                     options={customerOptions}
-                                    isLoading={customersLoading}
+                                    isLoading={false}
                                     placeholder="Select client"
                                     displayKey="name"
                                     valueKey="id"
@@ -670,7 +614,7 @@ export default function QuotationEditor() {
                             </FormControl>
                             <FormControl>
                                 <FormLabel fontSize="sm" fontWeight="bold">Vessel</FormLabel>
-                                <SearchableSelect value={form.vessel_id} onChange={(v) => updateField('vessel_id', v)} options={vesselOptions} isLoading={vesselsLoading} placeholder="Select vessel" />
+                                <SearchableSelect value={form.vessel_id} onChange={(v) => updateField('vessel_id', v)} options={vesselOptions} isLoading={false} placeholder="Select vessel" />
                             </FormControl>
                             <FormControl>
                                 <FormLabel fontSize="sm" fontWeight="bold">SO ID</FormLabel>
@@ -869,7 +813,7 @@ export default function QuotationEditor() {
                                                         updateLine(idx, 'location', v);
                                                     }}
                                                     options={countryOptions}
-                                                    isLoading={countriesLoading}
+                                                    isLoading={false}
                                                     placeholder="Select location"
                                                     displayKey="name"
                                                     valueKey="id"
@@ -880,7 +824,7 @@ export default function QuotationEditor() {
                                             </FormControl>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Vendor</FormLabel>
-                                                <SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={getFilteredVendorsForLine(line)} isLoading={agentsLoading} placeholder="Select vendor" />
+                                                <SearchableSelect value={line.vendor_id} onChange={(v) => updateLine(idx, 'vendor_id', v)} options={getFilteredVendorsForLine(line)} isLoading={false} placeholder="Select vendor" />
                                             </FormControl>
                                             <FormControl>
                                                 <FormLabel fontSize="sm">Rate Item Name</FormLabel>
@@ -1089,7 +1033,7 @@ export default function QuotationEditor() {
                                                     updateLine(idx, 'location', v);
                                                 }}
                                                 options={countryOptions}
-                                                isLoading={countriesLoading}
+                                                isLoading={false}
                                                 placeholder="Location"
                                                 displayKey="name"
                                                 valueKey="id"

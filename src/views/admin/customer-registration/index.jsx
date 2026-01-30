@@ -45,6 +45,7 @@ import { SuccessModal, FailureModal } from "components/modals";
 import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
 // API
 import { registerCustomerApi, updateCustomerApi } from "api/customer";
+import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
 // Redux
@@ -934,6 +935,7 @@ function CustomerRegistration() {
             // Check if the API call was actually successful
             // For both register and update, check result.status === "success"
             if (result && result.result && result.result.status === "success") {
+                refreshMasterData(MASTER_KEYS.CLIENTS).catch(() => {});
                 const createdClientId = editingClient ? editingClient.id : result.result.id;
                 // Add the new client to Redux
                 const newClient = {

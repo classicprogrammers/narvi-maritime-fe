@@ -54,7 +54,8 @@ import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
 import { SuccessModal } from "components/modals";
-import countriesAPI from "../../../../api/countries";
+import { useMasterData } from "../../../../hooks/useMasterData";
+import { refreshMasterData, MASTER_KEYS } from "../../../../utils/masterDataCache";
 
 // Assets
 import {
@@ -126,8 +127,7 @@ export default function CustomerTable(props) {
 
   // Remove client-side pagination state - use backend pagination
   // const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [countries, setCountries] = useState([]);
-  const [loadingCountries, setLoadingCountries] = useState(false);
+  const { countries } = useMasterData();
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -464,14 +464,12 @@ export default function CustomerTable(props) {
       if (result.success) {
         onEditClose();
         setEditingCustomer(null);
-        // Set success message and show modal
         setSuccessMessage("Client updated successfully!");
         setIsSuccessOpen(true);
-        // Refresh the customers list to show updated data
+        refreshMasterData(MASTER_KEYS.CLIENTS).catch(() => {});
         if (propsOnRefresh) propsOnRefresh();
         else getCustomers({});
       }
-      // Error handling is done by the API modal system
     } catch (error) {
       // Error handling is done by the API modal system
     }
@@ -545,11 +543,10 @@ export default function CustomerTable(props) {
       if (result.success) {
         onDeleteClose();
         setCustomerToDelete(null);
-        // Refresh the customers list to show updated data
+        refreshMasterData(MASTER_KEYS.CLIENTS).catch(() => {});
         if (propsOnRefresh) propsOnRefresh();
         else getCustomers({});
       }
-      // Error handling is done by the API modal system
     } catch (error) {
       // Error handling is done by the API modal system
     }
@@ -560,32 +557,6 @@ export default function CustomerTable(props) {
     onEditClose();
     setEditingCustomer(null);
   };
-
-  // Fetch countries from API
-  const fetchCountries = async () => {
-    try {
-      setLoadingCountries(true);
-      const response = await countriesAPI.getCountries();
-      const list = (response && response.countries) || (response && response.result) || response;
-      if (Array.isArray(list)) {
-        setCountries(list);
-      } else {
-        setCountries([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch countries:", error);
-      // Set empty array on error to prevent crashes
-      setCountries([]);
-    } finally {
-      setLoadingCountries(false);
-    }
-  };
-
-  // Fetch countries when component mounts 
-  React.useEffect(() => {
-    fetchCountries();
-  }, []);
-
 
   return (
     <>
@@ -1508,14 +1479,14 @@ export default function CustomerTable(props) {
                   <FormControl>
                     <FormLabel>Country</FormLabel>
                     <SearchableSelect
-                      placeholder={loadingCountries ? "Loading countries..." : "Select country..."}
+                      placeholder="Select country..."
                       value={editingCustomer?.country_id || ""}
                       onChange={(val) => handleEditInputChange("country_id", val)}
                       options={Array.isArray(countries) ? countries : []}
                       displayKey="name"
                       valueKey="id"
                       formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
-                      isLoading={loadingCountries}
+                      isLoading={false}
                       bg={inputBg}
                       color={inputText}
                       borderColor={borderColor}

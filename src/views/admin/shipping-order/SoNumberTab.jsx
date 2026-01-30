@@ -70,14 +70,10 @@ import {
   MdContentCopy,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import {
-  getCustomersForSelect,
-  getVesselsForSelect,
-  getDestinationsForSelect,
-} from "../../../api/entitySelects";
+import { getDestinationsForSelect } from "../../../api/entitySelects";
 import quotationsAPI from "../../../api/quotations";
 import picAPI from "../../../api/pic";
-import countriesAPI from "../../../api/countries";
+import { useMasterData } from "../../../hooks/useMasterData";
 import {
   getShippingOrders,
   createShippingOrder,
@@ -155,18 +151,13 @@ const SoNumberTab = () => {
   const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
-  const [clients, setClients] = useState([]);
-  const [vessels, setVessels] = useState([]);
+  const { clients, vessels, countries } = useMasterData();
   const [destinations, setDestinations] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [pics, setPics] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [isLoadingClients, setIsLoadingClients] = useState(false);
-  const [isLoadingVessels, setIsLoadingVessels] = useState(false);
   const [isLoadingDestinations, setIsLoadingDestinations] = useState(false);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
   const [isLoadingPICs, setIsLoadingPICs] = useState(false);
-  const [isLoadingCountries, setIsLoadingCountries] = useState(false);
 
   const formDisclosure = useDisclosure();
   const deleteDisclosure = useDisclosure();
@@ -389,40 +380,28 @@ const SoNumberTab = () => {
     setPage(1);
   };
 
-  // Fetch lookup data for client, vessel, destination selects
+  // Fetch destinations only (clients, vessels, countries come from master data cache)
   useEffect(() => {
-    const fetchLookups = async () => {
+    const fetchDestinations = async () => {
       try {
-        setIsLoadingClients(true);
-        setIsLoadingVessels(true);
         setIsLoadingDestinations(true);
-
-        const [clientsData, vesselsData, destinationsData] = await Promise.all([
-          getCustomersForSelect().catch(() => []),
-          getVesselsForSelect().catch(() => []),
-          getDestinationsForSelect().catch(() => []),
-        ]);
-
-        setClients(clientsData || []);
-        setVessels(vesselsData || []);
+        const destinationsData = await getDestinationsForSelect().catch(() => []);
         setDestinations(destinationsData || []);
       } catch (error) {
-        console.error("Failed to fetch SO lookups", error);
+        console.error("Failed to fetch SO destinations", error);
         toast({
           title: "Lookup load failed",
-          description: "Unable to load clients / vessels / destinations",
+          description: "Unable to load destinations",
           status: "warning",
           duration: 4000,
           isClosable: true,
         });
       } finally {
-        setIsLoadingClients(false);
-        setIsLoadingVessels(false);
         setIsLoadingDestinations(false);
       }
     };
 
-    fetchLookups();
+    fetchDestinations();
   }, [toast]);
 
   // Persist Next Action sort option to sessionStorage
@@ -566,37 +545,6 @@ const SoNumberTab = () => {
       }
     }
   }, [pics, activeATHPics.length, activeSINPics.length, athReadyForInvoicePics.length, sinReadyForInvoicePics.length]);
-
-  // Fetch countries for destination country dropdown
-  useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        setIsLoadingCountries(true);
-        const response = await countriesAPI.getCountries();
-
-        // Normalize countries response
-        const countriesList =
-          Array.isArray(response?.countries) ? response.countries :
-            Array.isArray(response?.result?.countries) ? response.result.countries :
-              Array.isArray(response) ? response : [];
-
-        const normalized = countriesList.map((c) => ({
-          id: c.id,
-          name: c.name || "",
-          code: c.code || "",
-        }));
-
-        setCountries(normalized);
-      } catch (error) {
-        console.error("Failed to fetch countries for destination", error);
-        setCountries([]);
-      } finally {
-        setIsLoadingCountries(false);
-      }
-    };
-
-    fetchCountries();
-  }, []);
 
   // Helper functions to get names from IDs
   const getClientName = useCallback((clientId) => {
@@ -1741,7 +1689,7 @@ const SoNumberTab = () => {
                 placeholder="Select client"
                 displayKey="name"
                 valueKey="id"
-                isLoading={isLoadingClients}
+                isLoading={false}
                 bg={inputBg}
                 color={inputText}
                 borderColor={borderColor}
@@ -2001,7 +1949,7 @@ const SoNumberTab = () => {
                         placeholder="Select client"
                         displayKey="name"
                         valueKey="id"
-                        isLoading={isLoadingClients}
+                        isLoading={false}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
@@ -2043,7 +1991,7 @@ const SoNumberTab = () => {
                         placeholder="Select vessel"
                         displayKey="name"
                         valueKey="id"
-                        isLoading={isLoadingVessels}
+                        isLoading={false}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
@@ -2128,7 +2076,7 @@ const SoNumberTab = () => {
                           placeholder="Select country"
                           displayKey="name"
                           valueKey="id"
-                          isLoading={isLoadingCountries}
+                          isLoading={false}
                           bg={inputBg}
                           color={inputText}
                           borderColor={borderColor}

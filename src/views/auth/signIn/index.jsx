@@ -30,6 +30,7 @@ import { loginSuccess } from "../../../redux/slices/userSlice";
 // API
 import { getApiEndpoint } from "../../../config/api";
 import api from "../../../api/axios";
+import { preloadAll } from "../../../utils/masterDataCache";
 
 function SignIn() {
   const history = useHistory();
@@ -138,6 +139,9 @@ function SignIn() {
           user: apiResult.user,
           token: apiResult.token,
         }));
+
+        // Preload master data (clients, agents, countries, vessels, suppliers) in background
+        preloadAll().catch((err) => console.warn("Master data preload failed:", err));
 
         setModalMessage("Login successful! Redirecting to dashboard...");
         setIsSuccessModalOpen(true);

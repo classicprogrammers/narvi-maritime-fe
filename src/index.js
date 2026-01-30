@@ -1,5 +1,5 @@
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import "assets/css/App.css";
 import { BrowserRouter, Route, Switch, Redirect } from "react-router-dom";
 import { Provider } from "react-redux";
@@ -11,7 +11,9 @@ import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
 
-ReactDOM.render(
+const container = document.getElementById("root");
+const root = createRoot(container);
+root.render(
   <Provider store={store}>
     <ChakraProvider theme={theme}>
       <React.StrictMode>
@@ -26,6 +28,5 @@ ReactDOM.render(
         </BrowserRouter>
       </React.StrictMode>
     </ChakraProvider>
-  </Provider>,
-  document.getElementById("root")
+  </Provider>
 );

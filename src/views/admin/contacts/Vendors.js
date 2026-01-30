@@ -85,15 +85,19 @@ export default function Vendors() {
     savePersistedState(searchValue, filters, page, pageSize);
   }, [searchValue, filters, page, pageSize]);
 
+  // Keep latest countries in ref so buildFetchParams doesn't depend on countries ref (avoids infinite loop)
+  const countriesRef = useRef(countries);
+  countriesRef.current = countries;
+
   // Build params for API (used only when Search is clicked); country -> country_id for API
   const buildFetchParams = useCallback(
     () => ({
       search: searchValue?.trim() || undefined,
       agentsdb_id: filters.agent_id?.trim() || undefined,
       agent_type: filters.agent_type?.trim() || undefined,
-      country_id: resolveCountryId(filters.country, countries),
+      country_id: resolveCountryId(filters.country, countriesRef.current),
     }),
-    [searchValue, filters, countries]
+    [searchValue, filters]
   );
 
   // Fetch only when user clicks Search (and initial load once)
