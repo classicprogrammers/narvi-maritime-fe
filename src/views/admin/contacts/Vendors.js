@@ -6,23 +6,6 @@ import { columnsDataAgents } from "views/admin/contacts/variables/columnsData";
 import { useVendor } from "redux/hooks/useVendor";
 
 const STORAGE_KEY = "agentsListSearchState";
-const RETURN_TO_EDIT_KEY = "vendorRegistrationReturnToEdit";
-
-function loadReturnToEdit() {
-  try {
-    const raw = sessionStorage.getItem(RETURN_TO_EDIT_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data && data.vendorId != null && data.vendor) return data;
-  } catch (_) {}
-  return null;
-}
-
-function clearReturnToEdit() {
-  try {
-    sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
-  } catch (_) {}
-}
 
 function loadPersistedState() {
   try {
@@ -113,20 +96,6 @@ export default function Vendors() {
     setPage(1);
     getVendors(buildFetchParams());
   }, [getVendors, buildFetchParams]);
-
-  // If user was editing an agent and navigated away, re-open that agent's edit page when they return to Agents tab
-  useEffect(() => {
-    const returnToEdit = loadReturnToEdit();
-    if (returnToEdit && returnToEdit.vendorId != null && returnToEdit.vendor) {
-      clearReturnToEdit();
-      history.replace(`/admin/vendor-registration/${returnToEdit.vendorId}`, {
-        state: {
-          vendorData: returnToEdit.vendor,
-          fromReturnToEdit: true,
-        },
-      });
-    }
-  }, [history]);
 
   const refreshAgents = useCallback(() => {
     getVendors(buildFetchParams());

@@ -6,23 +6,6 @@ import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
 
 const STORAGE_KEY = "clientsListSearchState";
-const RETURN_TO_EDIT_KEY = "customerRegistrationReturnToEdit";
-
-function loadReturnToEdit() {
-  try {
-    const raw = sessionStorage.getItem(RETURN_TO_EDIT_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data && data.clientId != null && data.client) return data;
-  } catch (_) { }
-  return null;
-}
-
-function clearReturnToEdit() {
-  try {
-    sessionStorage.removeItem(RETURN_TO_EDIT_KEY);
-  } catch (_) { }
-}
 
 function loadPersistedState() {
   try {
@@ -94,21 +77,6 @@ export default function Customer() {
     setPage(1);
     getCustomers(buildFetchParams());
   }, [getCustomers, buildFetchParams]);
-
-  // If user was editing a client and navigated away, re-open that client's edit page when they return to Clients tab
-  useEffect(() => {
-    const returnToEdit = loadReturnToEdit();
-    if (returnToEdit && returnToEdit.clientId != null && returnToEdit.client) {
-      clearReturnToEdit();
-      history.replace("/admin/customer-registration", {
-        state: {
-          clientId: returnToEdit.clientId,
-          client: returnToEdit.client,
-          fromReturnToEdit: true,
-        },
-      });
-    }
-  }, [history]);
 
   const refreshCustomers = useCallback(() => {
     getCustomers(buildFetchParams());
