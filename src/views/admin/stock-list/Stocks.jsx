@@ -1510,6 +1510,19 @@ export default function Stocks() {
                     if (viaHubA !== viaHubB) {
                         return viaHubA.localeCompare(viaHubB);
                     }
+                    // Same location (e.g. HUB1): Stock before In Transit
+                    if (sortOption === 'via_hub' && viaHubA !== "") {
+                        const hubStatusOrder = ["pending", "stock", "in_transit", "arrived", "on_shipping", "on_delivery"];
+                        const getHubStatusOrder = (status) => {
+                            if (!status) return 999;
+                            const norm = normalizeStatusForSort(status);
+                            const idx = hubStatusOrder.indexOf(norm);
+                            return idx >= 0 ? idx : 999;
+                        };
+                        const oA = getHubStatusOrder(a.stock_status);
+                        const oB = getHubStatusOrder(b.stock_status);
+                        if (oA !== oB) return oA - oB;
+                    }
                 }
 
                 // Sort by Vessel (alphabetically by vessel name)
