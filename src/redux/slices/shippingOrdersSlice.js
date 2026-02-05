@@ -165,6 +165,19 @@ const shippingOrdersSlice = createSlice({
     setCurrentOrder: (state, action) => {
       state.currentOrder = action.payload;
     },
+    clearShippingOrdersState: (state) => {
+      state.orders = [];
+      state.currentOrder = null;
+      state.count = 0;
+      state.isLoading = false;
+      state.isCreating = false;
+      state.isUpdating = false;
+      state.isDeleting = false;
+      state.error = null;
+      state.createError = null;
+      state.updateError = null;
+      state.deleteError = null;
+    },
   },
   extraReducers: (builder) => {
     // Fetch shipping orders
@@ -265,5 +278,5 @@ const shippingOrdersSlice = createSlice({
   },
 });
 
-export const { clearError, clearCurrentOrder, setCurrentOrder } = shippingOrdersSlice.actions;
+export const { clearError, clearCurrentOrder, setCurrentOrder, clearShippingOrdersState } = shippingOrdersSlice.actions;
 export default shippingOrdersSlice.reducer;

@@ -5,40 +5,6 @@ import VendorsTable from "views/admin/contacts/components/VendorsTable";
 import { columnsDataAgents } from "views/admin/contacts/variables/columnsData";
 import { useVendor } from "redux/hooks/useVendor";
 
-const STORAGE_KEY = "agentsListSearchState";
-
-function loadPersistedState() {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data && typeof data === "object") {
-      return {
-        searchValue: typeof data.searchValue === "string" ? data.searchValue : "",
-        filters: data.filters && typeof data.filters === "object"
-          ? {
-              agent_id: data.filters.agent_id ?? "",
-              agent_type: data.filters.agent_type ?? "",
-              country: data.filters.country ?? "",
-            }
-          : { agent_id: "", agent_type: "", country: "" },
-        page: typeof data.page === "number" && data.page >= 1 ? data.page : 1,
-        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 50,
-      };
-    }
-  } catch (_) {}
-  return null;
-}
-
-function savePersistedState(searchValue, filters, page, pageSize) {
-  try {
-    sessionStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ searchValue, filters, page, pageSize })
-    );
-  } catch (_) {}
-}
-
 // Resolve free-text country filter to country_id (int) for API
 function resolveCountryId(countryFilter, countries) {
   if (!countryFilter || String(countryFilter).trim() === "") return undefined;
@@ -58,15 +24,10 @@ function resolveCountryId(countryFilter, countries) {
 export default function Vendors() {
   const history = useHistory();
   const { vendors, isLoading, getVendors, pagination, countries } = useVendor();
-  const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
-  const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
-  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { agent_id: "", agent_type: "", country: "" });
-
-  // Persist search/filters/page/pageSize so they survive navigation
-  useEffect(() => {
-    savePersistedState(searchValue, filters, page, pageSize);
-  }, [searchValue, filters, page, pageSize]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [searchValue, setSearchValue] = useState("");
+  const [filters, setFilters] = useState({ agent_id: "", agent_type: "", country: "" });
 
   // Keep latest countries in ref so buildFetchParams doesn't depend on countries ref (avoids infinite loop)
   const countriesRef = useRef(countries);
@@ -143,9 +104,6 @@ export default function Vendors() {
     setFilters({ agent_id: "", agent_type: "", country: "" });
     setPage(1);
     getVendors({});
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch (_) {}
   }, [getVendors]);
 
   const handlePageSizeChange = useCallback((newSize) => {

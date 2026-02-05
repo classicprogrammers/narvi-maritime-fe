@@ -11,16 +11,14 @@ import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppWrapper from "./components/AppWrapper";
 
-// Remove unwanted localStorage keys (analytics/session/color-mode) on app load
-const STORAGE_KEYS_TO_REMOVE = [
-  "ajs_anonymous_id",
-  "awc.session.expiry",
-  "awc.session.id",
-  "awc.ui.viewed.last.sent",
-  "chakra-ui-color-mode",
-];
+// Keep only user and token in localStorage; clear all other keys
 try {
-  STORAGE_KEYS_TO_REMOVE.forEach((key) => localStorage.removeItem(key));
+  const token = localStorage.getItem("token");
+  const user = localStorage.getItem("user");
+  localStorage.clear();
+  if (token) localStorage.setItem("token", token);
+  if (user) localStorage.setItem("user", user);
+  sessionStorage.clear();
 } catch (_) {}
 
 const container = document.getElementById("root");

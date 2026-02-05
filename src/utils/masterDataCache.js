@@ -1,8 +1,8 @@
 /**
  * Master data cache: clients, agents, countries, vessels, suppliers, pics, destinations, currencies.
- * Fetched once after login and stored in localStorage. Refreshed only when
+ * Fetched once after login and stored in memory (session only). Refreshed when
  * the user makes changes in the respective module.
- * /api/destinations and /api/currencies are stored so we do not call again and again.
+ * No localStorage - only user and token are persisted.
  */
 
 import { getCustomersForSelect } from '../api/entitySelects';
@@ -13,8 +13,6 @@ import { getSuppliers } from '../api/suppliers';
 import picAPI from '../api/pic';
 import destinationsAPI from '../api/destinations';
 import currenciesAPI from '../api/currencies';
-
-const STORAGE_PREFIX = 'narvi_master_';
 
 export const MASTER_KEYS = {
   CLIENTS: 'clients',
@@ -27,34 +25,24 @@ export const MASTER_KEYS = {
   CURRENCIES: 'currencies',
 };
 
-function storageKey(key) {
-  return `${STORAGE_PREFIX}${key}`;
-}
+// In-memory cache (session only, cleared on page refresh)
+const memoryCache = {};
 
 /**
- * Get cached data from localStorage. Returns null if missing or invalid.
+ * Get cached data from memory. Returns null if missing or invalid.
  */
 export function getCached(key) {
-  try {
-    const raw = localStorage.getItem(storageKey(key));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : parsed?.data ?? null;
-  } catch (_e) {
-    return null;
-  }
+  const cached = memoryCache[key];
+  if (!cached) return null;
+  return Array.isArray(cached) ? cached : cached?.data ?? null;
 }
 
 /**
- * Store data in localStorage for the given key.
+ * Store data in memory cache.
  */
 export function setCached(key, data) {
-  try {
-    const toStore = Array.isArray(data) ? data : (data ?? []);
-    localStorage.setItem(storageKey(key), JSON.stringify(toStore));
-  } catch (_e) {
-    // ignore quota or parse errors
-  }
+  const toStore = Array.isArray(data) ? data : (data ?? []);
+  memoryCache[key] = toStore;
 }
 
 /**
@@ -198,7 +186,7 @@ const fetchers = {
 };
 
 /**
- * Preload all master data (clients, agents, countries, vessels, suppliers) and store in localStorage.
+ * Preload all master data (clients, agents, countries, vessels, suppliers) and store in memory.
  * Call after login and optionally when admin layout mounts (if cache empty).
  */
 export async function preloadAll() {
@@ -229,12 +217,10 @@ export async function refreshMasterData(key) {
 }
 
 /**
- * Clear all master data from localStorage (e.g. on logout).
+ * Clear all master data from memory (e.g. on logout).
  */
 export function clearMasterData() {
   Object.values(MASTER_KEYS).forEach((k) => {
-    try {
-      localStorage.removeItem(storageKey(k));
-    } catch (_e) {}
+    delete memoryCache[k];
   });
 }

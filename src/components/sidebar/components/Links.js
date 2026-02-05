@@ -68,8 +68,8 @@ export function SidebarLinks(props) {
     const pathname = location.pathname.toLowerCase();
     const normalizedRoute = routeName.toLowerCase();
     const fullRoute = '/admin' + normalizedRoute;
-    // Get source page from location.state or sessionStorage (for persistence)
-    const sourcePage = location.state?.sourcePage || (typeof window !== 'undefined' ? sessionStorage.getItem('stockEditSourcePage') : null);
+    // Get source page from location.state
+    const sourcePage = location.state?.sourcePage || null;
     
     // Special handling for edit-stock page: highlight the source page tab
     if (pathname === '/admin/stock-list/edit-stock' || pathname === '/admin/stock-list/edit-stock/') {

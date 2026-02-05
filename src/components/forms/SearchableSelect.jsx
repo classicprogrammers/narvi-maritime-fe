@@ -25,7 +25,6 @@ const SearchableSelect = ({
   isLoading = false,
   onSearch,
   error,
-  isRequired = false,
   label,
   bg,
   color,
@@ -91,7 +90,6 @@ const SearchableSelect = ({
           fontWeight="normal"
           fontSize="sm"
           h="32px"
-          isRequired={isRequired}
           {...props}
         >
           {selectedOption ? formatOption(selectedOption) : placeholder}
@@ -118,9 +116,9 @@ const SearchableSelect = ({
             fontSize="sm"
           />
           <List spacing={0}>
-            {filteredOptions.map((option) => (
+            {filteredOptions.map((option, index) => (
               <ListItem
-                key={option[valueKey]}
+                key={option.id ?? `opt-${index}`}
                 px={3}
                 py={2}
                 cursor="pointer"

@@ -130,9 +130,7 @@ export default function ShippingInstructions() {
     },
   ]);
 
-  // Load shipping instructions from localStorage
-  const loadShippingInstructions = () => {
-    const savedInstructions = JSON.parse(localStorage.getItem('shippingInstructions') || '[]');
+  const getInitialShippingInstructions = () => {
     const sampleData = [
       {
         id: 1,
@@ -174,14 +172,14 @@ export default function ShippingInstructions() {
       },
     ];
 
-    return savedInstructions.length > 0 ? savedInstructions : sampleData;
+    return sampleData;
   };
 
   const [shippingInstructions, setShippingInstructions] = useState([]);
 
   // Load data on component mount
   useEffect(() => {
-    setShippingInstructions(loadShippingInstructions());
+    setShippingInstructions(getInitialShippingInstructions());
   }, []);
 
   const handleSelectAll = (isChecked) => {
@@ -309,7 +307,6 @@ export default function ShippingInstructions() {
       }
 
       setShippingInstructions(newInstructions);
-      localStorage.setItem('shippingInstructions', JSON.stringify(newInstructions));
       setIsModalOpen(false);
       resetForm();
       setIsLoading(false);
@@ -322,7 +319,6 @@ export default function ShippingInstructions() {
     setTimeout(() => {
       const newInstructions = shippingInstructions.filter(item => item.id !== editingItem.id);
       setShippingInstructions(newInstructions);
-      localStorage.setItem('shippingInstructions', JSON.stringify(newInstructions));
 
       toast({
         title: "Shipping Instruction Deleted",

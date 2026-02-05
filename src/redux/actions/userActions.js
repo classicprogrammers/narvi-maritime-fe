@@ -14,6 +14,11 @@ import {
   forgotPasswordFailure,
   clearForgotPasswordState,
 } from "../slices/userSlice";
+import { clearCustomerState } from "../slices/customerSlice";
+import { clearAgentState } from "../slices/vendorSlice";
+import { clearStockState } from "../slices/stockSlice";
+import { clearShippingOrdersState } from "../slices/shippingOrdersSlice";
+import { clearMasterData } from "../../utils/masterDataCache";
 
 // Async action for login
 export const loginUser = (email, password) => async (dispatch) => {
@@ -79,8 +84,13 @@ export const signupUser = (userData) => async (dispatch) => {
   }
 };
 
-// Action for logout
+// Action for logout - clear all Redux state and caches except user/token (which logout clears)
 export const logoutUser = () => (dispatch) => {
+  clearMasterData();
+  dispatch(clearCustomerState());
+  dispatch(clearAgentState());
+  dispatch(clearStockState());
+  dispatch(clearShippingOrdersState());
   dispatch(logout());
 };
 

@@ -539,14 +539,7 @@ function VendorRegistration() {
             let vendorData = vendorDataFromState;
 
             if (!vendorData) {
-                const stored = localStorage.getItem(`vendor_${id}`);
-                if (stored) {
-                    try {
-                        vendorData = JSON.parse(stored);
-                    } catch (parseError) {
-                        console.error("Error parsing stored vendor data:", parseError);
-                    }
-                }
+                // Vendor data must come from route state (VendorsTable passes state)
             }
 
             if (!vendorData) {
@@ -689,13 +682,6 @@ function VendorRegistration() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, isEditMode]);
 
-    React.useEffect(() => {
-        return () => {
-            if (isEditMode && id) {
-                localStorage.removeItem(`vendor_${id}`);
-            }
-        };
-    }, [isEditMode, id]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));

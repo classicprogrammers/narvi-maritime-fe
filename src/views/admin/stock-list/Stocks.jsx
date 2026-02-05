@@ -168,42 +168,18 @@ const STATUS_VARIATIONS = {
 export default function Stocks() {
     const history = useHistory();
     const location = useLocation();
-    const [selectedRows, setSelectedRows] = useState(() => {
-        const stored = sessionStorage.getItem('stocksSelectedRows');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
-    const [activeTab, setActiveTab] = useState(() => {
-        const stored = sessionStorage.getItem('stocksActiveTab');
-        return stored ? Number(stored) : 0;
-    });
+    const [selectedRows, setSelectedRows] = useState(new Set());
+    const [activeTab, setActiveTab] = useState(0);
 
     // Pagination state for Stock View / Edit tab (activeTab === 0)
-    const [stockViewPage, setStockViewPage] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewPage');
-        return stored ? Number(stored) : 1;
-    });
-    const [stockViewPageSize, setStockViewPageSize] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewPageSize');
-        return stored ? Number(stored) : 50;
-    });
+    const [stockViewPage, setStockViewPage] = useState(1);
+    const [stockViewPageSize, setStockViewPageSize] = useState(50);
 
     // Pagination state for Client View tab (activeTab === 1)
-    const [clientViewPage, setClientViewPage] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewPage');
-        return stored ? Number(stored) : 1;
-    });
-    const [clientViewPageSize, setClientViewPageSize] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewPageSize');
-        return stored ? Number(stored) : 50;
-    });
-    const [editingRowIds, setEditingRowIds] = useState(() => {
-        const stored = sessionStorage.getItem('stocksEditingRowIds');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
-    const [editingRowData, setEditingRowData] = useState(() => {
-        const stored = sessionStorage.getItem('stocksEditingRowData');
-        return stored ? JSON.parse(stored) : {};
-    });
+    const [clientViewPage, setClientViewPage] = useState(1);
+    const [clientViewPageSize, setClientViewPageSize] = useState(50);
+    const [editingRowIds, setEditingRowIds] = useState(new Set());
+    const [editingRowData, setEditingRowData] = useState({});
 
     const toast = useToast();
 
@@ -218,101 +194,37 @@ export default function Stocks() {
     // Track if we're refreshing after an update
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Filters - separate for each view - initialize from sessionStorage
-    // By Vessel view filters
-    const [vesselViewClient, setVesselViewClient] = useState(() => {
-        const stored = sessionStorage.getItem('stocksVesselViewClient');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [vesselViewVessel, setVesselViewVessel] = useState(() => {
-        const stored = sessionStorage.getItem('stocksVesselViewVessel');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [vesselViewStatuses, setVesselViewStatuses] = useState(() => {
-        const stored = sessionStorage.getItem('stocksVesselViewStatuses');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
+    // Filters - separate for each view
+    const [vesselViewClient, setVesselViewClient] = useState(null);
+    const [vesselViewVessel, setVesselViewVessel] = useState(null);
+    const [vesselViewStatuses, setVesselViewStatuses] = useState(new Set());
 
     // By Client view filters
-    const [clientViewClient, setClientViewClient] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewClient');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [clientViewStatuses, setClientViewStatuses] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewStatuses');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
-    const [clientViewFilterType, setClientViewFilterType] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewFilterType');
-        return stored || 'filter1'; // Default to filter1
-    });
-    const [clientViewSelectedRows, setClientViewSelectedRows] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewSelectedRows');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
-    const [clientViewSearchClient, setClientViewSearchClient] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewSearchClient');
-        return stored || '';
-    });
-    const [clientViewSearchVessel, setClientViewSearchVessel] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewSearchVessel');
-        return stored || '';
-    });
-    const [clientViewVesselFilter, setClientViewVesselFilter] = useState(() => {
-        const stored = sessionStorage.getItem('stocksClientViewVesselFilter');
-        return stored && stored !== 'null' ? stored : null;
-    });
+    const [clientViewClient, setClientViewClient] = useState(null);
+    const [clientViewStatuses, setClientViewStatuses] = useState(new Set());
+    const [clientViewFilterType, setClientViewFilterType] = useState('filter1');
+    const [clientViewSelectedRows, setClientViewSelectedRows] = useState(new Set());
+    const [clientViewSearchClient, setClientViewSearchClient] = useState('');
+    const [clientViewSearchVessel, setClientViewSearchVessel] = useState('');
+    const [clientViewVesselFilter, setClientViewVesselFilter] = useState(null);
 
     // State to control filters section visibility - default to open
-    const [showFilters, setShowFilters] = useState(() => {
-        const stored = sessionStorage.getItem('stocksShowFilters');
-        return stored !== null ? stored === 'true' : true; // Default to true (open)
-    });
+    const [showFilters, setShowFilters] = useState(true);
 
-    // Stock View / Edit tab filters (similar to index.jsx)
-    const [stockViewClient, setStockViewClient] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewClient');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [stockViewVessel, setStockViewVessel] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewVessel');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [stockViewStatus, setStockViewStatus] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewStatus') || "";
-    });
-    const [stockViewStockItemId, setStockViewStockItemId] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewStockItemId') || "";
-    });
-    const [stockViewDateOnStock, setStockViewDateOnStock] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewDateOnStock') || "";
-    });
-    const [stockViewDaysOnStock, setStockViewDaysOnStock] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewDaysOnStock') || "";
-    });
-    const [stockViewFilterSO, setStockViewFilterSO] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewFilterSO') || "";
-    });
-    const [stockViewFilterSI, setStockViewFilterSI] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewFilterSI') || "";
-    });
-    const [stockViewFilterSICombined, setStockViewFilterSICombined] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewFilterSICombined') || "";
-    });
-    const [stockViewFilterDI, setStockViewFilterDI] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewFilterDI') || "";
-    });
-    const [stockViewSearchFilter, setStockViewSearchFilter] = useState(() => {
-        return sessionStorage.getItem('stocksStockViewSearchFilter') || "";
-    });
-    const [stockViewHub, setStockViewHub] = useState(() => {
-        const stored = sessionStorage.getItem('stocksStockViewHub');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [sortOption, setSortOption] = useState(() => {
-        const stored = sessionStorage.getItem('stocksSortOption');
-        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status', 'via_vessel', 'via_vessel_status'
-    });
+    // Stock View / Edit tab filters
+    const [stockViewClient, setStockViewClient] = useState(null);
+    const [stockViewVessel, setStockViewVessel] = useState(null);
+    const [stockViewStatus, setStockViewStatus] = useState("");
+    const [stockViewStockItemId, setStockViewStockItemId] = useState("");
+    const [stockViewDateOnStock, setStockViewDateOnStock] = useState("");
+    const [stockViewDaysOnStock, setStockViewDaysOnStock] = useState("");
+    const [stockViewFilterSO, setStockViewFilterSO] = useState("");
+    const [stockViewFilterSI, setStockViewFilterSI] = useState("");
+    const [stockViewFilterSICombined, setStockViewFilterSICombined] = useState("");
+    const [stockViewFilterDI, setStockViewFilterDI] = useState("");
+    const [stockViewSearchFilter, setStockViewSearchFilter] = useState("");
+    const [stockViewHub, setStockViewHub] = useState(null);
+    const [sortOption, setSortOption] = useState("none");
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -370,11 +282,6 @@ export default function Stocks() {
     // Ensure we only auto-fetch once (avoids double calls in StrictMode)
     const hasFetchedInitialData = useRef(false);
     const hasFetchedLookupData = useRef(false);
-
-    // Save filter visibility state to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stocksShowFilters', String(showFilters));
-    }, [showFilters]);
 
     // Fetch stock list on component mount
     useEffect(() => {
@@ -467,160 +374,6 @@ export default function Stocks() {
             history.replace(location.pathname, {});
         }
     }, [location.state, history, location.pathname]);
-
-    // Restore edit page when returning to this page from another tab
-    useEffect(() => {
-        // Only restore if we're on the stocks list page (not edit page) and not coming from edit page
-        const isOnStocksPage = location.pathname === '/admin/stock-list/stocks' || location.pathname === '/admin/stock-list/stocks/';
-        const isComingFromEdit = location.state?.fromEdit === true;
-
-        if (isOnStocksPage && !isComingFromEdit) {
-            const savedEditState = sessionStorage.getItem('stockEditState');
-            if (savedEditState) {
-                try {
-                    const editState = JSON.parse(savedEditState);
-                    // Only restore if the saved state is for 'stocks' source page
-                    if (editState.sourcePage === 'stocks') {
-                        // Navigate to edit page with saved state
-                        history.replace({
-                            pathname: '/admin/stock-list/edit-stock',
-                            state: editState
-                        });
-                    }
-                } catch (error) {
-                    console.error('Failed to parse saved edit state:', error);
-                    sessionStorage.removeItem('stockEditState');
-                }
-            }
-        }
-    }, [location.pathname, location.state, history]);
-
-    // Persist state to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stocksSelectedRows', JSON.stringify(Array.from(selectedRows)));
-    }, [selectedRows]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksActiveTab', activeTab.toString());
-    }, [activeTab]);
-
-    // Persist pagination state to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewPage', stockViewPage.toString());
-    }, [stockViewPage]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewPageSize', stockViewPageSize.toString());
-    }, [stockViewPageSize]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewPage', clientViewPage.toString());
-    }, [clientViewPage]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewPageSize', clientViewPageSize.toString());
-    }, [clientViewPageSize]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksEditingRowIds', JSON.stringify(Array.from(editingRowIds)));
-    }, [editingRowIds]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksEditingRowData', JSON.stringify(editingRowData));
-    }, [editingRowData]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksVesselViewClient', vesselViewClient || 'null');
-    }, [vesselViewClient]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksVesselViewVessel', vesselViewVessel || 'null');
-    }, [vesselViewVessel]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksVesselViewStatuses', JSON.stringify(Array.from(vesselViewStatuses)));
-    }, [vesselViewStatuses]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewClient', clientViewClient || 'null');
-    }, [clientViewClient]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewStatuses', JSON.stringify(Array.from(clientViewStatuses)));
-    }, [clientViewStatuses]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewFilterType', clientViewFilterType);
-    }, [clientViewFilterType]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewSelectedRows', JSON.stringify(Array.from(clientViewSelectedRows)));
-    }, [clientViewSelectedRows]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewSearchClient', clientViewSearchClient || '');
-    }, [clientViewSearchClient]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewSearchVessel', clientViewSearchVessel || '');
-    }, [clientViewSearchVessel]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksClientViewVesselFilter', clientViewVesselFilter || 'null');
-    }, [clientViewVesselFilter]);
-
-    // Persist Stock View / Edit filter states to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewClient', stockViewClient || 'null');
-    }, [stockViewClient]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewVessel', stockViewVessel || 'null');
-    }, [stockViewVessel]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewStatus', stockViewStatus || '');
-    }, [stockViewStatus]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewStockItemId', stockViewStockItemId || '');
-    }, [stockViewStockItemId]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewDateOnStock', stockViewDateOnStock || '');
-    }, [stockViewDateOnStock]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewDaysOnStock', stockViewDaysOnStock || '');
-    }, [stockViewDaysOnStock]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewFilterSO', stockViewFilterSO || '');
-    }, [stockViewFilterSO]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewFilterSI', stockViewFilterSI || '');
-    }, [stockViewFilterSI]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewFilterSICombined', stockViewFilterSICombined || '');
-    }, [stockViewFilterSICombined]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewFilterDI', stockViewFilterDI || '');
-    }, [stockViewFilterDI]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewSearchFilter', stockViewSearchFilter || '');
-    }, [stockViewSearchFilter]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksStockViewHub', stockViewHub || 'null');
-    }, [stockViewHub]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stocksSortOption', sortOption || 'none');
-    }, [sortOption]);
 
     // Track refresh state after updates
     useEffect(() => {
@@ -752,8 +505,6 @@ export default function Stocks() {
             stockViewSearchFilter
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
-        // Save edit state to sessionStorage for restoration when switching tabs
-        sessionStorage.setItem('stockEditState', JSON.stringify(editState));
         history.push({
             pathname: '/admin/stock-list/edit-stock',
             state: editState
@@ -787,8 +538,6 @@ export default function Stocks() {
                 stockViewDaysOnStock
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
-            // Save edit state to sessionStorage for restoration when switching tabs
-            sessionStorage.setItem('stockEditState', JSON.stringify(editState));
             history.push({
                 pathname: '/admin/stock-list/edit-stock',
                 state: editState

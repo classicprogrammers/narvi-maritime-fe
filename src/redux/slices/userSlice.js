@@ -51,6 +51,7 @@ const userSlice = createSlice({
       state.forgotPasswordSuccess = false;
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      sessionStorage.clear();
     },
     updateUser: (state, action) => {
       state.user = { ...state.user, ...action.payload };

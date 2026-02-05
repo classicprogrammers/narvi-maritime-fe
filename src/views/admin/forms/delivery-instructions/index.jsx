@@ -91,9 +91,7 @@ export default function DeliveryInstructions() {
     contactEmail: "",
   });
 
-  // Load delivery instructions from localStorage
-  const loadDeliveryInstructions = () => {
-    const savedInstructions = JSON.parse(localStorage.getItem('deliveryInstructions') || '[]');
+  const getInitialDeliveryInstructions = () => {
     const sampleData = [
       {
         id: 1,
@@ -131,14 +129,14 @@ export default function DeliveryInstructions() {
       },
     ];
 
-    return savedInstructions.length > 0 ? savedInstructions : sampleData;
+    return sampleData;
   };
 
   const [deliveryInstructions, setDeliveryInstructions] = useState([]);
 
   // Load data on component mount
   useEffect(() => {
-    setDeliveryInstructions(loadDeliveryInstructions());
+    setDeliveryInstructions(getInitialDeliveryInstructions());
   }, []);
 
   const handleSelectAll = (isChecked) => {
@@ -256,7 +254,6 @@ export default function DeliveryInstructions() {
       }
 
       setDeliveryInstructions(newInstructions);
-      localStorage.setItem('deliveryInstructions', JSON.stringify(newInstructions));
       setIsModalOpen(false);
       resetForm();
       setIsLoading(false);
@@ -269,7 +266,6 @@ export default function DeliveryInstructions() {
     setTimeout(() => {
       const newInstructions = deliveryInstructions.filter(item => item.id !== editingItem.id);
       setDeliveryInstructions(newInstructions);
-      localStorage.setItem('deliveryInstructions', JSON.stringify(newInstructions));
 
       toast({
         title: "Delivery Instruction Deleted",

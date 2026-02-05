@@ -90,17 +90,8 @@ export default function StockDBMainEdit() {
     const filterState = stateData.filterState || null; // Store filter state to restore on navigation back
     const sourcePage = stateData.sourcePage || null; // Store source page to highlight correct tab
 
-    // Store source page in sessionStorage for persistence
-    useEffect(() => {
-        if (sourcePage) {
-            sessionStorage.setItem('stockEditSourcePage', sourcePage);
-        }
-    }, [sourcePage]);
-
     const [isLoading, setIsLoading] = useState(false);
-    const [lastAutoSaveTime, setLastAutoSaveTime] = useState(null);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
-    const autoSaveTimeoutRef = React.useRef(null);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     // Modal state for LWH Text field
@@ -422,33 +413,7 @@ export default function StockDBMainEdit() {
     // Load selected items into form
     useEffect(() => {
         if (selectedItemsFromState.length > 0) {
-            // Try to restore from localStorage first
-            const storageKey = `stockEditFormData_${selectedItemsFromState[0]?.id || 'new'}`;
-            const savedData = sessionStorage.getItem(storageKey);
-
-            if (savedData) {
-                try {
-                    const parsed = JSON.parse(savedData);
-                    if (parsed.formRows && parsed.formRows.length > 0) {
-                        setFormRows(parsed.formRows);
-                        setCurrentItemIndex(parsed.currentItemIndex || 0);
-                        // Store original data for comparison
-                        setOriginalRows(parsed.formRows.map(row => ({ ...row })));
-                        toast({
-                            title: "Restored",
-                            description: "Your previous edits have been restored from local storage",
-                            status: "info",
-                            duration: 2000,
-                            isClosable: true,
-                        });
-                        return;
-                    }
-                } catch (error) {
-                    console.error("Failed to restore from localStorage:", error);
-                }
-            }
-
-            // If no saved data, load from API
+            // Load from API
             const rows = selectedItemsFromState.map((item) => {
                 return loadFormDataFromStock(item, true);
             });
@@ -1423,60 +1388,12 @@ export default function StockDBMainEdit() {
         });
     }, [formRows, originalRows]);
 
-    // Save form data to localStorage (no API call)
-    const saveToLocalStorage = useCallback(() => {
-        if (formRows.length === 0) {
-            return;
-        }
-        try {
-            const storageKey = `stockEditFormData_${formRows[0]?.stockId || 'new'}`;
-            const dataToSave = {
-                formRows,
-                currentItemIndex,
-                timestamp: new Date().toISOString()
-            };
-            sessionStorage.setItem(storageKey, JSON.stringify(dataToSave));
-            setLastAutoSaveTime(new Date());
-        } catch (error) {
-            console.error("Failed to save to localStorage:", error);
-        }
-    }, [formRows, currentItemIndex]);
-
-
-    // Save to localStorage on form changes (debounced)
-    useEffect(() => {
-        // Clear existing timeout
-        if (autoSaveTimeoutRef.current) {
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-
-        // Only save if formRows are loaded
-        if (formRows.length === 0) {
-            return;
-        }
-
-        // Debounce localStorage save: wait 1 second after last change
-        autoSaveTimeoutRef.current = setTimeout(() => {
-            saveToLocalStorage();
-        }, 1000);
-
-        // Cleanup timeout on unmount or when formRows change
-        return () => {
-            if (autoSaveTimeoutRef.current) {
-                clearTimeout(autoSaveTimeoutRef.current);
-            }
-        };
-    }, [formRows, currentItemIndex, saveToLocalStorage]);
-
-    // Save to localStorage on page unload/beforeunload
+    // Warn on page unload if there are unsaved changes
     useEffect(() => {
         const handleBeforeUnload = (e) => {
             if (hasUnsavedChanges()) {
-                // Save to localStorage before leaving
-                saveToLocalStorage();
-                // Show browser warning
                 e.preventDefault();
-                e.returnValue = 'You have unsaved changes. They are saved locally but not to the server.';
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
                 return e.returnValue;
             }
         };
@@ -1486,24 +1403,7 @@ export default function StockDBMainEdit() {
         return () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, [hasUnsavedChanges, saveToLocalStorage]);
-
-    // Save to localStorage when page becomes hidden (user switches tabs, minimizes, etc.)
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.hidden && hasUnsavedChanges()) {
-                // Save to localStorage when page becomes hidden
-                saveToLocalStorage();
-            }
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
-        return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
-    }, [hasUnsavedChanges, saveToLocalStorage]);
-
+    }, [hasUnsavedChanges]);
 
     // Handle save
     const handleSave = async () => {
@@ -1554,12 +1454,6 @@ export default function StockDBMainEdit() {
             const result = await updateStockItemApi(formRows[0]?.stockId, payload);
 
             if (result && result.result && result.result.status === 'success') {
-                // Clear localStorage since data is now saved to server
-                if (formRows[0]?.stockId) {
-                    const storageKey = `stockEditFormData_${formRows[0].stockId}`;
-                    sessionStorage.removeItem(storageKey);
-                }
-
                 toast({
                     title: 'Success',
                     description: `${lines.length} stock item(s) updated successfully (${formRows.length - lines.length} item(s) had no changes)`,
@@ -1576,8 +1470,6 @@ export default function StockDBMainEdit() {
                     const sourcePath = filterState.activeTab !== undefined
                         ? '/admin/stock-list/stocks'
                         : '/admin/stock-list/main-db';
-                    // Clear saved edit state since we're navigating back
-                    sessionStorage.removeItem('stockEditState');
                     // Navigate back with filter state to restore filters
                     // Mark as fromEdit to prevent restoring edit state
                     history.push({
@@ -1671,16 +1563,6 @@ export default function StockDBMainEdit() {
                                 onBackConfirmOpen();
                             } else {
                                 // No changes, navigate back directly
-                                // Clear edit state from sessionStorage to prevent redirect loop
-                                sessionStorage.removeItem('stockEditState');
-                                // Clear the specific storage key for this stock
-                                if (formRows[0]?.stockId) {
-                                    const storageKey = `stockEditFormData_${formRows[0].stockId}`;
-                                    sessionStorage.removeItem(storageKey);
-                                }
-                                // Also clear the 'new' key if it exists
-                                sessionStorage.removeItem('stockEditFormData_new');
-
                                 if (filterState) {
                                     const sourcePath = filterState.activeTab !== undefined
                                         ? '/admin/stock-list/stocks'
@@ -1701,11 +1583,6 @@ export default function StockDBMainEdit() {
                                 ? `Edit Stock Items (${currentItemIndex + 1} of ${formRows.length})`
                                 : "Edit Stock Item"}
                         </Text>
-                        {lastAutoSaveTime && (
-                            <Text fontSize="xs" color="blue.500" mt={1}>
-                                Saved locally: {lastAutoSaveTime.toLocaleTimeString()}
-                            </Text>
-                        )}
                         {hasUnsavedChanges() && (
                             <Text fontSize="xs" color="orange.500" mt={1}>
                                 Changes not saved to server
@@ -2881,7 +2758,7 @@ export default function StockDBMainEdit() {
                         </AlertDialogHeader>
 
                         <AlertDialogBody>
-                            Are you sure you want to go back? All entered data will be removed from local storage and you will lose any unsaved changes.
+                            Are you sure you want to go back? You will lose any unsaved changes.
                         </AlertDialogBody>
 
                         <AlertDialogFooter>
@@ -2891,19 +2768,6 @@ export default function StockDBMainEdit() {
                             <Button
                                 colorScheme="red"
                                 onClick={() => {
-                                    // Clear all localStorage data related to this edit
-                                    // Clear the specific storage key for this stock
-                                    if (formRows[0]?.stockId) {
-                                        const storageKey = `stockEditFormData_${formRows[0].stockId}`;
-                                        sessionStorage.removeItem(storageKey);
-                                    }
-                                    // Also clear the 'new' key if it exists
-                                    sessionStorage.removeItem('stockEditFormData_new');
-                                    // Clear saved edit state
-                                    sessionStorage.removeItem('stockEditState');
-                                    // Clear source page info
-                                    sessionStorage.removeItem('stockEditSourcePage');
-                                    // Close dialog
                                     onBackConfirmClose();
                                     // Navigate back
                                     if (filterState) {

@@ -1290,8 +1290,6 @@ export default function VendorsTable(props) {
                                       });
                                       return;
                                     }
-                                    // Store vendor data in localStorage as backup
-                                    localStorage.setItem(`vendor_${agentId}`, JSON.stringify(row.original));
                                     history.push({
                                       pathname: `/admin/vendor-registration/${agentId}`,
                                       state: { vendorData: row.original }

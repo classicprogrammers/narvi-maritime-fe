@@ -35,18 +35,8 @@ export default function DeliveryInstructionDetail() {
   // Load delivery instruction data
   useEffect(() => {
     const loadDeliveryInstruction = () => {
-      const savedInstructions = JSON.parse(localStorage.getItem('deliveryInstructions') || '[]');
-      const instruction = savedInstructions.find(item => item.id === parseInt(id));
-      
-      if (instruction) {
-        setDeliveryInstruction(instruction);
-        // Set current step based on status
-        const statusSteps = ["Draft", "Confirmed", "In Transit", "Delivered"];
-        const currentStepIndex = statusSteps.indexOf(instruction.status);
-        setCurrentStep(Math.max(0, currentStepIndex));
-      } else {
-        // Fallback to mock data if not found
-        setDeliveryInstruction({
+      // Use mock data (no persistence)
+      setDeliveryInstruction({
           id: "DIS/00001",
           status: "Draft",
           vesselName: "Ajx",
@@ -62,7 +52,6 @@ export default function DeliveryInstructionDetail() {
           contactPhone: "+1-555-0123",
           contactEmail: "john.smith@globaltrading.com",
         });
-      }
       setIsLoading(false);
     };
 
@@ -83,17 +72,9 @@ export default function DeliveryInstructionDetail() {
   };
 
   const handleSaveDeliveryInstruction = () => {
-    // Update the delivery instruction status
+    // Update the delivery instruction status in memory only
     if (deliveryInstruction) {
-      const savedInstructions = JSON.parse(localStorage.getItem('deliveryInstructions') || '[]');
-      const updatedInstructions = savedInstructions.map(item => 
-        item.id === deliveryInstruction.id 
-          ? { ...item, status: steps[currentStep] }
-          : item
-      );
-      localStorage.setItem('deliveryInstructions', JSON.stringify(updatedInstructions));
-      
-      // Show success message
+      setDeliveryInstruction(prev => prev ? { ...prev, status: steps[currentStep] } : prev);
       alert("Delivery instruction status updated successfully!");
     }
   };

@@ -5,54 +5,14 @@ import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
 
-const STORAGE_KEY = "clientsListSearchState";
-
-function loadPersistedState() {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (data && typeof data === "object") {
-      return {
-        searchValue: typeof data.searchValue === "string" ? data.searchValue : "",
-        filters: data.filters && typeof data.filters === "object"
-          ? {
-            client_code: data.filters.client_code ?? "",
-            email: data.filters.email ?? "",
-            country: data.filters.country ?? "",
-          }
-          : { client_code: "", email: "", country: "" },
-        sortOrder: ["newest", "oldest", "alphabetical"].includes(data.sortOrder) ? data.sortOrder : "alphabetical",
-        page: typeof data.page === "number" && data.page >= 1 ? data.page : 1,
-        pageSize: [50, 80, 100].includes(data.pageSize) ? data.pageSize : 50,
-      };
-    }
-  } catch (_) { }
-  return null;
-}
-
-function savePersistedState(searchValue, filters, sortOrder, page, pageSize) {
-  try {
-    sessionStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ searchValue, filters, sortOrder, page, pageSize })
-    );
-  } catch (_) { }
-}
-
 export default function Customer() {
   const history = useHistory();
   const { customers, isLoading, getCustomers, pagination } = useCustomer();
-  const [page, setPage] = useState(() => loadPersistedState()?.page ?? 1);
-  const [pageSize, setPageSize] = useState(() => loadPersistedState()?.pageSize ?? 50);
-  const [searchValue, setSearchValue] = useState(() => loadPersistedState()?.searchValue ?? "");
-  const [filters, setFilters] = useState(() => loadPersistedState()?.filters ?? { client_code: "", email: "", country: "" });
-  const [sortOrder, setSortOrder] = useState(() => loadPersistedState()?.sortOrder ?? "alphabetical");
-
-  // Persist search/filters/sort/page/pageSize so they survive navigation
-  useEffect(() => {
-    savePersistedState(searchValue, filters, sortOrder, page, pageSize);
-  }, [searchValue, filters, sortOrder, page, pageSize]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [searchValue, setSearchValue] = useState("");
+  const [filters, setFilters] = useState({ client_code: "", email: "", country: "" });
+  const [sortOrder, setSortOrder] = useState("alphabetical");
 
   // Build params for API (used only when Search is clicked)
   const buildFetchParams = useCallback(
@@ -118,9 +78,6 @@ export default function Customer() {
     setSortOrder("alphabetical");
     setPage(1);
     getCustomers({});
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch (_) { }
   }, [getCustomers]);
 
   const handlePageSizeChange = useCallback((newSize) => {

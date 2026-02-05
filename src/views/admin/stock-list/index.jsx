@@ -53,10 +53,7 @@ import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../.
 export default function StockList() {
     const history = useHistory();
     const location = useLocation();
-    const [selectedRows, setSelectedRows] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedRows');
-        return stored ? new Set(JSON.parse(stored)) : new Set();
-    });
+    const [selectedRows, setSelectedRows] = useState(new Set());
 
     const toast = useToast();
 
@@ -114,60 +111,27 @@ export default function StockList() {
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
     // Filter section visibility - default to open
-    const [isFiltersOpen, setIsFiltersOpen] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainFiltersOpen');
-        return stored !== null ? stored === 'true' : true; // Default to true (open)
-    });
+    const [isFiltersOpen, setIsFiltersOpen] = useState(true);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
     // Lookup data for IDs -> Names (clients, vessels, vendors, countries, destinations, currencies from master cache)
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
-    // Filters state - initialize from sessionStorage
-    const [selectedClient, setSelectedClient] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedClient');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [selectedVessel, setSelectedVessel] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedVessel');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [selectedSupplier, setSelectedSupplier] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedSupplier');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [selectedStatus, setSelectedStatus] = useState(() => {
-        return sessionStorage.getItem('stockListMainSelectedStatus') || "";
-    });
-    const [selectedWarehouse, setSelectedWarehouse] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedWarehouse');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [selectedCurrency, setSelectedCurrency] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedCurrency');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [selectedHub, setSelectedHub] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSelectedHub');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [filterSO, setFilterSO] = useState(() => {
-        return sessionStorage.getItem('stockListMainFilterSO') || "";
-    });
-    const [filterSI, setFilterSI] = useState(() => {
-        return sessionStorage.getItem('stockListMainFilterSI') || "";
-    });
-    const [filterSICombined, setFilterSICombined] = useState(() => {
-        return sessionStorage.getItem('stockListMainFilterSICombined') || "";
-    });
-    const [filterDI, setFilterDI] = useState(() => {
-        return sessionStorage.getItem('stockListMainFilterDI') || "";
-    });
+    // Filters state
+    const [selectedClient, setSelectedClient] = useState(null);
+    const [selectedVessel, setSelectedVessel] = useState(null);
+    const [selectedSupplier, setSelectedSupplier] = useState(null);
+    const [selectedStatus, setSelectedStatus] = useState("");
+    const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+    const [selectedCurrency, setSelectedCurrency] = useState(null);
+    const [selectedHub, setSelectedHub] = useState(null);
+    const [filterSO, setFilterSO] = useState("");
+    const [filterSI, setFilterSI] = useState("");
+    const [filterSICombined, setFilterSICombined] = useState("");
+    const [filterDI, setFilterDI] = useState("");
     // Search state
-    const [searchFilter, setSearchFilter] = useState(() => {
-        return sessionStorage.getItem('stockListMainSearchFilter') || "";
-    });
+    const [searchFilter, setSearchFilter] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
 
     // Pagination state
@@ -185,18 +149,10 @@ export default function StockList() {
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
     const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
 
-    // Sorting state - initialize from sessionStorage
-    const [sortField, setSortField] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSortField');
-        return stored && stored !== 'null' ? stored : null;
-    });
-    const [sortDirection, setSortDirection] = useState(() => {
-        return sessionStorage.getItem('stockListMainSortDirection') || "asc";
-    });
-    const [sortOption, setSortOption] = useState(() => {
-        const stored = sessionStorage.getItem('stockListMainSortOption');
-        return stored || 'none'; // 'none', 'via_hub', 'status', 'via_hub_status', 'via_vessel', 'via_vessel_status'
-    });
+    // Sorting state
+    const [sortField, setSortField] = useState(null);
+    const [sortDirection, setSortDirection] = useState("asc");
+    const [sortOption, setSortOption] = useState("none");
 
 
     const textColor = useColorModeValue("gray.700", "white");
@@ -231,11 +187,6 @@ export default function StockList() {
         color: tableTextColor,
         fontSize: "sm",
     };
-
-    // Save filter visibility state to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainFiltersOpen', String(isFiltersOpen));
-    }, [isFiltersOpen]);
 
     // Fetch stock list with pagination and search
     const fetchStockList = useCallback(() => {
@@ -321,33 +272,6 @@ export default function StockList() {
         }
     }, [location.state, history, location.pathname]);
 
-    // Restore edit page when returning to this page from another tab
-    useEffect(() => {
-        // Only restore if we're on the main-db list page (not edit page) and not coming from edit page
-        const isOnMainDbPage = location.pathname === '/admin/stock-list/main-db' || location.pathname === '/admin/stock-list/main-db/';
-        const isComingFromEdit = location.state?.fromEdit === true;
-
-        if (isOnMainDbPage && !isComingFromEdit) {
-            const savedEditState = sessionStorage.getItem('stockEditState');
-            if (savedEditState) {
-                try {
-                    const editState = JSON.parse(savedEditState);
-                    // Only restore if the saved state is for 'main-db' source page
-                    if (editState.sourcePage === 'main-db') {
-                        // Navigate to edit page with saved state
-                        history.replace({
-                            pathname: '/admin/stock-list/edit-stock',
-                            state: editState
-                        });
-                    }
-                } catch (error) {
-                    console.error('Failed to parse saved edit state:', error);
-                    sessionStorage.removeItem('stockEditState');
-                }
-            }
-        }
-    }, [location.pathname, location.state, history]);
-
     // Track refresh state after updates
     useEffect(() => {
         if (isLoading && stockList.length > 0) {
@@ -356,73 +280,6 @@ export default function StockList() {
             setIsRefreshing(false);
         }
     }, [isLoading, stockList.length]);
-
-    // Persist filter states to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedClient', selectedClient || 'null');
-    }, [selectedClient]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedVessel', selectedVessel || 'null');
-    }, [selectedVessel]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedSupplier', selectedSupplier || 'null');
-    }, [selectedSupplier]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedStatus', selectedStatus || '');
-    }, [selectedStatus]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedWarehouse', selectedWarehouse || 'null');
-    }, [selectedWarehouse]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedCurrency', selectedCurrency || 'null');
-    }, [selectedCurrency]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedHub', selectedHub || 'null');
-    }, [selectedHub]);
-
-    // Persist sorting state to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSortField', sortField || 'null');
-    }, [sortField]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSortDirection', sortDirection || 'asc');
-    }, [sortDirection]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSortOption', sortOption || 'none');
-    }, [sortOption]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainFilterSO', filterSO || '');
-    }, [filterSO]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainFilterSI', filterSI || '');
-    }, [filterSI]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainFilterSICombined', filterSICombined || '');
-    }, [filterSICombined]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainFilterDI', filterDI || '');
-    }, [filterDI]);
-
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSearchFilter', searchFilter || '');
-    }, [searchFilter]);
-
-    // Persist selected rows to sessionStorage
-    useEffect(() => {
-        sessionStorage.setItem('stockListMainSelectedRows', JSON.stringify(Array.from(selectedRows)));
-    }, [selectedRows]);
 
     // Track if lookup data has been fetched
     const hasFetchedLookupData = useRef(false);
@@ -963,8 +820,6 @@ export default function StockList() {
                 searchFilter
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' };
-            // Save edit state to sessionStorage for restoration when switching tabs
-            sessionStorage.setItem('stockEditState', JSON.stringify(editState));
             history.push({
                 pathname: '/admin/stock-list/edit-stock',
                 state: editState
@@ -990,8 +845,6 @@ export default function StockList() {
             selectedCurrency
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' };
-        // Save edit state to sessionStorage for restoration when switching tabs
-        sessionStorage.setItem('stockEditState', JSON.stringify(editState));
         history.push({
             pathname: '/admin/stock-list/edit-stock',
             state: editState
