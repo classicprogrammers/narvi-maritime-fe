@@ -311,7 +311,7 @@ const serializeVendorParams = (params) =>
     .filter(Boolean)
     .join("&");
 
-// Get Agents API - filter params + page_size=all to get all records. No + for space; @ as-is in email.
+// Get Agents API - filter params + page/page_size for server-side pagination (80 per page)
 export const getVendorsApi = async (filterParams = {}) => {
   try {
     const baseUrl = getApiEndpoint("VENDORS");
@@ -327,8 +327,17 @@ export const getVendorsApi = async (filterParams = {}) => {
       const cid = filterParams.country_id;
       if (cid != null && cid !== "" && !Number.isNaN(Number(cid)))
         params.country_id = parseInt(cid, 10);
+      const page = filterParams.page;
+      if (page != null && page >= 1) params.page = page;
+      const pageSize = filterParams.page_size;
+      params.page_size = (pageSize != null && pageSize > 0) ? pageSize : 80;
+      if (filterParams.sort_by != null && String(filterParams.sort_by).trim() !== "")
+        params.sort_by = String(filterParams.sort_by).trim();
+      if (filterParams.sort_order != null && String(filterParams.sort_order).trim() !== "")
+        params.sort_order = String(filterParams.sort_order).trim();
+    } else {
+      params.page_size = 80;
     }
-    params.page_size = "all";
     const queryString = serializeVendorParams(params);
     const url = baseUrl + (queryString ? `?${queryString}` : "");
     const response = await api.get(url);

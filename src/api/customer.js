@@ -1,29 +1,23 @@
-// Customer API functions
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
 import { showApiModal } from "../components/ApiModal";
 
-// Centralized error handler that also surfaces a modal for the user
 const handleApiError = (error, operation) => {
   console.error(`${operation} failed:`, error);
 
   let errorMessage = error.message || `Failed to ${operation.toLowerCase()}`;
 
-  // Network errors (CORS, connection refused, etc.)
   if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
     errorMessage =
       "Cannot connect to backend server. Please check if the server is running and CORS is properly configured.";
   }
 
-  // HTTP errors (4xx, 5xx) - Extract detailed error message from response
   if (error.response) {
     const responseData = error.response.data;
 
-    // Check for JSON-RPC error format
     if (responseData && responseData.result && responseData.result.status === 'error') {
       errorMessage = responseData.result.message || errorMessage;
-      
-      // Add validation errors if present
+
       if (responseData.result.errors && typeof responseData.result.errors === "object") {
         const errorDetails = Object.entries(responseData.result.errors)
           .map(([field, message]) => `• ${field}: ${message}`)
@@ -33,27 +27,22 @@ const handleApiError = (error, operation) => {
         }
       }
     }
-    // Check for direct error message in response
     else if (responseData && responseData.message) {
       errorMessage = responseData.message;
     }
-    // Check for error in response data
     else if (responseData && responseData.error) {
       errorMessage = responseData.error;
     }
-    // Fallback to status-based message
     else {
       errorMessage = `Backend error (${error.response.status}): ${errorMessage}`;
     }
   }
 
-  // Show error modal
   showApiModal("error", `${operation} Failed`, errorMessage);
 
   throw new Error(errorMessage);
 };
 
-// --- Small utilities -------------------------------------------------------
 const getCurrentUserId = () => {
   try {
     const raw = localStorage.getItem("user");
@@ -65,11 +54,9 @@ const getCurrentUserId = () => {
   }
 };
 
-// Remove keys with value === undefined (keep null/empty string if intentionally provided)
 const removeUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
-// Get Countries API
 export const getCountriesApi = async () => {
   try {
     const response = await api.get(getApiEndpoint("COUNTRIES"));
@@ -80,17 +67,14 @@ export const getCountriesApi = async () => {
   }
 };
 
-// Register Customer API
 export const registerCustomerApi = async (customerData) => {
   try {
     const payload = removeUndefined({
       ...customerData,
       user_id: getCurrentUserId(),
-      // Include attachments if provided
       attachments: Array.isArray(customerData.attachments) && customerData.attachments.length > 0
         ? customerData.attachments
         : undefined,
-      // Ensure children is only sent when it's a non-empty array
       children: Array.isArray(customerData.children) && customerData.children.length > 0
         ? customerData.children.map((c) => removeUndefined(c))
         : undefined,
@@ -99,12 +83,9 @@ export const registerCustomerApi = async (customerData) => {
     const response = await api.post(getApiEndpoint("CUSTOMER_REGISTER"), payload);
     const result = response.data;
 
-    // Check if the JSON-RPC response indicates an error
     if (result && result.result && result.result.status === "error") {
-      // Build detailed error message with validation errors
       let errorMessage = result.result.message || "Registration failed";
-      
-      // Add validation errors if present
+
       if (result.result.errors && typeof result.result.errors === "object") {
         const errorDetails = Object.entries(result.result.errors)
           .map(([field, message]) => `${field}: ${message}`)
@@ -112,16 +93,14 @@ export const registerCustomerApi = async (customerData) => {
         errorMessage = errorDetails ? `${errorMessage}\n\nValidation Errors:\n${errorDetails}` : errorMessage;
       }
 
-      // Create an error object that will be caught
       const error = new Error(errorMessage);
       error.response = {
         data: result,
-        status: 400, // Treat as bad request
+        status: 400,
       };
       throw error;
     }
 
-    // Check if the response has the expected structure
     if (!result.result || result.result.status !== "success") {
       throw new Error("Invalid response from server");
     }
@@ -133,7 +112,6 @@ export const registerCustomerApi = async (customerData) => {
   }
 };
 
-// Serialize query params: space as %20 (not +), keep @ as literal in email (API supports space and @ as-is)
 const serializeCustomerParams = (params) =>
   Object.entries(params)
     .filter(([, v]) => v != null && String(v).trim() !== "")
@@ -144,7 +122,6 @@ const serializeCustomerParams = (params) =>
     })
     .join("&");
 
-// Get Customers API - backend params: search (client name), client_code, email only (no sort_by, sort_order, page, page_size)
 export const getCustomersApi = async (filterParams = {}) => {
   try {
     const params = {};
@@ -159,25 +136,30 @@ export const getCustomersApi = async (filterParams = {}) => {
       const cid = filterParams.country_id;
       if (cid != null && cid !== "" && !Number.isNaN(Number(cid)))
         params.country_id = parseInt(cid, 10);
+      const page = filterParams.page;
+      if (page != null && page >= 1) params.page = page;
+      const pageSize = filterParams.page_size;
+      params.page_size = (pageSize != null && pageSize > 0) ? pageSize : 80;
+      if (filterParams.sort_by != null && String(filterParams.sort_by).trim() !== "")
+        params.sort_by = String(filterParams.sort_by).trim();
+      if (filterParams.sort_order != null && String(filterParams.sort_order).trim() !== "")
+        params.sort_order = String(filterParams.sort_order).trim();
+    } else {
+      params.page_size = 80;
     }
-    params.page_size = "all";
     const queryString = serializeCustomerParams(params);
     const url = getApiEndpoint("CUSTOMERS") + (queryString ? `?${queryString}` : "");
     const response = await api.get(url);
     const responseData = response.data;
-    
-    // Check if response has error status (JSON-RPC format)
+
     if (responseData.result && responseData.result.status === 'error') {
       throw new Error(responseData.result.message || 'Failed to fetch customers');
     }
-    
-    // Handle different response formats
-    // If response has result wrapper, extract it
+
     if (responseData.result && responseData.result.status === 'success') {
       return responseData.result;
     }
-    
-    // Return direct response if it has the expected structure
+
     return responseData;
   } catch (error) {
     console.error("Get customers error:", error);
@@ -185,7 +167,6 @@ export const getCustomersApi = async (filterParams = {}) => {
   }
 };
 
-// Update Customer API
 export const updateCustomerApi = async (customerId, data) => {
   try {
     const payload = removeUndefined({
@@ -221,14 +202,12 @@ export const updateCustomerApi = async (customerId, data) => {
       vessel_type1: data.vessel_type1,
       vessel_type2: data.vessel_type2,
       vessel_type3: data.vessel_type3,
-      // Include attachments if provided
       attachments: Array.isArray(data.attachments) && data.attachments.length > 0
         ? data.attachments
         : undefined,
       attachment_to_delete: Array.isArray(data.attachment_to_delete) && data.attachment_to_delete.length > 0
         ? data.attachment_to_delete
         : undefined,
-      // Include children array if provided (with operations: update, delete, create)
       children: Array.isArray(data.children) && data.children.length > 0
         ? data.children.map((child) => removeUndefined(child))
         : undefined,
@@ -237,12 +216,9 @@ export const updateCustomerApi = async (customerId, data) => {
     const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
     const result = response.data;
 
-    // Check if the response indicates an error (even if HTTP 200)
     if (result && result.result && result.result.status === "error") {
-      // Build detailed error message with validation errors
       let errorMessage = result.result.message || "Update failed";
-      
-      // Add validation errors if present
+
       if (result.result.errors && typeof result.result.errors === "object") {
         const errorDetails = Object.entries(result.result.errors)
           .map(([field, message]) => `${field}: ${message}`)
@@ -250,11 +226,10 @@ export const updateCustomerApi = async (customerId, data) => {
         errorMessage = errorDetails ? `${errorMessage}\n\nValidation Errors:\n${errorDetails}` : errorMessage;
       }
 
-      // Create an error object that will be caught
       const error = new Error(errorMessage);
       error.response = {
         data: result,
-        status: 400, // Treat as bad request
+        status: 400,
       };
       throw error;
     }
@@ -266,35 +241,6 @@ export const updateCustomerApi = async (customerId, data) => {
   }
 };
 
-// Create Client Person for a Customer
-export const createCustomerPersonApi = async (customerId, person) => {
-  try {
-    const payload = removeUndefined({
-      current_user: getCurrentUserId(),
-      customer_id: customerId,
-      client_id: customerId,
-      prefix: person.prefix,
-      job_title: person.job_title,
-      parent_id: customerId,
-      first_name: person.first_name,
-      last_name: person.last_name,
-      email: person.email,
-      tel_direct: person.tel_direct,
-      phone: person.phone,
-      tel_other: person.tel_other,
-      linked_in: person.linked_in,
-      remarks: person.remarks,
-    });
-
-    const response = await api.post(getApiEndpoint("CUSTOMER_UPDATE"), payload);
-    return response.data;
-  } catch (error) {
-    console.error("Create customer person error:", error);
-    handleApiError(error, "Create client person");
-  }
-};
-
-// Delete Customer API
 export const deleteCustomerApi = async (customerId) => {
   try {
     const payload = {
@@ -311,12 +257,6 @@ export const deleteCustomerApi = async (customerId) => {
   }
 };
 
-/**
- * Get customer attachment file for viewing or download.
- * View: GET /api/customers/{customerId}/attachment/{attachmentId}/download
- * Download: GET /api/customers/{customerId}/attachment/{attachmentId}/download?download=true
- * Returns { data: Blob, type, filename }.
- */
 export const getCustomerAttachmentApi = async (customerId, attachmentId, forceDownload = false) => {
   try {
     const baseUrl = getApiEndpoint("CUSTOMERS");

@@ -5,67 +5,114 @@ import CustomerTable from "views/admin/contacts/components/CustomerTable";
 import { columnsDataClient } from "views/admin/contacts/variables/columnsData";
 import { useCustomer } from "redux/hooks/useCustomer";
 
+const mapSortOrderToApi = (uiSort) => {
+  switch (uiSort) {
+    case "newest": return { sort_by: "create_date", sort_order: "desc" };
+    case "oldest": return { sort_by: "create_date", sort_order: "asc" };
+    case "alphabetical":
+    default: return { sort_by: "name", sort_order: "asc" };
+  }
+};
+
+function resolveCountryId(countryFilter, countries) {
+  if (!countryFilter || String(countryFilter).trim() === "") return undefined;
+  const typed = String(countryFilter).trim();
+  const num = parseInt(typed, 10);
+  if (!Number.isNaN(num)) return num;
+  const list = Array.isArray(countries) ? countries : (countries?.countries || []);
+  const lower = typed.toLowerCase();
+  const found = list.find(
+    (c) =>
+      (c.name && c.name.toLowerCase() === lower) ||
+      (c.name && c.name.toLowerCase().includes(lower))
+  );
+  return found ? found.id : undefined;
+}
+
 export default function Customer() {
   const history = useHistory();
-  const { customers, isLoading, getCustomers, pagination } = useCustomer();
+  const { customers, isLoading, getCustomers, pagination, countries } = useCustomer();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(80);
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({ client_code: "", email: "", country: "" });
   const [sortOrder, setSortOrder] = useState("alphabetical");
 
-  // Build params for API (used only when Search is clicked)
+  const countriesRef = useRef(countries);
+  countriesRef.current = countries;
   const buildFetchParams = useCallback(
-    () => ({
-      search: searchValue?.trim() || undefined,
-      client_code: filters.client_code?.trim() || undefined,
-      email: filters.email?.trim() || undefined,
-    }),
-    [searchValue, filters]
+    (overrides = {}) => {
+      const sortApi = mapSortOrderToApi(overrides.sortOrder ?? sortOrder);
+      return {
+        search: searchValue?.trim() || undefined,
+        client_code: filters.client_code?.trim() || undefined,
+        email: filters.email?.trim() || undefined,
+        country_id: resolveCountryId(filters.country, countriesRef.current),
+        page: overrides.page ?? page,
+        page_size: overrides.page_size ?? pageSize,
+        sort_by: sortApi.sort_by,
+        sort_order: sortApi.sort_order,
+      };
+    },
+    [searchValue, filters, page, pageSize, sortOrder]
   );
 
-  // Fetch only when user clicks Search (and initial load once)
+  const fetchCustomers = useCallback(
+    (opts = {}) => {
+      const p = { ...buildFetchParams(), ...opts };
+      getCustomers(p);
+    },
+    [getCustomers, buildFetchParams]
+  );
+
   const hasFetchedRef = useRef(false);
   useEffect(() => {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      getCustomers({});
+      getCustomers({ page: 1, page_size: 80, ...mapSortOrderToApi("alphabetical") });
     }
   }, [getCustomers]);
 
   const handleSearch = useCallback(() => {
     setPage(1);
-    getCustomers(buildFetchParams());
-  }, [getCustomers, buildFetchParams]);
+    fetchCustomers({ page: 1 });
+  }, [fetchCustomers]);
 
   const refreshCustomers = useCallback(() => {
-    getCustomers(buildFetchParams());
-  }, [getCustomers, buildFetchParams]);
+    fetchCustomers({ page });
+  }, [fetchCustomers, page]);
 
-  // Client-side pagination and sort: API returns all matching records
-  const fullList = customers || [];
-  const sortedList = useMemo(() => {
-    const list = [...fullList];
-    if (sortOrder === "newest") return list.sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
-    if (sortOrder === "oldest") return list.sort((a, b) => new Date(a.created_at || a.id) - new Date(b.created_at || b.id));
-    return list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  }, [fullList, sortOrder]);
-  const tableData = useMemo(
-    () => sortedList.slice((page - 1) * pageSize, page * pageSize),
-    [sortedList, page, pageSize]
+  const handlePageChange = useCallback(
+    (newPage) => {
+      setPage(newPage);
+      fetchCustomers({ page: newPage });
+    },
+    [fetchCustomers]
   );
-  const frontendPagination = useMemo(() => {
-    const total_count = sortedList.length;
-    const total_pages = Math.ceil(total_count / pageSize) || 1;
-    return {
-      page,
-      page_size: pageSize,
-      total_count,
-      total_pages,
-      has_next: page < total_pages,
-      has_previous: page > 1,
-    };
-  }, [sortedList.length, page, pageSize]);
+
+  const tableData = customers || [];
+
+  const serverPagination = useMemo(
+    () =>
+      pagination && pagination.total_count !== undefined
+        ? {
+            page: pagination.page ?? page,
+            page_size: pagination.page_size ?? pageSize,
+            total_count: pagination.total_count ?? 0,
+            total_pages: pagination.total_pages ?? 1,
+            has_next: pagination.has_next ?? false,
+            has_previous: pagination.has_previous ?? false,
+          }
+        : {
+            page,
+            page_size: pageSize,
+            total_count: tableData.length,
+            total_pages: 1,
+            has_next: false,
+            has_previous: false,
+          },
+    [pagination, page, pageSize, tableData.length]
+  );
 
   const handleFilterChange = useCallback((field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -77,13 +124,17 @@ export default function Customer() {
     setFilters({ client_code: "", email: "", country: "" });
     setSortOrder("alphabetical");
     setPage(1);
-    getCustomers({});
-  }, [getCustomers]);
+    getCustomers({ page: 1, page_size: pageSize, ...mapSortOrderToApi("alphabetical") });
+  }, [getCustomers, pageSize]);
 
-  const handlePageSizeChange = useCallback((newSize) => {
-    setPageSize(newSize);
-    setPage(1);
-  }, []);
+  const handleSortOrderChange = useCallback(
+    (v) => {
+      setSortOrder(v);
+      setPage(1);
+      fetchCustomers({ page: 1, ...mapSortOrderToApi(v) });
+    },
+    [fetchCustomers]
+  );
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -92,20 +143,16 @@ export default function Customer() {
           columnsData={columnsDataClient}
           tableData={tableData}
           isLoading={isLoading}
-          pagination={frontendPagination}
+          pagination={serverPagination}
           page={page}
           pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
+          onPageChange={handlePageChange}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           filters={filters}
           onFilterChange={handleFilterChange}
           sortOrder={sortOrder}
-          onSortOrderChange={(v) => {
-            setSortOrder(v);
-            setPage(1);
-          }}
+          onSortOrderChange={handleSortOrderChange}
           onClearAll={handleClearAll}
           onRefresh={refreshCustomers}
           onSearch={handleSearch}

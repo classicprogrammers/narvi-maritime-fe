@@ -5,6 +5,15 @@ import VendorsTable from "views/admin/contacts/components/VendorsTable";
 import { columnsDataAgents } from "views/admin/contacts/variables/columnsData";
 import { useVendor } from "redux/hooks/useVendor";
 
+const mapSortOrderToApi = (uiSort) => {
+  switch (uiSort) {
+    case "newest": return { sort_by: "create_date", sort_order: "desc" };
+    case "oldest": return { sort_by: "create_date", sort_order: "asc" };
+    case "alphabetical":
+    default: return { sort_by: "name", sort_order: "asc" };
+  }
+};
+
 // Resolve free-text country filter to country_id (int) for API
 function resolveCountryId(countryFilter, countries) {
   if (!countryFilter || String(countryFilter).trim() === "") return undefined;
@@ -25,44 +34,66 @@ export default function Vendors() {
   const history = useHistory();
   const { vendors, isLoading, getVendors, pagination, countries } = useVendor();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(80);
   const [searchValue, setSearchValue] = useState("");
   const [filters, setFilters] = useState({ agent_id: "", agent_type: "", country: "" });
+  const [sortOrder, setSortOrder] = useState("alphabetical");
 
   // Keep latest countries in ref so buildFetchParams doesn't depend on countries ref (avoids infinite loop)
   const countriesRef = useRef(countries);
   countriesRef.current = countries;
 
-  // Build params for API (used only when Search is clicked); country -> country_id for API
+  // Build params for API; country -> country_id for API
   const buildFetchParams = useCallback(
-    () => ({
-      search: searchValue?.trim() || undefined,
-      agentsdb_id: filters.agent_id?.trim() || undefined,
-      agent_type: filters.agent_type?.trim() || undefined,
-      country_id: resolveCountryId(filters.country, countriesRef.current),
-    }),
-    [searchValue, filters]
+    (overrides = {}) => {
+      const sortApi = mapSortOrderToApi(overrides.sortOrder ?? sortOrder);
+      return {
+        search: searchValue?.trim() || undefined,
+        agentsdb_id: filters.agent_id?.trim() || undefined,
+        agent_type: filters.agent_type?.trim() || undefined,
+        country_id: resolveCountryId(filters.country, countriesRef.current),
+        page: overrides.page ?? page,
+        page_size: overrides.page_size ?? pageSize,
+        sort_by: sortApi.sort_by,
+        sort_order: sortApi.sort_order,
+      };
+    },
+    [searchValue, filters, page, pageSize, sortOrder]
   );
 
-  // Fetch only when user clicks Search (and initial load once)
+  const fetchVendors = useCallback(
+    (opts = {}) => {
+      const p = { ...buildFetchParams(), ...opts };
+      getVendors(p);
+    },
+    [getVendors, buildFetchParams]
+  );
+
   const hasFetchedRef = useRef(false);
   useEffect(() => {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      getVendors({});
+      getVendors({ page: 1, page_size: 80, ...mapSortOrderToApi("alphabetical") });
     }
   }, [getVendors]);
 
   const handleSearch = useCallback(() => {
     setPage(1);
-    getVendors(buildFetchParams());
-  }, [getVendors, buildFetchParams]);
+    fetchVendors({ page: 1 });
+  }, [fetchVendors]);
 
   const refreshAgents = useCallback(() => {
-    getVendors(buildFetchParams());
-  }, [getVendors, buildFetchParams]);
+    fetchVendors({ page });
+  }, [fetchVendors, page]);
 
-  // Filter top-level agents (backend may return all; keep for safety)
+  const handlePageChange = useCallback(
+    (newPage) => {
+      setPage(newPage);
+      fetchVendors({ page: newPage });
+    },
+    [fetchVendors]
+  );
+
   const topLevelAgents = useMemo(() => {
     if (!Array.isArray(vendors)) return [];
     return vendors.filter((agent) => {
@@ -76,23 +107,29 @@ export default function Vendors() {
     });
   }, [vendors]);
 
-  // Frontend-only pagination: slice full list for current page
-  const tableData = useMemo(
-    () => topLevelAgents.slice((page - 1) * pageSize, page * pageSize),
-    [topLevelAgents, page, pageSize]
+  const tableData = topLevelAgents;
+
+  const serverPagination = useMemo(
+    () =>
+      pagination && pagination.total_count !== undefined
+        ? {
+            page: pagination.page ?? page,
+            page_size: pagination.page_size ?? pageSize,
+            total_count: pagination.total_count ?? 0,
+            total_pages: pagination.total_pages ?? 1,
+            has_next: pagination.has_next ?? false,
+            has_previous: pagination.has_previous ?? false,
+          }
+        : {
+            page,
+            page_size: pageSize,
+            total_count: topLevelAgents.length,
+            total_pages: 1,
+            has_next: false,
+            has_previous: false,
+          },
+    [pagination, page, pageSize, topLevelAgents.length]
   );
-  const frontendPagination = useMemo(() => {
-    const total_count = topLevelAgents.length;
-    const total_pages = Math.ceil(total_count / pageSize) || 1;
-    return {
-      page,
-      page_size: pageSize,
-      total_count,
-      total_pages,
-      has_next: page < total_pages,
-      has_previous: page > 1,
-    };
-  }, [topLevelAgents.length, page, pageSize]);
 
   const handleFilterChange = useCallback((field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -102,14 +139,19 @@ export default function Vendors() {
   const handleClearAll = useCallback(() => {
     setSearchValue("");
     setFilters({ agent_id: "", agent_type: "", country: "" });
+    setSortOrder("alphabetical");
     setPage(1);
-    getVendors({});
-  }, [getVendors]);
+    getVendors({ page: 1, page_size: pageSize, ...mapSortOrderToApi("alphabetical") });
+  }, [getVendors, pageSize]);
 
-  const handlePageSizeChange = useCallback((newSize) => {
-    setPageSize(newSize);
-    setPage(1);
-  }, []);
+  const handleSortOrderChange = useCallback(
+    (v) => {
+      setSortOrder(v);
+      setPage(1);
+      fetchVendors({ page: 1, ...mapSortOrderToApi(v) });
+    },
+    [fetchVendors]
+  );
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -118,11 +160,10 @@ export default function Vendors() {
           columnsData={columnsDataAgents}
           tableData={tableData}
           isLoading={isLoading}
-          pagination={frontendPagination}
+          pagination={serverPagination}
           page={page}
           pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={handlePageSizeChange}
+          onPageChange={handlePageChange}
           searchValue={searchValue}
           onSearchChange={setSearchValue}
           filters={filters}
@@ -130,6 +171,8 @@ export default function Vendors() {
           onClearAll={handleClearAll}
           onRefresh={refreshAgents}
           onSearch={handleSearch}
+          sortOrder={sortOrder}
+          onSortOrderChange={handleSortOrderChange}
         />
       </VStack>
     </Box>

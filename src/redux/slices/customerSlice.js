@@ -9,10 +9,9 @@ const initialState = {
   updateError: null,
   deleteLoading: false,
   deleteError: null,
-  // Pagination metadata
   pagination: {
     page: 1,
-    page_size: 50,
+    page_size: 80,
     total_count: 0,
     total_pages: 0,
     has_next: false,
@@ -24,7 +23,6 @@ const customerSlice = createSlice({
   name: "customer",
   initialState,
   reducers: {
-    // Get Countries
     getCountriesStart: (state) => {
       state.isLoading = true;
       state.error = null;
@@ -39,14 +37,12 @@ const customerSlice = createSlice({
       state.error = action.payload;
     },
 
-    // Get Customers
     getCustomersStart: (state) => {
       state.isLoading = true;
       state.error = null;
     },
     getCustomersSuccess: (state, action) => {
       state.isLoading = false;
-      // Extract customers array from the API response
       const response = action.payload;
       state.customers = response.customers || response || [];
       
@@ -54,7 +50,7 @@ const customerSlice = createSlice({
       if (response.page !== undefined) {
         state.pagination = {
           page: response.page || 1,
-          page_size: response.page_size || 50,
+          page_size: response.page_size || 80,
           total_count: response.total_count || 0,
           total_pages: response.total_pages || 0,
           has_next: response.has_next || false,
@@ -69,14 +65,12 @@ const customerSlice = createSlice({
       state.error = action.payload;
     },
 
-    // Update Customer
     updateCustomerStart: (state) => {
       state.updateLoading = true;
       state.updateError = null;
     },
     updateCustomerSuccess: (state, action) => {
       state.updateLoading = false;
-      // Update the customer in the customers array
       const index = state.customers.findIndex(
         (customer) => customer.id === action.payload.id
       );
@@ -97,7 +91,6 @@ const customerSlice = createSlice({
     },
     deleteCustomerSuccess: (state, action) => {
       state.deleteLoading = false;
-      // Remove the customer from the customers array
       state.customers = state.customers.filter(
         (customer) => customer.id !== action.payload.id
       );
@@ -108,19 +101,16 @@ const customerSlice = createSlice({
       state.deleteError = action.payload;
     },
 
-    // Clear errors
     clearCustomerError: (state) => {
       state.error = null;
       state.updateError = null;
       state.deleteError = null;
     },
 
-    // Add new customer
     addCustomer: (state, action) => {
       state.customers.unshift(action.payload);
     },
 
-    // Clear all customer state
     clearCustomerState: (state) => {
       state.countries = [];
       state.customers = [];

@@ -1,7 +1,6 @@
 import React from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useToast } from "@chakra-ui/react";
-// Chakra imports
 import {
     Box,
     Button,
@@ -38,29 +37,23 @@ import {
     Badge,
 } from "@chakra-ui/react";
 import { DeleteIcon } from "@chakra-ui/icons";
-// Custom components
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
-// Assets
 import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
-// API
 import { registerCustomerApi, updateCustomerApi, getCustomerAttachmentApi } from "api/customer";
 import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
-// Redux
 import { useCustomer } from "redux/hooks/useCustomer";
 
-// Helper to validate and normalize URLs
+
 const isValidUrl = (string) => {
     if (!string || typeof string !== "string") return false;
     const trimmed = string.trim();
     if (trimmed === "") return false;
 
     try {
-        // Try to create a URL object - this validates the URL format
         let urlString = trimmed;
-        // If URL doesn't start with http:// or https://, add https://
         if (!/^https?:\/\//i.test(urlString)) {
             urlString = `https://${urlString}`;
         }
@@ -71,7 +64,6 @@ const isValidUrl = (string) => {
     }
 };
 
-// Helper to normalize URL (add https:// if missing)
 const normalizeUrl = (url) => {
     if (!url || typeof url !== "string") return url;
     const trimmed = url.trim();
@@ -86,11 +78,9 @@ function CustomerRegistration() {
     const location = useLocation();
     const toast = useToast();
 
-    // Redux
     const { countries, customers, isLoading: countriesLoading, getCountries, addCustomerToRedux } = useCustomer();
     const countryList = countries?.countries;
 
-    // Modal states
     const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
     const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
     const [modalMessage, setModalMessage] = React.useState("");
@@ -107,7 +97,6 @@ function CustomerRegistration() {
         { key: "tel_direct", label: "Tel direct" },
         { key: "phone", label: "Mobile" },
         { key: "tel_other", label: "Tel other" },
-        // Replace LinkedIn with WhatsApp (checkbox)
         { key: "whatsapp", label: "WhatsApp" },
         { key: "remarks", label: "Remark" },
         { key: "attachments", label: "Attachments" },
@@ -139,22 +128,19 @@ function CustomerRegistration() {
         tel_other: "",
         whatsapp: false,
         remarks: "",
-        attachments: [], // Array of { filename, mimetype, datas } for new uploads
-        attachment_to_delete: [], // Array of attachment IDs to delete (for updates)
-        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
+        attachments: [],
+        attachment_to_delete: [],
+        existingAttachments: [],
     };
 
     const [peopleRows, setPeopleRows] = React.useState([]);
-    // Track original children to detect deletions and updates
     const [originalChildren, setOriginalChildren] = React.useState([]);
 
-    // Delete confirmation dialog
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
     const cancelRef = React.useRef();
     const submittedSuccessfully = React.useRef(false);
 
-    // Chakra color mode
     const textColor = useColorModeValue("secondaryGray.900", "white");
     const textColorSecondary = useColorModeValue("gray.700", "gray.400");
     const textColorBrand = useColorModeValue("#174693", "white");
@@ -165,12 +151,10 @@ function CustomerRegistration() {
     const rowEvenBg = useColorModeValue("gray.50", "gray.700");
     const headingColor = useColorModeValue("secondaryGray.900", "white");
     const gridInputWidth = { base: "60%", md: "60%" };
-    // Edit mode colors - very distinct background
     const editModeBg = useColorModeValue("blue.50", "blue.900");
     const editModeBorderColor = useColorModeValue("blue.300", "blue.500");
     const editModeAlertBg = useColorModeValue("blue.100", "blue.800");
 
-    // Auto-size helpers (Remarks + People inputs)
     const getAutoHtmlSize = (value, placeholder = "", opts = {}) => {
         const { min = 12, max = 60, padding = 2 } = opts || {};
         const valueLen = String(value ?? "").length;
@@ -188,7 +172,6 @@ function CustomerRegistration() {
         return Math.min(max, Math.max(min, desired));
     };
 
-    // If a client is passed via navigation state, or clientId is provided, we are editing
     const editingClient = React.useMemo(() => {
         if (location.state?.client) return location.state.client;
         const idFromState = location.state?.clientId;
@@ -201,7 +184,6 @@ function CustomerRegistration() {
         return list.find((c) => String(c.id) === String(idFromState)) || null;
     }, [location.state, customers]);
 
-    // Form state
     const [formData, setFormData] = React.useState({
         name: "",
         client_code: "",
@@ -234,20 +216,17 @@ function CustomerRegistration() {
         client_invoicing: "",
         prefix: "",
         job_title: "",
-        attachments: [], // Array of { filename, mimetype, datas } for new uploads
-        attachment_to_delete: [], // Array of attachment IDs to delete (for updates)
-        existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
+        attachments: [],
+        attachment_to_delete: [],
+        existingAttachments: [],
     });
 
-    // Vessel types for dropdown
     const [vesselTypes, setVesselTypes] = React.useState([]);
     const [isLoadingVesselTypes, setIsLoadingVesselTypes] = React.useState(false);
     const [isLoadingAttachment, setIsLoadingAttachment] = React.useState(false);
 
-    // Address fields visibility state (default: 2, max: 7)
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
-    // Vessel type fields visibility state (default: 1, max: 3)
     const [visibleVesselTypeFields, setVisibleVesselTypeFields] = React.useState(1);
 
     const addMoreVesselType = () => {
@@ -294,7 +273,6 @@ function CustomerRegistration() {
         }
     };
 
-    // Prefill when editing
     React.useEffect(() => {
         if (editingClient) {
             setFormData({

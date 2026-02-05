@@ -77,9 +77,8 @@ export default function VendorsTable(props) {
     isLoading = false,
     pagination,
     page = 1,
-    pageSize = 50,
+    pageSize = 80,
     onPageChange,
-    onPageSizeChange,
     searchValue: propsSearchValue,
     onSearchChange: propsOnSearchChange,
     filters: propsFilters,
@@ -87,6 +86,8 @@ export default function VendorsTable(props) {
     onClearAll: propsOnClearAll,
     onRefresh: propsOnRefresh,
     onSearch: propsOnSearch,
+    sortOrder: propsSortOrder,
+    onSortOrderChange: propsOnSortOrderChange,
   } = props;
   const history = useHistory();
   const [internalSearch, setInternalSearch] = useState("");
@@ -106,7 +107,10 @@ export default function VendorsTable(props) {
   const setFiltersOrNotify = isControlled
     ? (field, value) => propsOnFilterChange(field, value)
     : (field, value) => setInternalFilters((prev) => ({ ...prev, [field]: value }));
-  const [sortOrder, setSortOrder] = useState("alphabetical");
+  const sortOrderControlled = propsSortOrder !== undefined && propsOnSortOrderChange != null;
+  const [internalSortOrder, setInternalSortOrder] = useState("alphabetical");
+  const sortOrder = sortOrderControlled ? propsSortOrder : internalSortOrder;
+  const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
   const [showFilterFields, setShowFilterFields] = useState(false);
 
   // Auto-open advanced filters when any advance filter has data
@@ -336,10 +340,11 @@ export default function VendorsTable(props) {
   }, [tableData, searchValue, filters, isControlled]);
 
   const data = useMemo(() => {
-    const sortedData = applyCustomSorting(Array.isArray(filteredData) ? filteredData : []);
-    return sortedData;
+    const base = Array.isArray(filteredData) ? filteredData : [];
+    if (sortOrderControlled) return base;
+    return applyCustomSorting(base);
     //eslint-disable-next-line
-  }, [filteredData, sortOrder]);
+  }, [filteredData, sortOrder, sortOrderControlled]);
 
   // Use backend pagination - no client-side pagination needed
   const tableInstance = useTable(
@@ -362,7 +367,7 @@ export default function VendorsTable(props) {
   // Use backend pagination data
   const paginationData = pagination || {
     page: page || 1,
-    page_size: pageSize || 50,
+    page_size: pageSize || 80,
     total_count: tableData.length || 0,
     total_pages: 1,
     has_next: false,
@@ -421,7 +426,7 @@ export default function VendorsTable(props) {
     clearAllFilters();
     clearAllSorting();
     if (!isControlled) setSearchValue("");
-    setSortOrder("alphabetical");
+    if (!sortOrderControlled) setSortOrder("alphabetical");
   };
 
   const handleEditInputChange = (field, value) => {
@@ -443,7 +448,7 @@ export default function VendorsTable(props) {
       const result = await registerVendor(newVendor);
 
       if (result.success) {
-        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => { });
         onClose();
 
         // Reset form
@@ -508,7 +513,7 @@ export default function VendorsTable(props) {
       if (result.success) {
         onEditClose();
         setEditingVendor(null);
-        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => { });
         if (propsOnRefresh) propsOnRefresh();
         else getVendors({});
       }
@@ -571,7 +576,7 @@ export default function VendorsTable(props) {
       if (result.success) {
         onDeleteClose();
         setVendorToDelete(null);
-        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => {});
+        refreshMasterData(MASTER_KEYS.AGENTS).catch(() => { });
         if (propsOnRefresh) propsOnRefresh();
         else getVendors({});
 
@@ -735,27 +740,44 @@ export default function VendorsTable(props) {
               </InputGroup>
             </Box>
 
-            {/* Search Button - API call only on click */}
-            {propsOnSearch && (
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  &nbsp;
-                </Text>
-                <Button
-                  size="md"
-                  colorScheme="blue"
-                  leftIcon={<Icon as={MdSearch} />}
-                  onClick={() => propsOnSearch()}
-                  borderRadius="10px"
-                  border="2px"
-                  borderColor={borderColor}
-                >
-                  Search
-                </Button>
-              </Box>
-            )}
+            <Box>
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                &nbsp;
+              </Text>
+              <HStack spacing={3}>
+                {propsOnSearch && (
+                  <Button
+                    size="md"
+                    colorScheme="blue"
+                    leftIcon={<Icon as={MdSearch} />}
+                    onClick={() => propsOnSearch()}
+                    borderRadius="10px"
+                    border="2px"
+                    borderColor={borderColor}
+                  >
+                    Search
+                  </Button>
+                )}
+                {(filters.agent_id ||
+                  filters.agent_type ||
+                  filters.country ||
+                  searchValue ||
+                  sortOrder !== "alphabetical") && (
+                    <Button
+                      size="md"
+                      variant="outline"
+                      onClick={clearAllFiltersAndSorting}
+                      colorScheme="red"
+                      _hover={{ bg: "red.50" }}
+                      borderRadius="10px"
+                      border="2px"
+                    >
+                      Clear All
+                    </Button>
+                  )}
+              </HStack>
+            </Box>
 
-            {/* Filter Button */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Advanced Filters
@@ -782,7 +804,6 @@ export default function VendorsTable(props) {
               </Button>
             </Box>
 
-            {/* Sort Dropdown */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Sort Options
@@ -809,30 +830,6 @@ export default function VendorsTable(props) {
                 <option value="alphabetical">A-Z Alphabetical</option>
               </Select>
             </Box>
-
-            {/* Clear All */}
-            {(filters.agent_id ||
-              filters.agent_type ||
-              filters.country ||
-              searchValue ||
-              sortOrder !== "newest") && (
-                <Box>
-                  <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                    &nbsp;
-                  </Text>
-                  <Button
-                    size="md"
-                    variant="outline"
-                    onClick={clearAllFiltersAndSorting}
-                    colorScheme="red"
-                    _hover={{ bg: "red.50" }}
-                    borderRadius="10px"
-                    border="2px"
-                  >
-                    Clear All
-                  </Button>
-                </Box>
-              )}
           </HStack>
 
           {/* Expandable Filter Fields */}
@@ -1346,51 +1343,85 @@ export default function VendorsTable(props) {
           <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {paginationData.total_count === 0 ? 0 : ((paginationData.page - 1) * paginationData.page_size + 1)} to {Math.min(paginationData.page * paginationData.page_size, paginationData.total_count)} of {paginationData.total_count} results
           </Text>
-          <HStack spacing={4} align="center">
+          <HStack spacing={4} align="center" flexWrap="wrap">
             <HStack spacing={2} align="center">
-              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
-                Show
+              <HStack spacing={1}>
+                <Button
+                  size="sm"
+                  onClick={() => onPageChange && onPageChange(1)}
+                  isDisabled={!paginationData.has_previous}
+                  variant="outline"
+                  aria-label="First page"
+                >
+                  ««
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
+                  isDisabled={!paginationData.has_previous}
+                  variant="outline"
+                  aria-label="Previous page"
+                >
+                  «
+                </Button>
+                {(() => {
+                  const pageNumbers = [];
+                  const totalPages = paginationData.total_pages || 1;
+                  const currentPage = paginationData.page || 1;
+                  const maxVisiblePages = 5;
+
+                  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                  if (endPage - startPage < maxVisiblePages - 1) {
+                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                  }
+
+                  for (let i = startPage; i <= endPage; i++) {
+                    pageNumbers.push(
+                      <Button
+                        key={i}
+                        size="sm"
+                        onClick={() => onPageChange && onPageChange(i)}
+                        variant={i === currentPage ? "solid" : "outline"}
+                        colorScheme={i === currentPage ? "blue" : "gray"}
+                        minW="40px"
+                        aria-label={`Page ${i}`}
+                      >
+                        {i}
+                      </Button>
+                    );
+                  }
+
+                  return pageNumbers;
+                })()}
+                <Button
+                  size="sm"
+                  onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
+                  isDisabled={!paginationData.has_next}
+                  variant="outline"
+                  aria-label="Next page"
+                >
+                  »
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => onPageChange && onPageChange(paginationData.total_pages)}
+                  isDisabled={!paginationData.has_next}
+                  variant="outline"
+                  aria-label="Last page"
+                >
+                  »»
+                </Button>
+              </HStack>
+              <Text fontSize="sm" color={tableTextColorSecondary}>
+                Page {paginationData.page} of {paginationData.total_pages}
               </Text>
-              <Select
-                size="sm"
-                value={paginationData.page_size}
-                onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
-                w="70px"
-                bg={inputBg}
-                borderColor={borderColor}
-                _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-              >
-                <option value={50}>50</option>
-                <option value={80}>80</option>
-                <option value={100}>100</option>
-              </Select>
-              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
-                per page
-              </Text>
-            </HStack>
-            <HStack spacing={2}>
-              <Button
-                size="sm"
-                onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
-                isDisabled={!paginationData.has_previous}
-                variant="outline"
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
-                isDisabled={!paginationData.has_next}
-                variant="outline"
-              >
-                Next
-              </Button>
             </HStack>
           </HStack>
         </Flex>
       </Card>
 
-      {/* Edit Vendor Modal */}
       <Modal isOpen={isEditOpen} onClose={handleCancelEdit}>
         <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
         <ModalContent bg={modalBg} border="1px" borderColor={modalBorder}>

@@ -16,12 +16,10 @@ import {
 import {
   getCountriesApi,
   getCustomersApi,
-  registerCustomerApi,
   updateCustomerApi,
   deleteCustomerApi,
 } from "../../api/customer";
 
-// Get Countries Action
 export const getCountries = () => async (dispatch) => {
   try {
     dispatch(getCountriesStart());
@@ -35,7 +33,6 @@ export const getCountries = () => async (dispatch) => {
   }
 };
 
-// Get Customers Action - no page/page_size; backend returns all. filterParams for filters.
 export const getCustomers = (filterParams = {}) => async (dispatch) => {
   try {
     dispatch(getCustomersStart());
@@ -49,7 +46,6 @@ export const getCustomers = (filterParams = {}) => async (dispatch) => {
   }
 };
 
-// Update Customer Action
 export const updateCustomer = (customerId, data) => async (dispatch) => {
   try {
     dispatch(updateCustomerStart());
@@ -63,7 +59,6 @@ export const updateCustomer = (customerId, data) => async (dispatch) => {
   }
 };
 
-// Delete Customer Action
 export const deleteCustomer = (customerId) => async (dispatch) => {
   try {
     dispatch(deleteCustomerStart());
@@ -77,22 +72,6 @@ export const deleteCustomer = (customerId) => async (dispatch) => {
   }
 };
 
-// Register Customer Action
-export const registerCustomer = (customerData) => async (dispatch) => {
-  try {
-    const result = await registerCustomerApi(customerData);
-    if (result.success) {
-      // Refresh the customers list after successful registration
-      dispatch(getCustomers({}));
-    }
-    return { success: true, data: result };
-  } catch (error) {
-    const errorMessage = error.message || "Failed to register customer";
-    return { success: false, error: errorMessage };
-  }
-};
-
-// Add Customer to Redux Action
 export const addCustomerToRedux = (customerData) => (dispatch) => {
   dispatch(addCustomer(customerData));
   return { success: true };

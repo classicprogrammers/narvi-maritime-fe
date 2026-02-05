@@ -3,7 +3,6 @@ import { useCallback } from "react";
 import {
   getCountries,
   getCustomers,
-  registerCustomer,
   updateCustomer,
   deleteCustomer,
   addCustomerToRedux,
@@ -13,17 +12,12 @@ export const useCustomer = () => {
   const dispatch = useDispatch();
   const customerState = useSelector((state) => state.customer);
 
-  // Memoize the action functions to prevent infinite re-renders
   const getCountriesCallback = useCallback(
     () => dispatch(getCountries()),
     [dispatch]
   );
   const getCustomersCallback = useCallback(
     (filterParams = {}) => dispatch(getCustomers(filterParams)),
-    [dispatch]
-  );
-  const registerCustomerCallback = useCallback(
-    (customerData) => dispatch(registerCustomer(customerData)),
     [dispatch]
   );
   const updateCustomerCallback = useCallback(
@@ -40,7 +34,6 @@ export const useCustomer = () => {
   );
 
   return {
-    // State
     countries: customerState.countries,
     customers: customerState.customers,
     isLoading: customerState.isLoading,
@@ -51,10 +44,8 @@ export const useCustomer = () => {
     deleteError: customerState.deleteError,
     pagination: customerState.pagination,
 
-    // Actions
     getCountries: getCountriesCallback,
     getCustomers: getCustomersCallback,
-    registerCustomer: registerCustomerCallback,
     updateCustomer: updateCustomerCallback,
     deleteCustomer: deleteCustomerCallback,
     addCustomerToRedux: addCustomerToReduxCallback,

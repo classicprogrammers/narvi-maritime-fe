@@ -44,12 +44,10 @@ import { useHistory } from "react-router-dom";
 import { useUser } from "../../../../redux/hooks/useUser";
 import {
   useGlobalFilter,
-  usePagination,
   useSortBy,
   useTable,
 } from "react-table";
 
-// Custom components
 import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
@@ -57,7 +55,6 @@ import { SuccessModal } from "components/modals";
 import { useMasterData } from "../../../../hooks/useMasterData";
 import { refreshMasterData, MASTER_KEYS } from "../../../../utils/masterDataCache";
 
-// Assets
 import {
   MdSearch,
   MdAdd,
@@ -79,9 +76,8 @@ export default function CustomerTable(props) {
     isLoading = false,
     pagination,
     page = 1,
-    pageSize = 50,
+    pageSize = 80,
     onPageChange,
-    onPageSizeChange,
     searchValue: propsSearchValue,
     onSearchChange: propsOnSearchChange,
     filters: propsFilters,
@@ -111,7 +107,6 @@ export default function CustomerTable(props) {
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
   const [showFilterFields, setShowFilterFields] = useState(false);
 
-  // Auto-open advanced filters when any advance filter has data
   const hasAnyAdvanceFilter = filters.client_code || filters.email || filters.country;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
@@ -125,8 +120,6 @@ export default function CustomerTable(props) {
     getCustomers,
   } = useCustomer();
 
-  // Remove client-side pagination state - use backend pagination
-  // const [itemsPerPage, setItemsPerPage] = useState(10);
   const { countries } = useMasterData();
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -144,13 +137,11 @@ export default function CustomerTable(props) {
 
   const cancelRef = useRef();
 
-  // Only admins can delete clients
   const { user } = useUser();
   const isAdmin = user?.user_type === "admin";
 
   const columns = useMemo(() => columnsData, [columnsData]);
 
-  // Apply custom sorting
   const applyCustomSorting = (data) => {
     if (sortOrder === "newest") {
       return [...data].sort((a, b) => new Date(b.created_at || b.id) - new Date(a.created_at || a.id));
@@ -162,17 +153,14 @@ export default function CustomerTable(props) {
     return data;
   };
 
-  // Filter data: when API params are used (isControlled) only filter by parent_id; else apply search + filters client-side
   const filteredCustomers = useMemo(() => {
     let filtered = Array.isArray(tableData) ? [...tableData] : [];
 
-    // Filter to show only parent companies (parent_id === false, null, or undefined)
     filtered = filtered.filter((item) =>
       item.parent_id === false || item.parent_id === null || item.parent_id === undefined
     );
 
     if (!isControlled) {
-      // Client-side: main search = client name only; advance filters = client_code, email
       if (searchValue) {
         filtered = filtered.filter(
           (item) =>
@@ -197,12 +185,10 @@ export default function CustomerTable(props) {
     }
 
     return filtered.map((item) => {
-      // Merge emails
       const emails = [item.email, item.email2]
         .filter(Boolean)
         .join(", ");
 
-      // Normalize children (client people) for tooltip display
       const childrenArray = Array.isArray(item.children) ? item.children : [];
       const childrenCount = childrenArray.length;
 
@@ -263,12 +249,11 @@ export default function CustomerTable(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredCustomers, sortOrder, isControlled]);
 
-  // Use backend pagination - no client-side pagination needed
   const tableInstance = useTable(
     {
       columns,
       data,
-      manualPagination: true, // Tell react-table we're handling pagination server-side
+      manualPagination: true,
     },
     useGlobalFilter,
     useSortBy
@@ -277,14 +262,13 @@ export default function CustomerTable(props) {
   const {
     getTableProps,
     headerGroups,
-    rows: tableRows, // Use all rows since pagination is server-side
+    rows: tableRows,
     prepareRow,
   } = tableInstance;
 
-  // Use backend pagination data
   const paginationData = pagination || {
     page: page || 1,
-    page_size: pageSize || 50,
+    page_size: pageSize || 80,
     total_count: tableData.length || 0,
     total_pages: 1,
     has_next: false,
@@ -329,7 +313,7 @@ export default function CustomerTable(props) {
     clearAllFilters();
     clearAllSorting();
     if (!isControlled) setSearchValue("");
-    setSortOrder("alphabetical");
+    if (!sortOrderControlled) setSortOrder("alphabetical");
   };
 
 
@@ -340,7 +324,6 @@ export default function CustomerTable(props) {
     }));
   };
 
-  // Helper function to handle numbered list on Enter
   const createNumberedListHandler = (field) => {
     return (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -348,30 +331,24 @@ export default function CustomerTable(props) {
         const currentText = e.target.value;
         const cursorPosition = e.target.selectionStart;
 
-        // Get the text before and after cursor
         const textBeforeCursor = currentText.substring(0, cursorPosition);
         const textAfterCursor = currentText.substring(cursorPosition);
 
-        // Find the current line (text from last newline to cursor)
         const lastNewlineIndex = textBeforeCursor.lastIndexOf("\n");
         const currentLine = textBeforeCursor.substring(lastNewlineIndex + 1);
 
-        // If current line is empty, just add a newline
         if (!currentLine.trim()) {
           const newValue = textBeforeCursor + "\n" + textAfterCursor;
           handleEditInputChange(field, newValue);
-          // Set cursor position after the newline
           setTimeout(() => {
             e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1;
           }, 0);
           return;
         }
 
-        // Parse existing numbered items to get the next number
         const allLines = currentText.split("\n");
         let maxNumber = 0;
 
-        // Find the highest number in existing numbered items
         allLines.forEach(line => {
           const match = line.trim().match(/^(\d+)\.\s/);
           if (match) {
@@ -382,24 +359,19 @@ export default function CustomerTable(props) {
           }
         });
 
-        // Check if current line already has a number prefix
         const trimmedCurrentLine = currentLine.trim();
         const hasNumberPrefix = /^\d+\.\s/.test(trimmedCurrentLine);
 
         let newLine;
         if (hasNumberPrefix) {
-          // Already has a number, keep it as is
           newLine = currentLine;
         } else {
-          // Add numbering to current line
           const nextNumber = maxNumber + 1;
-          // Preserve any leading whitespace
           const leadingWhitespace = currentLine.match(/^\s*/)?.[0] || "";
           const lineContent = trimmedCurrentLine;
           newLine = leadingWhitespace + `${nextNumber}. ${lineContent}`;
         }
 
-        // Build the new value
         const linesBefore = lastNewlineIndex >= 0
           ? textBeforeCursor.substring(0, lastNewlineIndex + 1)
           : "";
@@ -407,7 +379,6 @@ export default function CustomerTable(props) {
 
         handleEditInputChange(field, newValue);
 
-        // Set cursor position after the newline
         setTimeout(() => {
           e.target.selectionStart = e.target.selectionEnd = cursorPosition + 1 + (newLine.length - currentLine.length) + 1;
         }, 0);
@@ -418,14 +389,12 @@ export default function CustomerTable(props) {
 
   const handleSaveEdit = async () => {
     try {
-      // Check if customer exists
       if (!editingCustomer || !editingCustomer.id) {
         onEditClose();
         setEditingCustomer(null);
         return;
       }
 
-      // Find the original customer to compare changes
       const originalCustomer = tableData.find(
         (c) => c.id === editingCustomer.id
       );
@@ -436,7 +405,6 @@ export default function CustomerTable(props) {
         return;
       }
 
-      // Validate required fields
       if (!editingCustomer.name || editingCustomer.name.trim() === "") {
         return;
       }
@@ -447,7 +415,6 @@ export default function CustomerTable(props) {
         return;
       }
 
-      // Check if there are any changes
       const hasChanges = Object.keys(editingCustomer).some(
         (key) => editingCustomer[key] !== originalCustomer[key]
       );
@@ -458,7 +425,6 @@ export default function CustomerTable(props) {
         return;
       }
 
-      // Call the API to update the customer
       const result = await updateCustomer(editingCustomer.id, editingCustomer);
 
       if (result.success) {
@@ -471,28 +437,22 @@ export default function CustomerTable(props) {
         else getCustomers({});
       }
     } catch (error) {
-      // Error handling is done by the API modal system
     }
   };
 
   const handleEdit = (customer) => {
     if (!customer || !customer.id) return;
 
-    // Get the complete original object from tableData by matching ID
-    // This ensures we get the full object with all fields including children array
     const original = Array.isArray(tableData)
       ? tableData.find((item) => {
-        // Handle both string and number ID comparisons
         const itemId = item.id;
         const customerId = customer.id;
         return String(itemId) === String(customerId) || itemId === customerId;
       })
       : null;
 
-    // Use the original object if found (contains all original fields), otherwise fall back to customer
     const payload = original || customer;
 
-    // Navigate to the registration page in edit mode with complete data
     history.push('/admin/customer-registration', {
       client: payload,
       clientId: payload.id
@@ -510,34 +470,27 @@ export default function CustomerTable(props) {
   const handleView = (customer) => {
     if (!customer || !customer.id) return;
 
-    // Get the complete original object from tableData by matching ID
-    // This ensures we get the full object with all fields including children array
     const original = Array.isArray(tableData)
       ? tableData.find((item) => {
-        // Handle both string and number ID comparisons
         const itemId = item.id;
         const customerId = customer.id;
         return String(itemId) === String(customerId) || itemId === customerId;
       })
       : null;
 
-    // Use the original object if found (contains all original fields), otherwise fall back to customer
     const payload = original || customer;
 
-    // Navigate to the view page with complete data
     history.push(`/admin/contacts/customer/${customer.id}`, { client: payload });
   };
 
   const confirmDelete = async () => {
     try {
-      // Check if customer still exists
       if (!customerToDelete || !customerToDelete.id) {
         onDeleteClose();
         setCustomerToDelete(null);
         return;
       }
 
-      // Call the API to delete the customer
       const result = await deleteCustomer(customerToDelete.id);
 
       if (result.success) {
@@ -548,10 +501,8 @@ export default function CustomerTable(props) {
         else getCustomers({});
       }
     } catch (error) {
-      // Error handling is done by the API modal system
     }
   };
-
 
   const handleCancelEdit = () => {
     onEditClose();
@@ -587,7 +538,6 @@ export default function CustomerTable(props) {
           </HStack>
         </Flex>
 
-        {/* Enhanced Filter & Sort Section */}
         <Box
           px="25px"
           mb="20px"
@@ -597,7 +547,6 @@ export default function CustomerTable(props) {
           border="1px"
           borderColor={borderColor}
         >
-          {/* Main Controls Row */}
           <HStack
             spacing={6}
             justify="space-between"
@@ -605,7 +554,6 @@ export default function CustomerTable(props) {
             flexWrap="wrap"
             mb={4}
           >
-            {/* Client Name search */}
             <Box flex="1" minW="280px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Client Name
@@ -652,27 +600,44 @@ export default function CustomerTable(props) {
               </InputGroup>
             </Box>
 
-            {/* Search Button - API call only on click */}
-            {propsOnSearch && (
-              <Box>
-                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                  &nbsp;
-                </Text>
-                <Button
-                  size="md"
-                  colorScheme="blue"
-                  leftIcon={<Icon as={MdSearch} />}
-                  onClick={() => propsOnSearch()}
-                  borderRadius="10px"
-                  border="2px"
-                  borderColor={borderColor}
-                >
-                  Search
-                </Button>
-              </Box>
-            )}
+            <Box>
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                &nbsp;
+              </Text>
+              <HStack spacing={3}>
+                {propsOnSearch && (
+                  <Button
+                    size="md"
+                    colorScheme="blue"
+                    leftIcon={<Icon as={MdSearch} />}
+                    onClick={() => propsOnSearch()}
+                    borderRadius="10px"
+                    border="2px"
+                    borderColor={borderColor}
+                  >
+                    Search
+                  </Button>
+                )}
+                {(filters.client_code ||
+                  filters.email ||
+                  filters.country ||
+                  searchValue ||
+                  sortOrder !== "alphabetical") && (
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={clearAllFiltersAndSorting}
+                    colorScheme="red"
+                    _hover={{ bg: "red.50" }}
+                    borderRadius="10px"
+                    border="2px"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </HStack>
+            </Box>
 
-            {/* Filter Button */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Advanced Filters
@@ -699,7 +664,6 @@ export default function CustomerTable(props) {
               </Button>
             </Box>
 
-            {/* Sort Dropdown */}
             <Box>
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Sort Options
@@ -726,33 +690,8 @@ export default function CustomerTable(props) {
                 <option value="oldest">Oldest First</option>
               </Select>
             </Box>
-
-            {/* Clear All */}
-            {(filters.client_code ||
-              filters.email ||
-              filters.country ||
-              searchValue ||
-              sortOrder !== "alphabetical") && (
-                <Box>
-                  <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
-                    &nbsp;
-                  </Text>
-                  <Button
-                    size="md"
-                    variant="outline"
-                    onClick={clearAllFiltersAndSorting}
-                    colorScheme="red"
-                    _hover={{ bg: "red.50" }}
-                    borderRadius="10px"
-                    border="2px"
-                  >
-                    Clear All
-                  </Button>
-                </Box>
-              )}
           </HStack>
 
-          {/* Expandable Filter Fields */}
           {showFilterFields && (
             <Box
               mt={4}
@@ -767,9 +706,7 @@ export default function CustomerTable(props) {
                 Filter by Specific Fields
               </Text>
 
-              {/* First Row - Basic Info */}
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
-                {/* Client Code Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Code
@@ -811,7 +748,6 @@ export default function CustomerTable(props) {
                   </InputGroup>
                 </Box>
 
-                {/* Email Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Email
@@ -853,7 +789,6 @@ export default function CustomerTable(props) {
                   </InputGroup>
                 </Box>
 
-                {/* Country Filter - searchable select */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Country
@@ -886,12 +821,10 @@ export default function CustomerTable(props) {
                 </Box>
               </HStack>
 
-              {/* Additional filters removed to match simplified table */}
             </Box>
           )}
         </Box>
 
-        {/* Table Container with Horizontal Scroll */}
         <Box
           px="15px"
           overflowX="auto"
@@ -1052,7 +985,6 @@ export default function CustomerTable(props) {
                           const childrenCount = Number.isNaN(rawCount) ? 0 : rawCount;
                           const hasPeople = childrenCount > 0;
 
-                          // Quick lookup tooltip content with Job Title / Email
                           const peopleList = Array.isArray(row.original.children_display)
                             ? row.original.children_display
                             : [];
@@ -1063,7 +995,6 @@ export default function CustomerTable(props) {
                                 .map((person) => {
                                   const pieces = [
                                     person.name,
-                                    // Prefer jobTitle but gracefully fall back to job_title
                                     person.jobTitle || person.job_title,
                                     person.email || person.phone,
                                   ].filter(Boolean);
@@ -1171,41 +1102,14 @@ export default function CustomerTable(props) {
           </Table>
         </Box>
 
-        {/* Backend Pagination */}
         <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
-          {/* Results Info */}
           <Text fontSize="sm" color={tableTextColorSecondary}>
             Showing {paginationData.total_count === 0 ? 0 : ((paginationData.page - 1) * paginationData.page_size + 1)} to {Math.min(paginationData.page * paginationData.page_size, paginationData.total_count)} of {paginationData.total_count} results
           </Text>
 
-          {/* Pagination Controls */}
           <HStack spacing={4} align="center" flexWrap="wrap">
-            {/* Rows per page */}
             <HStack spacing={2} align="center">
-              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
-                Show
-              </Text>
-              <Select
-                size="sm"
-                value={paginationData.page_size}
-                onChange={(e) => onPageSizeChange && onPageSizeChange(Number(e.target.value))}
-                w="70px"
-                bg={inputBg}
-                borderColor={borderColor}
-                _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
-              >
-                <option value={50}>50</option>
-                <option value={80}>80</option>
-                <option value={100}>100</option>
-              </Select>
-              <Text fontSize="sm" color={tableTextColorSecondary} whiteSpace="nowrap">
-                per page
-              </Text>
-            </HStack>
-            <HStack spacing={2} align="center">
-            {/* Page Navigation */}
             <HStack spacing={1}>
-              {/* First Page */}
               <Button
                 size="sm"
                 onClick={() => onPageChange && onPageChange(1)}
@@ -1216,7 +1120,6 @@ export default function CustomerTable(props) {
                 ««
               </Button>
 
-              {/* Previous Page */}
               <Button
                 size="sm"
                 onClick={() => onPageChange && onPageChange(paginationData.page - 1)}
@@ -1227,7 +1130,6 @@ export default function CustomerTable(props) {
                 «
               </Button>
 
-              {/* Page Numbers */}
               {(() => {
                 const pageNumbers = [];
                 const totalPages = paginationData.total_pages || 1;
@@ -1237,7 +1139,6 @@ export default function CustomerTable(props) {
                 let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
                 let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
-                // Adjust start page if we're near the end
                 if (endPage - startPage < maxVisiblePages - 1) {
                   startPage = Math.max(1, endPage - maxVisiblePages + 1);
                 }
@@ -1261,7 +1162,6 @@ export default function CustomerTable(props) {
                 return pageNumbers;
               })()}
 
-              {/* Next Page */}
               <Button
                 size="sm"
                 onClick={() => onPageChange && onPageChange(paginationData.page + 1)}
@@ -1272,7 +1172,6 @@ export default function CustomerTable(props) {
                 »
               </Button>
 
-              {/* Last Page */}
               <Button
                 size="sm"
                 onClick={() => onPageChange && onPageChange(paginationData.total_pages)}
@@ -1284,7 +1183,6 @@ export default function CustomerTable(props) {
               </Button>
             </HStack>
 
-            {/* Page Info */}
             <Text fontSize="sm" color={tableTextColorSecondary}>
               Page {paginationData.page} of {paginationData.total_pages}
             </Text>
@@ -1293,7 +1191,6 @@ export default function CustomerTable(props) {
         </Flex>
       </Card>
 
-      {/* Edit Client Modal */}
       <Modal isOpen={isEditOpen} onClose={handleCancelEdit} size="6xl">
         <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
         <ModalContent bg={modalBg} border="1px" borderColor={modalBorder} maxH="90vh" overflowY="auto">
@@ -1307,7 +1204,6 @@ export default function CustomerTable(props) {
           <ModalCloseButton />
           <ModalBody py={6}>
             <VStack spacing={6}>
-              {/* Basic Information Section */}
               <Box w="100%">
                 <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
                   Basic Information
@@ -1394,7 +1290,6 @@ export default function CustomerTable(props) {
                 </Grid>
               </Box>
 
-              {/* Address Information Section */}
               <Box w="100%">
                 <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
                   Address Information
@@ -1495,7 +1390,6 @@ export default function CustomerTable(props) {
                 </Grid>
               </Box>
 
-              {/* Contact Information Section */}
               <Box w="100%">
                 <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
                   Contact Information
@@ -1641,7 +1535,6 @@ export default function CustomerTable(props) {
                 </Grid>
               </Box>
 
-              {/* Additional Information Section */}
               <Box w="100%">
                 <Text fontSize="lg" fontWeight="600" color={textColor} mb={4}>
                   Additional Information
@@ -1686,7 +1579,6 @@ export default function CustomerTable(props) {
         </ModalContent>
       </Modal>
 
-      {/* Success Modal */}
       <SuccessModal
         isOpen={isSuccessOpen}
         onClose={() => setIsSuccessOpen(false)}
@@ -1694,7 +1586,6 @@ export default function CustomerTable(props) {
         message={successMessage}
       />
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog
         isOpen={isDeleteOpen}
         leastDestructiveRef={cancelRef}
