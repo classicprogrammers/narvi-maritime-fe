@@ -3,7 +3,7 @@ import api from "./axios";
 export async function getSuppliers(params = {}) {
   const requestParams = {
     page: params.page != null && params.page >= 1 ? params.page : 1,
-    page_size: (params.page_size != null && params.page_size > 0) ? params.page_size : 80,
+    page_size: params.page_size === 'all' ? 'all' : ((params.page_size != null && params.page_size > 0) ? params.page_size : 80),
   };
   if (params.search != null && String(params.search).trim() !== "") {
     requestParams.search = String(params.search).trim();

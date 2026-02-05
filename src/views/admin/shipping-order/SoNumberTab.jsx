@@ -138,7 +138,7 @@ const SoNumberTab = () => {
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize] = useState(80);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -1657,32 +1657,14 @@ const SoNumberTab = () => {
       </Box>
 
       {/* Pagination Controls */}
-      {totalPages > 0 && (
-        <Box px="25px">
-          <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-            {/* Page Size Selector and Info */}
-            <HStack spacing={3}>
-              <Text fontSize="sm" color="gray.600">
-                Show
-              </Text>
-              <Select
-                size="sm"
-                w="80px"
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-              >
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={80}>80</option>
-                <option value={100}>100</option>
-              </Select>
-              <Text fontSize="sm" color="gray.600">
-                per page
-              </Text>
-              <Text fontSize="sm" color="gray.600" ml={2}>
-                Showing {orders.length} of {totalCount} records
-              </Text>
-            </HStack>
+      <Box px="25px">
+        <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+          <HStack spacing={3}>
+            <Text fontSize="sm" color="gray.600">
+              Showing {(page - 1) * pageSize + 1} to{" "}
+              {totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount)} of {totalCount} records
+            </Text>
+          </HStack>
 
             {/* Pagination buttons */}
             <HStack spacing={2}>
@@ -1750,7 +1732,6 @@ const SoNumberTab = () => {
             </HStack>
           </Flex>
         </Box>
-      )}
 
       <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
         <ModalOverlay />

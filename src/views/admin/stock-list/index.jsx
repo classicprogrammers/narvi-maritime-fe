@@ -136,7 +136,7 @@ export default function StockList() {
 
     // Pagination state
     const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(50);
+    const [pageSize] = useState(80);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [hasNext, setHasNext] = useState(false);
@@ -2276,34 +2276,16 @@ export default function StockList() {
                     </Table>
 
                     {/* Pagination Controls */}
-                    {(totalPages > 0 || totalCount > pageSize || stockList.length >= pageSize) && (
-                        <Box px="25px" mt={4}>
-                            <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-                                {/* Page Size Selector and Info */}
-                                <HStack spacing={3}>
-                                    <Text fontSize="sm" color="gray.600">
-                                        Show
-                                    </Text>
-                                    <Select
-                                        size="sm"
-                                        w="80px"
-                                        value={pageSize}
-                                        onChange={(e) => setPageSize(Number(e.target.value))}
-                                    >
-                                        <option value={20}>20</option>
-                                        <option value={50}>50</option>
-                                        <option value={80}>80</option>
-                                        <option value={100}>100</option>
-                                    </Select>
-                                    <Text fontSize="sm" color="gray.600">
-                                        per page
-                                    </Text>
-                                    <Text fontSize="sm" color="gray.600" ml={2}>
-                                        Showing {stockList.length} of {totalCount || stockList.length} records
-                                    </Text>
-                                </HStack>
+                    <Box px="25px" mt={4}>
+                        <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+                            <HStack spacing={3}>
+                                <Text fontSize="sm" color="gray.600">
+                                    Showing {(page - 1) * pageSize + 1} to{" "}
+                                    {totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount)} of {totalCount} records
+                                </Text>
+                            </HStack>
 
-                                {/* Pagination buttons */}
+                            {/* Pagination buttons */}
                                 <HStack spacing={2}>
                                     <Button
                                         size="sm"
@@ -2323,9 +2305,8 @@ export default function StockList() {
                                     </Button>
 
                                     {/* Page numbers */}
-                                    {totalPages > 0 && (
-                                        <HStack spacing={1}>
-                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    <HStack spacing={1}>
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                                 let pageNum;
                                                 if (totalPages <= 5) {
                                                     pageNum = i + 1;
@@ -2349,8 +2330,7 @@ export default function StockList() {
                                                     </Button>
                                                 );
                                             })}
-                                        </HStack>
-                                    )}
+                                    </HStack>
 
                                     <Button
                                         size="sm"
@@ -2360,20 +2340,17 @@ export default function StockList() {
                                     >
                                         Next
                                     </Button>
-                                    {totalPages > 0 && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => setPage(totalPages)}
-                                            isDisabled={!hasNext || page === totalPages}
-                                        >
-                                            Last
-                                        </Button>
-                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setPage(totalPages)}
+                                        isDisabled={!hasNext || page === totalPages}
+                                    >
+                                        Last
+                                    </Button>
                                 </HStack>
                             </Flex>
                         </Box>
-                    )}
                 </Box>
 
             </Card>

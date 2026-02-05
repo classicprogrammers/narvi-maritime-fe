@@ -19,7 +19,7 @@ try {
   if (token) localStorage.setItem("token", token);
   if (user) localStorage.setItem("user", user);
   sessionStorage.clear();
-} catch (_) {}
+} catch (_) { }
 
 const container = document.getElementById("root");
 const root = createRoot(container);

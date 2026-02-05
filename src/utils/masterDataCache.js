@@ -1,8 +1,18 @@
 /**
  * Master data cache: clients, agents, countries, vessels, suppliers, pics, destinations, currencies.
- * Fetched once after login and stored in memory (session only). Refreshed when
- * the user makes changes in the respective module.
- * No localStorage - only user and token are persisted.
+ * Fetched after login via preloadAll() and stored in memory + localStorage.
+ * Persisted in localStorage so data survives page refresh and avoids repeated API calls.
+ * Refreshed when the user makes changes in the respective module (refreshMasterData).
+ *
+ * APIs fetched after login (preloadAll):
+ * 1. Clients   - GET /api/customers
+ * 2. Agents    - GET /api/vendors
+ * 3. Countries - GET /api/countries
+ * 4. Vessels   - GET /api/vessels?page_size=all
+ * 5. Suppliers - GET /api/suppliers
+ * 6. PICs      - GET /api/person/incharge/list
+ * 7. Destinations - GET /api/destinations
+ * 8. Currencies   - GET /api/currencies
  */
 
 import { getCustomersForSelect } from '../api/entitySelects';
@@ -25,24 +35,46 @@ export const MASTER_KEYS = {
   CURRENCIES: 'currencies',
 };
 
-// In-memory cache (session only, cleared on page refresh)
+const LS_PREFIX = 'masterData_';
+
+// In-memory cache (fast access; hydrated from localStorage on first read after refresh)
 const memoryCache = {};
 
 /**
- * Get cached data from memory. Returns null if missing or invalid.
+ * Get cached data. Checks memory first, then localStorage (hydrates memory if found).
+ * Returns null if missing or invalid.
  */
 export function getCached(key) {
-  const cached = memoryCache[key];
-  if (!cached) return null;
-  return Array.isArray(cached) ? cached : cached?.data ?? null;
+  let cached = memoryCache[key];
+  if (cached != null) {
+    return Array.isArray(cached) ? cached : cached?.data ?? null;
+  }
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : parsed?.data ?? null;
+    if (list != null) {
+      memoryCache[key] = list;
+      return list;
+    }
+  } catch (e) {
+    console.warn('[masterDataCache] localStorage parse failed for', key, e);
+  }
+  return null;
 }
 
 /**
- * Store data in memory cache.
+ * Store data in memory and localStorage.
  */
 export function setCached(key, data) {
   const toStore = Array.isArray(data) ? data : (data ?? []);
   memoryCache[key] = toStore;
+  try {
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify(toStore));
+  } catch (e) {
+    console.warn('[masterDataCache] localStorage set failed for', key, e);
+  }
 }
 
 /**
@@ -65,7 +97,7 @@ async function fetchAndCacheClients() {
  */
 async function fetchAndCacheAgents() {
   try {
-    const data = await getVendorsApi();
+    const data = await getVendorsApi({ page_size: 'all' });
     const list = Array.isArray(data) ? data : data?.agents ?? data?.vendors ?? [];
     setCached(MASTER_KEYS.AGENTS, list);
     return list;
@@ -110,7 +142,7 @@ async function fetchAndCacheVessels() {
  */
 async function fetchAndCacheSuppliers() {
   try {
-    const result = await getSuppliers();
+    const result = await getSuppliers({ page_size: 'all' });
     const list = Array.isArray(result?.suppliers) ? result.suppliers : [];
     setCached(MASTER_KEYS.SUPPLIERS, list);
     return list;
@@ -186,23 +218,23 @@ const fetchers = {
 };
 
 /**
- * Preload all master data (clients, agents, countries, vessels, suppliers) and store in memory.
- * Call after login and optionally when admin layout mounts (if cache empty).
+ * Preload all master data. Uses localStorage if available (avoids API calls on refresh).
+ * Fetches from API only when cache is empty for that key.
+ * Call after login and when admin layout mounts (if cache empty).
  */
 export async function preloadAll() {
   const token = localStorage.getItem('token');
   if (!token) return;
 
-  await Promise.all([
-    fetchAndCacheClients(),
-    fetchAndCacheAgents(),
-    fetchAndCacheCountries(),
-    fetchAndCacheVessels(),
-    fetchAndCacheSuppliers(),
-    fetchAndCachePics(),
-    fetchAndCacheDestinations(),
-    fetchAndCacheCurrencies(),
-  ]);
+  const toFetch = [];
+  for (const key of Object.values(MASTER_KEYS)) {
+    const cached = getCached(key);
+    const hasCached = cached !== null && Array.isArray(cached);
+    if (!hasCached) {
+      toFetch.push(fetchers[key]());
+    }
+  }
+  await Promise.all(toFetch);
 }
 
 /**
@@ -217,10 +249,15 @@ export async function refreshMasterData(key) {
 }
 
 /**
- * Clear all master data from memory (e.g. on logout).
+ * Clear all master data from memory and localStorage (e.g. on logout).
  */
 export function clearMasterData() {
   Object.values(MASTER_KEYS).forEach((k) => {
     delete memoryCache[k];
+    try {
+      localStorage.removeItem(LS_PREFIX + k);
+    } catch (e) {
+      // ignore
+    }
   });
 }

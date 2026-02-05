@@ -330,7 +330,7 @@ export const getVendorsApi = async (filterParams = {}) => {
       const page = filterParams.page;
       if (page != null && page >= 1) params.page = page;
       const pageSize = filterParams.page_size;
-      params.page_size = (pageSize != null && pageSize > 0) ? pageSize : 80;
+      params.page_size = pageSize === 'all' ? 'all' : ((pageSize != null && pageSize > 0) ? pageSize : 80);
       if (filterParams.sort_by != null && String(filterParams.sort_by).trim() !== "")
         params.sort_by = String(filterParams.sort_by).trim();
       if (filterParams.sort_order != null && String(filterParams.sort_order).trim() !== "")

@@ -30,7 +30,7 @@ export const getUsersForSelect = async (searchTerm = '') => {
 // Get customers/partners for select dropdown
 export const getCustomersForSelect = async (searchTerm = '') => {
   try {
-    const response = await api.get('/api/customers');
+    const response = await api.get('/api/customers', { params: { page_size: 'all' } });
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
