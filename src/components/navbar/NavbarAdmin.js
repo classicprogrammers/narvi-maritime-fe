@@ -83,7 +83,7 @@ export default function AdminNavbar(props) {
 				base: "100%",
 				xl:
 					toggleSidebar || isSidebarHovered
-						? "calc(100vw - 350px)"
+						? "calc(100vw - 358px)"
 						: "calc(100vw - 135px)",
 			}}
 			pointerEvents="auto"
@@ -98,20 +98,20 @@ export default function AdminNavbar(props) {
 				mb={gap}>
 				<Box mb={{ sm: '8px', md: '0px' }}>
 					<Breadcrumb>
-						<BreadcrumbItem color={secondaryText} fontSize='sm' mb='5px'>
+						<BreadcrumbItem color={secondaryText} fontSize='lg'>
 							<BreadcrumbLink href='#' color={secondaryText}>
 								Pages
 							</BreadcrumbLink>
 						</BreadcrumbItem>
 
-						<BreadcrumbItem color={secondaryText} fontSize='sm' mb='5px'>
+						<BreadcrumbItem color={secondaryText} fontSize='lg'>
 							<BreadcrumbLink href='#' color={secondaryText}>
 								{brandText}
 							</BreadcrumbLink>
 						</BreadcrumbItem>
 					</Breadcrumb>
 					{/* Here we create navbar brand, based on route name */}
-					<Link
+					{/* <Link
 						color={mainText}
 						href='#'
 						bg='inherit'
@@ -128,7 +128,7 @@ export default function AdminNavbar(props) {
 							boxShadow: 'none'
 						}}>
 						{brandText}
-					</Link>
+					</Link> */}
 				</Box>
 				<Box ms='auto' w={{ sm: '100%', md: 'unset' }}>
 					<AdminNavbarLinks

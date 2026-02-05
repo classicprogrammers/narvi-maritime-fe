@@ -5,6 +5,7 @@ import {
   Heading,
   Text,
   Button,
+  Icon,
   IconButton,
   Table,
   Thead,
@@ -17,10 +18,19 @@ import {
   useColorModeValue,
   Spinner,
   HStack,
-  Select,
   InputGroup,
   InputLeftElement,
   InputRightElement,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  ModalCloseButton,
+  useDisclosure,
+  FormControl,
+  FormLabel,
 } from "@chakra-ui/react";
 import { MdAdd, MdEdit, MdDelete, MdSearch, MdClear } from "react-icons/md";
 import {
@@ -38,13 +48,10 @@ export default function Suppliers() {
   const [editingId, setEditingId] = useState(null);
   const [nameInput, setNameInput] = useState("");
 
-  // Search state
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Pagination state
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const pageSize = 80;
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -53,6 +60,7 @@ export default function Suppliers() {
   const [sortOrder, setSortOrder] = useState("desc");
 
   const toast = useToast();
+  const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const pageBg = useColorModeValue("gray.50", "gray.900");
   const cardBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -100,25 +108,21 @@ export default function Suppliers() {
     loadSuppliers();
   }, [loadSuppliers]);
 
-  // Reset to first page when page size or search changes
   useEffect(() => {
     setPage(1);
-  }, [pageSize, searchQuery]);
+  }, [searchQuery]);
 
-  // Handle search button click
   const handleSearch = () => {
     setSearchQuery(searchValue.trim());
-    setPage(1); // Reset to first page when searching
+    setPage(1);
   };
 
-  // Handle Enter key in search input
   const handleSearchKeyPress = (e) => {
     if (e.key === "Enter") {
       handleSearch();
     }
   };
 
-  // Handle clear search
   const handleClearSearch = () => {
     setSearchValue("");
     setSearchQuery("");
@@ -128,6 +132,19 @@ export default function Suppliers() {
   const resetForm = () => {
     setEditingId(null);
     setNameInput("");
+    onModalClose();
+  };
+
+  const handleOpenAdd = () => {
+    setEditingId(null);
+    setNameInput("");
+    onModalOpen();
+  };
+
+  const handleOpenEdit = (supplier) => {
+    setEditingId(supplier.id);
+    setNameInput(supplier.name || "");
+    onModalOpen();
   };
 
   const handleSubmit = async () => {
@@ -174,7 +191,9 @@ export default function Suppliers() {
       }
 
       await loadSuppliers();
-      resetForm();
+      onModalClose();
+      setEditingId(null);
+      setNameInput("");
     } catch (error) {
       const errorMessage =
         error?.response?.data?.message ||
@@ -193,10 +212,6 @@ export default function Suppliers() {
     }
   };
 
-  const handleEdit = (supplier) => {
-    setEditingId(supplier.id);
-    setNameInput(supplier.name || "");
-  };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this supplier?")) return;
@@ -215,9 +230,11 @@ export default function Suppliers() {
         isClosable: true,
       });
       await loadSuppliers();
-      refreshMasterData(MASTER_KEYS.SUPPLIERS).catch(() => {});
+      refreshMasterData(MASTER_KEYS.SUPPLIERS).catch(() => { });
       if (editingId === id) {
-        resetForm();
+        setEditingId(null);
+        setNameInput("");
+        onModalClose();
       }
     } catch (error) {
       const errorMessage =
@@ -238,7 +255,7 @@ export default function Suppliers() {
   };
 
   return (
-    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={pageBg} minH="100vh">
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={pageBg}>
       <Box px="25px">
         <Flex justify="space-between" align="center" mb={6}>
           <Box>
@@ -246,9 +263,12 @@ export default function Suppliers() {
               Suppliers
             </Heading>
             <Text fontSize="sm" color="gray.500">
-              Manage suppliers synced with Odoo
+              Manage suppliers
             </Text>
           </Box>
+          <Button leftIcon={<Icon as={MdAdd} />} colorScheme="blue" onClick={handleOpenAdd}>
+            Add Supplier
+          </Button>
         </Flex>
 
         {/* Search Box */}
@@ -311,37 +331,6 @@ export default function Suppliers() {
           borderColor={borderColor}
           borderRadius="lg"
           p={4}
-          mb={6}
-        >
-          <Flex gap={3} align="center">
-            <Input
-              placeholder="Supplier name"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              maxW="400px"
-            />
-            <Button
-              leftIcon={<MdAdd />}
-              colorScheme="blue"
-              onClick={handleSubmit}
-              isLoading={isSaving}
-            >
-              {editingId ? "Update Supplier" : "Add Supplier"}
-            </Button>
-            {editingId && (
-              <Button variant="ghost" onClick={resetForm}>
-                Cancel
-              </Button>
-            )}
-          </Flex>
-        </Box>
-
-        <Box
-          bg={cardBg}
-          border="1px"
-          borderColor={borderColor}
-          borderRadius="lg"
-          p={4}
         >
           {isLoading ? (
             <Flex justify="center" align="center" py={10}>
@@ -353,42 +342,61 @@ export default function Suppliers() {
             </Text>
           ) : (
             <>
-              <Table size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>ID</Th>
-                    <Th>Name</Th>
-                    <Th textAlign="right">Actions</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {suppliers.map((supplier) => (
-                    <Tr key={supplier.id}>
-                      <Td>{supplier.id}</Td>
-                      <Td>{supplier.name}</Td>
-                      <Td textAlign="right">
-                        <IconButton
-                          aria-label="Edit supplier"
-                          icon={<MdEdit />}
-                          size="sm"
-                          mr={2}
-                          onClick={() => handleEdit(supplier)}
-                        />
-                        <IconButton
-                          aria-label="Delete supplier"
-                          icon={<MdDelete />}
-                          size="sm"
-                          colorScheme="red"
-                          variant="outline"
-                          onClick={() => handleDelete(supplier.id)}
-                        />
-                      </Td>
+              <Box
+                maxH="600px"
+                overflowY="auto"
+                border="1px"
+                borderColor={borderColor}
+                borderRadius="8px"
+                sx={{
+                  "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                  "&::-webkit-scrollbar-track": {
+                    background: "gray.100",
+                    borderRadius: "4px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    background: "gray.300",
+                    borderRadius: "4px",
+                  },
+                  "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                }}
+              >
+                <Table size="sm">
+                  <Thead bg="gray.100" position="sticky" top={0} zIndex={1}>
+                    <Tr>
+                      <Th>ID</Th>
+                      <Th>Name</Th>
+                      <Th textAlign="right">Actions</Th>
                     </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+                  </Thead>
+                  <Tbody>
+                    {suppliers.map((supplier) => (
+                      <Tr key={supplier.id}>
+                        <Td>{supplier.id}</Td>
+                        <Td>{supplier.name}</Td>
+                        <Td textAlign="right">
+                          <IconButton
+                            aria-label="Edit supplier"
+                            icon={<MdEdit />}
+                            size="sm"
+                            mr={2}
+                            onClick={() => handleOpenEdit(supplier)}
+                          />
+                          <IconButton
+                            aria-label="Delete supplier"
+                            icon={<MdDelete />}
+                            size="sm"
+                            colorScheme="red"
+                            variant="outline"
+                            onClick={() => handleDelete(supplier.id)}
+                          />
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </Box>
 
-              {/* Pagination Controls */}
               {totalPages > 0 && (
                 <Flex
                   justify="space-between"
@@ -400,31 +408,9 @@ export default function Suppliers() {
                   flexWrap="wrap"
                   gap={4}
                 >
-                  {/* Page Size Selector and Info */}
-                  <HStack spacing={2}>
-                    <Text fontSize="sm" color="gray.500">
-                      Show
-                    </Text>
-                    <Select
-                      size="sm"
-                      w="80px"
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                    >
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                      <option value={80}>80</option>
-                      <option value={100}>100</option>
-                    </Select>
-                    <Text fontSize="sm" color="gray.500">
-                      per page
-                    </Text>
-                    <Text fontSize="sm" color="gray.500" ml={2}>
-                      Showing {suppliers.length} of {totalCount} records
-                    </Text>
-                  </HStack>
-
-                  {/* Pagination buttons */}
+                  <Text fontSize="sm" color="gray.500">
+                    Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} records
+                  </Text>
                   <HStack spacing={2}>
                     <Button
                       size="sm"
@@ -443,7 +429,6 @@ export default function Suppliers() {
                       Previous
                     </Button>
 
-                    {/* Page numbers */}
                     <HStack spacing={1}>
                       {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                         let pageNum;
@@ -494,6 +479,33 @@ export default function Suppliers() {
           )}
         </Box>
       </Box>
+
+      <Modal isOpen={isModalOpen} onClose={resetForm} size="md">
+        <ModalOverlay />
+        <ModalContent bg={cardBg}>
+          <ModalHeader>{editingId ? "Edit Supplier" : "Add Supplier"}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <FormControl isRequired>
+              <FormLabel>Supplier name</FormLabel>
+              <Input
+                placeholder="Enter supplier name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                bg={inputBg}
+              />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={resetForm}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleSubmit} isLoading={isSaving}>
+              {editingId ? "Update Supplier" : "Create Supplier"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

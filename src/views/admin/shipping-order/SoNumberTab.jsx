@@ -1591,10 +1591,18 @@ const SoNumberTab = () => {
         border="1px"
         borderColor={borderColor}
         borderRadius="12px"
+        maxH="600px"
         overflowX="auto"
+        overflowY="auto"
+        sx={{
+          "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+          "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+          "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+          "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+        }}
       >
         <Table size="sm" variant="simple" minW="1400px">
-          <Thead bg={tableHeaderBg}>
+          <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
             <Tr>
               {[
                 { label: "SO Number", field: "so_number", sortable: true },

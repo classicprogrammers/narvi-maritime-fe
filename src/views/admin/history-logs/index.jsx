@@ -205,7 +205,17 @@ const HistoryLogs = () => {
                         <Text color={textColor}>Loading logs...</Text>
                     </Flex>
                 ) : logs.length === 0 ? (
-                    <Box maxH="600px" overflow="auto">
+                    <Box
+                        maxH="600px"
+                        overflowY="auto"
+                        overflowX="hidden"
+                        sx={{
+                            "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                            "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                            "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                            "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                        }}
+                    >
                         {/* Mock data when no logs are present */}
                         <Box
                             px="4"
@@ -225,7 +235,17 @@ const HistoryLogs = () => {
                         </Box>
                     </Box>
                 ) : (
-                    <Box maxH="600px" overflow="auto">
+                    <Box
+                        maxH="600px"
+                        overflowY="auto"
+                        overflowX="hidden"
+                        sx={{
+                            "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                            "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                            "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                            "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                        }}
+                    >
                         {logs
                             .slice((page - 1) * uiPageSize, page * uiPageSize)
                             .map((log, idx) => {

@@ -1,36 +1,27 @@
 import api from "./axios";
 
-// Fetch list of suppliers - use page_size=all to get all records (pagination handled client-side if needed)
 export async function getSuppliers(params = {}) {
-  const {
-    sort_by = "id",
-    sort_order = "desc",
-    search = "",
-  } = params;
-
   const requestParams = {
-    page_size: "all",
-    sort_by,
-    sort_order,
+    page: params.page != null && params.page >= 1 ? params.page : 1,
+    page_size: (params.page_size != null && params.page_size > 0) ? params.page_size : 80,
   };
-
-  // Include search parameter if provided (API uses ?search=)
-  const trimmedSearch = search ? search.trim() : "";
-  if (trimmedSearch) {
-    requestParams.search = trimmedSearch;
+  if (params.search != null && String(params.search).trim() !== "") {
+    requestParams.search = String(params.search).trim();
+  }
+  if (params.sort_by != null && String(params.sort_by).trim() !== "") {
+    requestParams.sort_by = String(params.sort_by).trim();
+  }
+  if (params.sort_order != null && String(params.sort_order).trim() !== "") {
+    requestParams.sort_order = String(params.sort_order).trim();
   }
 
-  const response = await api.get("/api/suppliers", {
-    params: requestParams,
-  });
+  const response = await api.get("/api/suppliers", { params: requestParams });
   const data = response.data || response;
 
-  // If backend reports an error status, surface that up to caller
   if (data.status === "error") {
     throw new Error(data.message || "Failed to fetch suppliers");
   }
 
-  // Return full response with pagination metadata
   const suppliersList = Array.isArray(data.suppliers) ? data.suppliers : [];
   if (data.status === "success") {
     return {
@@ -38,12 +29,12 @@ export async function getSuppliers(params = {}) {
       count: data.count ?? suppliersList.length,
       total_count: data.total_count ?? suppliersList.length,
       page: data.page ?? 1,
-      page_size: data.page_size ?? "all",
+      page_size: data.page_size ?? 80,
       total_pages: data.total_pages ?? 1,
       has_next: data.has_next ?? false,
       has_previous: data.has_previous ?? false,
-      sort_by: data.sort_by ?? sort_by,
-      sort_order: data.sort_order ?? sort_order,
+      sort_by: data.sort_by ?? requestParams.sort_by ?? "id",
+      sort_order: data.sort_order ?? requestParams.sort_order ?? "desc",
     };
   }
 
@@ -52,12 +43,12 @@ export async function getSuppliers(params = {}) {
     count: 0,
     total_count: 0,
     page: 1,
-    page_size: "all",
+    page_size: 80,
     total_pages: 0,
     has_next: false,
     has_previous: false,
-    sort_by: sort_by,
-    sort_order: sort_order,
+    sort_by: requestParams.sort_by ?? "id",
+    sort_order: requestParams.sort_order ?? "desc",
   };
 }
 

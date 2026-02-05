@@ -17,7 +17,7 @@ import {
   Icon,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { MdSearch, MdOpenInNew } from "react-icons/md";
+import { MdSearch, MdOpenInNew, MdClear } from "react-icons/md";
 import Card from "components/card/Card";
 import { getCustomersApi } from "api/customer";
 import { getVendorsApi } from "api/vendor";
@@ -40,21 +40,48 @@ const Phonebook = () => {
   const [rows, setRows] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(false);
 
+  const fetchAllCustomers = React.useCallback(async () => {
+    const list = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const res = await getCustomersApi({ page, page_size: 80, sort_by: "name", sort_order: "asc" });
+      const batch = Array.isArray(res?.customers) ? res.customers : Array.isArray(res) ? res : [];
+      list.push(...batch);
+      hasMore = res?.has_next === true && batch.length > 0;
+      page += 1;
+    }
+    return list;
+  }, []);
+
+  const fetchAllAgents = React.useCallback(async () => {
+    const list = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const res = await getVendorsApi({ page, page_size: 80, sort_by: "name", sort_order: "asc" });
+      const batch = Array.isArray(res?.agents)
+        ? res.agents
+        : Array.isArray(res?.vendors)
+          ? res.vendors
+          : Array.isArray(res)
+            ? res
+            : [];
+      list.push(...batch);
+      hasMore = res?.has_next === true && batch.length > 0;
+      page += 1;
+    }
+    return list;
+  }, []);
+
   const fetchData = React.useCallback(async () => {
     try {
       setIsLoading(true);
       const allRows = [];
 
       if (source === "client" || source === "all") {
-        // Fetch clients
-        const clientData = await getCustomersApi();
-        const clientList = Array.isArray(clientData?.customers)
-          ? clientData.customers
-          : Array.isArray(clientData)
-            ? clientData
-            : [];
+        const clientList = await fetchAllCustomers();
 
-        // Filter to show only top-level clients (parent_id === false/null/undefined)
         const topLevelClients = clientList.filter((c) => {
           const parentValue = c?.parent_id ?? c?.parentId ?? c?.parent;
           return (
@@ -110,15 +137,8 @@ const Phonebook = () => {
       }
 
       if (source === "agent" || source === "all") {
-        // Fetch agents
-        const agentData = await getVendorsApi();
-        const agentList = Array.isArray(agentData?.agents)
-          ? agentData.agents
-          : Array.isArray(agentData)
-            ? agentData
-            : [];
+        const agentList = await fetchAllAgents();
 
-        // Filter to show only top-level agents (parent_id === false/null/undefined)
         const topLevelAgents = agentList.filter((a) => {
           const parentValue = a?.parent_id ?? a?.parentId ?? a?.parent;
           return (
@@ -180,7 +200,7 @@ const Phonebook = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [source]);
+  }, [source, fetchAllCustomers, fetchAllAgents]);
 
   React.useEffect(() => {
     fetchData();
@@ -211,6 +231,17 @@ const Phonebook = () => {
     }
   };
 
+  const hasActiveFilters = source !== "all" || company.trim() || person.trim() || email.trim() || phone.trim() || dbId.trim();
+
+  const handleClearAll = () => {
+    setSource("all");
+    setCompany("");
+    setPerson("");
+    setEmail("");
+    setPhone("");
+    setDbId("");
+  };
+
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
       <Card direction="column" w="100%" px="0px" overflowX={{ sm: "scroll", lg: "hidden" }}>
@@ -234,6 +265,11 @@ const Phonebook = () => {
               <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} bg={inputBg} w={{ base: "100%", md: "180px" }} />
               <Input placeholder="DB ID / Code" value={dbId} onChange={(e) => setDbId(e.target.value)} bg={inputBg} w={{ base: "100%", md: "150px" }} />
               <Button leftIcon={<Icon as={MdSearch} />} onClick={fetchData} isLoading={isLoading} colorScheme="blue">Refresh</Button>
+              {hasActiveFilters && (
+                <Button leftIcon={<Icon as={MdClear} />} onClick={handleClearAll} variant="outline" colorScheme="red" _hover={{ bg: "red.50" }}>
+                  Clear All
+                </Button>
+              )}
             </HStack>
 
             <Box border="1px" borderColor={borderColor} borderRadius="md" overflow="auto">

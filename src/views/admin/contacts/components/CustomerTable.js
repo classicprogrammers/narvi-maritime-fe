@@ -827,9 +827,12 @@ export default function CustomerTable(props) {
 
         <Box
           px="15px"
+          maxH="600px"
           overflowX="auto"
+          overflowY="auto"
           css={{
             "&::-webkit-scrollbar": {
+              width: "8px",
               height: "8px",
             },
             "&::-webkit-scrollbar-track": {
@@ -851,7 +854,7 @@ export default function CustomerTable(props) {
             size="sm"
             minW="600px"
           >
-            <Thead bg={tableHeaderBg}>
+            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
               {headerGroups.map((headerGroup, index) => (
                 <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
                   {headerGroup.headers.map((column, index) => (

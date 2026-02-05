@@ -957,12 +957,14 @@ export default function VendorsTable(props) {
           )}
         </Box>
 
-        {/* Table Container with Horizontal Scroll */}
         <Box
           px="15px"
+          maxH="600px"
           overflowX="auto"
+          overflowY="auto"
           css={{
             "&::-webkit-scrollbar": {
+              width: "8px",
               height: "8px",
             },
             "&::-webkit-scrollbar-track": {
@@ -984,7 +986,7 @@ export default function VendorsTable(props) {
             size="sm"
             minW="800px"
           >
-            <Thead bg={tableHeaderBg}>
+            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
               {headerGroups.map((headerGroup, index) => (
                 <Tr {...headerGroup.getHeaderGroupProps()} key={index}>
                   {headerGroup.headers.map((column, index) => (

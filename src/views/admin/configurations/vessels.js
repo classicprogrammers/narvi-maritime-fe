@@ -65,26 +65,18 @@ export default function Vessels() {
   const [vessels, setVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Search state
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Pagination state
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const pageSize = 80;
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
   const [sortBy, setSortBy] = useState("id");
   const [sortOrder, setSortOrder] = useState("desc");
-  
   const [editingVessel, setEditingVessel] = useState(null);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
-
-
-  // API data state
-
   const [customers, setCustomers] = useState([]);
   const [isLoadingApiData, setIsLoadingApiData] = useState(false);
 
@@ -193,14 +185,12 @@ export default function Vessels() {
     }
   }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
 
-  // Fetch API data for dropdowns (customers only)
   const fetchApiData = useCallback(async () => {
     try {
       setIsLoadingApiData(true);
-      const customersResponse = await getCustomersApi();
+      const customersResponse = await getCustomersApi({ page: 1, page_size: 80 });
       const customersData = customersResponse.customers || customersResponse;
       setCustomers(Array.isArray(customersData) ? customersData : []);
-
     } catch (error) {
       console.error("Error fetching API data:", error);
       toast({
@@ -215,38 +205,32 @@ export default function Vessels() {
     }
   }, [toast]);
 
-  // Load vessels and API data on component mount
   useEffect(() => {
     fetchVessels();
     fetchApiData();
   }, [fetchVessels, fetchApiData]);
 
-  // Reset to first page when page size or search changes
   useEffect(() => {
     setPage(1);
-  }, [pageSize, searchQuery]);
+  }, [searchQuery]);
 
-  // Handle search button click
   const handleSearch = () => {
     setSearchQuery(searchValue.trim());
-    setPage(1); // Reset to first page when searching
+    setPage(1);
   };
 
-  // Handle Enter key in search input
   const handleSearchKeyPress = (e) => {
     if (e.key === "Enter") {
       handleSearch();
     }
   };
 
-  // Handle clear search
   const handleClearSearch = () => {
     setSearchValue("");
     setSearchQuery("");
     setPage(1);
   };
 
-  // Handle form input changes
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -254,7 +238,6 @@ export default function Vessels() {
     }));
   };
 
-  // Reset form
   const resetForm = () => {
     setFormData({
       name: "",
@@ -270,21 +253,16 @@ export default function Vessels() {
   };
 
 
-  // Open modal for creating new vessel
   const handleNewVessel = () => {
     resetForm();
     onModalOpen();
   };
 
-  // // Open modal for editing vessel
   const handleEditVessel = async (vessel) => {
     try {
       setIsLoading(true);
       onModalOpen();
-      // Fetch vessel data from the singular vessel API
       const vesselData = await vesselsAPI.getVessel(vessel.id);
-
-      // Extract vessel data from response (handle different response structures)
       const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
 
       setFormData({
@@ -294,7 +272,6 @@ export default function Vessels() {
         imo: vesselInfo.imo || "",
         vessel_type: vesselInfo.vessel_type || "",
         attachments: vesselInfo.attachments || [],
-        // Start with nothing marked for deletion
         attachment_to_delete: [],
       });
       setEditingVessel({ ...vessel, ...vesselInfo });
@@ -312,10 +289,8 @@ export default function Vessels() {
     }
   };
 
-  // // Handle form submission (create or update)
   const handleSubmit = async () => {
     try {
-      // Validate vessel form
       if (!formData.name.trim()) {
         toast({
           title: "Error",
@@ -338,19 +313,11 @@ export default function Vessels() {
         return;
       }
 
-      // No vessel lines validation needed in simplified structure
-
       setIsLoading(true);
-
-      // Use the form data as is - only include vessel lines that user has actually added
       let finalFormData = { ...formData, vessel_id: editingVessel?.id };
 
       if (editingVessel) {
-        console.log('worded');
-        // Update existing vessel - pass original vessel data to only send changed fields
         const response = await vesselsAPI.updateVessel(finalFormData, null, editingVessel);
-
-        // Extract success message from API response
         let successMessage = "Vessel updated successfully";
         let status = "success";
 
@@ -372,10 +339,7 @@ export default function Vessels() {
           isClosable: true,
         });
       } else {
-        // Create new vessel
         const response = await vesselsAPI.createVessel(finalFormData);
-
-        // Extract success message from API response
         let successMessage = "Vessel created successfully";
         let status = "success";
 
@@ -403,7 +367,6 @@ export default function Vessels() {
       fetchVessels();
       refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
     } catch (error) {
-      // Extract error message from API response
       let errorMessage = `Failed to ${editingVessel ? 'update' : 'create'} vessel`;
       let status = "error";
 
@@ -432,23 +395,16 @@ export default function Vessels() {
     }
   };
 
-  // Handle delete vessel
   const handleDeleteVessel = (vessel) => {
     setDeleteVesselId(vessel.id);
     onDeleteOpen();
   };
 
-  // Confirm delete
   const confirmDelete = async () => {
     try {
       setIsLoading(true);
-
       const response = await vesselsAPI.deleteVessel(deleteVesselId);
-
-      // ✅ Extract message from API
       const message = response?.result?.message || "Vessel deleted successfully";
-
-      // ✅ Show success toast
       toast({
         title: "Success",
         description: message,
@@ -462,7 +418,6 @@ export default function Vessels() {
       fetchVessels();
       refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
     } catch (error) {
-      // ✅ Extract and show error toast
       const message =
         error?.response?.data?.message ||
         error?.response?.data?.result?.message ||
@@ -606,9 +561,6 @@ export default function Vessels() {
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Status
                   </Th>
-                  {/* <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
-                    Attachments
-                  </Th> */}
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
                     Actions
                   </Th>
@@ -622,11 +574,7 @@ export default function Vessels() {
                     </Td>
                   </Tr>
                 ) : vessels.length > 0 ? (
-                  vessels.map((vessel, index) => {
-                    // Get attachments information
-                    const attachments = vessel.attachments || [];
-
-                    return (
+                  vessels.map((vessel, index) => (
                       <Tr
                         key={vessel.id}
                         bg={index % 2 === 0 ? "white" : "gray.50"}
@@ -674,12 +622,6 @@ export default function Vessels() {
                             {vessel.status || "-"}
                           </Badge>
                         </Td>
-                        {/* <Td py="12px" px="16px">
-                          <Text color={textColor} fontSize="sm" fontWeight="500">
-                            {attachments.length || 0} files
-                          </Text>
-                        </Td> */}
-                        {/* Removed extra columns that referenced undefined variables */}
                         <Td py="12px" px="16px">
                           <HStack spacing={2}>
                             <Tooltip label="View Vessel Details">
@@ -715,8 +657,7 @@ export default function Vessels() {
                           </HStack>
                         </Td>
                       </Tr>
-                    );
-                  })
+                    ))
                 ) : (
                   <Tr>
                     <Td colSpan={8} py="40px" textAlign="center">
@@ -737,35 +678,12 @@ export default function Vessels() {
           </Box>
         </Box>
 
-        {/* Pagination Controls */}
         {totalPages > 0 && (
           <Box px="25px">
             <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-              {/* Records per page selector */}
-              <HStack spacing={3}>
-                <Text fontSize="sm" color="gray.600">
-                  Show
-                </Text>
-                <Select
-                  size="sm"
-                  w="80px"
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                >
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                  <option value={80}>80</option>
-                  <option value={100}>100</option>
-                </Select>
-                <Text fontSize="sm" color="gray.600">
-                  per page
-                </Text>
-                <Text fontSize="sm" color="gray.600" ml={2}>
-                  Showing {vessels.length} of {totalCount} records
-                </Text>
-              </HStack>
-
-              {/* Pagination buttons */}
+              <Text fontSize="sm" color="gray.600">
+                Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} records
+              </Text>
               <HStack spacing={2}>
                 <Button
                   size="sm"

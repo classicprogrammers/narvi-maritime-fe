@@ -1921,8 +1921,20 @@ export default function StockList() {
                     </Flex>
                 )}
 
-                {/* Table Container */}
-                <Box pr="25px" overflowX="auto" position="relative" minH="400px">
+                <Box
+                  pr="25px"
+                  position="relative"
+                  minH="400px"
+                  maxH="600px"
+                  overflowX="auto"
+                  overflowY="auto"
+                  sx={{
+                    "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                    "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                    "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                    "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                  }}
+                >
                     {isLoading && (
                         <Box
                             position="fixed"
@@ -1966,7 +1978,7 @@ export default function StockList() {
                         ml="25px"
                     >
                         {!isLoading && (
-                            <Thead bg={tableHeaderBg}>
+                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
                                         <Checkbox

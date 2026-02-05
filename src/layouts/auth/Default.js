@@ -28,7 +28,6 @@ function AuthIllustration(props) {
     </Flex>
   );
 }
-// PROPS
 
 AuthIllustration.propTypes = {
   image: PropTypes.any,

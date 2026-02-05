@@ -12,46 +12,40 @@ const getCurrentUserId = () => {
   }
 };
 
-/**
- * Get all vessels - use page_size=all to get all records (pagination handled client-side if needed)
- * @param {Object} params - Query parameters
- * @param {string} params.search - Search query (optional)
- * @returns {Promise<Object>} - The API response with pagination metadata
- */
 export const getVessels = async (params = {}) => {
   try {
-    const { search = "" } = params;
-
-    const requestParams = {
-      page_size: "all",
-    };
-
-    // Include search parameter if provided (API uses ?search=)
-    const trimmedSearch = search ? search.trim() : "";
-    if (trimmedSearch) {
-      requestParams.search = trimmedSearch;
+    const requestParams = {};
+    const search = params.search;
+    if (search != null && String(search).trim() !== "") {
+      requestParams.search = String(search).trim();
+    }
+    const page = params.page;
+    if (page != null && page >= 1) requestParams.page = page;
+    const pageSize = params.page_size;
+    requestParams.page_size = (pageSize != null && pageSize > 0) ? pageSize : 80;
+    if (params.sort_by != null && String(params.sort_by).trim() !== "") {
+      requestParams.sort_by = String(params.sort_by).trim();
+    }
+    if (params.sort_order != null && String(params.sort_order).trim() !== "") {
+      requestParams.sort_order = String(params.sort_order).trim();
     }
 
-    const response = await axios.get('/api/vessels', {
-      params: requestParams,
-    });
+    const response = await axios.get('/api/vessels', { params: requestParams });
     const data = response.data || response;
 
-    // If backend reports an error status, surface that up to caller
     if (data.status === "error") {
       throw new Error(data.message || "Failed to fetch vessels");
     }
 
     const vesselsList = Array.isArray(data.vessels) ? data.vessels : [];
 
-    // Return full response with pagination metadata
     if (data.status === "success") {
       return {
         vessels: vesselsList,
         count: data.count ?? vesselsList.length,
         total_count: data.total_count ?? vesselsList.length,
         page: data.page ?? 1,
-        page_size: data.page_size ?? "all",
+        page_size: data.page_size ?? 80,
         total_pages: data.total_pages ?? 1,
         has_next: data.has_next ?? false,
         has_previous: data.has_previous ?? false,
@@ -60,13 +54,12 @@ export const getVessels = async (params = {}) => {
       };
     }
 
-    // Fallback for non-standard response format
     return {
       vessels: vesselsList,
       count: vesselsList.length,
       total_count: vesselsList.length,
       page: 1,
-      page_size: "all",
+      page_size: 80,
       total_pages: 1,
       has_next: false,
       has_previous: false,
