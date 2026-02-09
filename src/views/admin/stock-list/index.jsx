@@ -114,7 +114,7 @@ export default function StockList() {
     const [isFiltersOpen, setIsFiltersOpen] = useState(true);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
 
-    // Lookup data for IDs -> Names (clients, vessels, vendors, countries, destinations, currencies from master cache)
+    // Master data for filter dropdown options; display uses getDisplayName from API {id, name}
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
@@ -284,7 +284,7 @@ export default function StockList() {
     // Track if lookup data has been fetched
     const hasFetchedLookupData = useRef(false);
 
-    // Fetch all lookup data for IDs -> Names (only once per component mount)
+    // Fetch locations and shipping orders (only once per component mount)
     useEffect(() => {
         // Only fetch if we haven't already fetched lookup data
         if (hasFetchedLookupData.current) {
@@ -370,7 +370,8 @@ export default function StockList() {
 
     const getSoNumberNameFromNumber = (soNumber) => {
         if (!soNumber) return "-";
-        // Try to find by so_number field
+        if (typeof soNumber === "object" && soNumber?.name != null) return String(soNumber.name);
+        if (typeof soNumber === "object" && soNumber?.id != null) return String(soNumber.id);
         const so = shippingOrders.find(s =>
             String(s.so_number || s.name || "") === String(soNumber) ||
             String(s.id) === String(soNumber)
@@ -378,72 +379,24 @@ export default function StockList() {
         return so ? (so.name || so.so_number || `SO ${soNumber}`) : `SO ${soNumber}`;
     };
 
-    // Helper functions to get names from IDs
-    const getClientName = (clientId) => {
-        if (!clientId) return "-";
-        const client = clients.find(c => String(c.id) === String(clientId));
-        return client ? client.name : `Client ${clientId}`;
+    // Helpers for API response format: { id, name } - display name, pass id for filtering/editing
+    const getDisplayName = (val) => {
+        if (val == null || val === false || val === "") return "-";
+        if (typeof val === "object" && val.name != null) return String(val.name);
+        if (typeof val === "object" && val.id != null) return String(val.id);
+        return String(val);
     };
 
-    const getVesselName = (vesselId) => {
-        if (!vesselId) return "-";
-        const vessel = vessels.find(v => String(v.id) === String(vesselId));
-        return vessel ? vessel.name : String(vesselId);
-    };
-
-    const getSupplierName = (supplierId) => {
-        if (!supplierId) return "-";
-        const vendor = vendors.find(v => String(v.id) === String(supplierId));
-        return vendor ? vendor.name : `Supplier ${supplierId}`;
-    };
-
-    const getDestinationName = (destId) => {
-        if (!destId) return "-";
-        const destination = destinations.find(d => String(d.id) === String(destId));
-        if (destination) return destination.name;
-        const destByName = destinations.find(d =>
-            String(d.name).toLowerCase() === String(destId).toLowerCase() ||
-            String(d.code || "").toLowerCase() === String(destId).toLowerCase()
-        );
-        if (destByName) return destByName.name;
-        return `Dest ${destId}`;
-    };
-
-    const getCurrencyName = (currencyId) => {
-        if (!currencyId) return "-";
-        const currency = currencies.find(c => String(c.id) === String(currencyId) || String(c.currency_id) === String(currencyId));
-        if (currency) return currency.name || currency.code || `Currency ${currencyId}`;
-        if (typeof currencyId === 'string' && currencyId.length <= 5) return currencyId;
-        return `Currency ${currencyId}`;
-    };
-
-    const getCountryName = (countryId) => {
-        if (!countryId) return "-";
-
-        // Convert to string and number for comparison
-        const countryIdStr = String(countryId);
-        const countryIdNum = Number(countryId);
-
-        // Try to find by ID (handle different field names)
-        const country = countries.find(c => {
-            if (!c) return false;
-            // Check various ID field names
-            const cId = c.id || c.country_id;
-            return (
-                String(cId) === countryIdStr ||
-                Number(cId) === countryIdNum
-            );
-        });
-
-        if (country) {
-            return country.name || country.code || `Country ${countryId}`;
-        }
-
-        return `Country ${countryId}`;
+    const getId = (val) => {
+        if (val == null || val === false || val === "") return null;
+        if (typeof val === "object" && val !== null && val.id !== undefined) return val.id;
+        return val;
     };
 
     const getLocationOrDestinationName = (value) => {
         if (!value) return "-";
+        if (typeof value === "object" && value.name != null) return String(value.name);
+        if (typeof value === "object" && value.id != null) return String(value.id);
         const dest = destinations.find(d =>
             String(d.id) === String(value) ||
             String(d.name).toLowerCase() === String(value).toLowerCase() ||
@@ -487,17 +440,17 @@ export default function StockList() {
         // Apply filters
         if (selectedClient) {
             filtered = filtered.filter(item =>
-                String(item.client_id || item.client) === String(selectedClient)
+                String(getId(item.client_id || item.client)) === String(selectedClient)
             );
         }
         if (selectedVessel) {
             filtered = filtered.filter(item =>
-                String(item.vessel_id || item.vessel) === String(selectedVessel)
+                String(getId(item.vessel_id || item.vessel)) === String(selectedVessel)
             );
         }
         if (selectedSupplier) {
             filtered = filtered.filter(item =>
-                String(item.supplier_id || item.supplier) === String(selectedSupplier)
+                String(getId(item.supplier_id || item.supplier)) === String(selectedSupplier)
             );
         }
         if (selectedStatus) {
@@ -507,12 +460,12 @@ export default function StockList() {
         }
         if (selectedWarehouse) {
             filtered = filtered.filter(item =>
-                String(item.warehouse_id) === String(selectedWarehouse)
+                String(getId(item.warehouse_id)) === String(selectedWarehouse)
             );
         }
         if (selectedCurrency) {
             filtered = filtered.filter(item =>
-                String(item.currency_id || item.currency) === String(selectedCurrency)
+                String(getId(item.currency_id || item.currency)) === String(selectedCurrency)
             );
         }
         if (selectedHub) {
@@ -584,14 +537,14 @@ export default function StockList() {
                 // Search across multiple fields including lookup names
                 const searchableFields = [
                     String(item.stock_item_id || ""),
-                    String(getClientName(item.client_id || item.client) || ""),
-                    String(getVesselName(item.vessel_id || item.vessel) || ""),
+                    String(getDisplayName(item.client_id || item.client) || ""),
+                    String(getDisplayName(item.vessel_id || item.vessel) || ""),
                     String(soPrefixed || ""),
                     String(siPrefixed || ""),
                     String(sicPrefixed || ""),
                     String(diPrefixed || ""),
                     String(item.stock_status || ""),
-                    String(item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "")),
+                    String(getDisplayName(item.supplier_id || item.supplier)),
                     String(item.po_text || item.po_number || ""),
                     String(item.warehouse_id || item.stock_warehouse || ""),
                     String(item.shipping_doc || ""),
@@ -601,13 +554,13 @@ export default function StockList() {
                     String(item.internal_remark || ""),
                     String(item.dg_un || ""),
                     String(item.lwh_text || ""),
-                    String(item.origin_text || getCountryName(item.origin_id) || ""),
+                    String(item.origin_text || getDisplayName(item.origin_id) || ""),
                     String(item.ap_destination_id || item.ap_destination || ""),
                     String(getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination) || ""),
                     String(item.via_hub || ""),
                     String(item.via_hub2 || ""),
                     String(item.details || item.item_desc || ""),
-                    String(item.currency_id ? getCurrencyName(item.currency_id) : (item.currency || "")),
+                    String(getDisplayName(item.currency_id || item.currency)),
                 ].join(" ").toLowerCase();
                 return searchableFields.includes(searchTerm);
             });
@@ -622,26 +575,26 @@ export default function StockList() {
 
                 // Handle ID fields by converting to names
                 if (sortField === 'client_id' || sortField === 'client') {
-                    aVal = getClientName(a.client_id || a.client);
-                    bVal = getClientName(b.client_id || b.client);
+                    aVal = getDisplayName(a.client_id || a.client);
+                    bVal = getDisplayName(b.client_id || b.client);
                 } else if (sortField === 'vessel_id' || sortField === 'vessel') {
-                    aVal = getVesselName(a.vessel_id || a.vessel);
-                    bVal = getVesselName(b.vessel_id || b.vessel);
+                    aVal = getDisplayName(a.vessel_id || a.vessel);
+                    bVal = getDisplayName(b.vessel_id || b.vessel);
                 } else if (sortField === 'supplier_id' || sortField === 'supplier') {
-                    aVal = getSupplierName(a.supplier_id || a.supplier);
-                    bVal = getSupplierName(b.supplier_id || b.supplier);
+                    aVal = getDisplayName(a.supplier_id || a.supplier);
+                    bVal = getDisplayName(b.supplier_id || b.supplier);
                 } else if (sortField === 'warehouse_id') {
                     aVal = String(a.warehouse_id || a.stock_warehouse || "");
                     bVal = String(b.warehouse_id || b.stock_warehouse || "");
                 } else if (sortField === 'currency_id' || sortField === 'currency') {
-                    aVal = getCurrencyName(a.currency_id || a.currency);
-                    bVal = getCurrencyName(b.currency_id || b.currency);
+                    aVal = getDisplayName(a.currency_id || a.currency);
+                    bVal = getDisplayName(b.currency_id || b.currency);
                 } else if (sortField === 'so_number_id' || sortField === 'so_number') {
                     aVal = a.so_number_id ? getSoNumberName(a.so_number_id) : (a.so_number || a.stock_so_number || "");
                     bVal = b.so_number_id ? getSoNumberName(b.so_number_id) : (b.so_number || b.stock_so_number || "");
                 } else if (sortField === 'origin_id' || sortField === 'origin_text') {
-                    aVal = a.origin_text || getCountryName(a.origin_id);
-                    bVal = b.origin_text || getCountryName(b.origin_id);
+                    aVal = a.origin_text || getDisplayName(a.origin_id);
+                    bVal = b.origin_text || getDisplayName(b.origin_id);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
                     aVal = String(a.ap_destination_id || a.ap_destination || "");
                     bVal = String(b.ap_destination_id || b.ap_destination || "");
@@ -715,8 +668,8 @@ export default function StockList() {
 
                 // Sort by Vessel (alphabetically by vessel name)
                 if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
-                    const vesselNameA = getVesselName(a.vessel_id || a.vessel || "").toLowerCase().trim();
-                    const vesselNameB = getVesselName(b.vessel_id || b.vessel || "").toLowerCase().trim();
+                    const vesselNameA = getDisplayName(a.vessel_id || a.vessel || "").toLowerCase().trim();
+                    const vesselNameB = getDisplayName(b.vessel_id || b.vessel || "").toLowerCase().trim();
 
                     if (vesselNameA !== vesselNameB) {
                         return vesselNameA.localeCompare(vesselNameB);
@@ -878,27 +831,23 @@ export default function StockList() {
     // Helper functions to get names from IDs (continued - functions used in table rendering)
     const getVesselDestination = (vesselId, item) => {
         if (!vesselId) {
-            // If no vessel_id, check item's vessel_destination field
-            return item.vessel_destination ? getDestinationName(item.vessel_destination) : "-";
+            return item.vessel_destination ? getLocationOrDestinationName(item.vessel_destination) : "-";
         }
-        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        const vessel = vessels.find(v => String(v.id) === String(getId(vesselId)));
         if (vessel && vessel.destination) {
-            // If vessel has destination, try to get its name
-            return getDestinationName(vessel.destination);
+            return getLocationOrDestinationName(vessel.destination);
         }
-        // Fall back to item's vessel_destination field
         if (item.vessel_destination) {
-            return getDestinationName(item.vessel_destination);
+            return getLocationOrDestinationName(item.vessel_destination);
         }
         return "-";
     };
 
     const getVesselEta = (vesselId, item) => {
         if (!vesselId) {
-            // If no vessel_id, check item's vessel_eta field
             return item.vessel_eta ? formatDate(item.vessel_eta) : "-";
         }
-        const vessel = vessels.find(v => String(v.id) === String(vesselId));
+        const vessel = vessels.find(v => String(v.id) === String(getId(vesselId)));
         if (vessel && vessel.eta) {
             return formatDate(vessel.eta);
         }
@@ -909,24 +858,18 @@ export default function StockList() {
         return "-";
     };
 
-    const getLocationName = (locationId) => {
-        if (!locationId) return "-";
-        const location = locations.find(l => String(l.id) === String(locationId) || String(l.location_id) === String(locationId));
-        if (location) return location.name || location.code || `Location ${locationId}`;
-        if (typeof locationId === 'string' && locationId.length <= 10) return locationId;
-        return `Location ${locationId}`;
-    };
-
     const getSoNumberName = (soId) => {
         if (!soId) return "-";
+        if (typeof soId === "object" && soId?.name != null) return String(soId.name);
+        if (typeof soId === "object" && soId?.id != null) return String(soId.id);
         const so = shippingOrders.find(s => String(s.id) === String(soId));
         return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
     };
 
     const getSoStatus = (item) => {
-        // First try to get from shipping order if we have so_number_id
         if (item.so_number_id) {
-            const so = shippingOrders.find(s => String(s.id) === String(item.so_number_id));
+            const soId = typeof item.so_number_id === "object" ? item.so_number_id?.id : item.so_number_id;
+            const so = shippingOrders.find(s => String(s.id) === String(soId));
             if (so && so.done) {
                 return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
             }
@@ -2123,8 +2066,8 @@ export default function StockList() {
                                         </Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{(() => {
                                             const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number));
                                             const prefixed = addSOPrefix(soValue);
@@ -2150,10 +2093,10 @@ export default function StockList() {
                                                 {renderText(item.stock_status)}
                                             </Badge>
                                         </Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                         <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
@@ -2210,7 +2153,7 @@ export default function StockList() {
                                             </HStack>
                                         </Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getSoStatus(item)}</Text></Td>
@@ -2415,7 +2358,7 @@ export default function StockList() {
                                                     Client
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {getClientName(item.client_id || item.client)}
+                                                    {getDisplayName(item.client_id || item.client)}
                                                 </Text>
                                             </Box>
                                             <Box>
@@ -2423,7 +2366,7 @@ export default function StockList() {
                                                     Vessel
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {getVesselName(item.vessel_id || item.vessel)}
+                                                    {getDisplayName(item.vessel_id || item.vessel)}
                                                 </Text>
                                             </Box>
                                             <Box>
@@ -2431,7 +2374,7 @@ export default function StockList() {
                                                     Supplier
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}
+                                                    {getDisplayName(item.supplier_id || item.supplier)}
                                                 </Text>
                                             </Box>
                                             <Box>
@@ -2495,7 +2438,7 @@ export default function StockList() {
                                                     Value
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {renderText(item.value)} {item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}
+                                                    {renderText(item.value)} {getDisplayName(item.currency_id || item.currency)}
                                                 </Text>
                                             </Box>
                                             <Box>

@@ -238,7 +238,7 @@ export default function Stocks() {
     const { clients, vessels, suppliers: vendors, countries, destinations, currencies } = useMasterData();
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
 
-    // Lookup data for IDs -> Names (destinations, currencies from master cache)
+    // Master data for filter/edit dropdown options; display uses getDisplayName from API {id, name}
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
@@ -288,7 +288,7 @@ export default function Stocks() {
         getStockList({ page: currentApiPage, page_size: PAGE_SIZE });
     }, [currentApiPage, getStockList]);
 
-    // Fetch all lookup data for IDs -> Names (only once per component mount)
+    // Fetch locations and shipping orders (only once per component mount)
     useEffect(() => {
         // Only fetch if we haven't already fetched lookup data
         if (hasFetchedLookupData.current) {
@@ -381,66 +381,32 @@ export default function Stocks() {
         }
     }, [isLoading, stockList.length]);
 
-    // Helper functions to get names from IDs - defined early so they can be used in filtering/sorting
-    const getClientName = (clientId) => {
-        if (!clientId) return "-";
-        const client = clients.find(c => String(c.id) === String(clientId));
-        return client ? client.name : `Client ${clientId}`;
+    // Helpers for API response format: { id, name } - display name, pass id for editing
+    const getDisplayName = (val) => {
+        if (val == null || val === false || val === "") return "-";
+        if (typeof val === "object" && val.name != null) return String(val.name);
+        if (typeof val === "object" && val.id != null) return String(val.id);
+        return String(val);
     };
 
-    const getVesselName = (vesselId) => {
-        if (!vesselId) return "-";
-        const vessel = vessels.find(v => String(v.id) === String(vesselId));
-        return vessel ? vessel.name : String(vesselId);
-    };
-
-    const getSupplierName = (supplierId) => {
-        if (!supplierId) return "-";
-        const vendor = vendors.find(v => String(v.id) === String(supplierId));
-        return vendor ? vendor.name : `Supplier ${supplierId}`;
-    };
-
-    const getDestinationName = (destId) => {
-        if (!destId) return "-";
-        // Try to find by ID first
-        const destination = destinations.find(d => String(d.id) === String(destId));
-        if (destination) return destination.name || destination.code || `Dest ${destId}`;
-        // Try to find by code/name (for cases where it's stored as code)
-        const destByName = destinations.find(d =>
-            String(d.name || "").toLowerCase() === String(destId).toLowerCase() ||
-            String(d.code || "").toLowerCase() === String(destId).toLowerCase()
-        );
-        if (destByName) return destByName.name || destByName.code || `Dest ${destId}`;
-        return `Dest ${destId}`;
-    };
-
-    const getCurrencyName = (currencyId) => {
-        if (!currencyId) return "-";
-        const currency = currencies.find(c => String(c.id) === String(currencyId) || String(c.currency_id) === String(currencyId));
-        if (currency) return currency.name || currency.code || `Currency ${currencyId}`;
-        // If it's already a code/name, return as is
-        if (typeof currencyId === 'string' && currencyId.length <= 5) return currencyId;
-        return `Currency ${currencyId}`;
-    };
-
-    const getLocationName = (locationId) => {
-        if (!locationId) return "-";
-        const location = locations.find(l => String(l.id) === String(locationId) || String(l.location_id) === String(locationId));
-        if (location) return location.name || location.code || `Location ${locationId}`;
-        // If it's already a code/name, return as is
-        if (typeof locationId === 'string' && locationId.length <= 10) return locationId;
-        return `Location ${locationId}`;
+    const getId = (val) => {
+        if (val == null || val === false || val === "") return null;
+        if (typeof val === "object" && val !== null && val.id !== undefined) return val.id;
+        return val;
     };
 
     const getSoNumberName = (soId) => {
         if (!soId) return "-";
+        if (typeof soId === "object" && soId?.name != null) return String(soId.name);
+        if (typeof soId === "object" && soId?.id != null) return String(soId.id);
         const so = shippingOrders.find(s => String(s.id) === String(soId));
         return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
     };
 
     const getSoNumberNameFromNumber = (soNumber) => {
         if (!soNumber) return "-";
-        // Try to find by so_number field
+        if (typeof soNumber === "object" && soNumber?.name != null) return String(soNumber.name);
+        if (typeof soNumber === "object" && soNumber?.id != null) return String(soNumber.id);
         const so = shippingOrders.find(s =>
             String(s.so_number || s.name || "") === String(soNumber) ||
             String(s.id) === String(soNumber)
@@ -542,47 +508,11 @@ export default function Stocks() {
         }
     };
 
-    // getUserName removed - PIC is now a free text field, display directly
 
-    // Helper to get country name for origin field (with airport/state codes if available)
-    const getCountryName = (countryId) => {
-        if (!countryId) return "-";
-
-        // Convert to string and number for comparison
-        const countryIdStr = String(countryId);
-        const countryIdNum = Number(countryId);
-
-        // Try to find by ID (handle different field names)
-        const country = countries.find(c => {
-            if (!c) return false;
-            // Check various ID field names
-            const cId = c.id || c.country_id;
-            return (
-                String(cId) === countryIdStr ||
-                Number(cId) === countryIdNum
-            );
-        });
-
-        if (country) {
-            const name = country.name || country.code || `Country ${countryId}`;
-            const code = country.code || "";
-            const stateCodes = Array.isArray(country.states)
-                ? country.states
-                    .map((s) => s.code)
-                    .filter(Boolean)
-                    .join(", ")
-                : "";
-            const base = code ? `${name} (${code})` : name;
-            return stateCodes ? `${base} - ${stateCodes}` : base;
-        }
-
-
-        return `Country ${countryId}`;
-    };
-
-    // Helper to get name for via_hub/ap_destination/destination (uses destinations and locations)
     const getLocationOrDestinationName = (value) => {
         if (!value) return "-";
+        if (typeof value === "object" && value?.name != null) return String(value.name);
+        if (typeof value === "object" && value?.id != null) return String(value.id);
         // Try destination first
         const dest = destinations.find(d =>
             String(d.id) === String(value) ||
@@ -1082,13 +1012,13 @@ export default function Stocks() {
         // Apply basic filters (same as index.jsx)
         if (stockViewClient) {
             filtered = filtered.filter(item =>
-                String(item.client_id || item.client) === String(stockViewClient)
+                String(getId(item.client_id || item.client)) === String(stockViewClient)
             );
         }
 
         if (stockViewVessel) {
             filtered = filtered.filter(item =>
-                String(item.vessel_id || item.vessel) === String(stockViewVessel)
+                String(getId(item.vessel_id || item.vessel)) === String(stockViewVessel)
             );
         }
 
@@ -1190,14 +1120,14 @@ export default function Stocks() {
                 // Search across multiple fields including lookup names
                 const searchableFields = [
                     String(item.stock_item_id || ""),
-                    String(getClientName(item.client_id || item.client) || ""),
-                    String(getVesselName(item.vessel_id || item.vessel) || ""),
+                    String(getDisplayName(item.client_id || item.client) || ""),
+                    String(getDisplayName(item.vessel_id || item.vessel) || ""),
                     String(soPrefixed || ""),
                     String(siPrefixed || ""),
                     String(sicPrefixed || ""),
                     String(diPrefixed || ""),
                     String(item.stock_status || ""),
-                    String(item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "")),
+                    String(getDisplayName(item.supplier_id || item.supplier)),
                     String(item.po_text || item.po_number || ""),
                     String(item.warehouse_id || item.stock_warehouse || ""),
                     String(item.shipping_doc || ""),
@@ -1207,13 +1137,13 @@ export default function Stocks() {
                     String(item.internal_remark || ""),
                     String(item.dg_un || ""),
                     String(item.lwh_text || ""),
-                    String(item.origin_text || getCountryName(item.origin_id) || ""),
+                    String(item.origin_text || getDisplayName(item.origin_id) || ""),
                     String(item.ap_destination_id || item.ap_destination || ""),
                     String(getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination) || ""),
                     String(item.via_hub || ""),
                     String(item.via_hub2 || ""),
                     String(item.details || item.item_desc || ""),
-                    String(item.currency_id ? getCurrencyName(item.currency_id) : (item.currency || "")),
+                    String(getDisplayName(item.currency_id || item.currency)),
                 ].join(" ").toLowerCase();
                 return searchableFields.includes(searchTerm);
             });
@@ -1273,8 +1203,8 @@ export default function Stocks() {
 
                 // Sort by Vessel (alphabetically by vessel name)
                 if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
-                    const vesselNameA = getVesselName(a.vessel_id || a.vessel || "").toLowerCase().trim();
-                    const vesselNameB = getVesselName(b.vessel_id || b.vessel || "").toLowerCase().trim();
+                    const vesselNameA = getDisplayName(a.vessel_id || a.vessel || "").toLowerCase().trim();
+                    const vesselNameB = getDisplayName(b.vessel_id || b.vessel || "").toLowerCase().trim();
 
                     if (vesselNameA !== vesselNameB) {
                         return vesselNameA.localeCompare(vesselNameB);
@@ -1350,18 +1280,16 @@ export default function Stocks() {
 
         // Apply vessel filter
         if (vesselViewVessel) {
-            filtered = filtered.filter((item) => {
-                const vesselId = item.vessel_id || item.vessel;
-                return String(vesselId) === String(vesselViewVessel);
-            });
+            filtered = filtered.filter((item) =>
+                String(getId(item.vessel_id || item.vessel)) === String(vesselViewVessel)
+            );
         }
 
         // Apply client filter
         if (vesselViewClient) {
-            filtered = filtered.filter((item) => {
-                const clientId = item.client_id || item.client;
-                return String(clientId) === String(vesselViewClient);
-            });
+            filtered = filtered.filter((item) =>
+                String(getId(item.client_id || item.client)) === String(vesselViewClient)
+            );
         }
 
         // Apply status filter
@@ -1388,36 +1316,32 @@ export default function Stocks() {
 
         // Apply client filter
         if (clientViewClient) {
-            filtered = filtered.filter((item) => {
-                const clientId = item.client_id || item.client;
-                return String(clientId) === String(clientViewClient);
-            });
+            filtered = filtered.filter((item) =>
+                String(getId(item.client_id || item.client)) === String(clientViewClient)
+            );
         }
 
         // Apply client text search filter
         if (clientViewSearchClient) {
             const searchTerm = clientViewSearchClient.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const clientName = getClientName(item.client_id || item.client).toLowerCase();
-                return clientName.includes(searchTerm);
-            });
+            filtered = filtered.filter((item) =>
+                getDisplayName(item.client_id || item.client).toLowerCase().includes(searchTerm)
+            );
         }
 
         // Apply vessel dropdown filter
         if (clientViewVesselFilter) {
-            filtered = filtered.filter((item) => {
-                const vesselId = item.vessel_id || item.vessel;
-                return String(vesselId) === String(clientViewVesselFilter);
-            });
+            filtered = filtered.filter((item) =>
+                String(getId(item.vessel_id || item.vessel)) === String(clientViewVesselFilter)
+            );
         }
 
         // Apply vessel text search filter
         if (clientViewSearchVessel) {
             const searchTerm = clientViewSearchVessel.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const vesselName = getVesselName(item.vessel_id || item.vessel).toLowerCase();
-                return vesselName.includes(searchTerm);
-            });
+            filtered = filtered.filter((item) =>
+                getDisplayName(item.vessel_id || item.vessel).toLowerCase().includes(searchTerm)
+            );
         }
 
         // Apply status filter
@@ -1571,7 +1495,7 @@ export default function Stocks() {
             htmlTable += '<tr>';
 
             if (clientViewFilterType === 'filter1') {
-                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, '<br>');
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
@@ -1585,10 +1509,10 @@ export default function Stocks() {
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
                 htmlTable += `<td>${destination}</td>`;
             } else {
-                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, '<br>');
                 const status = getStatusLabel(item.stock_status);
-                const origin = item.origin_text || item.origin || getCountryName(item.origin_id) || '-';
+                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
                 const shippingDoc = item.shipping_doc || '-';
                 const exportDoc = item.export_doc || '-';
@@ -1627,7 +1551,7 @@ export default function Stocks() {
             // Add data rows
             selectedItems.forEach(item => {
                 if (clientViewFilterType === 'filter1') {
-                    const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
@@ -1636,10 +1560,10 @@ export default function Stocks() {
 
                     plainText += `${supplier}\t${poNumber}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
                 } else {
-                    const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || '-');
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
                     const status = getStatusLabel(item.stock_status);
-                    const origin = item.origin_text || item.origin || getCountryName(item.origin_id) || '-';
+                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
                     const shippingDoc = item.shipping_doc || '-';
                     const exportDoc = item.export_doc || '-';
@@ -1730,7 +1654,7 @@ export default function Stocks() {
             const statusStyle = getStatusStyle(item.stock_status);
             bodyRows += "<tr>";
             if (clientViewFilterType === "filter1") {
-                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
+                const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
                 const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                 const weight = item.weight_kg ?? item.weight_kgs ?? "-";
@@ -1743,10 +1667,10 @@ export default function Stocks() {
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
             } else {
-                const supplier = item.supplier_id ? getSupplierName(item.supplier_id) : (item.supplier || "-");
+                const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
                 const status = getStatusLabel(item.stock_status);
-                const origin = item.origin_text || item.origin || getCountryName(item.origin_id) || "-";
+                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
                 const shippingDoc = item.shipping_doc || "-";
                 const exportDoc = item.export_doc || "-";
@@ -1927,27 +1851,7 @@ export default function Stocks() {
             so_number_id: addSOPrefix(getFieldValue("so_number_id", "so_number", "stock_so_number")),
             shipping_instruction_id: addSIPrefix(getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction")),
             delivery_instruction_id: addDIPrefix(getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction")),
-            origin_id: (() => {
-                // For inline editing, convert origin_id to country name text if possible
-                // Check origin_text first (new field), then origin_id
-                const originValue = getFieldValue("origin_text") || getFieldValue("origin_id");
-                // If it's already text (not a pure number), keep it
-                if (originValue && !/^\d+$/.test(String(originValue))) {
-                    return originValue;
-                }
-                // If we have countries loaded and it's an ID, convert to name
-                if (originValue && countries.length > 0) {
-                    const country = countries.find(c => {
-                        const cId = c.id || c.country_id;
-                        return String(cId) === String(originValue);
-                    });
-                    if (country) {
-                        return country.name || country.code || originValue;
-                    }
-                }
-                // Otherwise keep as-is (will be handled when countries load)
-                return originValue;
-            })(),
+            origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
             ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
             destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
@@ -2064,10 +1968,11 @@ export default function Stocks() {
             return isNaN(num) ? 0 : num;
         };
 
-        // Helper to convert ID (can be string or number)
+        // Helper to convert ID - extracts id from {id, name} objects for editing
         const toId = (val) => {
             if (!val && val !== 0) return false;
             if (typeof val === "string" && val.trim() === "") return false;
+            if (typeof val === "object" && val !== null && val.id !== undefined) return String(val.id);
             return String(val);
         };
 
@@ -2101,7 +2006,7 @@ export default function Stocks() {
             { backend: "client_id", original: ["client_id", "client"], edited: ["client_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "supplier_id", original: ["supplier_id", "supplier"], edited: ["supplier_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "vessel_id", original: ["vessel_id", "vessel"], edited: ["vessel_id"], transform: (v) => toValue(toId(v), false) },
-            { backend: "pic_new", original: ["pic_new", "pic", "pic_id"], edited: ["pic_new"], transform: (v) => v ? String(v) : false },
+            { backend: "pic_new", original: ["pic_new", "pic", "pic_id"], edited: ["pic_new"], transform: (v) => toValue(toId(v), false) },
             { backend: "item", original: ["item"], edited: ["item"], transform: (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0 }, // BOXES field - item count
             { backend: "item_id", original: ["item_id", "stock_items_quantity", "items"], edited: ["item_id", "stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) }, // Keep item_id for lines format
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
@@ -2601,13 +2506,13 @@ export default function Stocks() {
                             />
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text>}
+                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "stock_item_id", item.stock_item_id || item.stock_id) : <Text {...cellText}>{renderText(item.stock_item_id || item.stock_id)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
+                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
@@ -2663,7 +2568,7 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -2761,13 +2666,13 @@ export default function Stocks() {
                             )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text>}
+                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id || item.currency, "searchable") : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getClientName(item.client_id || item.client)}</Text>}
+                            {isEditing ? renderEditableCell(item, "client_id", item.client_id || item.client, "searchable") : <Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "internal_remark", item.internal_remark || "", "textarea") : <Text {...cellText}>{renderText(item.internal_remark || "")}</Text>}
@@ -2915,7 +2820,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text>}
+                            {isEditing ? renderEditableCell(item, "supplier_id", item.supplier_id, "select", vendors.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
@@ -2938,13 +2843,13 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "volume_cbm", item.volume_cbm, "number") : <Text {...cellText}>{renderText(item.volume_cbm)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text>}
+                            {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "value", item.value, "number") : <Text {...cellText}>{renderText(item.value)}</Text>}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getCountryName(item.origin_id) || "-"}</Text>}
+                            {isEditing ? renderEditableCell(item, "origin_id", item.origin_text || item.origin_id, "text") : <Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
@@ -2971,7 +2876,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "remarks", item.remarks) : <Text {...cellText}>{renderText(item.remarks)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text>}
+                            {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_number_id", item.so_number_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
@@ -4403,9 +4308,9 @@ export default function Stocks() {
                                                                     }}
                                                                 />
                                                             </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                             <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{(() => {
@@ -4436,7 +4341,7 @@ export default function Stocks() {
                                                                     {getStatusLabel(item.stock_status)}
                                                                 </Badge>
                                                             </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
@@ -4491,9 +4396,9 @@ export default function Stocks() {
                                                                     </Tooltip>
                                                                 </HStack>
                                                             </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.currency_id ? getCurrencyName(item.currency_id) : renderText(item.currency)}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
+                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
                                                             <Td {...cellProps}>
                                                                 {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
@@ -4957,9 +4862,9 @@ export default function Stocks() {
                                                             </Td>
                                                             {clientViewFilterType === 'filter1' ? (
                                                                 <>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
@@ -4990,9 +4895,9 @@ export default function Stocks() {
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getClientName(item.client_id || item.client)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getVesselName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.supplier_id ? getSupplierName(item.supplier_id) : renderText(item.supplier)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                                     <Td {...cellProps} bg={rowBg}>
                                                                         <Badge
@@ -5007,7 +4912,7 @@ export default function Stocks() {
                                                                             {getStatusLabel(item.stock_status)}
                                                                         </Badge>
                                                                     </Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getCountryName(item.origin_id) || "-"}</Text></Td>
+                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                                     <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>

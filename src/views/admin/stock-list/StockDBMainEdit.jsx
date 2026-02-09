@@ -319,6 +319,7 @@ export default function StockDBMainEdit() {
     const loadFormDataFromStock = useCallback((stock, returnData = false) => {
         const normalizeId = (value) => {
             if (value === null || value === undefined || value === "" || value === false) return "";
+            if (typeof value === "object" && value !== null && value.id !== undefined) return String(value.id);
             return String(value);
         };
 
@@ -346,11 +347,9 @@ export default function StockDBMainEdit() {
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
             origin_text: (() => {
-                // If origin_text is already text (from previous saves), use it directly
-                if (stock.origin_text && typeof stock.origin_text === 'string' && !/^\d+$/.test(stock.origin_text)) {
-                    return stock.origin_text;
-                }
-                // Otherwise, keep as ID - will be converted to name in useEffect
+                if (stock.origin_text && typeof stock.origin_text === 'string') return stock.origin_text;
+                if (typeof stock.origin_id === "object" && stock.origin_id?.name != null) return String(stock.origin_id.name);
+                if (typeof stock.origin_id === "object" && stock.origin_id?.id != null) return String(stock.origin_id.id);
                 return normalizeId(stock.origin_id) || "";
             })(),
             viaHub1: getFieldValue(stock.via_hub, ""),
