@@ -190,6 +190,9 @@ export default function Stocks() {
         updateLoading,
         getStockList,
         total_count,
+        total_pages,
+        has_next,
+        has_previous,
     } = useStock();
 
     // Track if we're refreshing after an update
@@ -1771,22 +1774,10 @@ export default function Stocks() {
         }
     };
 
-    // Get paginated items for display
-    const getPaginatedItems = (items, page, pageSize) => {
-        const startIndex = (page - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        return items.slice(startIndex, endIndex);
-    };
-
-    // Check if all items are selected - use the same filtered data that's displayed in the table
+    // Server-side pagination: each API page is fetched separately, so we display all filtered items
+    // from the current page (no client-side slice within the page)
     const getDisplayedItems = () => {
-        const allItems = activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
-        // Return paginated items for display
-        if (activeTab === 0) {
-            return getPaginatedItems(allItems, stockViewPage, PAGE_SIZE);
-        } else {
-            return getPaginatedItems(allItems, clientViewPage, PAGE_SIZE);
-        }
+        return activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
     };
     const displayedItems = getDisplayedItems();
 
@@ -4460,13 +4451,10 @@ export default function Stocks() {
 
                                 {/* Pagination Controls for Stock View / Edit */}
                                 {allFilteredItems.length > 0 && (() => {
-                                    const totalRows = allFilteredItems.length;
-                                    const totalDisplay = total_count > 0 ? total_count : totalRows;
-                                    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
-                                    const hasNext = stockViewPage < totalPages;
-                                    const hasPrevious = stockViewPage > 1;
-                                    const startRow = (stockViewPage - 1) * PAGE_SIZE + 1;
-                                    const endRow = Math.min(stockViewPage * PAGE_SIZE, totalRows);
+                                    const totalDisplay = total_count > 0 ? total_count : allFilteredItems.length;
+                                    const apiTotalPages = total_pages > 0 ? total_pages : Math.ceil((total_count || 0) / PAGE_SIZE);
+                                    const startRow = total_count > 0 ? (stockViewPage - 1) * PAGE_SIZE + 1 : 1;
+                                    const endRow = total_count > 0 ? Math.min(stockViewPage * PAGE_SIZE, total_count) : allFilteredItems.length;
 
                                     return (
                                         <Box px="25px" py={4}>
@@ -4483,7 +4471,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setStockViewPage(1)}
-                                                        isDisabled={!hasPrevious || stockViewPage === 1}
+                                                        isDisabled={!has_previous || stockViewPage === 1}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4494,7 +4482,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setStockViewPage(stockViewPage - 1)}
-                                                        isDisabled={!hasPrevious}
+                                                        isDisabled={!has_previous}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4504,14 +4492,14 @@ export default function Stocks() {
 
                                                     {/* Page numbers */}
                                                     <HStack spacing={1}>
-                                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                        {Array.from({ length: Math.min(5, apiTotalPages) }, (_, i) => {
                                                             let pageNum;
-                                                            if (totalPages <= 5) {
+                                                            if (apiTotalPages <= 5) {
                                                                 pageNum = i + 1;
                                                             } else if (stockViewPage <= 3) {
                                                                 pageNum = i + 1;
-                                                            } else if (stockViewPage >= totalPages - 2) {
-                                                                pageNum = totalPages - 4 + i;
+                                                            } else if (stockViewPage >= apiTotalPages - 2) {
+                                                                pageNum = apiTotalPages - 4 + i;
                                                             } else {
                                                                 pageNum = stockViewPage - 2 + i;
                                                             }
@@ -4537,7 +4525,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setStockViewPage(stockViewPage + 1)}
-                                                        isDisabled={!hasNext}
+                                                        isDisabled={!has_next}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4547,8 +4535,8 @@ export default function Stocks() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        onClick={() => setStockViewPage(totalPages)}
-                                                        isDisabled={!hasNext || stockViewPage === totalPages}
+                                                        onClick={() => setStockViewPage(apiTotalPages)}
+                                                        isDisabled={!has_next || stockViewPage === apiTotalPages}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4941,13 +4929,10 @@ export default function Stocks() {
 
                                 {/* Pagination Controls for Client View */}
                                 {allFilteredItems.length > 0 && (() => {
-                                    const totalRows = allFilteredItems.length;
-                                    const totalDisplay = total_count > 0 ? total_count : totalRows;
-                                    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
-                                    const hasNext = clientViewPage < totalPages;
-                                    const hasPrevious = clientViewPage > 1;
-                                    const startRow = (clientViewPage - 1) * PAGE_SIZE + 1;
-                                    const endRow = Math.min(clientViewPage * PAGE_SIZE, totalRows);
+                                    const totalDisplay = total_count > 0 ? total_count : allFilteredItems.length;
+                                    const apiTotalPages = total_pages > 0 ? total_pages : Math.ceil((total_count || 0) / PAGE_SIZE);
+                                    const startRow = total_count > 0 ? (clientViewPage - 1) * PAGE_SIZE + 1 : 1;
+                                    const endRow = total_count > 0 ? Math.min(clientViewPage * PAGE_SIZE, total_count) : allFilteredItems.length;
 
                                     return (
                                         <Box px="25px" py={4}>
@@ -4964,7 +4949,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setClientViewPage(1)}
-                                                        isDisabled={!hasPrevious || clientViewPage === 1}
+                                                        isDisabled={!has_previous || clientViewPage === 1}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4975,7 +4960,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setClientViewPage(clientViewPage - 1)}
-                                                        isDisabled={!hasPrevious}
+                                                        isDisabled={!has_previous}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -4985,14 +4970,14 @@ export default function Stocks() {
 
                                                     {/* Page numbers */}
                                                     <HStack spacing={1}>
-                                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                        {Array.from({ length: Math.min(5, apiTotalPages) }, (_, i) => {
                                                             let pageNum;
-                                                            if (totalPages <= 5) {
+                                                            if (apiTotalPages <= 5) {
                                                                 pageNum = i + 1;
                                                             } else if (clientViewPage <= 3) {
                                                                 pageNum = i + 1;
-                                                            } else if (clientViewPage >= totalPages - 2) {
-                                                                pageNum = totalPages - 4 + i;
+                                                            } else if (clientViewPage >= apiTotalPages - 2) {
+                                                                pageNum = apiTotalPages - 4 + i;
                                                             } else {
                                                                 pageNum = clientViewPage - 2 + i;
                                                             }
@@ -5018,7 +5003,7 @@ export default function Stocks() {
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => setClientViewPage(clientViewPage + 1)}
-                                                        isDisabled={!hasNext}
+                                                        isDisabled={!has_next}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
@@ -5028,8 +5013,8 @@ export default function Stocks() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        onClick={() => setClientViewPage(totalPages)}
-                                                        isDisabled={!hasNext || clientViewPage === totalPages}
+                                                        onClick={() => setClientViewPage(apiTotalPages)}
+                                                        isDisabled={!has_next || clientViewPage === apiTotalPages}
                                                         bg={inputBg}
                                                         color={inputText}
                                                         borderColor={borderColor}
