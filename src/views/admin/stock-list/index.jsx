@@ -1876,7 +1876,7 @@ export default function StockList() {
 
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
-                                        Showing {filteredAndSortedStock.length} of {totalCount || stockList.length} stock items
+                                        Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
                                         {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchQuery || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
@@ -2278,10 +2278,13 @@ export default function StockList() {
                     {/* Pagination Controls */}
                     <Box px="25px" mt={4}>
                         <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-                            <HStack spacing={3}>
+                            <HStack spacing={4}>
                                 <Text fontSize="sm" color="gray.600">
                                     Showing {(page - 1) * pageSize + 1} to{" "}
-                                    {totalCount === 0 ? 0 : Math.min(page * pageSize, totalCount)} of {totalCount} records
+                                    {(totalCount || reduxTotalCount) === 0 ? 0 : Math.min(page * pageSize, totalCount || reduxTotalCount)} of {totalCount || reduxTotalCount} records
+                                </Text>
+                                <Text fontSize="sm" color="gray.600" fontWeight="500">
+                                    Page {page} of {totalPages || 1}
                                 </Text>
                             </HStack>
 

@@ -171,13 +171,13 @@ export default function Stocks() {
     const [selectedRows, setSelectedRows] = useState(new Set());
     const [activeTab, setActiveTab] = useState(0);
 
+    const PAGE_SIZE = 80;
+
     // Pagination state for Stock View / Edit tab (activeTab === 0)
     const [stockViewPage, setStockViewPage] = useState(1);
-    const [stockViewPageSize, setStockViewPageSize] = useState(50);
 
     // Pagination state for Client View tab (activeTab === 1)
     const [clientViewPage, setClientViewPage] = useState(1);
-    const [clientViewPageSize, setClientViewPageSize] = useState(50);
     const [editingRowIds, setEditingRowIds] = useState(new Set());
     const [editingRowData, setEditingRowData] = useState({});
 
@@ -189,6 +189,7 @@ export default function Stocks() {
         error,
         updateLoading,
         getStockList,
+        total_count,
     } = useStock();
 
     // Track if we're refreshing after an update
@@ -279,17 +280,13 @@ export default function Stocks() {
         fontSize: "sm",
     };
 
-    // Ensure we only auto-fetch once (avoids double calls in StrictMode)
-    const hasFetchedInitialData = useRef(false);
     const hasFetchedLookupData = useRef(false);
 
-    // Fetch stock list on component mount
+    // Fetch stock list on mount and when page/tab changes - always 80 records per page
+    const currentApiPage = activeTab === 0 ? stockViewPage : clientViewPage;
     useEffect(() => {
-        if (!hasFetchedInitialData.current && stockList.length === 0 && !isLoading) {
-            hasFetchedInitialData.current = true;
-            getStockList();
-        }
-    }, [getStockList, stockList.length, isLoading]);
+        getStockList({ page: currentApiPage, page_size: PAGE_SIZE });
+    }, [currentApiPage, getStockList]);
 
     // Fetch all lookup data for IDs -> Names (only once per component mount)
     useEffect(() => {
@@ -1862,9 +1859,9 @@ export default function Stocks() {
         const allItems = activeTab === 0 ? getFilteredStockByStatus() : filteredAndSortedStock;
         // Return paginated items for display
         if (activeTab === 0) {
-            return getPaginatedItems(allItems, stockViewPage, stockViewPageSize);
+            return getPaginatedItems(allItems, stockViewPage, PAGE_SIZE);
         } else {
-            return getPaginatedItems(allItems, clientViewPage, clientViewPageSize);
+            return getPaginatedItems(allItems, clientViewPage, PAGE_SIZE);
         }
     };
     const displayedItems = getDisplayedItems();
@@ -2212,7 +2209,7 @@ export default function Stocks() {
                     return newData;
                 });
 
-                getStockList();
+                getStockList({ page: 1, page_size: PAGE_SIZE });
             } else {
                 throw new Error(result?.result?.message || 'Failed to update stock item');
             }
@@ -2257,7 +2254,7 @@ export default function Stocks() {
                 });
                 setEditingRowIds(new Set());
                 setEditingRowData({});
-                getStockList();
+                getStockList({ page: 1, page_size: PAGE_SIZE });
             } else {
                 throw new Error(result?.result?.message || result?.message || 'Failed to update stock items');
             }
@@ -2306,7 +2303,7 @@ export default function Stocks() {
                         <AlertDescription>{error}</AlertDescription>
                     </Box>
                 </Alert>
-                <Button mt="4" onClick={() => getStockList()} leftIcon={<Icon as={MdRefresh} />}>
+                                <Button mt="4" onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })} leftIcon={<Icon as={MdRefresh} />}>
                     Retry
                 </Button>
             </Box>
@@ -3184,7 +3181,7 @@ export default function Stocks() {
                             icon={<Icon as={MdRefresh} />}
                             variant="ghost"
                             aria-label="Refresh"
-                            onClick={() => getStockList()}
+                            onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })}
                             isLoading={isLoading}
                         />
                     </HStack>
@@ -4131,7 +4128,7 @@ export default function Stocks() {
 
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
-                                                    {allFilteredItems.length} of {stockList.length} stock items
+                                                    {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
                                                     {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
@@ -4233,7 +4230,19 @@ export default function Stocks() {
                                 </Flex>
 
                                 {/* Table with fields in exact order from image */}
-                                <Box overflowX="auto" position="relative" minH="400px">
+                                <Box
+                                    overflowX="auto"
+                                    overflowY="auto"
+                                    position="relative"
+                                    minH="400px"
+                                    maxH="600px"
+                                    sx={{
+                                        "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                                        "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                                        "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                                        "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                                    }}
+                                >
                                     {isLoading && (
                                         <Box
                                             position="fixed"
@@ -4272,7 +4281,7 @@ export default function Stocks() {
                                     )}
                                     <Table size="sm" minW="6000px">
                                         {!isLoading && (
-                                            <Thead bg={tableHeaderBg}>
+                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th
                                                         borderRight="1px"
@@ -4547,42 +4556,19 @@ export default function Stocks() {
                                 {/* Pagination Controls for Stock View / Edit */}
                                 {allFilteredItems.length > 0 && (() => {
                                     const totalRows = allFilteredItems.length;
-                                    const totalPages = Math.ceil(totalRows / stockViewPageSize);
+                                    const totalDisplay = total_count > 0 ? total_count : totalRows;
+                                    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
                                     const hasNext = stockViewPage < totalPages;
                                     const hasPrevious = stockViewPage > 1;
-                                    const startRow = (stockViewPage - 1) * stockViewPageSize + 1;
-                                    const endRow = Math.min(stockViewPage * stockViewPageSize, totalRows);
+                                    const startRow = (stockViewPage - 1) * PAGE_SIZE + 1;
+                                    const endRow = Math.min(stockViewPage * PAGE_SIZE, totalRows);
 
                                     return (
                                         <Box px="25px" py={4}>
                                             <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
-                                                {/* Page Size Selector and Info */}
                                                 <HStack spacing={3}>
                                                     <Text fontSize="sm" color={textColor}>
-                                                        Show
-                                                    </Text>
-                                                    <Select
-                                                        size="sm"
-                                                        w="80px"
-                                                        value={stockViewPageSize}
-                                                        onChange={(e) => {
-                                                            setStockViewPageSize(Number(e.target.value));
-                                                            setStockViewPage(1); // Reset to first page when changing page size
-                                                        }}
-                                                        bg={inputBg}
-                                                        color={inputText}
-                                                        borderColor={borderColor}
-                                                    >
-                                                        <option value={20}>20</option>
-                                                        <option value={50}>50</option>
-                                                        <option value={100}>100</option>
-                                                        <option value={200}>200</option>
-                                                    </Select>
-                                                    <Text fontSize="sm" color={textColor}>
-                                                        per page
-                                                    </Text>
-                                                    <Text fontSize="sm" color={textColor} ml={2}>
-                                                        Showing {startRow}-{endRow} of {totalRows} items
+                                                        Showing {startRow}-{endRow} of {totalDisplay} items
                                                     </Text>
                                                 </HStack>
 
@@ -4861,7 +4847,19 @@ export default function Stocks() {
                                 </Box>
 
                                 {/* Table with fields for client view only */}
-                                <Box overflowX="auto" position="relative" minH="400px">
+                                <Box
+                                    overflowX="auto"
+                                    overflowY="auto"
+                                    position="relative"
+                                    minH="400px"
+                                    maxH="600px"
+                                    sx={{
+                                        "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                                        "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                                        "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                                        "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                                    }}
+                                >
                                     {isLoading && (
                                         <Box
                                             position="fixed"
@@ -4882,7 +4880,7 @@ export default function Stocks() {
                                     )}
                                     <Table variant="unstyled" size="sm" layout="auto">
                                         {!isLoading && (
-                                            <Thead bg={tableHeaderBg}>
+                                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th {...headerProps} w="40px">
                                                         <Checkbox
@@ -5039,42 +5037,19 @@ export default function Stocks() {
                                 {/* Pagination Controls for Client View */}
                                 {allFilteredItems.length > 0 && (() => {
                                     const totalRows = allFilteredItems.length;
-                                    const totalPages = Math.ceil(totalRows / clientViewPageSize);
+                                    const totalDisplay = total_count > 0 ? total_count : totalRows;
+                                    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
                                     const hasNext = clientViewPage < totalPages;
                                     const hasPrevious = clientViewPage > 1;
-                                    const startRow = (clientViewPage - 1) * clientViewPageSize + 1;
-                                    const endRow = Math.min(clientViewPage * clientViewPageSize, totalRows);
+                                    const startRow = (clientViewPage - 1) * PAGE_SIZE + 1;
+                                    const endRow = Math.min(clientViewPage * PAGE_SIZE, totalRows);
 
                                     return (
                                         <Box px="25px" py={4}>
                                             <Flex justify="space-between" align="center" flexWrap="wrap" gap={4}>
-                                                {/* Page Size Selector and Info */}
                                                 <HStack spacing={3}>
                                                     <Text fontSize="sm" color={textColor}>
-                                                        Show
-                                                    </Text>
-                                                    <Select
-                                                        size="sm"
-                                                        w="80px"
-                                                        value={clientViewPageSize}
-                                                        onChange={(e) => {
-                                                            setClientViewPageSize(Number(e.target.value));
-                                                            setClientViewPage(1); // Reset to first page when changing page size
-                                                        }}
-                                                        bg={inputBg}
-                                                        color={inputText}
-                                                        borderColor={borderColor}
-                                                    >
-                                                        <option value={20}>20</option>
-                                                        <option value={50}>50</option>
-                                                        <option value={100}>100</option>
-                                                        <option value={200}>200</option>
-                                                    </Select>
-                                                    <Text fontSize="sm" color={textColor}>
-                                                        per page
-                                                    </Text>
-                                                    <Text fontSize="sm" color={textColor} ml={2}>
-                                                        Showing {startRow}-{endRow} of {totalRows} items
+                                                        Showing {startRow}-{endRow} of {totalDisplay} items
                                                     </Text>
                                                 </HStack>
 

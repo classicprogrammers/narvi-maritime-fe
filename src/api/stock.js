@@ -75,6 +75,7 @@ export const getStockListApi = async (params = {}) => {
     });
 
     const data = response.data || response;
+    const res = data.result || data;
 
     // Check if response has error status (JSON-RPC format)
     if (data.result && data.result.status === 'error') {
@@ -84,19 +85,20 @@ export const getStockListApi = async (params = {}) => {
       throw new Error(data.message || "Failed to fetch stock list");
     }
 
-    // Return full response with pagination metadata
-    if (data.status === "success") {
+    // Return full response with pagination metadata (support flat and nested result)
+    if (data.status === "success" || (res && res.status === "success")) {
+      const list = Array.isArray(data.stock_list) ? data.stock_list : (Array.isArray(res?.stock_list) ? res.stock_list : []);
       return {
-        stock_list: Array.isArray(data.stock_list) ? data.stock_list : [],
-        count: data.count || 0,
-        total_count: data.total_count || 0,
-        page: data.page || page,
-        page_size: data.page_size || page_size,
-        total_pages: data.total_pages || 0,
-        has_next: data.has_next || false,
-        has_previous: data.has_previous || false,
-        sort_by: data.sort_by || sort_by,
-        sort_order: data.sort_order || sort_order,
+        stock_list: list,
+        count: data.count ?? res?.count ?? 0,
+        total_count: data.total_count ?? res?.total_count ?? 0,
+        page: data.page ?? res?.page ?? page,
+        page_size: data.page_size ?? res?.page_size ?? page_size,
+        total_pages: data.total_pages ?? res?.total_pages ?? 0,
+        has_next: data.has_next ?? res?.has_next ?? false,
+        has_previous: data.has_previous ?? res?.has_previous ?? false,
+        sort_by: data.sort_by ?? res?.sort_by ?? sort_by,
+        sort_order: data.sort_order ?? res?.sort_order ?? sort_order,
       };
     }
 

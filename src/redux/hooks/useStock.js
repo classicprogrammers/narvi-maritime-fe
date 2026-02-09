@@ -24,8 +24,8 @@ export const useStock = () => {
     has_previous,
   } = useSelector((state) => state.stock);
 
-  const fetchStockList = useCallback(() => {
-    return dispatch(getStockList());
+  const fetchStockList = useCallback((params = {}) => {
+    return dispatch(getStockList(params));
   }, [dispatch]);
 
   const updateStockItemAction = useCallback((stockId, stockData, originalData = {}) => {
