@@ -27,16 +27,6 @@ import Card from "components/card/Card";
 import { useVendor } from "redux/hooks/useVendor";
 import { getVendorByIdApi } from "api/vendor";
 
-// Helper to get country name from country_id
-const getCountryName = (countryId, countries) => {
-  if (!countryId || !countries) return "";
-  const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-  const country = countryList.find(
-    (c) => c.id === countryId || c.id === parseInt(countryId)
-  );
-  return country ? country.name : "";
-};
-
 const prettyValue = (value) => {
   if (value === null || value === undefined || value === "") {
     return "-";
@@ -95,7 +85,7 @@ const agentInfoSections = [
       { label: "Address6", key: "street6" },
       { label: "Address7", key: "street7" },
       { label: "Postcode + City", key: "city", formatter: (value, agent) => `${agent.zip || "-"} ${value || ""}`.trim() || "-" },
-      { label: "Country", key: "country_name" },
+      { label: "Country", key: "country_name", formatter: (value, agent) => (agent.country_id && typeof agent.country_id === "object" && agent.country_id.name) ? agent.country_id.name : (value || "-") },
       { label: "Agent Code", key: "agentsdb_id" },
       { label: "Reg No", key: "reg_no" },
       { label: "Payment Terms", key: "payment_term" },
@@ -169,7 +159,7 @@ const AgentDetail = () => {
   const { id } = useParams();
   const history = useHistory();
   const location = useLocation();
-  const { vendors = [], countries = [], isLoading: vendorsLoading, getVendors } = useVendor();
+  const { vendors = [], isLoading: vendorsLoading, getVendors } = useVendor();
   const [agent, setAgent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -205,13 +195,7 @@ const AgentDetail = () => {
         // First, try to get from location state
         if (stateAgent) {
           console.log("Found agent in location.state:", stateAgent);
-          const agentFromState = stateAgent;
-          // Add country_name if not present
-          if (!agentFromState.country_name && agentFromState.country_id) {
-            const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-            agentFromState.country_name = getCountryName(agentFromState.country_id, countryList);
-          }
-          setAgent(agentFromState);
+          setAgent(stateAgent);
           setIsLoading(false);
           return;
         }
@@ -238,13 +222,7 @@ const AgentDetail = () => {
 
         if (foundInList) {
           console.log("Using agent from vendors list");
-          // Add country_name if not present
-          const agentWithCountry = { ...foundInList };
-          if (!agentWithCountry.country_name && agentWithCountry.country_id) {
-            const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-            agentWithCountry.country_name = getCountryName(agentWithCountry.country_id, countryList);
-          }
-          setAgent(agentWithCountry);
+          setAgent({ ...foundInList });
           setIsLoading(false);
           return;
         }
@@ -282,11 +260,6 @@ const AgentDetail = () => {
           }
 
           if (agentData && (agentData.id || agentData.agent_id || agentData.vendor_id)) {
-            // Add country_name if not present
-            if (!agentData.country_name && agentData.country_id) {
-              const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-              agentData.country_name = getCountryName(agentData.country_id, countryList);
-            }
             console.log("Setting agent data:", agentData);
             setAgent(agentData);
           } else {
@@ -356,12 +329,7 @@ const AgentDetail = () => {
 
     if (foundInList) {
       hasSetAgentFromVendorsRef.current = true;
-      const agentWithCountry = { ...foundInList };
-      if (!agentWithCountry.country_name && agentWithCountry.country_id) {
-        const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-        agentWithCountry.country_name = getCountryName(agentWithCountry.country_id, countryList);
-      }
-      setAgent(agentWithCountry);
+      setAgent({ ...foundInList });
       setIsLoading(false);
     }
   }, [id, agent, vendorsListLength]); // vendors/countries read inside effect; avoid refs in deps to prevent infinite loop
@@ -518,22 +486,12 @@ const AgentDetail = () => {
     const values = agentInfoSections[0].items
       .filter(({ key, formatter }) => {
         if (excludedKeys.includes(key)) return false;
-        let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
-        // Compute country_name if not present
-        if (key === "country_name" && !rawValue && agent.country_id) {
-          const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-          rawValue = getCountryName(agent.country_id, countryList);
-        }
+        const rawValue = formatter ? formatter(agent[key], agent) : agent[key];
         const displayValue = prettyValue(rawValue);
         return displayValue && displayValue !== "-" && displayValue !== "";
       })
       .map(({ key, formatter }) => {
-        let rawValue = formatter ? formatter(agent[key], agent) : agent[key];
-        // Compute country_name if not present
-        if (key === "country_name" && !rawValue && agent.country_id) {
-          const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-          rawValue = getCountryName(agent.country_id, countryList);
-        }
+        const rawValue = formatter ? formatter(agent[key], agent) : agent[key];
         return String(prettyValue(rawValue));
       });
 
@@ -734,10 +692,6 @@ const AgentDetail = () => {
                     }
                     if (key === "type_client" && !rawValue) {
                       rawValue = agent.agents_type || agent.type_client || "";
-                    }
-                    if (key === "country_name" && !rawValue && agent.country_id) {
-                      const countryList = Array.isArray(countries) ? countries : countries?.countries || [];
-                      rawValue = getCountryName(agent.country_id, countryList);
                     }
                     return rawValue;
                   };

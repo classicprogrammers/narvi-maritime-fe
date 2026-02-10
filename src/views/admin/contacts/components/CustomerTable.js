@@ -233,7 +233,7 @@ export default function CustomerTable(props) {
 
       return {
         ...item,
-        location: [item.city, item.country_name || item.country?.name]
+        location: [item.city, (item.country_id && typeof item.country_id === "object" ? item.country_id.name : null) || item.country_name || item.country?.name]
           .filter(Boolean)
           .join(", "),
         emails: emails || "-",
@@ -1378,7 +1378,7 @@ export default function CustomerTable(props) {
                     <FormLabel>Country</FormLabel>
                     <SearchableSelect
                       placeholder="Select country..."
-                      value={editingCustomer?.country_id || ""}
+                      value={editingCustomer?.country_id != null && typeof editingCustomer.country_id === "object" ? editingCustomer.country_id.id : (editingCustomer?.country_id ?? "")}
                       onChange={(val) => handleEditInputChange("country_id", val)}
                       options={Array.isArray(countries) ? countries : []}
                       displayKey="name"

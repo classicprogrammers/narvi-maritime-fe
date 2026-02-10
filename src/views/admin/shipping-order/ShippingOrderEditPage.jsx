@@ -161,7 +161,6 @@ export default function ShippingOrderEditPage() {
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px="4" pb="8">
       <Box
-        // maxW="4xl"
         mx="auto"
         p={6}
         bg={editModeBg}

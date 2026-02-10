@@ -216,10 +216,10 @@ export default function VendorsTable(props) {
       if (filters.country) {
         const needle = filters.country.toLowerCase();
         filtered = filtered.filter((item) => {
-          const country = countriesList.find(
-            (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
-          );
-          const countryName = country ? country.name : item.country_name || "";
+          const countryName = (item.country_id && typeof item.country_id === "object" ? item.country_id.name : null) || (() => {
+            const c = countriesList.find((x) => x.id === item.country_id || x.id === parseInt(item.country_id));
+            return c ? c.name : item.country_name || "";
+          })();
           return (countryName || "").toLowerCase().includes(needle);
         });
       }
@@ -227,10 +227,11 @@ export default function VendorsTable(props) {
 
     // Add computed display fields
     const withComputed = filtered.map((item) => {
-      const countryObj = countriesList.find(
-        (c) => c.id === item.country_id || c.id === parseInt(item.country_id)
-      );
-      const countryName = countryObj ? countryObj.name : item.country_name || "";
+      const countryName = (item.country_id && typeof item.country_id === "object" ? item.country_id.name : null)
+        || (() => {
+          const countryObj = countriesList.find((c) => c.id === item.country_id || c.id === parseInt(item.country_id));
+          return countryObj ? countryObj.name : item.country_name || "";
+        })();
       const rawChildren =
         item.children ??
         item.agent_people ??
@@ -1104,11 +1105,7 @@ export default function VendorsTable(props) {
                             </Text>
                           );
                         } else if (cell.column.Header === "CITY / COUNTRY") {
-                          const countryObj = countries.find(
-                            (c) => c.id === row.original.country_id || c.id === parseInt(row.original.country_id)
-                          );
-                          const countryName = countryObj ? countryObj.name : row.original.country_name || "";
-                          const value = [row.original.city, countryName].filter(Boolean).join(", ") || "-";
+                          const value = row.original.city_country || "-";
                           data = (
                             <Text color={textColor} fontSize="sm">
                               {value}
@@ -1784,7 +1781,7 @@ export default function VendorsTable(props) {
               <FormControl>
                 <FormLabel>Country</FormLabel>
                 <SearchableSelect
-                  value={newVendor.country_id || ""}
+                  value={newVendor.country_id != null && typeof newVendor.country_id === "object" ? newVendor.country_id.id : (newVendor.country_id ?? "")}
                   onChange={(val) => handleInputChange("country_id", val)}
                   options={Array.isArray(countries) ? countries : []}
                   placeholder="Select country..."

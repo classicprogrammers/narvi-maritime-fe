@@ -79,7 +79,7 @@ const clientInfoSections = [
       { label: "Address6", key: "street6" },
       { label: "Address7", key: "street7" },
       { label: "Postcode + City", key: "city", formatter: (value, client) => `${client.zip || "-"} ${value || ""}`.trim() || "-" },
-      { label: "Country", key: "country_name" },
+      { label: "Country", key: "country_name", formatter: (value, client) => (client.country_id && typeof client.country_id === "object" && client.country_id.name) ? client.country_id.name : (value || "-") },
       { label: "Reg No", key: "reg_no" },
       { label: "Payment Terms", key: "payment_term" },
       { label: "Clients Type", key: "type_client" },

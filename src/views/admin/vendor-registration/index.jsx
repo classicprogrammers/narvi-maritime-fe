@@ -564,7 +564,7 @@ function VendorRegistration() {
                 street7: vendorData.street7 || "",
                 zip: vendorData.zip || "",
                 city: vendorData.city || "",
-                country_id: vendorData.country_id || "",
+                country_id: (vendorData.country_id && typeof vendorData.country_id === "object" && vendorData.country_id.id != null) ? vendorData.country_id.id : (vendorData.country_id || ""),
                 reg_no: vendorData.reg_no || "",
                 email: vendorData.email || "",
                 email2: vendorData.email2 || "",

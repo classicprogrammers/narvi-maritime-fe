@@ -293,7 +293,7 @@ function CustomerRegistration() {
                 street7: editingClient.street7 || "",
                 city: editingClient.city || "",
                 zip: editingClient.zip || "",
-                country_id: editingClient.country_id || "",
+                country_id: (editingClient.country_id && typeof editingClient.country_id === "object" && editingClient.country_id.id != null) ? editingClient.country_id.id : (editingClient.country_id || ""),
                 reg_no: editingClient.reg_no || "",
                 website: editingClient.website || "",
                 payment_term: editingClient.payment_term || "",
