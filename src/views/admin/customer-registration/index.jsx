@@ -42,6 +42,7 @@ import { SuccessModal, FailureModal } from "components/modals";
 import { MdPersonAdd, MdPerson, MdArrowBack, MdAdd, MdOpenInNew, MdAttachFile, MdDownload, MdVisibility, MdClose as MdRemove } from "react-icons/md";
 import { registerCustomerApi, updateCustomerApi, getCustomerAttachmentApi } from "api/customer";
 import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
+import { useMasterData } from "hooks/useMasterData";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
@@ -78,8 +79,8 @@ function CustomerRegistration() {
     const location = useLocation();
     const toast = useToast();
 
-    const { countries, customers, isLoading: countriesLoading, getCountries, addCustomerToRedux } = useCustomer();
-    const countryList = countries?.countries;
+    const { customers, addCustomerToRedux } = useCustomer();
+    const { countries: countryList = [] } = useMasterData();
 
     const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
     const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
@@ -375,31 +376,6 @@ function CustomerRegistration() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingClient?.id]);
-
-    // Load countries on component mount
-    React.useEffect(() => {
-        // Ensure component is mounted before making API calls
-        let isMounted = true;
-
-        const loadCountries = async () => {
-            try {
-                if (isMounted) {
-                    await getCountries();
-                }
-            } catch (error) {
-                console.error("Failed to load countries:", error);
-            }
-        };
-
-        loadCountries();
-
-        // Cleanup function
-        return () => {
-            isMounted = false;
-        };
-        // Intentionally run once on mount; getCountries identity may change
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     // Load vessel types on mount
     React.useEffect(() => {
@@ -1529,11 +1505,10 @@ function CustomerRegistration() {
                                                             <SearchableSelect
                                                                 value={formData.country_id}
                                                                 onChange={(val) => setFormData((prev) => ({ ...prev, country_id: val }))}
-                                                                options={countryList || []}
-                                                                placeholder={countriesLoading ? "Loading countries..." : "Select Country"}
+                                                                options={Array.isArray(countryList) ? countryList : []}
+                                                                placeholder="Select Country"
                                                                 displayKey="name"
                                                                 valueKey="id"
-                                                                isLoading={countriesLoading}
                                                             />
                                                         </Box>
                                                     </Box>
