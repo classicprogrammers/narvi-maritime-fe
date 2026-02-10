@@ -28,6 +28,43 @@ export function SidebarLinks(props) {
   const { routes, collapsed = false } = props;
   const [openSubmenus, setOpenSubmenus] = useState({});
 
+  const pathname = (location.pathname || "").replace(/\/$/, "") || "/";
+  const isClientEditMode =
+    pathname.includes("/customer-registration") &&
+    (location.state?.client || location.state?.clientId);
+  const isAgentEditMode =
+    pathname.includes("/vendor-registration") &&
+    /\/vendor-registration\/\d+/.test(pathname);
+  const isShippingOrderEditMode =
+    pathname.includes("/shipping-orders/edit") &&
+    /\/shipping-orders\/edit\/\d+/.test(pathname);
+  const isStockListEditMode = pathname.includes("/stock-list/edit-stock");
+
+  const isCurrentPath = (targetPath) => {
+    const normalized = (targetPath || "").replace(/\/$/, "") || "/";
+    return pathname === normalized;
+  };
+
+  const openInNewTab = (targetPath) =>
+    (isClientEditMode || isAgentEditMode || isShippingOrderEditMode || isStockListEditMode) && !isCurrentPath(targetPath);
+
+  const SidebarNavLink = ({ to, children }) => {
+    const targetPath = (to || "").replace(/\/$/, "") || "/";
+    if (openInNewTab(targetPath)) {
+      return (
+        <a
+          href={to}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          {children}
+        </a>
+      );
+    }
+    return <NavLink to={to}>{children}</NavLink>;
+  };
+
   // Auto-open submenus on mount if current path matches a submenu item
   useEffect(() => {
     const checkAndOpenSubmenus = () => {
@@ -215,7 +252,7 @@ export function SidebarLinks(props) {
                   <Collapse in={isSubmenuOpen} animateOpacity>
                     <Box pl="20px">
                       {route.submenu.map((subItem, subIndex) => (
-                        <NavLink
+                        <SidebarNavLink
                           key={subIndex}
                           to={route.layout + subItem.path}
                         >
@@ -272,7 +309,7 @@ export function SidebarLinks(props) {
                               />
                             </HStack>
                           </Box>
-                        </NavLink>
+                        </SidebarNavLink>
                       ))}
                     </Box>
                   </Collapse>
@@ -280,7 +317,7 @@ export function SidebarLinks(props) {
               </Box>
             ) : (
               // Regular route without submenu
-              <NavLink to={route.layout + route.path}>
+              <SidebarNavLink to={route.layout + route.path}>
                 {route.icon ? (
                   <Box>
                     <HStack
@@ -365,7 +402,7 @@ export function SidebarLinks(props) {
                     </HStack>
                   </Box>
                 )}
-              </NavLink>
+              </SidebarNavLink>
             )}
           </Box>
         );

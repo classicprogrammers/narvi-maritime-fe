@@ -48,6 +48,7 @@ import RateList from "views/admin/quotations/rate-list";
 import QuotationEditor from "views/admin/quotations/QuotationEditor";
 import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import ShippingOrder from "views/admin/shipping-order";
+import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
 
 // Stock List Imports
 import StockList from "views/admin/stock-list";
@@ -153,6 +154,7 @@ const routes = [
     name: "Shipping Orders",
     layout: "/admin",
     path: "/shipping-orders",
+    exact: true,
     icon: (
       <Icon as={MdLocalShipping} width="20px" height="20px" color="inherit" />
     ),
@@ -419,6 +421,12 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/configurations/vessels/:id",
     component: VesselDetail,
+  },
+  {
+    name: "Shipping Order Edit",
+    layout: "/admin",
+    path: "/shipping-orders/edit/:id",
+    component: ShippingOrderEditPage,
   },
 ];
 

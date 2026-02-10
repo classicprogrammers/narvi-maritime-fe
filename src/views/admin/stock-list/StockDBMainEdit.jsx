@@ -446,15 +446,15 @@ export default function StockDBMainEdit() {
                 return normalized;
             }) : [getEmptyRow()]);
         } else {
-            // If no items, redirect back
+            // No data passed (e.g. direct URL or refresh) - redirect; do not call API to load items
             toast({
-                title: "Error",
-                description: "No items selected for editing",
-                status: "error",
-                duration: 3000,
+                title: "Open from list",
+                description: "Please open the edit page from the Stock List.",
+                status: "warning",
+                duration: 5000,
                 isClosable: true,
             });
-            history.push("/admin/stock-list/stocks");
+            history.replace("/admin/stock-list/stocks");
         }
     }, [selectedItemsFromState, loadFormDataFromStock, history, toast]);
 

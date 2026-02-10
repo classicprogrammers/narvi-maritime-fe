@@ -79,6 +79,8 @@ import {
   deleteShippingOrder,
 } from "../../../api/shippingOrders";
 import { useHistory, Link } from "react-router-dom";
+import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
+import ShippingOrderFormFields from "./ShippingOrderFormFields";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -96,13 +98,6 @@ const formatDateTime = (value) => {
     minute: "2-digit",
   })}`;
 };
-
-function toDateOnly(dateStr) {
-  if (!dateStr) return "";
-  // Extract just the date part (YYYY-MM-DD) if dateStr contains time
-  // If it's already in YYYY-MM-DD format, return as-is
-  return String(dateStr).split(" ")[0];
-}
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || value === "") return "-";
@@ -146,7 +141,6 @@ const SoNumberTab = () => {
   const [sortBy, setSortBy] = useState("id");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const [editingOrder, setEditingOrder] = useState(null);
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
   const { clients, vessels, countries, pics, destinations } = useMasterData();
@@ -235,49 +229,6 @@ const SoNumberTab = () => {
       quotation_id: null,
       timestamp: localTimestamp,
     });
-  };
-
-  // Normalize backend data into the shape the table expects
-  const normalizeOrder = (order) => {
-    if (!order) return null;
-    // Use original created date from API response (date_created or date_order), but
-    // trim to YYYY-MM-DD for the date input in the form.
-    const rawCreated = order.date_created || order.date_order || order.create_date;
-    const createdDateOnly = rawCreated ? String(rawCreated).split(" ")[0] : "";
-
-    return {
-      id: order.id,
-      so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
-      date_created: createdDateOnly,
-      // Keep backend value as-is if present, otherwise default to "active"
-      done:
-        typeof order.done === "string"
-          ? order.done
-          : order.done === true
-            ? "active"
-            : "active",
-      pic_new: order.pic_new || order.pic_id || order.pic || null,
-      pic_name: order.pic_name || order.pic || "",
-      client: order.client || order.client_name || "",
-      client_id: order.client_id || order.partner_id || null,
-      vessel_name: order.vessel_name || order.vessel || "",
-      vessel_id: order.vessel_id || null,
-      destination_type: order.destination_type || "",
-      destination: order.destination || order.destination_name || "",
-      country_id: order.country_id || null,
-      destination_id: order.destination_id || null, // legacy field
-      eta_date: order.eta_date,
-      etb: order.etb,
-      etd: order.etd,
-      next_action: order.next_action ? toDateOnly(String(order.next_action)) : "",
-      internal_remark: order.internal_remark,
-      client_case_invoice_ref: order.client_case_invoice_ref,
-      vsls_agent_dtls: order.vsls_agent_dtls || order.vsls_agent_details || "",
-      quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
-      quotation_id: order.quotation_id && order.quotation_id !== false ? order.quotation_id : null,
-      timestamp: order.timestamp || order.so_create_date || order.date_order,
-      _raw: order,
-    };
   };
 
   const openVslsAgentDtlsModal = useCallback((value, mode = "view", title = "Details", targetField = null) => {
@@ -749,19 +700,15 @@ const SoNumberTab = () => {
   ]);
 
   const handleCreate = () => {
-    setEditingOrder(null);
     resetForm();
     formDisclosure.onOpen();
   };
 
   const handleEdit = (order) => {
-    setEditingOrder(order);
-    setFormData({ ...order });
-    formDisclosure.onOpen();
+    history.push(`/admin/shipping-orders/edit/${order.id}`, { order });
   };
 
   const handleFormClose = (clearDraft = false) => {
-    setEditingOrder(null);
     setFormData(null);
     formDisclosure.onClose();
   };
@@ -802,244 +749,6 @@ const SoNumberTab = () => {
     fetchOrders();
   };
 
-  const buildPayloadFromForm = (data, isUpdate = false, originalData = {}) => {
-    const toNumber = (v) => {
-      if (v === null || v === undefined || v === "") return null;
-      const num = Number(v);
-      return Number.isNaN(num) ? null : num;
-    };
-
-    const toDateTime = (dateStr) => {
-      if (!dateStr) return null;
-      // Backend expects "YYYY-MM-DD 00:00:00" format (used for date_order & eta_date)
-      return `${dateStr} 00:00:00`;
-    };
-
-    // Helper function to check if a value has actually changed
-    const hasChanged = (newValue, oldValue) => {
-      // Normalize values for comparison
-      const normalize = (val) => {
-        if (val === null || val === undefined || val === "" || val === false) return null;
-        if (typeof val === 'string') return val.trim();
-        return val;
-      };
-
-      const normalizedNew = normalize(newValue);
-      const normalizedOld = normalize(oldValue);
-
-      // Both are null/empty - no change
-      if (normalizedNew === null && normalizedOld === null) return false;
-
-      // One is null, other is not - changed
-      if (normalizedNew === null || normalizedOld === null) {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // For strings, compare trimmed values
-      if (typeof normalizedNew === 'string' && typeof normalizedOld === 'string') {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // For numbers, compare values
-      if (typeof normalizedNew === 'number' && typeof normalizedOld === 'number') {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // Default comparison
-      return normalizedNew !== normalizedOld;
-    };
-
-    // Helper to check if value is non-empty (for create)
-    const hasValue = (value) => {
-      if (value === null || value === undefined || value === "") return false;
-      if (value === false) return false; // false is considered empty for dates
-      return true;
-    };
-
-    const payload = {};
-
-    // For update, only include changed fields
-    if (isUpdate) {
-      // Core identifiers - only include if changed
-      if (data.so_number) {
-        const originalSoNumber = originalData.so_number || originalData.name;
-        if (hasChanged(data.so_number, originalSoNumber)) {
-          payload.name = data.so_number;
-          payload.so_number = data.so_number;
-        }
-      }
-
-      // Helper to normalize original date values for comparison
-      const normalizeOriginalDate = (dateValue) => {
-        if (!dateValue) return null;
-        if (typeof dateValue === 'string') {
-          // Extract just the date part (YYYY-MM-DD) for comparison
-          return dateValue.split(' ')[0];
-        }
-        return dateValue;
-      };
-
-      // Helper to normalize original datetime values for comparison
-      const normalizeOriginalDateTime = (dateValue) => {
-        if (!dateValue) return null;
-        if (typeof dateValue === 'string') {
-          // Extract just the date part (YYYY-MM-DD) for comparison
-          return dateValue.split(' ')[0];
-        }
-        return dateValue;
-      };
-
-      // Check each field for changes
-      const fields = [
-        {
-          key: 'client_id',
-          value: data.client_id || null,
-          originalValue: originalData.client_id || null
-        },
-        {
-          key: 'vessel_id',
-          value: data.vessel_id || null,
-          originalValue: originalData.vessel_id || null
-        },
-        {
-          key: 'destination_type',
-          value: data.destination_type || null,
-          originalValue: originalData.destination_type || null
-        },
-        {
-          key: 'destination',
-          value: data.destination || null,
-          originalValue: originalData.destination || null
-        },
-        {
-          key: 'country_id',
-          value: data.country_id || null,
-          originalValue: originalData.country_id || null
-        },
-        {
-          key: 'destination_id',
-          value: data.destination_id || null,
-          originalValue: originalData.destination_id || null
-        },
-        {
-          key: 'done',
-          value: data.done || "active",
-          originalValue: originalData.done || null
-        },
-        {
-          key: 'pic_new',
-          value: data.pic_new || null,
-          originalValue: originalData.pic_new || null
-        },
-        {
-          key: 'quotation_id',
-          value: data.quotation_id === null || data.quotation_id === undefined ? "" : data.quotation_id,
-          originalValue: originalData.quotation_id === null || originalData.quotation_id === undefined ? "" : originalData.quotation_id
-        },
-        {
-          key: 'eta_date',
-          value: toDateTime(data.eta_date),
-          originalValue: normalizeOriginalDateTime(originalData.eta_date),
-          compareValue: data.eta_date ? data.eta_date.split(' ')[0] : null
-        },
-        {
-          key: 'etb',
-          value: data.etb && data.etb !== false ? toDateOnly(data.etb) : false,
-          originalValue: normalizeOriginalDate(originalData.etb),
-          compareValue: data.etb && data.etb !== false ? toDateOnly(data.etb) : null
-        },
-        {
-          key: 'etd',
-          value: data.etd && data.etd !== false ? toDateOnly(data.etd) : false,
-          originalValue: normalizeOriginalDate(originalData.etd),
-          compareValue: data.etd && data.etd !== false ? toDateOnly(data.etd) : null
-        },
-        {
-          key: 'date_order',
-          value: toDateTime(data.date_created || data.date_order),
-          originalValue: normalizeOriginalDateTime(originalData.date_order || originalData.date_created),
-          compareValue: data.date_created || data.date_order ? (data.date_created || data.date_order).split(' ')[0] : null
-        },
-        {
-          key: 'next_action',
-          value: data.next_action ? toDateOnly(data.next_action) : null,
-          originalValue: normalizeOriginalDate(originalData.next_action),
-          compareValue: data.next_action ? toDateOnly(data.next_action) : null
-        },
-        {
-          key: 'internal_remark',
-          value: data.internal_remark || null,
-          originalValue: originalData.internal_remark || null
-        },
-        {
-          key: 'client_case_invoice_ref',
-          value: data.client_case_invoice_ref || null,
-          originalValue: originalData.client_case_invoice_ref || null
-        },
-        {
-          key: 'vsls_agent_dtls',
-          value: data.vsls_agent_dtls || null,
-          originalValue: originalData.vsls_agent_dtls || null
-        },
-      ];
-
-      fields.forEach(({ key, value, originalValue, compareValue }) => {
-        // Use compareValue if provided (for dates), otherwise use value
-        const newValueToCompare = compareValue !== undefined ? compareValue : value;
-        if (hasChanged(newValueToCompare, originalValue)) {
-          // Only include the field if it has a non-null value
-          // For dates, false is considered empty
-          if (value !== null && value !== undefined && value !== "" && value !== false) {
-            payload[key] = value;
-          }
-          // Special handling for quotation_id - empty string is valid
-          else if (key === 'quotation_id' && value === "") {
-            payload[key] = "";
-          }
-        }
-      });
-
-      return payload;
-    }
-
-    // For create, only include fields with actual values
-    if (data.so_number) {
-      payload.name = data.so_number;
-      payload.so_number = data.so_number;
-    }
-
-    if (hasValue(data.client_id)) payload.client_id = data.client_id;
-    if (hasValue(data.vessel_id)) payload.vessel_id = data.vessel_id;
-    if (hasValue(data.destination_type)) payload.destination_type = data.destination_type;
-    if (hasValue(data.destination)) payload.destination = data.destination;
-    if (hasValue(data.country_id)) payload.country_id = data.country_id;
-    if (hasValue(data.destination_id)) payload.destination_id = data.destination_id;
-    if (hasValue(data.done)) payload.done = data.done || "active";
-    if (hasValue(data.pic_new)) payload.pic_new = data.pic_new;
-    if (data.quotation_id !== null && data.quotation_id !== undefined) {
-      payload.quotation_id = data.quotation_id;
-    }
-
-    const etaDate = toDateTime(data.eta_date);
-    if (hasValue(etaDate)) payload.eta_date = etaDate;
-
-    const etbDate = data.etb && data.etb !== false ? toDateOnly(data.etb) : false;
-    if (hasValue(etbDate)) payload.etb = etbDate;
-
-    const etdDate = data.etd && data.etd !== false ? toDateOnly(data.etd) : false;
-    if (hasValue(etdDate)) payload.etd = etdDate;
-
-    const dateOrder = toDateTime(data.date_created || data.date_order);
-    if (hasValue(dateOrder)) payload.date_order = dateOrder;
-
-    if (hasValue(data.next_action)) payload.next_action = toDateOnly(data.next_action);
-    if (hasValue(data.internal_remark)) payload.internal_remark = data.internal_remark;
-    if (hasValue(data.client_case_invoice_ref)) payload.client_case_invoice_ref = data.client_case_invoice_ref;
-    if (hasValue(data.vsls_agent_dtls)) payload.vsls_agent_dtls = data.vsls_agent_dtls;
-
-    return payload;
-  };
-
   const handleFormSubmit = async () => {
     const hasClient = !!formData?.client_id;
     const hasVessel = !!formData?.vessel_id;
@@ -1058,25 +767,14 @@ const SoNumberTab = () => {
     try {
       setIsSaving(true);
 
-      if (editingOrder) {
-        const payload = buildPayloadFromForm(formData, true, editingOrder._raw || {});
-        await updateShippingOrder(editingOrder.id, payload, editingOrder._raw || {});
-        toast({
-          title: "SO updated",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      } else {
-        const payload = buildPayloadFromForm(formData, false);
-        await createShippingOrder(payload);
-        toast({
-          title: "SO created",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-      }
+      const payload = buildPayloadFromForm(formData, false);
+      await createShippingOrder(payload);
+      toast({
+        title: "SO created",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
 
       await fetchOrders();
       handleFormClose(true);
@@ -1736,405 +1434,48 @@ const SoNumberTab = () => {
       <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>{editingOrder ? "Edit SO" : "Create SO"}</ModalHeader>
+          <ModalHeader>Create SO</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
             {formData && (
-              <VStack spacing="6" align="stretch">
-                {/* Basic Information */}
-                <Box>
-                  <Flex gap="4" flexWrap="wrap">
-                    {editingOrder && (
-                      <FormControl flex="1">
-                        <FormLabel>SO Number</FormLabel>
-                        <Input
-                          value={formData.so_number || "-"}
-                          isReadOnly
-                          bg={useColorModeValue("gray.50", "gray.700")}
-                          cursor="not-allowed"
-                        />
-                      </FormControl>
-                    )}
-                    <FormControl flex="1" minW="220px">
-                      <FormLabel>Date Created</FormLabel>
-                      <Input
-                        type="date"
-                        value={formData.date_created || ""}
-                        isReadOnly={!!editingOrder}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, date_created: e.target.value }))
-                        }
-                      />
-                    </FormControl>
-                    <FormControl flex="1" minW="220px">
-                      <FormLabel>Status</FormLabel>
-                      <Select
-                        size="sm"
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        value={formData.done || "active"}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            done: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="active">Active</option>
-                        <option value="archive">Archive</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="done">Done</option>
-                        <option value="pending_pod">Pending POD</option>
-                        <option value="ready_for_invoice">Ready for Invoice</option>
-                      </Select>
-                    </FormControl>
-                  </Flex>
-                </Box>
-
-                {/* Party & Vessel */}
-                <Box>
-                  <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="220px">
-                      <FormLabel>Person in Charge</FormLabel>
-                      <SimpleSearchableSelect
-                        value={formData.pic_new}
-                        onChange={(value) =>
-                          setFormData((prev) => ({ ...prev, pic_new: value }))
-                        }
-                        options={pics}
-                        placeholder="Select person in charge"
-                        displayKey="name"
-                        valueKey="id"
-                        isLoading={false}
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        size="sm"
-                      />
-                    </FormControl>
-                    <FormControl flex="1" isRequired minW="260px">
-                      <FormLabel>Client</FormLabel>
-                      <SimpleSearchableSelect
-                        value={formData.client_id}
-                        onChange={(value) =>
-                          setFormData((prev) => ({ ...prev, client_id: value }))
-                        }
-                        options={clients}
-                        placeholder="Select client"
-                        displayKey="name"
-                        valueKey="id"
-                        isLoading={false}
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        size="sm"
-                      />
-                    </FormControl>
-                    <FormControl flex="1" isRequired minW="260px">
-                      <Flex justify="space-between" align="center" mb={1}>
-                        <FormLabel mb={0}>Vessel</FormLabel>
-                        {!editingOrder && (
-                          <Button
-                            as={Link}
-                            to="/admin/configurations/vessels"
-                            target="_blank"
-                            size="xs"
-                            variant="link"
-                            colorScheme="blue"
-                            onClick={() => {}}
-                          >
-                            Open Vessel DB →
-                          </Button>
-                        )}
-                      </Flex>
-                      <SimpleSearchableSelect
-                        value={formData.vessel_id}
-                        onChange={(value) =>
-                          setFormData((prev) => ({ ...prev, vessel_id: value }))
-                        }
-                        options={vessels}
-                        placeholder="Select vessel"
-                        displayKey="name"
-                        valueKey="id"
-                        isLoading={false}
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        size="sm"
-                      />
-                    </FormControl>
-                  </Flex>
-                  <Flex gap="4" flexWrap="wrap" mt="4">
-                    <FormControl flex="1" minW="260px">
-                      <FormLabel>Destination Type</FormLabel>
-                      <Select
-                        size="sm"
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        value={formData.destination_type || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            destination_type: e.target.value,
-                            destination: "", // Clear destination when type changes
-                            country_id: null, // Clear country when type changes
-                          }))
-                        }
-                        placeholder="Select destination type"
-                      >
-                        <option value="port_country">Port Name + Country</option>
-                        <option value="city_country">City + Country</option>
-                        <option value="airport_country">Airport + Country</option>
-                        <option value="country">Country</option>
-                      </Select>
-                    </FormControl>
-                    {formData.destination_type && formData.destination_type !== "country" && (
-                      <FormControl flex="1" minW="260px">
-                        <FormLabel>
-                          {formData.destination_type === "port_country"
-                            ? "Port Name"
-                            : formData.destination_type === "city_country"
-                              ? "City"
-                              : formData.destination_type === "airport_country"
-                                ? "Airport"
-                                : "Destination"}
-                        </FormLabel>
-                        <Input
-                          size="sm"
-                          bg={inputBg}
-                          color={inputText}
-                          borderColor={borderColor}
-                          value={formData.destination || ""}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, destination: e.target.value }))
-                          }
-                          placeholder={
-                            formData.destination_type === "port_country"
-                              ? "Enter port name"
-                              : formData.destination_type === "city_country"
-                                ? "Enter city name"
-                                : formData.destination_type === "airport_country"
-                                  ? "Enter airport name"
-                                  : "Enter destination"
-                          }
-                        />
-                      </FormControl>
-                    )}
-                    {formData.destination_type && (
-                      <FormControl flex="1" minW="260px">
-                        <FormLabel>Country</FormLabel>
-                        <SimpleSearchableSelect
-                          value={formData.country_id}
-                          onChange={(value) => {
-                            const selectedCountry = countries.find((c) => c.id === value);
-                            setFormData((prev) => ({
-                              ...prev,
-                              country_id: value,
-                              // If destination_type is "country", auto-fill destination with country name
-                              ...(prev.destination_type === "country" && selectedCountry
-                                ? { destination: selectedCountry.name }
-                                : {}),
-                            }));
-                          }}
-                          options={countries}
-                          placeholder="Select country"
-                          displayKey="name"
-                          valueKey="id"
-                          isLoading={false}
-                          bg={inputBg}
-                          color={inputText}
-                          borderColor={borderColor}
-                          size="sm"
-                        />
-                      </FormControl>
-                    )}
-                  </Flex>
-                </Box>
-
-                {/* Next Action */}
-                <Box>
-                  <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="180px">
-                      <FormLabel>Next Action</FormLabel>
-                      <Input
-                        type="date"
-                        value={formData.next_action || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, next_action: e.target.value }))
-                        }
-                      />
-                    </FormControl>
-                  </Flex>
-                </Box>
-
-                {/* Schedule */}
-                <Box>
-                  <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="180px">
-                      <FormLabel>ETA</FormLabel>
-                      <Input
-                        type="date"
-                        value={formData.eta_date || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, eta_date: e.target.value }))
-                        }
-                      />
-                    </FormControl>
-                    <FormControl flex="1" minW="180px">
-                      <FormLabel>ETB</FormLabel>
-                      <Input
-                        type="date"
-                        value={formData.etb && formData.etb !== false ? (typeof formData.etb === 'string' ? formData.etb.split(' ')[0] : formData.etb) : ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, etb: e.target.value || false }))
-                        }
-                      />
-                    </FormControl>
-                    <FormControl flex="1" minW="180px">
-                      <FormLabel>ETD</FormLabel>
-                      <Input
-                        type="date"
-                        value={formData.etd && formData.etd !== false ? (typeof formData.etd === 'string' ? formData.etd.split(' ')[0] : formData.etd) : ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, etd: e.target.value || false }))
-                        }
-                      />
-                    </FormControl>
-                  </Flex>
-                </Box>
-
-                {/* Remarks */}
-                <Box>
-                  <FormControl mb="3">
-                    <FormLabel>Internal Remark</FormLabel>
-                    <Textarea
-                      value={formData.internal_remark}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, internal_remark: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                  <FormControl mb="3">
-                    <FormLabel>VSLS Agent Details</FormLabel>
-                    <VStack align="stretch" spacing="2">
-                      <Textarea
-                        value={formData.vsls_agent_dtls || ""}
-                        isReadOnly
-                        rows={2}
-                        cursor="pointer"
-                        onClick={() =>
-                          openVslsAgentDtlsModal(
-                            formData.vsls_agent_dtls || "",
-                            "edit",
-                            `Edit VSLS Agent Details — ${formData.so_number || "SO"}`,
-                            "vsls_agent_dtls"
-                          )
-                        }
-                      />
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        onClick={() =>
-                          openVslsAgentDtlsModal(
-                            formData.vsls_agent_dtls || "",
-                            "edit",
-                            `Edit VSLS Agent Details — ${formData.so_number || "SO"}`,
-                            "vsls_agent_dtls"
-                          )
-                        }
-                        alignSelf="flex-start"
-                      >
-                        Open editor
-                      </Button>
-                    </VStack>
-                  </FormControl>
-                  <FormControl>
-                    <FormLabel>Client Case Invoice Ref</FormLabel>
-                    <Textarea
-                      value={formData.client_case_invoice_ref}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, client_case_invoice_ref: e.target.value }))
-                      }
-                    />
-                  </FormControl>
-                </Box>
-
-                {/* Quotation & Timestamp */}
-                <Box>
-                  <Flex gap="4" flexWrap="wrap">
-                    <FormControl flex="1" minW="260px" isDisabled>
-                      <FormLabel>Quotation</FormLabel>
-                      <SimpleSearchableSelect
-                        value={formData.quotation_id}
-                        onChange={(value) =>
-                          setFormData((prev) => {
-                            const selected = quotations.find((q) => q.id === value);
-                            return {
-                              ...prev,
-                              quotation_id: value,
-                              quotation: selected ? selected.name : "",
-                            };
-                          })
-                        }
-                        options={quotations}
-                        placeholder="Select quotation"
-                        displayKey="name"
-                        valueKey="id"
-                        isLoading={isLoadingQuotations}
-                        // Temporarily disabled until quotation integration is finalized
-                        isDisabled
-                        bg={inputBg}
-                        color={inputText}
-                        borderColor={borderColor}
-                        size="sm"
-                      />
-                    </FormControl>
-                    <FormControl flex="1" minW="260px">
-                      <FormLabel>SO Timestamp</FormLabel>
-                      <Input
-                        value={formData.timestamp}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, timestamp: e.target.value }))
-                        }
-                        placeholder="13/06/2025 12:44:22"
-                      />
-                    </FormControl>
-                  </Flex>
-                </Box>
-              </VStack>
+              <ShippingOrderFormFields
+                formData={formData}
+                setFormData={setFormData}
+                isEditMode={false}
+                clients={clients}
+                vessels={vessels}
+                countries={countries}
+                pics={pics}
+                quotations={quotations}
+                isLoadingQuotations={isLoadingQuotations}
+                onOpenVslsAgentDtlsModal={openVslsAgentDtlsModal}
+                showVesselDbLink
+              />
             )}
           </ModalBody>
           <ModalFooter>
-            {!editingOrder && (
-              <>
-                <Button
-                  as={Link}
-                  to="/admin/configurations/vessels"
-                  target="_blank"
-                  variant="outline"
-                  mr={3}
-                  onClick={() => {}}
-                >
-                  Open Vessel DB
-                </Button>
-                <Button
-                  variant="outline"
-                  mr={3}
-                  onClick={() => {
-                    handleFormClose();
-                  }}
-                >
-                  Save Draft & Close
-                </Button>
-              </>
-            )}
+            <Button
+              as={Link}
+              to="/admin/configurations/vessels"
+              target="_blank"
+              variant="outline"
+              mr={3}
+              onClick={() => {}}
+            >
+              Open Vessel DB
+            </Button>
+            <Button
+              variant="outline"
+              mr={3}
+              onClick={() => handleFormClose()}
+            >
+              Save Draft & Close
+            </Button>
             <Button variant="ghost" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>
             <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
-              {editingOrder ? "Save Changes" : "Create SO"}
+              Create SO
             </Button>
           </ModalFooter>
         </ModalContent>
