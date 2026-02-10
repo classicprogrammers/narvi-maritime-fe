@@ -203,10 +203,17 @@ export default function StockList() {
     useEffect(() => {
         fetchStockList().then((result) => {
             if (result?.success && result?.data) {
-                setTotalCount(result.data.total_count || 0);
-                setTotalPages(result.data.total_pages || 0);
+                const total = result.data.total_count ?? 0;
+                const pages = Math.max(0, result.data.total_pages ?? 0);
+                setTotalCount(total);
+                setTotalPages(pages);
                 setHasNext(result.data.has_next || false);
                 setHasPrevious(result.data.has_previous || false);
+                // If API returned a valid page number, stay in sync (e.g. backend clamped to last page)
+                const apiPage = result.data.page;
+                if (typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
+                    setPage((prev) => (prev > pages ? pages : prev));
+                }
             }
         });
     }, [fetchStockList]);
@@ -907,14 +914,21 @@ export default function StockList() {
         if (value === null || value === undefined || value === "" || value === false) {
             return "-";
         }
+        if (typeof value === "object" && value !== null) {
+            if (value.name != null) return String(value.name);
+            if (value.id != null) return String(value.id);
+            return "-";
+        }
         return value;
     };
 
-    const splitLines = (val) =>
-        (val || "")
+    const splitLines = (val) => {
+        if (val == null || typeof val === "object") return [];
+        return String(val)
             .split(/\r?\n/)
             .map((v) => v.trim())
             .filter(Boolean);
+    };
 
     const renderMultiLineLabels = (value) => {
         const lines = splitLines(value);
@@ -2099,9 +2113,9 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.ap_destination_id || item.ap_destination) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
@@ -2288,8 +2302,8 @@ export default function StockList() {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setPage(totalPages)}
-                                isDisabled={!hasNext || page === totalPages}
+                                onClick={() => setPage(Math.max(1, totalPages || 1))}
+                                isDisabled={!hasNext || page === totalPages || !(totalPages >= 1)}
                             >
                                 Last
                             </Button>
@@ -2396,7 +2410,7 @@ export default function StockList() {
                                                     Warehouse
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {item.warehouse_id || item.stock_warehouse || "-"}
+                                                    {getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}
                                                 </Text>
                                             </Box>
                                             <Box>

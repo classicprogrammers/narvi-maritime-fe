@@ -417,24 +417,12 @@ const SoNumberTab = () => {
     }
   }, [pics, activeATHPics.length, activeSINPics.length, athReadyForInvoicePics.length, sinReadyForInvoicePics.length]);
 
-  // Helper functions to get names from IDs
+  // Helper to get client name for filter labels (filter stores id; list display uses order.client from API)
   const getClientName = useCallback((clientId) => {
     if (!clientId) return "-";
     const client = clients.find((c) => c.id === clientId);
     return client ? client.name : "-";
   }, [clients]);
-
-  const getClientCode = useCallback((clientId) => {
-    if (!clientId) return "-";
-    const client = clients.find((c) => c.id === clientId);
-    return client ? (client.client_code || client.code || "-") : "-";
-  }, [clients]);
-
-  const getVesselName = useCallback((vesselId) => {
-    if (!vesselId) return "-";
-    const vessel = vessels.find((v) => v.id === vesselId);
-    return vessel ? vessel.name : "-";
-  }, [vessels]);
 
   const getDestinationName = useCallback((destinationId) => {
     if (!destinationId) return "-";
@@ -448,7 +436,7 @@ const SoNumberTab = () => {
     return country ? country.name : "-";
   }, [countries]);
 
-  // Helper to format destination display for table
+  // Helper to format destination display for table (country_id is normalized to id; use getCountryName for lookup)
   const getDestinationDisplay = useCallback((order) => {
     if (order.destination_type && order.destination) {
       const countryName = order.country_id ? getCountryName(order.country_id) : "";
@@ -459,18 +447,11 @@ const SoNumberTab = () => {
       }
       return order.destination;
     }
-    // Fallback to legacy destination_id
     if (order.destination_id) {
       return getDestinationName(order.destination_id);
     }
     return "-";
   }, [getCountryName, getDestinationName]);
-
-  const getPICName = useCallback((picId) => {
-    if (!picId) return "-";
-    const pic = pics.find((p) => p.id === picId);
-    return pic ? pic.name : "-";
-  }, [pics]);
 
   // Handler functions for filters
   const toggleFilter = (filterName) => {
@@ -658,11 +639,14 @@ const SoNumberTab = () => {
           aValue = a.date_created || "";
           bValue = b.date_created || "";
         } else if (sortConfig.field === "client") {
-          aValue = getClientCode(a.client_id);
-          bValue = getClientCode(b.client_id);
+          aValue = a.client || "";
+          bValue = b.client || "";
+        } else if (sortConfig.field === "vessel_id") {
+          aValue = a.vessel_name || "";
+          bValue = b.vessel_name || "";
         } else if (sortConfig.field === "pic") {
-          aValue = getPICName(a.pic_new) || a.pic_name || "";
-          bValue = getPICName(b.pic_new) || b.pic_name || "";
+          aValue = a.pic_name || "";
+          bValue = b.pic_name || "";
         } else {
           aValue = a[sortConfig.field] || "";
           bValue = b[sortConfig.field] || "";
@@ -693,10 +677,7 @@ const SoNumberTab = () => {
     sortConfig,
     nextActionSortOption,
     getClientName,
-    getClientCode,
-    getVesselName,
     getDestinationDisplay,
-    getPICName,
   ]);
 
   const handleCreate = () => {
@@ -861,9 +842,9 @@ const SoNumberTab = () => {
                       : "Active"}
           </Badge>
         </Td>
-        <Td>{getPICName(order.pic_new) || order.pic_name || "-"}</Td>
-        <Td>{getClientCode(order.client_id)}</Td>
-        <Td>{getVesselName(order.vessel_id)}</Td>
+        <Td>{order.pic_name || "-"}</Td>
+        <Td>{order.client || "-"}</Td>
+        <Td>{order.vessel_name || "-"}</Td>
         <Td>{getDestinationDisplay(order)}</Td>
         <Td>{getEtaDisplay(order)}</Td>
         <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>

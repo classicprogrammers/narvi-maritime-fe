@@ -14,6 +14,14 @@ import {
 import { Link } from "react-router-dom";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 
+// Coerce relation field to id so we never pass { id, name } to inputs (avoids "Objects are not valid as a React child")
+const toId = (v) =>
+  v == null || v === ""
+    ? null
+    : typeof v === "object" && v !== null && "id" in v
+      ? v.id
+      : v;
+
 /**
  * Shared form body for shipping order (used in modal and edit page).
  * Parent owns formData state and passes onOpenVslsAgentDtlsModal to open the VSLS editor modal.

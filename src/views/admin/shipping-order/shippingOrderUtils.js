@@ -9,11 +9,17 @@ export function toDateOnly(dateStr) {
 
 /**
  * Normalize backend order data into the shape the form and table expect.
+ * API may return pic_new, client_id, vessel_id, country_id as { id, name }.
  */
 export function normalizeOrder(order) {
   if (!order) return null;
   const rawCreated = order.date_created || order.date_order || order.create_date;
   const createdDateOnly = rawCreated ? String(rawCreated).split(" ")[0] : "";
+
+  const picVal = order.pic_new || order.pic_id || order.pic;
+  const clientVal = order.client_id || order.partner_id;
+  const vesselVal = order.vessel_id;
+  const countryVal = order.country_id;
 
   return {
     id: order.id,
@@ -25,15 +31,15 @@ export function normalizeOrder(order) {
         : order.done === true
           ? "active"
           : "active",
-    pic_new: order.pic_new || order.pic_id || order.pic || null,
-    pic_name: order.pic_name || order.pic || "",
-    client: order.client || order.client_name || "",
-    client_id: order.client_id || order.partner_id || null,
-    vessel_name: order.vessel_name || order.vessel || "",
-    vessel_id: order.vessel_id || null,
+    pic_new: (picVal && typeof picVal === "object" ? picVal.id : picVal) ?? null,
+    pic_name: (picVal && typeof picVal === "object" ? picVal.name : null) || order.pic_name || order.pic || "",
+    client: (clientVal && typeof clientVal === "object" ? clientVal.name : null) || order.client || order.client_name || "",
+    client_id: (clientVal && typeof clientVal === "object" ? clientVal.id : clientVal) ?? null,
+    vessel_name: (vesselVal && typeof vesselVal === "object" ? vesselVal.name : null) || order.vessel_name || order.vessel || "",
+    vessel_id: (vesselVal && typeof vesselVal === "object" ? vesselVal.id : vesselVal) ?? null,
+    country_id: (countryVal && typeof countryVal === "object" ? countryVal.id : countryVal) ?? null,
     destination_type: order.destination_type || "",
     destination: order.destination || order.destination_name || "",
-    country_id: order.country_id || null,
     destination_id: order.destination_id || null,
     eta_date: order.eta_date,
     etb: order.etb,
