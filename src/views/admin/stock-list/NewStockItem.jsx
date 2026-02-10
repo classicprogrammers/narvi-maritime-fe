@@ -185,6 +185,49 @@ export default function StockForm() {
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
 
+    const ADD_STOCK_HAS_DATA_KEY = "addStockHasData";
+    const ADD_STOCK_HAS_DATA_EVENT = "addStockHasDataChange";
+
+    const setAddStockHasDataFlag = useCallback((hasData) => {
+        try {
+            if (hasData) {
+                sessionStorage.setItem(ADD_STOCK_HAS_DATA_KEY, "1");
+            } else {
+                sessionStorage.removeItem(ADD_STOCK_HAS_DATA_KEY);
+            }
+            window.dispatchEvent(new CustomEvent(ADD_STOCK_HAS_DATA_EVENT));
+        } catch (e) {
+            // ignore
+        }
+    }, []);
+
+    const hasFormData = useCallback((rows) => {
+        if (!Array.isArray(rows) || rows.length === 0) return false;
+        const emptyRow = getEmptyRow();
+        for (const row of rows) {
+            for (const key of Object.keys(emptyRow)) {
+                if (key === "id" || key === "attachmentsToDelete") continue;
+                const v = row[key];
+                const empty = emptyRow[key];
+                if (v === empty) continue;
+                if (Array.isArray(v) && Array.isArray(empty) && v.length === 0) continue;
+                if (v != null && v !== "" && String(v).trim() !== "") return true;
+                if (Array.isArray(v) && v.length > 0) return true;
+            }
+        }
+        return false;
+    }, []);
+
+    useEffect(() => {
+        if (!isEditing) {
+            const hasData = hasFormData(formRows);
+            setAddStockHasDataFlag(hasData);
+        } else {
+            setAddStockHasDataFlag(false);
+        }
+        return () => setAddStockHasDataFlag(false);
+    }, [isEditing, formRows, hasFormData, setAddStockHasDataFlag]);
+
     // Load stock items for bulk edit or single edit
     const ensureStockData = useCallback(async () => {
         if (stockList && stockList.length > 0) {
@@ -1063,6 +1106,7 @@ export default function StockForm() {
                             duration: 3000,
                             isClosable: true,
                         });
+                        setAddStockHasDataFlag(false);
                         getStockList();
                         history.push("/admin/stock-list/stocks");
                     } else {

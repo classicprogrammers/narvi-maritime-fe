@@ -27,8 +27,19 @@ export function SidebarLinks(props) {
 
   const { routes, collapsed = false } = props;
   const [openSubmenus, setOpenSubmenus] = useState({});
+  const [, setAddStockFlagDummy] = useState(0);
 
   const pathname = (location.pathname || "").replace(/\/$/, "") || "/";
+  const isAddStockWithData =
+    pathname.includes("/stock-list/add-stock") &&
+    (typeof sessionStorage !== "undefined" && sessionStorage.getItem("addStockHasData") === "1");
+
+  React.useEffect(() => {
+    const onAddStockHasDataChange = () => setAddStockFlagDummy((n) => n + 1);
+    window.addEventListener("addStockHasDataChange", onAddStockHasDataChange);
+    return () => window.removeEventListener("addStockHasDataChange", onAddStockHasDataChange);
+  }, []);
+
   const isClientEditMode =
     pathname.includes("/customer-registration") &&
     (location.state?.client || location.state?.clientId);
@@ -46,7 +57,7 @@ export function SidebarLinks(props) {
   };
 
   const openInNewTab = (targetPath) =>
-    (isClientEditMode || isAgentEditMode || isShippingOrderEditMode || isStockListEditMode) && !isCurrentPath(targetPath);
+    (isClientEditMode || isAgentEditMode || isShippingOrderEditMode || isStockListEditMode || isAddStockWithData) && !isCurrentPath(targetPath);
 
   const SidebarNavLink = ({ to, children }) => {
     const targetPath = (to || "").replace(/\/$/, "") || "/";

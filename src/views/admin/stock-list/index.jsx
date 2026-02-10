@@ -2217,86 +2217,84 @@ export default function StockList() {
                             )}
                         </Tbody>
                     </Table>
+                </Box>
 
-                    {/* Pagination Controls */}
-                    <Box px="25px" mt={4}>
-                        <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
-                            <HStack spacing={4}>
-                                <Text fontSize="sm" color="gray.600">
-                                    Showing {(page - 1) * pageSize + 1} to{" "}
-                                    {(totalCount || reduxTotalCount) === 0 ? 0 : Math.min(page * pageSize, totalCount || reduxTotalCount)} of {totalCount || reduxTotalCount} records
-                                </Text>
-                                <Text fontSize="sm" color="gray.600" fontWeight="500">
-                                    Page {page} of {totalPages || 1}
-                                </Text>
+                {/* Pagination Controls - outside table scroll so always visible */}
+                <Box px="25px" mt={4} mb={4}>
+                    <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
+                        <HStack spacing={4}>
+                            <Text fontSize="sm" color="gray.600">
+                                Showing {(page - 1) * pageSize + 1} to{" "}
+                                {(totalCount || reduxTotalCount) === 0 ? 0 : Math.min(page * pageSize, totalCount || reduxTotalCount)} of {totalCount || reduxTotalCount} records
+                            </Text>
+                            <Text fontSize="sm" color="gray.600" fontWeight="500">
+                                Page {page} of {totalPages || 1}
+                            </Text>
+                        </HStack>
+
+                        <HStack spacing={2}>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPage(1)}
+                                isDisabled={!hasPrevious || page === 1}
+                            >
+                                First
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPage(page - 1)}
+                                isDisabled={!hasPrevious || page === 1}
+                            >
+                                Previous
+                            </Button>
+
+                            <HStack spacing={1}>
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) {
+                                        pageNum = i + 1;
+                                    } else if (page <= 3) {
+                                        pageNum = i + 1;
+                                    } else if (page >= totalPages - 2) {
+                                        pageNum = totalPages - 4 + i;
+                                    } else {
+                                        pageNum = page - 2 + i;
+                                    }
+
+                                    return (
+                                        <Button
+                                            key={pageNum}
+                                            size="sm"
+                                            variant={page === pageNum ? "solid" : "outline"}
+                                            colorScheme={page === pageNum ? "blue" : "gray"}
+                                            onClick={() => setPage(pageNum)}
+                                        >
+                                            {pageNum}
+                                        </Button>
+                                    );
+                                })}
                             </HStack>
 
-                            {/* Pagination buttons */}
-                                <HStack spacing={2}>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setPage(1)}
-                                        isDisabled={!hasPrevious || page === 1}
-                                    >
-                                        First
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setPage(page - 1)}
-                                        isDisabled={!hasPrevious || page === 1}
-                                    >
-                                        Previous
-                                    </Button>
-
-                                    {/* Page numbers */}
-                                    <HStack spacing={1}>
-                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                                let pageNum;
-                                                if (totalPages <= 5) {
-                                                    pageNum = i + 1;
-                                                } else if (page <= 3) {
-                                                    pageNum = i + 1;
-                                                } else if (page >= totalPages - 2) {
-                                                    pageNum = totalPages - 4 + i;
-                                                } else {
-                                                    pageNum = page - 2 + i;
-                                                }
-
-                                                return (
-                                                    <Button
-                                                        key={pageNum}
-                                                        size="sm"
-                                                        variant={page === pageNum ? "solid" : "outline"}
-                                                        colorScheme={page === pageNum ? "blue" : "gray"}
-                                                        onClick={() => setPage(pageNum)}
-                                                    >
-                                                        {pageNum}
-                                                    </Button>
-                                                );
-                                            })}
-                                    </HStack>
-
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setPage(page + 1)}
-                                        isDisabled={!hasNext || (totalPages > 0 && page >= totalPages)}
-                                    >
-                                        Next
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setPage(totalPages)}
-                                        isDisabled={!hasNext || page === totalPages}
-                                    >
-                                        Last
-                                    </Button>
-                                </HStack>
-                            </Flex>
-                        </Box>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPage(page + 1)}
+                                isDisabled={!hasNext || (totalPages > 0 && page >= totalPages)}
+                            >
+                                Next
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPage(totalPages)}
+                                isDisabled={!hasNext || page === totalPages}
+                            >
+                                Last
+                            </Button>
+                        </HStack>
+                    </Flex>
                 </Box>
 
             </Card>
