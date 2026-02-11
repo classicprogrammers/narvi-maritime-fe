@@ -604,7 +604,7 @@ const AgentDetail = () => {
                 Edit Agent
               </Button>
             )}
-            <Button onClick={() => history.push("/admin/contacts/agents")}>Back to Agents</Button>
+            <Button onClick={() => history.go(-1)}>Back</Button>
           </Flex>
         </Flex>
 
@@ -627,8 +627,8 @@ const AgentDetail = () => {
                   ? `Checked ${vendors.length} vendors in list.`
                   : "Vendors list not loaded yet."}
               </Text>
-              <Button onClick={() => history.push("/admin/contacts/agents")} colorScheme="blue">
-                Back to Agents
+              <Button onClick={() => history.go(-1)} colorScheme="blue">
+                Back
               </Button>
             </Box>
           ) : agent ? (

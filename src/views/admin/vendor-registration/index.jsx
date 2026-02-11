@@ -1222,7 +1222,7 @@ function VendorRegistration() {
     };
 
     const handleBackToVendors = () => {
-        history.push("/admin/contacts/agents");
+        history.go(-1);
     };
 
     const handleConfirmDelete = () => {
@@ -1305,7 +1305,7 @@ function VendorRegistration() {
                         )}
                     </Flex>
                     <Button leftIcon={<Icon as={MdArrowBack} />} size="sm" onClick={handleBackToVendors}>
-                        Back to Agents
+                        Back
                     </Button>
                 </Flex>
 

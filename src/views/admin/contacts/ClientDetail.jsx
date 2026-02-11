@@ -373,7 +373,7 @@ const ClientDetail = () => {
                 Edit Client
               </Button>
             )}
-            <Button onClick={() => history.push("/admin/contacts/customer")}>Back to Clients</Button>
+            <Button onClick={() => history.go(-1)}>Back</Button>
           </Flex>
         </Flex>
 

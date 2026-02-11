@@ -1047,9 +1047,9 @@ function CustomerRegistration() {
                         <Button
                             leftIcon={<Icon as={MdArrowBack} />}
                             size="sm"
-                            onClick={() => history.push('/admin/contacts/customer')}
+                            onClick={() => history.go(-1)}
                         >
-                            Back to Clients
+                            Back
                         </Button>
                     </Flex>
 
