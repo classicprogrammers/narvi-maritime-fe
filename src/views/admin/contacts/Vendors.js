@@ -35,7 +35,8 @@ export default function Vendors() {
   const { vendors, isLoading, getVendors, pagination, countries } = useVendor();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(80);
-  const [searchValue, setSearchValue] = useState("");
+  const [nameSearchValue, setNameSearchValue] = useState("");
+  const [overallSearchValue, setOverallSearchValue] = useState("");
   const [filters, setFilters] = useState({ agent_id: "", agent_type: "", country: "" });
   const [sortOrder, setSortOrder] = useState("alphabetical");
 
@@ -48,7 +49,8 @@ export default function Vendors() {
     (overrides = {}) => {
       const sortApi = mapSortOrderToApi(overrides.sortOrder ?? sortOrder);
       return {
-        search: searchValue?.trim() || undefined,
+        name: nameSearchValue?.trim() || undefined,
+        search: overallSearchValue?.trim() || undefined,
         agentsdb_id: filters.agent_id?.trim() || undefined,
         agent_type: filters.agent_type?.trim() || undefined,
         country_id: resolveCountryId(filters.country, countriesRef.current),
@@ -58,7 +60,7 @@ export default function Vendors() {
         sort_order: sortApi.sort_order,
       };
     },
-    [searchValue, filters, page, pageSize, sortOrder]
+    [nameSearchValue, overallSearchValue, filters, page, pageSize, sortOrder]
   );
 
   const fetchVendors = useCallback(
@@ -77,10 +79,19 @@ export default function Vendors() {
     }
   }, [getVendors]);
 
-  const handleSearch = useCallback(() => {
-    setPage(1);
-    fetchVendors({ page: 1 });
-  }, [fetchVendors]);
+  // Search on change (debounced) – skip initial mount
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchVendors({ page: 1 });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [nameSearchValue, overallSearchValue, fetchVendors]);
 
   const refreshAgents = useCallback(() => {
     fetchVendors({ page });
@@ -137,7 +148,8 @@ export default function Vendors() {
   }, []);
 
   const handleClearAll = useCallback(() => {
-    setSearchValue("");
+    setNameSearchValue("");
+    setOverallSearchValue("");
     setFilters({ agent_id: "", agent_type: "", country: "" });
     setSortOrder("alphabetical");
     setPage(1);
@@ -164,13 +176,14 @@ export default function Vendors() {
           page={page}
           pageSize={pageSize}
           onPageChange={handlePageChange}
-          searchValue={searchValue}
-          onSearchChange={setSearchValue}
+          nameSearchValue={nameSearchValue}
+          onNameSearchChange={setNameSearchValue}
+          overallSearchValue={overallSearchValue}
+          onOverallSearchChange={setOverallSearchValue}
           filters={filters}
           onFilterChange={handleFilterChange}
           onClearAll={handleClearAll}
           onRefresh={refreshAgents}
-          onSearch={handleSearch}
           sortOrder={sortOrder}
           onSortOrderChange={handleSortOrderChange}
         />

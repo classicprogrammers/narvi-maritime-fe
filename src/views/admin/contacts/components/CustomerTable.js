@@ -78,25 +78,35 @@ export default function CustomerTable(props) {
     page = 1,
     pageSize = 80,
     onPageChange,
-    searchValue: propsSearchValue,
-    onSearchChange: propsOnSearchChange,
+    nameSearchValue: propsNameSearchValue,
+    onNameSearchChange: propsOnNameSearchChange,
+    overallSearchValue: propsOverallSearchValue,
+    onOverallSearchChange: propsOnOverallSearchChange,
     filters: propsFilters,
     onFilterChange: propsOnFilterChange,
     onClearAll: propsOnClearAll,
     onRefresh: propsOnRefresh,
-    onSearch: propsOnSearch,
     sortOrder: propsSortOrder,
     onSortOrderChange: propsOnSortOrderChange,
   } = props;
   const history = useHistory();
-  const [internalSearch, setInternalSearch] = useState("");
+  const [internalNameSearch, setInternalNameSearch] = useState("");
+  const [internalOverallSearch, setInternalOverallSearch] = useState("");
   const [internalFilters, setInternalFilters] = useState({
     client_code: "",
     email: "",
   });
-  const isControlled = propsSearchValue !== undefined && propsOnSearchChange != null && propsFilters !== undefined && propsOnFilterChange != null;
-  const searchValue = isControlled ? propsSearchValue : internalSearch;
-  const setSearchValue = isControlled ? propsOnSearchChange : setInternalSearch;
+  const isControlled =
+    propsNameSearchValue !== undefined &&
+    propsOnNameSearchChange != null &&
+    propsOverallSearchValue !== undefined &&
+    propsOnOverallSearchChange != null &&
+    propsFilters !== undefined &&
+    propsOnFilterChange != null;
+  const nameSearchValue = isControlled ? propsNameSearchValue : internalNameSearch;
+  const setNameSearchValue = isControlled ? propsOnNameSearchChange : setInternalNameSearch;
+  const overallSearchValue = isControlled ? propsOverallSearchValue : internalOverallSearch;
+  const setOverallSearchValue = isControlled ? propsOnOverallSearchChange : setInternalOverallSearch;
   const filters = isControlled ? propsFilters : internalFilters;
   const setFiltersOrNotify = isControlled
     ? (field, value) => propsOnFilterChange(field, value)
@@ -107,7 +117,7 @@ export default function CustomerTable(props) {
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
   const [showFilterFields, setShowFilterFields] = useState(false);
 
-  const hasAnyAdvanceFilter = filters.client_code || filters.email || filters.country;
+  const hasAnyAdvanceFilter = filters.client_code || filters.email || filters.country || overallSearchValue;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
@@ -161,12 +171,21 @@ export default function CustomerTable(props) {
     );
 
     if (!isControlled) {
-      if (searchValue) {
+      if (nameSearchValue) {
         filtered = filtered.filter(
           (item) =>
             item.name &&
-            item.name.toLowerCase().includes(searchValue.toLowerCase())
+            item.name.toLowerCase().includes(nameSearchValue.toLowerCase())
         );
+      }
+      if (overallSearchValue) {
+        const term = overallSearchValue.toLowerCase();
+        filtered = filtered.filter((item) => {
+          const name = (item.name || "").toLowerCase();
+          const code = (item.client_code || "").toLowerCase();
+          const email = (item.email || "").toLowerCase();
+          return name.includes(term) || code.includes(term) || email.includes(term);
+        });
       }
       if (filters.client_code) {
         filtered = filtered.filter(
@@ -241,7 +260,7 @@ export default function CustomerTable(props) {
         children_display: normalizedChildren,
       };
     });
-  }, [tableData, searchValue, filters, isControlled]);
+  }, [tableData, nameSearchValue, overallSearchValue, filters, isControlled]);
 
   const data = useMemo(() => {
     if (isControlled) return filteredCustomers;
@@ -301,7 +320,8 @@ export default function CustomerTable(props) {
       propsOnClearAll();
     } else {
       setInternalFilters({ client_code: "", email: "" });
-      setInternalSearch("");
+      setNameSearchValue("");
+      setOverallSearchValue("");
     }
   };
 
@@ -312,7 +332,10 @@ export default function CustomerTable(props) {
   const clearAllFiltersAndSorting = () => {
     clearAllFilters();
     clearAllSorting();
-    if (!isControlled) setSearchValue("");
+    if (!isControlled) {
+      setNameSearchValue("");
+      setOverallSearchValue("");
+    }
     if (!sortOrderControlled) setSortOrder("alphabetical");
   };
 
@@ -554,7 +577,7 @@ export default function CustomerTable(props) {
             flexWrap="wrap"
             mb={4}
           >
-            <Box flex="1" minW="280px">
+            <Box flex="1" minW="240px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Client Name
               </Text>
@@ -571,9 +594,8 @@ export default function CustomerTable(props) {
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
                   placeholder="Search by client name..."
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && propsOnSearch?.()}
+                  value={nameSearchValue}
+                  onChange={(e) => setNameSearchValue(e.target.value)}
                   border="2px"
                   borderColor={borderColor}
                   _focus={{
@@ -583,16 +605,16 @@ export default function CustomerTable(props) {
                   _hover={{
                     borderColor: "blue.300",
                   }}
-                  pr={searchValue ? "32px" : undefined}
+                  pr={nameSearchValue ? "32px" : undefined}
                 />
-                {searchValue && (
+                {nameSearchValue && (
                   <InputRightElement width="32px">
                     <IconButton
-                      aria-label="Clear search"
+                      aria-label="Clear name search"
                       size="xs"
                       variant="ghost"
                       icon={<Icon as={MdClose} />}
-                      onClick={() => setSearchValue("")}
+                      onClick={() => setNameSearchValue("")}
                       _hover={{ bg: "gray.200" }}
                     />
                   </InputRightElement>
@@ -605,23 +627,11 @@ export default function CustomerTable(props) {
                 &nbsp;
               </Text>
               <HStack spacing={3}>
-                {propsOnSearch && (
-                  <Button
-                    size="md"
-                    colorScheme="blue"
-                    leftIcon={<Icon as={MdSearch} />}
-                    onClick={() => propsOnSearch()}
-                    borderRadius="10px"
-                    border="2px"
-                    borderColor={borderColor}
-                  >
-                    Search
-                  </Button>
-                )}
                 {(filters.client_code ||
                   filters.email ||
                   filters.country ||
-                  searchValue ||
+                  nameSearchValue ||
+                  overallSearchValue ||
                   sortOrder !== "alphabetical") && (
                   <Button
                     size="md"
@@ -645,12 +655,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.client_code || filters.email || filters.country
+                  filters.client_code || filters.email || filters.country || overallSearchValue
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.client_code || filters.email || filters.country
+                  filters.client_code || filters.email || filters.country || overallSearchValue
                     ? "blue"
                     : "gray"
                 }
@@ -707,6 +717,48 @@ export default function CustomerTable(props) {
               </Text>
 
               <HStack spacing={6} flexWrap="wrap" align="flex-start" mb={4}>
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Search overall
+                  </Text>
+                  <InputGroup>
+                    <InputLeftElement>
+                      <Icon as={MdSearch} color="blue.500" w="16px" h="16px" />
+                    </InputLeftElement>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="Search overall..."
+                      value={overallSearchValue ?? ""}
+                      onChange={(e) => setOverallSearchValue(e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{
+                        borderColor: "blue.400",
+                        boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                      }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={overallSearchValue ? "32px" : undefined}
+                    />
+                    {overallSearchValue && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear overall search"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => setOverallSearchValue("")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
+                </Box>
+
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                     Code

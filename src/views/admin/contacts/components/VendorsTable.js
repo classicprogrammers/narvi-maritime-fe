@@ -79,30 +79,36 @@ export default function VendorsTable(props) {
     page = 1,
     pageSize = 80,
     onPageChange,
-    searchValue: propsSearchValue,
-    onSearchChange: propsOnSearchChange,
+    nameSearchValue: propsNameSearchValue,
+    onNameSearchChange: propsOnNameSearchChange,
+    overallSearchValue: propsOverallSearchValue,
+    onOverallSearchChange: propsOnOverallSearchChange,
     filters: propsFilters,
     onFilterChange: propsOnFilterChange,
     onClearAll: propsOnClearAll,
     onRefresh: propsOnRefresh,
-    onSearch: propsOnSearch,
     sortOrder: propsSortOrder,
     onSortOrderChange: propsOnSortOrderChange,
   } = props;
   const history = useHistory();
-  const [internalSearch, setInternalSearch] = useState("");
+  const [internalNameSearch, setInternalNameSearch] = useState("");
+  const [internalOverallSearch, setInternalOverallSearch] = useState("");
   const [internalFilters, setInternalFilters] = useState({
     agent_id: "",
     agent_type: "",
     country: "",
   });
   const isControlled =
-    propsSearchValue !== undefined &&
-    propsOnSearchChange != null &&
+    propsNameSearchValue !== undefined &&
+    propsOnNameSearchChange != null &&
+    propsOverallSearchValue !== undefined &&
+    propsOnOverallSearchChange != null &&
     propsFilters !== undefined &&
     propsOnFilterChange != null;
-  const searchValue = isControlled ? propsSearchValue : internalSearch;
-  const setSearchValue = isControlled ? propsOnSearchChange : setInternalSearch;
+  const nameSearchValue = isControlled ? propsNameSearchValue : internalNameSearch;
+  const setNameSearchValue = isControlled ? propsOnNameSearchChange : setInternalNameSearch;
+  const overallSearchValue = isControlled ? propsOverallSearchValue : internalOverallSearch;
+  const setOverallSearchValue = isControlled ? propsOnOverallSearchChange : setInternalOverallSearch;
   const filters = isControlled ? propsFilters : internalFilters;
   const setFiltersOrNotify = isControlled
     ? (field, value) => propsOnFilterChange(field, value)
@@ -114,7 +120,7 @@ export default function VendorsTable(props) {
   const [showFilterFields, setShowFilterFields] = useState(false);
 
   // Auto-open advanced filters when any advance filter has data
-  const hasAnyAdvanceFilter = filters.agent_id || filters.agent_type || filters.country;
+  const hasAnyAdvanceFilter = filters.agent_id || filters.agent_type || filters.country || overallSearchValue;
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
@@ -194,10 +200,20 @@ export default function VendorsTable(props) {
     filtered = filtered.filter(isTopLevelAgent);
 
     if (!isControlled) {
-      if (searchValue) {
+      if (nameSearchValue) {
         filtered = filtered.filter(
-          (item) => (item.name || "").toLowerCase().includes(searchValue.toLowerCase())
+          (item) => (item.name || "").toLowerCase().includes(nameSearchValue.toLowerCase())
         );
+      }
+      if (overallSearchValue) {
+        const term = overallSearchValue.toLowerCase();
+        filtered = filtered.filter((item) => {
+          const name = (item.name || "").toLowerCase();
+          const id = (item.agentsdb_id || "").toLowerCase();
+          const email = (item.email || "").toLowerCase();
+          const type = (item.agent_type || item.type_client || item.company_type || "").toLowerCase();
+          return name.includes(term) || id.includes(term) || email.includes(term) || type.includes(term);
+        });
       }
       if (filters.agent_id) {
         filtered = filtered.filter(
@@ -338,7 +354,7 @@ export default function VendorsTable(props) {
     });
 
     return withComputed;
-  }, [tableData, searchValue, filters, isControlled]);
+  }, [tableData, nameSearchValue, overallSearchValue, filters, isControlled]);
 
   const data = useMemo(() => {
     const base = Array.isArray(filteredData) ? filteredData : [];
@@ -415,7 +431,8 @@ export default function VendorsTable(props) {
       propsOnClearAll();
     } else {
       setInternalFilters({ agent_id: "", agent_type: "", country: "" });
-      setInternalSearch("");
+      setNameSearchValue("");
+      setOverallSearchValue("");
     }
   };
 
@@ -426,7 +443,10 @@ export default function VendorsTable(props) {
   const clearAllFiltersAndSorting = () => {
     clearAllFilters();
     clearAllSorting();
-    if (!isControlled) setSearchValue("");
+    if (!isControlled) {
+      setNameSearchValue("");
+      setOverallSearchValue("");
+    }
     if (!sortOrderControlled) setSortOrder("alphabetical");
   };
 
@@ -694,8 +714,8 @@ export default function VendorsTable(props) {
             flexWrap="wrap"
             mb={4}
           >
-            {/* Company Name search */}
-            <Box flex="1" minW="280px">
+            {/* Company Name search (API key: name) */}
+            <Box flex="1" minW="240px">
               <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                 Company Name
               </Text>
@@ -712,9 +732,8 @@ export default function VendorsTable(props) {
                   _placeholder={{ color: placeholderColor, fontSize: "14px" }}
                   borderRadius="10px"
                   placeholder="Search by company name..."
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && propsOnSearch?.()}
+                  value={nameSearchValue}
+                  onChange={(e) => setNameSearchValue(e.target.value)}
                   border="2px"
                   borderColor={borderColor}
                   _focus={{
@@ -724,16 +743,16 @@ export default function VendorsTable(props) {
                   _hover={{
                     borderColor: "blue.300",
                   }}
-                  pr={searchValue ? "32px" : undefined}
+                  pr={nameSearchValue ? "32px" : undefined}
                 />
-                {searchValue && (
+                {nameSearchValue && (
                   <InputRightElement width="32px">
                     <IconButton
-                      aria-label="Clear search"
+                      aria-label="Clear name search"
                       size="xs"
                       variant="ghost"
                       icon={<Icon as={MdClose} />}
-                      onClick={() => setSearchValue("")}
+                      onClick={() => setNameSearchValue("")}
                       _hover={{ bg: "gray.200" }}
                     />
                   </InputRightElement>
@@ -746,23 +765,11 @@ export default function VendorsTable(props) {
                 &nbsp;
               </Text>
               <HStack spacing={3}>
-                {propsOnSearch && (
-                  <Button
-                    size="md"
-                    colorScheme="blue"
-                    leftIcon={<Icon as={MdSearch} />}
-                    onClick={() => propsOnSearch()}
-                    borderRadius="10px"
-                    border="2px"
-                    borderColor={borderColor}
-                  >
-                    Search
-                  </Button>
-                )}
                 {(filters.agent_id ||
                   filters.agent_type ||
                   filters.country ||
-                  searchValue ||
+                  nameSearchValue ||
+                  overallSearchValue ||
                   sortOrder !== "alphabetical") && (
                     <Button
                       size="md"
@@ -786,12 +793,12 @@ export default function VendorsTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.agent_id || filters.agent_type || filters.country
+                  filters.agent_id || filters.agent_type || filters.country || overallSearchValue
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.agent_id || filters.agent_type || filters.country
+                  filters.agent_id || filters.agent_type || filters.country || overallSearchValue
                     ? "blue"
                     : "gray"
                 }
@@ -848,6 +855,46 @@ export default function VendorsTable(props) {
                 Filter by Specific Fields
               </Text>
               <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                {/* Search overall */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Search overall
+                  </Text>
+                  <InputGroup>
+                    <InputLeftElement>
+                      <Icon as={MdSearch} color="blue.500" w="16px" h="16px" />
+                    </InputLeftElement>
+                    <Input
+                      variant="outline"
+                      fontSize="sm"
+                      bg={inputBg}
+                      color={inputText}
+                      borderRadius="8px"
+                      placeholder="Search overall..."
+                      value={overallSearchValue ?? ""}
+                      onChange={(e) => setOverallSearchValue(e.target.value)}
+                      border="2px"
+                      borderColor={borderColor}
+                      _focus={{ borderColor: "blue.400", boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)" }}
+                      _hover={{ borderColor: "blue.300" }}
+                      _placeholder={{ color: placeholderColor, fontSize: "14px" }}
+                      pr={overallSearchValue ? "32px" : undefined}
+                    />
+                    {overallSearchValue && (
+                      <InputRightElement width="32px">
+                        <IconButton
+                          aria-label="Clear overall search"
+                          size="xs"
+                          variant="ghost"
+                          icon={<Icon as={MdClose} />}
+                          onClick={() => setOverallSearchValue("")}
+                          _hover={{ bg: "gray.200" }}
+                        />
+                      </InputRightElement>
+                    )}
+                  </InputGroup>
+                </Box>
+
                 {/* Agent ID Filter */}
                 <Box minW="200px" flex="1">
                   <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>

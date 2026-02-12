@@ -34,7 +34,8 @@ export default function Customer() {
   const { customers, isLoading, getCustomers, pagination, countries } = useCustomer();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(80);
-  const [searchValue, setSearchValue] = useState("");
+  const [nameSearchValue, setNameSearchValue] = useState("");
+  const [overallSearchValue, setOverallSearchValue] = useState("");
   const [filters, setFilters] = useState({ client_code: "", email: "", country: "" });
   const [sortOrder, setSortOrder] = useState("alphabetical");
 
@@ -44,7 +45,8 @@ export default function Customer() {
     (overrides = {}) => {
       const sortApi = mapSortOrderToApi(overrides.sortOrder ?? sortOrder);
       return {
-        search: searchValue?.trim() || undefined,
+        name: nameSearchValue?.trim() || undefined,
+        search: overallSearchValue?.trim() || undefined,
         client_code: filters.client_code?.trim() || undefined,
         email: filters.email?.trim() || undefined,
         country_id: resolveCountryId(filters.country, countriesRef.current),
@@ -54,7 +56,7 @@ export default function Customer() {
         sort_order: sortApi.sort_order,
       };
     },
-    [searchValue, filters, page, pageSize, sortOrder]
+    [nameSearchValue, overallSearchValue, filters, page, pageSize, sortOrder]
   );
 
   const fetchCustomers = useCallback(
@@ -73,10 +75,19 @@ export default function Customer() {
     }
   }, [getCustomers]);
 
-  const handleSearch = useCallback(() => {
-    setPage(1);
-    fetchCustomers({ page: 1 });
-  }, [fetchCustomers]);
+  // Search on change (debounced) – skip initial mount
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchCustomers({ page: 1 });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [nameSearchValue, overallSearchValue, fetchCustomers]);
 
   const refreshCustomers = useCallback(() => {
     fetchCustomers({ page });
@@ -120,7 +131,8 @@ export default function Customer() {
   }, []);
 
   const handleClearAll = useCallback(() => {
-    setSearchValue("");
+    setNameSearchValue("");
+    setOverallSearchValue("");
     setFilters({ client_code: "", email: "", country: "" });
     setSortOrder("alphabetical");
     setPage(1);
@@ -147,15 +159,16 @@ export default function Customer() {
           page={page}
           pageSize={pageSize}
           onPageChange={handlePageChange}
-          searchValue={searchValue}
-          onSearchChange={setSearchValue}
+          nameSearchValue={nameSearchValue}
+          onNameSearchChange={setNameSearchValue}
+          overallSearchValue={overallSearchValue}
+          onOverallSearchChange={setOverallSearchValue}
           filters={filters}
           onFilterChange={handleFilterChange}
           sortOrder={sortOrder}
           onSortOrderChange={handleSortOrderChange}
           onClearAll={handleClearAll}
           onRefresh={refreshCustomers}
-          onSearch={handleSearch}
         />
       </VStack>
     </Box>

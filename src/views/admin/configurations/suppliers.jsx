@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Box,
   Flex,
@@ -112,16 +112,19 @@ export default function Suppliers() {
     setPage(1);
   }, [searchQuery]);
 
-  const handleSearch = () => {
-    setSearchQuery(searchValue.trim());
-    setPage(1);
-  };
-
-  const handleSearchKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSearch();
+  // Search on change (debounced) – skip initial mount
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
     }
-  };
+    const timer = setTimeout(() => {
+      setSearchQuery(searchValue.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
 
   const handleClearSearch = () => {
     setSearchValue("");
@@ -289,7 +292,6 @@ export default function Suppliers() {
                 placeholder="Search suppliers by name or ID..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                onKeyPress={handleSearchKeyPress}
                 bg={inputBg}
               />
               {searchValue && (
@@ -306,14 +308,6 @@ export default function Suppliers() {
                 </InputRightElement>
               )}
             </InputGroup>
-            <Button
-              leftIcon={<MdSearch />}
-              colorScheme="blue"
-              onClick={handleSearch}
-              isLoading={isLoading}
-            >
-              Search
-            </Button>
             {searchQuery && (
               <Button
                 variant="outline"

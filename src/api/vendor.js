@@ -317,9 +317,12 @@ export const getVendorsApi = async (filterParams = {}) => {
     const baseUrl = getApiEndpoint("VENDORS");
     const params = {};
     if (filterParams) {
-      const nameOrSearch = filterParams.search ?? filterParams.name;
-      if (nameOrSearch != null && String(nameOrSearch).trim() !== "")
-        params.search = String(nameOrSearch).trim().replace(/\s+/g, " ");
+      const nameVal = filterParams.name;
+      if (nameVal != null && String(nameVal).trim() !== "")
+        params.name = String(nameVal).trim().replace(/\s+/g, " ");
+      const searchVal = filterParams.search;
+      if (searchVal != null && String(searchVal).trim() !== "")
+        params.search = String(searchVal).trim().replace(/\s+/g, " ");
       if (filterParams.agentsdb_id != null && String(filterParams.agentsdb_id).trim() !== "")
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
       if (filterParams.agent_type != null && String(filterParams.agent_type).trim() !== "")

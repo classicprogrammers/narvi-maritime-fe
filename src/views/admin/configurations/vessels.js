@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Box,
   Flex,
@@ -214,16 +214,19 @@ export default function Vessels() {
     setPage(1);
   }, [searchQuery]);
 
-  const handleSearch = () => {
-    setSearchQuery(searchValue.trim());
-    setPage(1);
-  };
-
-  const handleSearchKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSearch();
+  // Search on change (debounced) – skip initial mount
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
     }
-  };
+    const timer = setTimeout(() => {
+      setSearchQuery(searchValue.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
 
   const handleClearSearch = () => {
     setSearchValue("");
@@ -480,7 +483,6 @@ export default function Vessels() {
                 placeholder="Search by vessel name or IMO..."
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
-                onKeyPress={handleSearchKeyPress}
               />
               {searchValue && (
                 <InputRightElement>
@@ -496,15 +498,6 @@ export default function Vessels() {
                 </InputRightElement>
               )}
             </InputGroup>
-            <Button
-              leftIcon={<MdSearch />}
-              colorScheme="blue"
-              onClick={handleSearch}
-              isLoading={isLoading}
-              size="sm"
-            >
-              Search
-            </Button>
             {searchQuery && (
               <Button
                 variant="outline"

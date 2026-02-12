@@ -126,6 +126,9 @@ export const getCustomersApi = async (filterParams = {}) => {
   try {
     const params = {};
     if (filterParams) {
+      const nameVal = filterParams.name;
+      if (nameVal != null && String(nameVal).trim() !== "")
+        params.name = String(nameVal).trim().replace(/\s+/g, " ");
       const searchVal = filterParams.search;
       if (searchVal != null && String(searchVal).trim() !== "")
         params.search = String(searchVal).trim().replace(/\s+/g, " ");
