@@ -30,8 +30,10 @@ const Phonebook = () => {
   const inputBg = useColorModeValue("white", "navy.900");
   const emptyStateTextColor = useColorModeValue("gray.500", "gray.400");
   const jobTitleTextColor = useColorModeValue("gray.500", "gray.400");
+  const theadBg = useColorModeValue("gray.50", "gray.800");
+  const tableScrollBg = useColorModeValue("white", "gray.900");
 
-  const [source, setSource] = React.useState("all"); // 'client', 'agent', or 'all'
+  const [source, setSource] = React.useState("client"); // 'client' or 'agent'
   const [company, setCompany] = React.useState("");
   const [person, setPerson] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -39,27 +41,46 @@ const Phonebook = () => {
   const [dbId, setDbId] = React.useState("");
   const [rows, setRows] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const pageSize = 50;
 
-  const fetchAllCustomers = React.useCallback(async () => {
+  const fetchAllCustomers = React.useCallback(async (apiParams = {}) => {
     const list = [];
-    let page = 1;
+    let pageNum = 1;
     let hasMore = true;
     while (hasMore) {
-      const res = await getCustomersApi({ page, page_size: 80, sort_by: "name", sort_order: "asc" });
+      const res = await getCustomersApi({
+        page: pageNum,
+        page_size: 80,
+        sort_by: "name",
+        sort_order: "asc",
+        name: apiParams.name?.trim() || undefined,
+        search: apiParams.search?.trim() || undefined,
+        email: apiParams.email?.trim() || undefined,
+        client_code: apiParams.client_code?.trim() || undefined,
+      });
       const batch = Array.isArray(res?.customers) ? res.customers : Array.isArray(res) ? res : [];
       list.push(...batch);
       hasMore = res?.has_next === true && batch.length > 0;
-      page += 1;
+      pageNum += 1;
     }
     return list;
   }, []);
 
-  const fetchAllAgents = React.useCallback(async () => {
+  const fetchAllAgents = React.useCallback(async (apiParams = {}) => {
     const list = [];
-    let page = 1;
+    let pageNum = 1;
     let hasMore = true;
     while (hasMore) {
-      const res = await getVendorsApi({ page, page_size: 80, sort_by: "name", sort_order: "asc" });
+      const res = await getVendorsApi({
+        page: pageNum,
+        page_size: 80,
+        sort_by: "name",
+        sort_order: "asc",
+        name: apiParams.name?.trim() || undefined,
+        search: apiParams.search?.trim() || undefined,
+        agentsdb_id: apiParams.agentsdb_id?.trim() || undefined,
+      });
       const batch = Array.isArray(res?.agents)
         ? res.agents
         : Array.isArray(res?.vendors)
@@ -69,7 +90,7 @@ const Phonebook = () => {
             : [];
       list.push(...batch);
       hasMore = res?.has_next === true && batch.length > 0;
-      page += 1;
+      pageNum += 1;
     }
     return list;
   }, []);
@@ -78,9 +99,16 @@ const Phonebook = () => {
     try {
       setIsLoading(true);
       const allRows = [];
+      const apiParams = {
+        name: company.trim() || undefined,
+        search: person.trim() || undefined,
+        email: email.trim() || undefined,
+        client_code: source === "client" ? (dbId.trim() || undefined) : undefined,
+        agentsdb_id: source === "agent" ? (dbId.trim() || undefined) : undefined,
+      };
 
-      if (source === "client" || source === "all") {
-        const clientList = await fetchAllCustomers();
+      if (source === "client") {
+        const clientList = await fetchAllCustomers(apiParams);
 
         const topLevelClients = clientList.filter((c) => {
           const parentValue = c?.parent_id ?? c?.parentId ?? c?.parent;
@@ -136,8 +164,8 @@ const Phonebook = () => {
         });
       }
 
-      if (source === "agent" || source === "all") {
-        const agentList = await fetchAllAgents();
+      if (source === "agent") {
+        const agentList = await fetchAllAgents(apiParams);
 
         const topLevelAgents = agentList.filter((a) => {
           const parentValue = a?.parent_id ?? a?.parentId ?? a?.parent;
@@ -200,28 +228,52 @@ const Phonebook = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [source, fetchAllCustomers, fetchAllAgents]);
+  }, [source, company, person, email, dbId, fetchAllCustomers, fetchAllAgents]);
 
+  // Refetch when source changes immediately
   React.useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Debounce refetch when filter inputs change (company, person, email, dbId)
+  const debounceRef = React.useRef(null);
+  const prevFiltersRef = React.useRef({ company, person, email, dbId });
+  React.useEffect(() => {
+    const same =
+      prevFiltersRef.current.company === company &&
+      prevFiltersRef.current.person === person &&
+      prevFiltersRef.current.email === email &&
+      prevFiltersRef.current.dbId === dbId;
+    prevFiltersRef.current = { company, person, email, dbId };
+    if (same) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      fetchData();
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [company, person, email, dbId, fetchData]);
+
+  // Rows from API are already filtered by company, person, email, dbId; filter by phone client-side (no phone API param)
   const filtered = React.useMemo(() => {
-    const companyQ = company.trim().toLowerCase();
-    const personQ = person.trim().toLowerCase();
-    const emailQ = email.trim().toLowerCase();
     const phoneQ = phone.trim().toLowerCase();
-    const dbQ = dbId.trim().toLowerCase();
-    return rows.filter((r) => {
-      return (
-        (!companyQ || (r.company || "").toLowerCase().includes(companyQ)) &&
-        (!personQ || (r.person || "").toLowerCase().includes(personQ)) &&
-        (!emailQ || (r.email || "").toLowerCase().includes(emailQ)) &&
-        (!phoneQ || (r.phone || "").toLowerCase().includes(phoneQ)) &&
-        (!dbQ || (r.dbId || "").toLowerCase().includes(dbQ))
-      );
-    });
-  }, [rows, company, person, email, phone, dbId]);
+    if (!phoneQ) return rows;
+    return rows.filter((r) => (r.phone || "").toLowerCase().includes(phoneQ));
+  }, [rows, phone]);
+
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [source, company, person, email, phone, dbId]);
 
   const handleOpen = (row) => {
     if (row.type === "Client") {
@@ -231,15 +283,16 @@ const Phonebook = () => {
     }
   };
 
-  const hasActiveFilters = source !== "all" || company.trim() || person.trim() || email.trim() || phone.trim() || dbId.trim();
+  const hasActiveFilters = company.trim() || person.trim() || email.trim() || phone.trim() || dbId.trim();
 
   const handleClearAll = () => {
-    setSource("all");
+    setSource("client");
     setCompany("");
     setPerson("");
     setEmail("");
     setPhone("");
     setDbId("");
+    setPage(1);
   };
 
   return (
@@ -255,7 +308,6 @@ const Phonebook = () => {
           <VStack spacing={4} align="stretch" border="1px" borderColor={borderColor} borderRadius="md" p={4}>
             <HStack spacing={4} flexWrap="wrap">
               <Select value={source} onChange={(e) => setSource(e.target.value)} w={{ base: "100%", md: "200px" }} bg={inputBg}>
-                <option value="all">All</option>
                 <option value="client">Client</option>
                 <option value="agent">Agent</option>
               </Select>
@@ -272,54 +324,91 @@ const Phonebook = () => {
               )}
             </HStack>
 
-            <Box border="1px" borderColor={borderColor} borderRadius="md" overflow="auto">
-              <Table size="sm">
-                <Thead>
-                  <Tr>
-                    <Th>Type</Th>
-                    <Th>Company</Th>
-                    <Th>People</Th>
-                    <Th>Email</Th>
-                    <Th>Phone</Th>
-                    <Th>DB ID</Th>
-                    <Th>Action</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {filtered.length === 0 ? (
+            <Box border="1px" borderColor={borderColor} borderRadius="md" overflow="hidden" bg={tableScrollBg}>
+              <Box maxH="500px" overflowY="auto" overflowX="auto">
+                <Table size="sm">
+                  <Thead position="sticky" top={0} zIndex={1} bg={theadBg} boxShadow="sm">
                     <Tr>
-                      <Td colSpan={7} textAlign="center" py={8}>
-                        <Text color={emptyStateTextColor}>
-                          {isLoading ? "Loading..." : "No contacts found"}
-                        </Text>
-                      </Td>
+                      <Th bg={theadBg}>Type</Th>
+                      <Th bg={theadBg}>Company</Th>
+                      <Th bg={theadBg}>People</Th>
+                      <Th bg={theadBg}>Email</Th>
+                      <Th bg={theadBg}>Phone</Th>
+                      <Th bg={theadBg}>DB ID</Th>
+                      <Th bg={theadBg}>Action</Th>
                     </Tr>
-                  ) : (
-                    filtered.map((r, index) => (
-                      <Tr key={`${r.type}-${r.companyId}-${r.personId || 'main'}-${index}`}>
-                        <Td>{r.type}</Td>
-                        <Td>{r.company || "-"}</Td>
-                        <Td>
-                          {r.person || "-"}
-                          {r.jobTitle && (
-                            <Text fontSize="xs" color={jobTitleTextColor} mt={1}>
-                              {r.jobTitle}
-                            </Text>
-                          )}
-                        </Td>
-                        <Td>{r.email || "-"}</Td>
-                        <Td>{r.phone || "-"}</Td>
-                        <Td>{r.dbId || "-"}</Td>
-                        <Td>
-                          <Button size="xs" leftIcon={<Icon as={MdOpenInNew} />} onClick={() => handleOpen(r)}>
-                            Open
-                          </Button>
+                  </Thead>
+                  <Tbody>
+                    {paginatedRows.length === 0 ? (
+                      <Tr>
+                        <Td colSpan={7} textAlign="center" py={8}>
+                          <Text color={emptyStateTextColor}>
+                            {isLoading ? "Loading..." : "No contacts found"}
+                          </Text>
                         </Td>
                       </Tr>
-                    ))
-                  )}
-                </Tbody>
-              </Table>
+                    ) : (
+                      paginatedRows.map((r, index) => (
+                        <Tr key={`${r.type}-${r.companyId}-${r.personId || "main"}-${index}`}>
+                          <Td>{r.type}</Td>
+                          <Td>{r.company || "-"}</Td>
+                          <Td>
+                            {r.person || "-"}
+                            {r.jobTitle && (
+                              <Text fontSize="xs" color={jobTitleTextColor} mt={1}>
+                                {r.jobTitle}
+                              </Text>
+                            )}
+                          </Td>
+                          <Td>{r.email || "-"}</Td>
+                          <Td>{r.phone || "-"}</Td>
+                          <Td>{r.dbId || "-"}</Td>
+                          <Td>
+                            <Button size="xs" leftIcon={<Icon as={MdOpenInNew} />} onClick={() => handleOpen(r)}>
+                              Open
+                            </Button>
+                          </Td>
+                        </Tr>
+                      ))
+                    )}
+                  </Tbody>
+                </Table>
+              </Box>
+              {totalFiltered > 0 && (
+                <Flex
+                  px={4}
+                  py={2}
+                  borderTop="1px"
+                  borderColor={borderColor}
+                  align="center"
+                  justify="space-between"
+                  flexWrap="wrap"
+                  gap={2}
+                  bg={theadBg}
+                >
+                  <Text fontSize="sm" color={textColor}>
+                    {totalFiltered} contact{totalFiltered !== 1 ? "s" : ""} · Page {currentPage} of {totalPages}
+                  </Text>
+                  <HStack spacing={2}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      isDisabled={currentPage <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      isDisabled={currentPage >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </HStack>
+                </Flex>
+              )}
             </Box>
           </VStack>
         </Box>
