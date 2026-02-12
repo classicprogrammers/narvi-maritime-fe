@@ -130,9 +130,8 @@ export default function StockList() {
     const [filterSI, setFilterSI] = useState("");
     const [filterSICombined, setFilterSICombined] = useState("");
     const [filterDI, setFilterDI] = useState("");
-    // Search state
+    // Search state (searchFilter used as API param; no separate searchQuery)
     const [searchFilter, setSearchFilter] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
 
     // Pagination state
     const [page, setPage] = useState(1);
@@ -188,18 +187,58 @@ export default function StockList() {
         fontSize: "sm",
     };
 
-    // Fetch stock list with pagination and search
+    // Helper to get id from object or value (used for API params)
+    const getIdParam = (val) => {
+        if (val == null || val === "" || val === false) return undefined;
+        if (typeof val === "object" && val !== null && val.id !== undefined) return val.id;
+        return val;
+    };
+    const hubParam = selectedHub != null
+        ? (typeof selectedHub === "object" && selectedHub !== null ? selectedHub.id ?? selectedHub.name : selectedHub)
+        : undefined;
+
+    // Fetch stock list with pagination and all filters as API params
     const fetchStockList = useCallback(() => {
         return getStockList({
             page,
             page_size: pageSize,
             sort_by: sortBy,
             sort_order: sortOrder,
-            search: searchQuery,
+            search: searchFilter?.trim() || undefined,
+            name: searchFilter?.trim() || undefined,
+            client_id: getIdParam(selectedClient),
+            vessel_id: getIdParam(selectedVessel),
+            status: selectedStatus?.trim() || undefined,
+            so_number: filterSO?.trim() || undefined,
+            si_number: filterSI?.trim() || undefined,
+            si_combined: filterSICombined?.trim() || undefined,
+            di_number: filterDI?.trim() || undefined,
+            hub: hubParam != null ? String(hubParam).trim() : undefined,
+            supplier_id: getIdParam(selectedSupplier),
+            warehouse_id: getIdParam(selectedWarehouse),
+            currency_id: getIdParam(selectedCurrency),
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchQuery]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
 
-    // Fetch stock list on component mount and when pagination/search changes
+    // Debounce filter changes then reset page and trigger fetch
+    const filterDebounceRef = useRef(null);
+    const [fetchTrigger, setFetchTrigger] = useState(0);
+    const isInitialMount = useRef(true);
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+        filterDebounceRef.current = setTimeout(() => {
+            filterDebounceRef.current = null;
+            setPage(1);
+            setFetchTrigger((t) => t + 1);
+        }, 400);
+        return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
+    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI]);
+
+    // Fetch stock list on mount and when page or fetchTrigger changes
     useEffect(() => {
         fetchStockList().then((result) => {
             if (result?.success && result?.data) {
@@ -209,53 +248,24 @@ export default function StockList() {
                 setTotalPages(pages);
                 setHasNext(result.data.has_next || false);
                 setHasPrevious(result.data.has_previous || false);
-                // If API returned a valid page number, stay in sync (e.g. backend clamped to last page)
                 const apiPage = result.data.page;
                 if (typeof apiPage === "number" && apiPage >= 1 && pages >= 1) {
                     setPage((prev) => (prev > pages ? pages : prev));
                 }
             }
         });
-    }, [fetchStockList]);
+    }, [fetchStockList, page, fetchTrigger]);
 
     // Sync pagination state from Redux (as fallback)
     useEffect(() => {
-        if (reduxTotalCount > 0 && totalCount === 0) {
-            setTotalCount(reduxTotalCount);
-        }
-        if (reduxTotalPages > 0 && totalPages === 0) {
-            setTotalPages(reduxTotalPages);
-        }
-        if (reduxHasNext !== undefined) {
-            setHasNext(reduxHasNext);
-        }
-        if (reduxHasPrevious !== undefined) {
-            setHasPrevious(reduxHasPrevious);
-        }
+        if (reduxTotalCount > 0 && totalCount === 0) setTotalCount(reduxTotalCount);
+        if (reduxTotalPages > 0 && totalPages === 0) setTotalPages(reduxTotalPages);
+        if (reduxHasNext !== undefined) setHasNext(reduxHasNext);
+        if (reduxHasPrevious !== undefined) setHasPrevious(reduxHasPrevious);
     }, [reduxTotalCount, reduxTotalPages, reduxHasNext, reduxHasPrevious, totalCount, totalPages]);
 
-    // Reset to first page when page size or search changes
-    useEffect(() => {
-        setPage(1);
-    }, [pageSize, searchQuery]);
-
-    // Handle search button click
-    const handleSearch = () => {
-        setSearchQuery(searchFilter.trim());
-        setPage(1); // Reset to first page when searching
-    };
-
-    // Handle Enter key in search input
-    const handleSearchKeyPress = (e) => {
-        if (e.key === "Enter") {
-            handleSearch();
-        }
-    };
-
-    // Handle clear search
     const handleClearSearch = () => {
         setSearchFilter("");
-        setSearchQuery("");
         setPage(1);
     };
 
@@ -524,8 +534,7 @@ export default function StockList() {
             });
         }
 
-        // Note: General search is now handled server-side via searchQuery
-        // Client-side search (searchFilter) is removed since we use server-side search
+        // Note: General search is handled server-side via searchFilter (passed as search/name API params)
         // Keeping this commented for reference:
         /*
         if (searchFilter) {
@@ -1756,7 +1765,6 @@ export default function StockList() {
                                                         <Input
                                                             value={searchFilter}
                                                             onChange={(e) => setSearchFilter(e.target.value)}
-                                                            onKeyPress={handleSearchKeyPress}
                                                             placeholder="Search all fields..."
                                                             bg={inputBg}
                                                             color={inputText}
@@ -1777,25 +1785,6 @@ export default function StockList() {
                                                             </InputRightElement>
                                                         )}
                                                     </InputGroup>
-                                                    <Button
-                                                        size="sm"
-                                                        px="10"
-                                                        leftIcon={<Icon as={MdSearch} />}
-                                                        colorScheme="blue"
-                                                        onClick={handleSearch}
-                                                        isLoading={isLoading}
-                                                    >
-                                                        Search
-                                                    </Button>
-                                                    {searchQuery && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={handleClearSearch}
-                                                        >
-                                                            Clear
-                                                        </Button>
-                                                    )}
                                                 </HStack>
                                             </Box>
                                         </Flex>
@@ -1834,7 +1823,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || filterSO || filterSI || filterSICombined || filterDI || searchQuery || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>

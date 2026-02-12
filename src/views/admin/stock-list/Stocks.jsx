@@ -284,12 +284,126 @@ export default function Stocks() {
     };
 
     const hasFetchedLookupData = useRef(false);
+    const filterDebounceRef = useRef(null);
+    const [apiFetchTrigger, setApiFetchTrigger] = useState(0);
 
-    // Fetch stock list on mount and when page/tab changes - always 80 records per page
     const currentApiPage = activeTab === 0 ? stockViewPage : clientViewPage;
+
+    // Build API params from current tab's filters (stored in ref for use in fetch effect)
+    const filterRef = useRef({});
+    filterRef.current = {
+        activeTab,
+        stockViewClient,
+        stockViewVessel,
+        stockViewStatus,
+        stockViewStockItemId,
+        stockViewDateOnStock,
+        stockViewDaysOnStock,
+        stockViewFilterSO,
+        stockViewFilterSI,
+        stockViewFilterSICombined,
+        stockViewFilterDI,
+        stockViewSearchFilter,
+        stockViewHub,
+        vesselViewClient,
+        vesselViewVessel,
+        vesselViewStatuses,
+        clientViewClient,
+        clientViewSearchClient,
+        clientViewSearchVessel,
+        clientViewVesselFilter,
+        clientViewStatuses,
+    };
+
+    const isInitialMount = useRef(true);
+    const prevActiveTabRef = useRef(activeTab);
+
+    // When tab changes, reset page and trigger fetch immediately
     useEffect(() => {
-        getStockList({ page: currentApiPage, page_size: PAGE_SIZE });
-    }, [currentApiPage, getStockList]);
+        if (prevActiveTabRef.current !== activeTab) {
+            prevActiveTabRef.current = activeTab;
+            setStockViewPage(1);
+            setClientViewPage(1);
+            setApiFetchTrigger((t) => t + 1);
+        }
+    }, [activeTab]);
+
+    // When filter fields change, debounce then reset page and trigger fetch (skip on initial mount)
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
+        if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+        filterDebounceRef.current = setTimeout(() => {
+            filterDebounceRef.current = null;
+            setStockViewPage(1);
+            setClientViewPage(1);
+            setApiFetchTrigger((t) => t + 1);
+        }, 400);
+        return () => {
+            if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+        };
+    }, [
+        stockViewClient,
+        stockViewVessel,
+        stockViewStatus,
+        stockViewStockItemId,
+        stockViewDateOnStock,
+        stockViewDaysOnStock,
+        stockViewFilterSO,
+        stockViewFilterSI,
+        stockViewFilterSICombined,
+        stockViewFilterDI,
+        stockViewSearchFilter,
+        stockViewHub,
+        vesselViewClient,
+        vesselViewVessel,
+        vesselViewStatuses,
+        clientViewClient,
+        clientViewSearchClient,
+        clientViewSearchVessel,
+        clientViewVesselFilter,
+        clientViewStatuses,
+    ]);
+
+    // Fetch stock list with API params from current tab filters
+    useEffect(() => {
+        const f = filterRef.current;
+        const page = activeTab === 0 ? stockViewPage : clientViewPage;
+        const base = { page, page_size: PAGE_SIZE };
+
+        if (f.activeTab === 0) {
+            const statusParam = f.stockViewStatus?.trim() || undefined;
+            const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
+            getStockList({
+                ...base,
+                client_id: f.stockViewClient ?? undefined,
+                vessel_id: f.stockViewVessel ?? undefined,
+                status: statusParam,
+                search: f.stockViewSearchFilter?.trim() || undefined,
+                name: f.stockViewSearchFilter?.trim() || undefined,
+                so_number: f.stockViewFilterSO?.trim() || undefined,
+                si_number: f.stockViewFilterSI?.trim() || undefined,
+                di_number: f.stockViewFilterDI?.trim() || undefined,
+                stock_item_id: f.stockViewStockItemId?.trim() || undefined,
+                date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
+                days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
+                hub: hubVal?.trim() || undefined,
+            });
+        } else {
+            const statusSet = f.clientViewStatuses || new Set();
+            const statusParam = statusSet.size > 0 ? Array.from(statusSet).join(",") : undefined;
+            getStockList({
+                ...base,
+                client_id: f.clientViewClient ?? undefined,
+                vessel_id: f.clientViewVesselFilter ?? undefined,
+                status: statusParam,
+                search: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
+                name: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
+            });
+        }
+    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage]);
 
     // Fetch locations and shipping orders (only once per component mount)
     useEffect(() => {

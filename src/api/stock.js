@@ -45,7 +45,7 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
-// Get stock list with pagination and search
+// Get stock list with pagination and search/filters (all params passed through to backend)
 export const getStockListApi = async (params = {}) => {
   try {
     const {
@@ -54,6 +54,21 @@ export const getStockListApi = async (params = {}) => {
       sort_by = "id",
       sort_order = "desc",
       search = "",
+      name = "",
+      client_id,
+      vessel_id,
+      status = "",
+      so_number = "",
+      si_number = "",
+      si_combined = "",
+      di_number = "",
+      stock_item_id = "",
+      date_on_stock = "",
+      days_on_stock = "",
+      hub = "",
+      supplier_id,
+      warehouse_id,
+      currency_id,
     } = params;
 
     const requestParams = {
@@ -63,12 +78,32 @@ export const getStockListApi = async (params = {}) => {
       sort_order,
     };
 
-    // Include search parameter if provided
-    const trimmedSearch = search ? search.trim() : "";
+    const trimmedSearch = search ? String(search).trim() : "";
+    const trimmedName = name ? String(name).trim() : "";
     if (trimmedSearch) {
       requestParams.search = trimmedSearch;
+    }
+    if (trimmedName) {
+      requestParams.name = trimmedName;
+    }
+    if (trimmedSearch && !trimmedName) {
       requestParams.name = trimmedSearch;
     }
+
+    if (client_id != null && client_id !== "") requestParams.client_id = client_id;
+    if (vessel_id != null && vessel_id !== "") requestParams.vessel_id = vessel_id;
+    if (status != null && String(status).trim() !== "") requestParams.status = String(status).trim();
+    if (so_number != null && String(so_number).trim() !== "") requestParams.so_number = String(so_number).trim();
+    if (si_number != null && String(si_number).trim() !== "") requestParams.si_number = String(si_number).trim();
+    if (si_combined != null && String(si_combined).trim() !== "") requestParams.si_combined = String(si_combined).trim();
+    if (di_number != null && String(di_number).trim() !== "") requestParams.di_number = String(di_number).trim();
+    if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
+    if (date_on_stock != null && String(date_on_stock).trim() !== "") requestParams.date_on_stock = String(date_on_stock).trim();
+    if (days_on_stock != null && String(days_on_stock).trim() !== "") requestParams.days_on_stock = String(days_on_stock).trim();
+    if (hub != null && String(hub).trim() !== "") requestParams.hub = String(hub).trim();
+    if (supplier_id != null && supplier_id !== "") requestParams.supplier_id = supplier_id;
+    if (warehouse_id != null && warehouse_id !== "") requestParams.warehouse_id = warehouse_id;
+    if (currency_id != null && currency_id !== "") requestParams.currency_id = currency_id;
 
     const response = await api.get(getApiEndpoint("STOCK_LIST"), {
       params: requestParams,
