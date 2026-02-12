@@ -1868,18 +1868,18 @@ export default function StockList() {
                 )}
 
                 <Box
-                  pr="25px"
-                  position="relative"
-                  minH="400px"
-                  maxH="600px"
-                  overflowX="auto"
-                  overflowY="auto"
-                  sx={{
-                    "&::-webkit-scrollbar": { width: "8px", height: "8px" },
-                    "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
-                    "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
-                    "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
-                  }}
+                    pr="25px"
+                    position="relative"
+                    minH="400px"
+                    maxH="600px"
+                    overflowX="auto"
+                    overflowY="auto"
+                    sx={{
+                        "&::-webkit-scrollbar": { width: "8px", height: "8px" },
+                        "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
+                        "&::-webkit-scrollbar-thumb": { background: "gray.300", borderRadius: "4px" },
+                        "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
+                    }}
                 >
                     {isLoading && (
                         <Box
