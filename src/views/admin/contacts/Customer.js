@@ -29,15 +29,70 @@ function resolveCountryId(countryFilter, countries) {
   return found ? found.id : undefined;
 }
 
+const CLIENT_LIST_STORAGE_KEY = "narvi_client_list_state";
+
+function readPersistedClientListState() {
+  try {
+    const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(CLIENT_LIST_STORAGE_KEY) : null;
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return {
+      page: typeof p.page === "number" ? p.page : 1,
+      pageSize: typeof p.pageSize === "number" ? p.pageSize : 80,
+      nameSearchValue: typeof p.nameSearchValue === "string" ? p.nameSearchValue : "",
+      overallSearchValue: typeof p.overallSearchValue === "string" ? p.overallSearchValue : "",
+      filters: {
+        client_code: p.filters?.client_code != null ? p.filters.client_code : "",
+        email: p.filters?.email != null ? p.filters.email : "",
+        country: p.filters?.country != null ? p.filters.country : "",
+      },
+      sortOrder: p.sortOrder === "newest" || p.sortOrder === "oldest" || p.sortOrder === "alphabetical" ? p.sortOrder : "alphabetical",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedClientListState(state) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(CLIENT_LIST_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
+const defaultListState = {
+  page: 1,
+  pageSize: 80,
+  nameSearchValue: "",
+  overallSearchValue: "",
+  filters: { client_code: "", email: "", country: "" },
+  sortOrder: "alphabetical",
+};
+
 export default function Customer() {
   const history = useHistory();
   const { customers, isLoading, getCustomers, pagination, countries } = useCustomer();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(80);
-  const [nameSearchValue, setNameSearchValue] = useState("");
-  const [overallSearchValue, setOverallSearchValue] = useState("");
-  const [filters, setFilters] = useState({ client_code: "", email: "", country: "" });
-  const [sortOrder, setSortOrder] = useState("alphabetical");
+  const [savedState] = useState(() => readPersistedClientListState() || defaultListState);
+  const [page, setPage] = useState(savedState.page);
+  const [pageSize, setPageSize] = useState(savedState.pageSize);
+  const [nameSearchValue, setNameSearchValue] = useState(savedState.nameSearchValue);
+  const [overallSearchValue, setOverallSearchValue] = useState(savedState.overallSearchValue);
+  const [filters, setFilters] = useState(savedState.filters);
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+
+  // Persist filter state so it survives navigation (e.g. edit client then back)
+  useEffect(() => {
+    writePersistedClientListState({
+      page,
+      pageSize,
+      nameSearchValue,
+      overallSearchValue,
+      filters,
+      sortOrder,
+    });
+  }, [page, pageSize, nameSearchValue, overallSearchValue, filters, sortOrder]);
 
   const countriesRef = useRef(countries);
   countriesRef.current = countries;
@@ -71,9 +126,10 @@ export default function Customer() {
   useEffect(() => {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      getCustomers({ page: 1, page_size: 80, ...mapSortOrderToApi("alphabetical") });
+      // Use current state (restored from sessionStorage or defaults) for first fetch
+      fetchCustomers();
     }
-  }, [getCustomers]);
+  }, [fetchCustomers]);
 
   // Search on change (debounced) – skip initial mount
   const isFirstSearchRun = useRef(true);

@@ -30,15 +30,70 @@ function resolveCountryId(countryFilter, countries) {
   return found ? found.id : undefined;
 }
 
+const AGENT_LIST_STORAGE_KEY = "narvi_agent_list_state";
+
+function readPersistedAgentListState() {
+  try {
+    const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(AGENT_LIST_STORAGE_KEY) : null;
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return {
+      page: typeof p.page === "number" ? p.page : 1,
+      pageSize: typeof p.pageSize === "number" ? p.pageSize : 80,
+      nameSearchValue: typeof p.nameSearchValue === "string" ? p.nameSearchValue : "",
+      overallSearchValue: typeof p.overallSearchValue === "string" ? p.overallSearchValue : "",
+      filters: {
+        agent_id: p.filters?.agent_id != null ? p.filters.agent_id : "",
+        agent_type: p.filters?.agent_type != null ? p.filters.agent_type : "",
+        country: p.filters?.country != null ? p.filters.country : "",
+      },
+      sortOrder: p.sortOrder === "newest" || p.sortOrder === "oldest" || p.sortOrder === "alphabetical" ? p.sortOrder : "alphabetical",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedAgentListState(state) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(AGENT_LIST_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
+const defaultAgentListState = {
+  page: 1,
+  pageSize: 80,
+  nameSearchValue: "",
+  overallSearchValue: "",
+  filters: { agent_id: "", agent_type: "", country: "" },
+  sortOrder: "alphabetical",
+};
+
 export default function Vendors() {
   const history = useHistory();
   const { vendors, isLoading, getVendors, pagination, countries } = useVendor();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(80);
-  const [nameSearchValue, setNameSearchValue] = useState("");
-  const [overallSearchValue, setOverallSearchValue] = useState("");
-  const [filters, setFilters] = useState({ agent_id: "", agent_type: "", country: "" });
-  const [sortOrder, setSortOrder] = useState("alphabetical");
+  const [savedState] = useState(() => readPersistedAgentListState() || defaultAgentListState);
+  const [page, setPage] = useState(savedState.page);
+  const [pageSize, setPageSize] = useState(savedState.pageSize);
+  const [nameSearchValue, setNameSearchValue] = useState(savedState.nameSearchValue);
+  const [overallSearchValue, setOverallSearchValue] = useState(savedState.overallSearchValue);
+  const [filters, setFilters] = useState(savedState.filters);
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+
+  // Persist filter state so it survives navigation (e.g. edit agent then back)
+  useEffect(() => {
+    writePersistedAgentListState({
+      page,
+      pageSize,
+      nameSearchValue,
+      overallSearchValue,
+      filters,
+      sortOrder,
+    });
+  }, [page, pageSize, nameSearchValue, overallSearchValue, filters, sortOrder]);
 
   // Keep latest countries in ref so buildFetchParams doesn't depend on countries ref (avoids infinite loop)
   const countriesRef = useRef(countries);
@@ -75,9 +130,10 @@ export default function Vendors() {
   useEffect(() => {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      getVendors({ page: 1, page_size: 80, ...mapSortOrderToApi("alphabetical") });
+      // Use current state (restored from sessionStorage or defaults) for first fetch
+      fetchVendors();
     }
-  }, [getVendors]);
+  }, [fetchVendors]);
 
   // Search on change (debounced) – skip initial mount
   const isFirstSearchRun = useRef(true);

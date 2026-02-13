@@ -117,10 +117,10 @@ export default function VendorsTable(props) {
   const [internalSortOrder, setInternalSortOrder] = useState("alphabetical");
   const sortOrder = sortOrderControlled ? propsSortOrder : internalSortOrder;
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
-  const [showFilterFields, setShowFilterFields] = useState(false);
 
-  // Auto-open advanced filters when any advance filter has data
+  // Auto-open advanced filters when any advance filter has data (including when restored from persistence)
   const hasAnyAdvanceFilter = filters.agent_id || filters.agent_type || filters.country || overallSearchValue;
+  const [showFilterFields, setShowFilterFields] = useState(() => !!hasAnyAdvanceFilter);
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
   }, [hasAnyAdvanceFilter]);
