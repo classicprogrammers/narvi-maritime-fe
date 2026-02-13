@@ -381,7 +381,7 @@ const hiddenRoutes = [
     component: DeliveryInstructionDetail,
   },
   {
-    name: "Client Registration",
+    name: "Customer Registration",
     layout: "/admin",
     path: "/customer-registration",
     component: CustomerRegistration,

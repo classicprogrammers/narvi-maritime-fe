@@ -56,7 +56,14 @@ export default function Dashboard(props) {
   const getRoute = () => {
     return window.location.pathname !== "/admin/full-screen-maps";
   };
+  // Match pathname to route path (handles dynamic segments like :id?)
+  const pathMatchesRoute = (pathname, layout, path) => {
+    const full = (layout || '') + (path || '');
+    const basePath = full.replace(/\/:[^/]*/g, '');
+    return pathname === basePath || pathname.startsWith(basePath + '/');
+  };
   const getActiveRoute = (routes) => {
+    const pathname = window.location.pathname;
     let activeRoute = "Dashboard";
     for (let i = 0; i < routes.length; i++) {
       if (routes[i].collapse) {
@@ -71,18 +78,12 @@ export default function Dashboard(props) {
         }
       } else if (routes[i].submenu) {
         for (let j = 0; j < routes[i].submenu.length; j++) {
-          if (
-            window.location.href.indexOf(
-              routes[i].layout + routes[i].submenu[j].path
-            ) !== -1
-          ) {
+          if (pathMatchesRoute(pathname, routes[i].layout, routes[i].submenu[j].path)) {
             return routes[i].submenu[j].name;
           }
         }
       } else {
-        if (
-          window.location.href.indexOf(routes[i].layout + routes[i].path) !== -1
-        ) {
+        if (pathMatchesRoute(pathname, routes[i].layout, routes[i].path)) {
           return routes[i].name;
         }
       }
@@ -243,7 +244,7 @@ export default function Dashboard(props) {
               <Navbar
                 onOpen={onOpen}
                 logoText={"Narvi Maritime"}
-                brandText={getActiveRoute(routes)}
+                brandText={getActiveRoute([...routes, ...hiddenRoutes])}
                 secondary={getActiveNavbar(routes)}
                 message={getActiveNavbarText(routes)}
                 fixed={fixed}

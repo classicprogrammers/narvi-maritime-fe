@@ -837,7 +837,7 @@ function CustomerRegistration() {
             // Check if the API call was actually successful
             // For both register and update, check result.status === "success"
             if (result && result.result && result.result.status === "success") {
-                refreshMasterData(MASTER_KEYS.CLIENTS).catch(() => {});
+                refreshMasterData(MASTER_KEYS.CLIENTS).catch(() => { });
                 const createdClientId = editingClient ? editingClient.id : result.result.id;
                 // Add the new client to Redux
                 const newClient = {
@@ -1686,12 +1686,12 @@ function CustomerRegistration() {
                                                 </Flex>
                                             ))}
 
-                                            {(!formData.existingAttachments || formData.existingAttachments.length === 0) && 
-                                             (!formData.attachments || formData.attachments.length === 0) && (
-                                                <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={2}>
-                                                    No attachments uploaded
-                                                </Text>
-                                            )}
+                                            {(!formData.existingAttachments || formData.existingAttachments.length === 0) &&
+                                                (!formData.attachments || formData.attachments.length === 0) && (
+                                                    <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={2}>
+                                                        No attachments uploaded
+                                                    </Text>
+                                                )}
                                         </VStack>
                                     </Box>
                                 </Box>
@@ -1889,12 +1889,12 @@ function CustomerRegistration() {
                                                                                 </Flex>
                                                                             ))}
 
-                                                                            {(!row.existingAttachments || row.existingAttachments.length === 0) && 
-                                                                             (!row.attachments || row.attachments.length === 0) && (
-                                                                                <Text fontSize="xs" color={textColorSecondary} textAlign="center" py={1}>
-                                                                                    No files
-                                                                                </Text>
-                                                                            )}
+                                                                            {(!row.existingAttachments || row.existingAttachments.length === 0) &&
+                                                                                (!row.attachments || row.attachments.length === 0) && (
+                                                                                    <Text fontSize="xs" color={textColorSecondary} textAlign="center" py={1}>
+                                                                                        No files
+                                                                                    </Text>
+                                                                                )}
                                                                         </VStack>
                                                                     ) : (
                                                                         <Tooltip

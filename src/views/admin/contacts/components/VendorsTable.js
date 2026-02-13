@@ -992,6 +992,7 @@ export default function VendorsTable(props) {
                       <IconButton
                         aria-label="Clear Country"
                         size="md"
+                        style={{ width: "32px", height: "32px" }}
                         variant="ghost"
                         icon={<Icon as={MdClose} />}
                         onClick={() => handleFilterChange("country", "")}

@@ -32,14 +32,17 @@ const SimpleSearchableSelect = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [filteredOptions, setFilteredOptions] = useState(options);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
+  const highlightedItemRef = useRef(null);
 
   const defaultBg = useColorModeValue("gray.100", "gray.800");
   const defaultColor = useColorModeValue("gray.700", "gray.100");
   const defaultBorderColor = useColorModeValue("gray.200", "gray.700");
   const dropdownBg = useColorModeValue("white", "gray.800");
   const hoverBg = useColorModeValue("gray.100", "gray.700");
+  const highlightBg = useColorModeValue("blue.50", "blue.900");
 
   // Find selected option to display
   const selectedOption = options.find(option => String(option[valueKey]) === String(value));
@@ -75,6 +78,21 @@ const SimpleSearchableSelect = ({
       setFilteredOptions(options);
     }
   }, [searchValue, options, formatOption]);
+
+  // When dropdown opens or filtered options change, set highlighted index
+  useEffect(() => {
+    if (isOpen) {
+      const idx = filteredOptions.findIndex(opt => String(opt[valueKey]) === String(value));
+      setHighlightedIndex(idx >= 0 ? idx : 0);
+    }
+  }, [isOpen, value, valueKey, filteredOptions]);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (isOpen && highlightedItemRef.current) {
+      highlightedItemRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [highlightedIndex, isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -121,6 +139,43 @@ const SimpleSearchableSelect = ({
     setIsOpen(true);
     // Initialize searchValue with current display value to preserve it
     setSearchValue(displayValue);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) return;
+    const n = filteredOptions.length;
+    if (n === 0) {
+      if (e.key === 'Escape' || e.key === 'Tab') {
+        setIsOpen(false);
+        setSearchValue("");
+      }
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev < n - 1 ? prev + 1 : 0));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : n - 1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        handleSelect(e, filteredOptions[highlightedIndex]);
+        break;
+      case 'Escape':
+        e.preventDefault();
+        setIsOpen(false);
+        setSearchValue("");
+        break;
+      case 'Tab':
+        setIsOpen(false);
+        setSearchValue("");
+        break;
+      default:
+        break;
+    }
   };
 
   // Calculate dropdown position when open
@@ -172,10 +227,12 @@ const SimpleSearchableSelect = ({
           {filteredOptions.map((option, index) => (
             <ListItem
               key={option.id ?? `opt-${index}`}
+              ref={index === highlightedIndex ? highlightedItemRef : null}
               px={3}
               py={2}
               cursor="pointer"
-              _hover={{ bg: hoverBg }}
+              bg={index === highlightedIndex ? highlightBg : undefined}
+              _hover={{ bg: highlightBg }}
               onClick={(e) => handleSelect(e, option)}
               onMouseDown={(e) => e.preventDefault()}
               borderBottom="1px"
@@ -207,6 +264,7 @@ const SimpleSearchableSelect = ({
           value={inputValue}
           onChange={handleInputChange}
           onFocus={handleFocus}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           size={size}
           bg={bg || defaultBg}

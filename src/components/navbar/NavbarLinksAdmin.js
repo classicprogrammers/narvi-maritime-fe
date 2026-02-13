@@ -81,11 +81,11 @@ export default function HeaderLinks(props) {
       borderRadius="30px"
       boxShadow={shadow}
     >
-      <SearchBar
+      {/* <SearchBar
         mb={secondary ? { base: "10px", md: "unset" } : "unset"}
         me="10px"
         borderRadius="30px"
-      />
+      /> */}
 
       {/* Theme Toggle Button */}
       {/* <IconButton
@@ -99,7 +99,7 @@ export default function HeaderLinks(props) {
         size="sm"
       /> */}
 
-      <Flex
+      {/* <Flex
         bg={ethBg}
         display={secondary ? "flex" : "none"}
         borderRadius="30px"
@@ -204,7 +204,7 @@ export default function HeaderLinks(props) {
             </MenuItem>
           </Flex>
         </MenuList>
-      </Menu>
+      </Menu> */}
 
       {/* <ThemeEditor navbarIcon={navbarIcon} /> */}
 
@@ -213,7 +213,7 @@ export default function HeaderLinks(props) {
           <Avatar
             _hover={{ cursor: "pointer" }}
             color="white"
-            name="Adela Parkson"
+            name={getUserDisplayName()}
             bg="#174693"
             size="sm"
             w="40px"
@@ -244,14 +244,7 @@ export default function HeaderLinks(props) {
             </Text>
           </Flex>
           <Flex flexDirection="column" p="10px">
-            <MenuItem
-              _hover={{ bg: "none" }}
-              _focus={{ bg: "none" }}
-              borderRadius="8px"
-              px="14px"
-            >
-              <Text fontSize="sm">Profile Settings</Text>
-            </MenuItem>
+          
             <MenuItem
               _hover={{ bg: "none" }}
               _focus={{ bg: "none" }}
