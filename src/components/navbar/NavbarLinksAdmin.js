@@ -87,52 +87,6 @@ export default function HeaderLinks(props) {
         borderRadius="30px"
       /> */}
 
-      {/* Theme Toggle Button */}
-      {/* <IconButton
-        icon={<Icon as={colorMode === "light" ? MdDarkMode : MdLightMode} />}
-        variant="ghost"
-        aria-label="Toggle theme"
-        onClick={toggleColorMode}
-        color={navbarIcon}
-        _hover={{ bg: "gray.100" }}
-        me="10px"
-        size="sm"
-      /> */}
-
-      {/* <Flex
-        bg={ethBg}
-        display={secondary ? "flex" : "none"}
-        borderRadius="30px"
-        ms="auto"
-        p="6px"
-        align="center"
-        me="6px"
-      >
-        <Flex
-          align="center"
-          justify="center"
-          bg={ethBox}
-          h="29px"
-          w="29px"
-          borderRadius="30px"
-          me="7px"
-        >
-          <Icon color={ethColor} w="9px" h="14px" as={FaEthereum} />
-        </Flex>
-        <Text
-          w="max-content"
-          color={ethColor}
-          fontSize="sm"
-          fontWeight="700"
-          me="6px"
-        >
-          1,924
-          <Text as="span" display={{ base: "none", md: "unset" }}>
-            {" "}
-            ETH
-          </Text>
-        </Text>
-      </Flex>
       <IconButton
         display={{ base: "none", xl: "flex" }}
         icon={<Icon as={toggleSidebar ? MdClose : MdMenu} />}
@@ -144,7 +98,8 @@ export default function HeaderLinks(props) {
         me="10px"
       />
       <SidebarResponsive routes={routes} />
-      <Menu>
+
+      {/* <Menu>
         <MenuButton p="0px">
           <Icon
             mt="6px"
@@ -155,55 +110,6 @@ export default function HeaderLinks(props) {
             me="10px"
           />
         </MenuButton>
-        <MenuList
-          boxShadow={shadow}
-          p="20px"
-          borderRadius="20px"
-          bg={menuBg}
-          border="none"
-          mt="22px"
-          me={{ base: "30px", md: "unset" }}
-          minW={{ base: "unset", md: "400px", xl: "450px" }}
-          maxW={{ base: "360px", md: "unset" }}
-        >
-          <Flex jusitfy="space-between" w="100%" mb="20px">
-            <Text fontSize="md" fontWeight="600" color={textColor}>
-              Notifications
-            </Text>
-            <Text
-              fontSize="sm"
-              fontWeight="500"
-              color={textColorBrand}
-              ms="auto"
-              cursor="pointer"
-            >
-              Mark all read
-            </Text>
-          </Flex>
-          <Flex flexDirection="column">
-            <MenuItem
-              _hover={{ bg: "none" }}
-              _focus={{ bg: "none" }}
-              px="0"
-              borderRadius="8px"
-              mb="10px"
-            >
-              <ItemContent info="Narvi Maritime" aName="Alicia" />
-            </MenuItem>
-            <MenuItem
-              _hover={{ bg: "none" }}
-              _focus={{ bg: "none" }}
-              px="0"
-              borderRadius="8px"
-              mb="10px"
-            >
-              <ItemContent
-                info="Classic Design System Free"
-                aName="Josh Henry"
-              />
-            </MenuItem>
-          </Flex>
-        </MenuList>
       </Menu> */}
 
       {/* <ThemeEditor navbarIcon={navbarIcon} /> */}
@@ -244,7 +150,7 @@ export default function HeaderLinks(props) {
             </Text>
           </Flex>
           <Flex flexDirection="column" p="10px">
-          
+
             <MenuItem
               _hover={{ bg: "none" }}
               _focus={{ bg: "none" }}
