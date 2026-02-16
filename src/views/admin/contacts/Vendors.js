@@ -126,6 +126,9 @@ export default function Vendors() {
     [getVendors, buildFetchParams]
   );
 
+  const fetchVendorsRef = useRef(fetchVendors);
+  fetchVendorsRef.current = fetchVendors;
+
   const hasFetchedRef = useRef(false);
   useEffect(() => {
     if (!hasFetchedRef.current) {
@@ -135,7 +138,7 @@ export default function Vendors() {
     }
   }, [fetchVendors]);
 
-  // Search on change (debounced) – skip initial mount
+  // Search on change (debounced) – skip initial mount; only run when search text changes, not when page/filters change
   const isFirstSearchRun = useRef(true);
   useEffect(() => {
     if (isFirstSearchRun.current) {
@@ -144,10 +147,10 @@ export default function Vendors() {
     }
     const timer = setTimeout(() => {
       setPage(1);
-      fetchVendors({ page: 1 });
+      fetchVendorsRef.current({ page: 1 });
     }, 400);
     return () => clearTimeout(timer);
-  }, [nameSearchValue, overallSearchValue, fetchVendors]);
+  }, [nameSearchValue, overallSearchValue]);
 
   const refreshAgents = useCallback(() => {
     fetchVendors({ page });

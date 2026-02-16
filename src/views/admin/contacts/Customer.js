@@ -122,6 +122,9 @@ export default function Customer() {
     [getCustomers, buildFetchParams]
   );
 
+  const fetchCustomersRef = useRef(fetchCustomers);
+  fetchCustomersRef.current = fetchCustomers;
+
   const hasFetchedRef = useRef(false);
   useEffect(() => {
     if (!hasFetchedRef.current) {
@@ -131,7 +134,7 @@ export default function Customer() {
     }
   }, [fetchCustomers]);
 
-  // Search on change (debounced) – skip initial mount
+  // Search on change (debounced) – skip initial mount; only run when search text changes, not when page/filters change
   const isFirstSearchRun = useRef(true);
   useEffect(() => {
     if (isFirstSearchRun.current) {
@@ -140,10 +143,10 @@ export default function Customer() {
     }
     const timer = setTimeout(() => {
       setPage(1);
-      fetchCustomers({ page: 1 });
+      fetchCustomersRef.current({ page: 1 });
     }, 400);
     return () => clearTimeout(timer);
-  }, [nameSearchValue, overallSearchValue, fetchCustomers]);
+  }, [nameSearchValue, overallSearchValue]);
 
   const refreshCustomers = useCallback(() => {
     fetchCustomers({ page });
