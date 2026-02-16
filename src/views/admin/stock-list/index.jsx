@@ -50,6 +50,64 @@ import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 
+const STOCK_MAIN_DB_STORAGE_KEY = "narvi_stock_main_db_state";
+
+function readPersistedStockMainDbState() {
+    try {
+        const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STOCK_MAIN_DB_STORAGE_KEY) : null;
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        return {
+            page: typeof p.page === "number" ? p.page : 1,
+            pageSize: typeof p.pageSize === "number" ? p.pageSize : 80,
+            searchFilter: typeof p.searchFilter === "string" ? p.searchFilter : "",
+            selectedClient: p.selectedClient != null ? p.selectedClient : null,
+            selectedVessel: p.selectedVessel != null ? p.selectedVessel : null,
+            selectedSupplier: p.selectedSupplier != null ? p.selectedSupplier : null,
+            selectedStatus: typeof p.selectedStatus === "string" ? p.selectedStatus : "",
+            selectedWarehouse: p.selectedWarehouse != null ? p.selectedWarehouse : null,
+            selectedCurrency: p.selectedCurrency != null ? p.selectedCurrency : null,
+            selectedHub: p.selectedHub != null ? p.selectedHub : null,
+            filterSO: typeof p.filterSO === "string" ? p.filterSO : "",
+            filterSI: typeof p.filterSI === "string" ? p.filterSI : "",
+            filterSICombined: typeof p.filterSICombined === "string" ? p.filterSICombined : "",
+            filterDI: typeof p.filterDI === "string" ? p.filterDI : "",
+            sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
+            sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
+        };
+    } catch {
+        return null;
+    }
+}
+
+function writePersistedStockMainDbState(state) {
+    try {
+        if (typeof sessionStorage === "undefined") return;
+        sessionStorage.setItem(STOCK_MAIN_DB_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+        // ignore
+    }
+}
+
+const defaultStockMainDbState = {
+    page: 1,
+    pageSize: 80,
+    searchFilter: "",
+    selectedClient: null,
+    selectedVessel: null,
+    selectedSupplier: null,
+    selectedStatus: "",
+    selectedWarehouse: null,
+    selectedCurrency: null,
+    selectedHub: null,
+    filterSO: "",
+    filterSI: "",
+    filterSICombined: "",
+    filterDI: "",
+    sortBy: "id",
+    sortOrder: "desc",
+};
+
 export default function StockList() {
     const history = useHistory();
     const location = useLocation();
@@ -97,9 +155,6 @@ export default function StockList() {
         return emailMatch || nameMatch;
     }, [user]);
 
-    // Track if we're refreshing after an update
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
@@ -118,30 +173,53 @@ export default function StockList() {
     const [locations, setLocations] = useState([]);
     const [shippingOrders, setShippingOrders] = useState([]);
 
-    // Filters state
-    const [selectedClient, setSelectedClient] = useState(null);
-    const [selectedVessel, setSelectedVessel] = useState(null);
-    const [selectedSupplier, setSelectedSupplier] = useState(null);
-    const [selectedStatus, setSelectedStatus] = useState("");
-    const [selectedWarehouse, setSelectedWarehouse] = useState(null);
-    const [selectedCurrency, setSelectedCurrency] = useState(null);
-    const [selectedHub, setSelectedHub] = useState(null);
-    const [filterSO, setFilterSO] = useState("");
-    const [filterSI, setFilterSI] = useState("");
-    const [filterSICombined, setFilterSICombined] = useState("");
-    const [filterDI, setFilterDI] = useState("");
+    // Filters state (initialized from sessionStorage so they persist across navigation)
+    const [savedState] = useState(() => readPersistedStockMainDbState() || defaultStockMainDbState);
+    const [selectedClient, setSelectedClient] = useState(savedState.selectedClient);
+    const [selectedVessel, setSelectedVessel] = useState(savedState.selectedVessel);
+    const [selectedSupplier, setSelectedSupplier] = useState(savedState.selectedSupplier);
+    const [selectedStatus, setSelectedStatus] = useState(savedState.selectedStatus);
+    const [selectedWarehouse, setSelectedWarehouse] = useState(savedState.selectedWarehouse);
+    const [selectedCurrency, setSelectedCurrency] = useState(savedState.selectedCurrency);
+    const [selectedHub, setSelectedHub] = useState(savedState.selectedHub);
+    const [filterSO, setFilterSO] = useState(savedState.filterSO);
+    const [filterSI, setFilterSI] = useState(savedState.filterSI);
+    const [filterSICombined, setFilterSICombined] = useState(savedState.filterSICombined);
+    const [filterDI, setFilterDI] = useState(savedState.filterDI);
     // Search state (searchFilter used as API param; no separate searchQuery)
-    const [searchFilter, setSearchFilter] = useState("");
+    const [searchFilter, setSearchFilter] = useState(savedState.searchFilter);
 
     // Pagination state
-    const [page, setPage] = useState(1);
-    const [pageSize] = useState(80);
+    const [page, setPage] = useState(savedState.page);
+    const [pageSize] = useState(savedState.pageSize);
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [hasNext, setHasNext] = useState(false);
     const [hasPrevious, setHasPrevious] = useState(false);
-    const [sortBy, setSortBy] = useState("id");
-    const [sortOrder, setSortOrder] = useState("desc");
+    const [sortBy, setSortBy] = useState(savedState.sortBy);
+    const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+
+    // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
+    useEffect(() => {
+        writePersistedStockMainDbState({
+            page,
+            pageSize,
+            searchFilter,
+            selectedClient,
+            selectedVessel,
+            selectedSupplier,
+            selectedStatus,
+            selectedWarehouse,
+            selectedCurrency,
+            selectedHub,
+            filterSO,
+            filterSI,
+            filterSICombined,
+            filterDI,
+            sortBy,
+            sortOrder,
+        });
+    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, sortBy, sortOrder]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -288,15 +366,6 @@ export default function StockList() {
             history.replace(location.pathname, {});
         }
     }, [location.state, history, location.pathname]);
-
-    // Track refresh state after updates
-    useEffect(() => {
-        if (isLoading && stockList.length > 0) {
-            setIsRefreshing(true);
-        } else {
-            setIsRefreshing(false);
-        }
-    }, [isLoading, stockList.length]);
 
     // Track if lookup data has been fetched
     const hasFetchedLookupData = useRef(false);
@@ -1301,14 +1370,6 @@ export default function StockList() {
                         >
                             Stock List Management
                         </Text>
-                        {isRefreshing && (
-                            <HStack spacing="2">
-                                <Spinner size="sm" color="blue.500" />
-                                <Text fontSize="sm" color="blue.500">
-                                    Refreshing...
-                                </Text>
-                            </HStack>
-                        )}
                     </HStack>
                     <HStack spacing="3">
                         <IconButton
@@ -1317,7 +1378,6 @@ export default function StockList() {
                             variant="ghost"
                             aria-label="Refresh"
                             onClick={() => fetchStockList()}
-                            isLoading={isLoading}
                         />
                     </HStack>
                 </Flex>
@@ -1881,7 +1941,7 @@ export default function StockList() {
                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                     }}
                 >
-                    {isLoading && (
+                    {isLoading && stockList.length === 0 && (
                         <Box
                             position="fixed"
                             top="50%"
@@ -1899,31 +1959,13 @@ export default function StockList() {
                             </VStack>
                         </Box>
                     )}
-                    {isLoadingAttachment && (
-                        <Box
-                            position="fixed"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            zIndex={1001}
-                            bg={useColorModeValue("white", "gray.800")}
-                            p={6}
-                            borderRadius="md"
-                            boxShadow="lg"
-                        >
-                            <VStack spacing="4">
-                                <Spinner size="xl" color="#1c4a95" />
-                                <Text color={tableTextColorSecondary}>Loading...</Text>
-                            </VStack>
-                        </Box>
-                    )}
                     <Table
                         variant="unstyled"
                         size="sm"
                         minW="5000px"
                         ml="25px"
                     >
-                        {!isLoading && (
+                        {(!isLoading || stockList.length > 0) && (
                             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
@@ -2033,7 +2075,7 @@ export default function StockList() {
                             </Thead>
                         )}
                         <Tbody>
-                            {isLoading ? (
+                            {isLoading && stockList.length === 0 ? (
                                 <Tr>
                                     <Td colSpan={45} textAlign="center" py="40px">
                                         <Box visibility="hidden" h="100px">

@@ -165,19 +165,96 @@ const STATUS_VARIATIONS = {
     "delivery_instr": "on_delivery",
 };
 
+const STOCK_VIEW_EDIT_STORAGE_KEY = "narvi_stock_view_edit_state";
+
+function readPersistedStockViewEditState() {
+    try {
+        const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(STOCK_VIEW_EDIT_STORAGE_KEY) : null;
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        return {
+            activeTab: typeof p.activeTab === "number" && p.activeTab >= 0 && p.activeTab <= 2 ? p.activeTab : 0,
+            stockViewPage: typeof p.stockViewPage === "number" ? p.stockViewPage : 1,
+            clientViewPage: typeof p.clientViewPage === "number" ? p.clientViewPage : 1,
+            vesselViewClient: p.vesselViewClient != null ? p.vesselViewClient : null,
+            vesselViewVessel: p.vesselViewVessel != null ? p.vesselViewVessel : null,
+            vesselViewStatuses: Array.isArray(p.vesselViewStatuses) ? p.vesselViewStatuses : [],
+            clientViewClient: p.clientViewClient != null ? p.clientViewClient : null,
+            clientViewStatuses: Array.isArray(p.clientViewStatuses) ? p.clientViewStatuses : [],
+            clientViewFilterType: p.clientViewFilterType === "filter1" || p.clientViewFilterType === "filter2" ? p.clientViewFilterType : "filter1",
+            clientViewSearchClient: typeof p.clientViewSearchClient === "string" ? p.clientViewSearchClient : "",
+            clientViewSearchVessel: typeof p.clientViewSearchVessel === "string" ? p.clientViewSearchVessel : "",
+            clientViewVesselFilter: p.clientViewVesselFilter != null ? p.clientViewVesselFilter : null,
+            stockViewClient: p.stockViewClient != null ? p.stockViewClient : null,
+            stockViewVessel: p.stockViewVessel != null ? p.stockViewVessel : null,
+            stockViewStatus: typeof p.stockViewStatus === "string" ? p.stockViewStatus : "",
+            stockViewStockItemId: typeof p.stockViewStockItemId === "string" ? p.stockViewStockItemId : "",
+            stockViewDateOnStock: typeof p.stockViewDateOnStock === "string" ? p.stockViewDateOnStock : "",
+            stockViewDaysOnStock: typeof p.stockViewDaysOnStock === "string" ? p.stockViewDaysOnStock : "",
+            stockViewFilterSO: typeof p.stockViewFilterSO === "string" ? p.stockViewFilterSO : "",
+            stockViewFilterSI: typeof p.stockViewFilterSI === "string" ? p.stockViewFilterSI : "",
+            stockViewFilterSICombined: typeof p.stockViewFilterSICombined === "string" ? p.stockViewFilterSICombined : "",
+            stockViewFilterDI: typeof p.stockViewFilterDI === "string" ? p.stockViewFilterDI : "",
+            stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
+            stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
+            sortOption: typeof p.sortOption === "string" ? p.sortOption : "none",
+        };
+    } catch {
+        return null;
+    }
+}
+
+function writePersistedStockViewEditState(state) {
+    try {
+        if (typeof sessionStorage === "undefined") return;
+        sessionStorage.setItem(STOCK_VIEW_EDIT_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+        // ignore
+    }
+}
+
+const defaultStockViewEditState = {
+    activeTab: 0,
+    stockViewPage: 1,
+    clientViewPage: 1,
+    vesselViewClient: null,
+    vesselViewVessel: null,
+    vesselViewStatuses: [],
+    clientViewClient: null,
+    clientViewStatuses: [],
+    clientViewFilterType: "filter1",
+    clientViewSearchClient: "",
+    clientViewSearchVessel: "",
+    clientViewVesselFilter: null,
+    stockViewClient: null,
+    stockViewVessel: null,
+    stockViewStatus: "",
+    stockViewStockItemId: "",
+    stockViewDateOnStock: "",
+    stockViewDaysOnStock: "",
+    stockViewFilterSO: "",
+    stockViewFilterSI: "",
+    stockViewFilterSICombined: "",
+    stockViewFilterDI: "",
+    stockViewSearchFilter: "",
+    stockViewHub: null,
+    sortOption: "none",
+};
+
 export default function Stocks() {
     const history = useHistory();
     const location = useLocation();
     const [selectedRows, setSelectedRows] = useState(new Set());
-    const [activeTab, setActiveTab] = useState(0);
+    const [savedState] = useState(() => readPersistedStockViewEditState() || defaultStockViewEditState);
+    const [activeTab, setActiveTab] = useState(savedState.activeTab);
 
     const PAGE_SIZE = 80;
 
     // Pagination state for Stock View / Edit tab (activeTab === 0)
-    const [stockViewPage, setStockViewPage] = useState(1);
+    const [stockViewPage, setStockViewPage] = useState(savedState.stockViewPage);
 
     // Pagination state for Client View tab (activeTab === 1)
-    const [clientViewPage, setClientViewPage] = useState(1);
+    const [clientViewPage, setClientViewPage] = useState(savedState.clientViewPage);
     const [editingRowIds, setEditingRowIds] = useState(new Set());
     const [editingRowData, setEditingRowData] = useState({});
 
@@ -195,40 +272,68 @@ export default function Stocks() {
         has_previous,
     } = useStock();
 
-    // Track if we're refreshing after an update
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
-    // Filters - separate for each view
-    const [vesselViewClient, setVesselViewClient] = useState(null);
-    const [vesselViewVessel, setVesselViewVessel] = useState(null);
-    const [vesselViewStatuses, setVesselViewStatuses] = useState(new Set());
+    // Filters - separate for each view (initialized from sessionStorage so they persist across navigation)
+    const [vesselViewClient, setVesselViewClient] = useState(savedState.vesselViewClient);
+    const [vesselViewVessel, setVesselViewVessel] = useState(savedState.vesselViewVessel);
+    const [vesselViewStatuses, setVesselViewStatuses] = useState(() => new Set(savedState.vesselViewStatuses));
 
     // By Client view filters
-    const [clientViewClient, setClientViewClient] = useState(null);
-    const [clientViewStatuses, setClientViewStatuses] = useState(new Set());
-    const [clientViewFilterType, setClientViewFilterType] = useState('filter1');
+    const [clientViewClient, setClientViewClient] = useState(savedState.clientViewClient);
+    const [clientViewStatuses, setClientViewStatuses] = useState(() => new Set(savedState.clientViewStatuses));
+    const [clientViewFilterType, setClientViewFilterType] = useState(savedState.clientViewFilterType);
     const [clientViewSelectedRows, setClientViewSelectedRows] = useState(new Set());
-    const [clientViewSearchClient, setClientViewSearchClient] = useState('');
-    const [clientViewSearchVessel, setClientViewSearchVessel] = useState('');
-    const [clientViewVesselFilter, setClientViewVesselFilter] = useState(null);
+    const [clientViewSearchClient, setClientViewSearchClient] = useState(savedState.clientViewSearchClient);
+    const [clientViewSearchVessel, setClientViewSearchVessel] = useState(savedState.clientViewSearchVessel);
+    const [clientViewVesselFilter, setClientViewVesselFilter] = useState(savedState.clientViewVesselFilter);
 
     // State to control filters section visibility - default to open
     const [showFilters, setShowFilters] = useState(true);
 
     // Stock View / Edit tab filters
-    const [stockViewClient, setStockViewClient] = useState(null);
-    const [stockViewVessel, setStockViewVessel] = useState(null);
-    const [stockViewStatus, setStockViewStatus] = useState("");
-    const [stockViewStockItemId, setStockViewStockItemId] = useState("");
-    const [stockViewDateOnStock, setStockViewDateOnStock] = useState("");
-    const [stockViewDaysOnStock, setStockViewDaysOnStock] = useState("");
-    const [stockViewFilterSO, setStockViewFilterSO] = useState("");
-    const [stockViewFilterSI, setStockViewFilterSI] = useState("");
-    const [stockViewFilterSICombined, setStockViewFilterSICombined] = useState("");
-    const [stockViewFilterDI, setStockViewFilterDI] = useState("");
-    const [stockViewSearchFilter, setStockViewSearchFilter] = useState("");
-    const [stockViewHub, setStockViewHub] = useState(null);
-    const [sortOption, setSortOption] = useState("none");
+    const [stockViewClient, setStockViewClient] = useState(savedState.stockViewClient);
+    const [stockViewVessel, setStockViewVessel] = useState(savedState.stockViewVessel);
+    const [stockViewStatus, setStockViewStatus] = useState(savedState.stockViewStatus);
+    const [stockViewStockItemId, setStockViewStockItemId] = useState(savedState.stockViewStockItemId);
+    const [stockViewDateOnStock, setStockViewDateOnStock] = useState(savedState.stockViewDateOnStock);
+    const [stockViewDaysOnStock, setStockViewDaysOnStock] = useState(savedState.stockViewDaysOnStock);
+    const [stockViewFilterSO, setStockViewFilterSO] = useState(savedState.stockViewFilterSO);
+    const [stockViewFilterSI, setStockViewFilterSI] = useState(savedState.stockViewFilterSI);
+    const [stockViewFilterSICombined, setStockViewFilterSICombined] = useState(savedState.stockViewFilterSICombined);
+    const [stockViewFilterDI, setStockViewFilterDI] = useState(savedState.stockViewFilterDI);
+    const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
+    const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
+    const [sortOption, setSortOption] = useState(savedState.sortOption);
+
+    // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
+    useEffect(() => {
+        writePersistedStockViewEditState({
+            activeTab,
+            stockViewPage,
+            clientViewPage,
+            vesselViewClient,
+            vesselViewVessel,
+            vesselViewStatuses: Array.from(vesselViewStatuses),
+            clientViewClient,
+            clientViewStatuses: Array.from(clientViewStatuses),
+            clientViewFilterType,
+            clientViewSearchClient,
+            clientViewSearchVessel,
+            clientViewVesselFilter,
+            stockViewClient,
+            stockViewVessel,
+            stockViewStatus,
+            stockViewStockItemId,
+            stockViewDateOnStock,
+            stockViewDaysOnStock,
+            stockViewFilterSO,
+            stockViewFilterSI,
+            stockViewFilterSICombined,
+            stockViewFilterDI,
+            stockViewSearchFilter,
+            stockViewHub,
+            sortOption,
+        });
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewSearchFilter, stockViewHub, sortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -488,15 +593,6 @@ export default function Stocks() {
             history.replace(location.pathname, {});
         }
     }, [location.state, history, location.pathname]);
-
-    // Track refresh state after updates
-    useEffect(() => {
-        if (isLoading && stockList.length > 0) {
-            setIsRefreshing(true);
-        } else {
-            setIsRefreshing(false);
-        }
-    }, [isLoading, stockList.length]);
 
     // Helpers for API response format: { id, name } - display name, pass id for editing
     const getDisplayName = (val) => {
@@ -3092,24 +3188,6 @@ export default function Stocks() {
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-            {isLoadingAttachment && (
-                <Box
-                    position="fixed"
-                    top="50%"
-                    left="50%"
-                    transform="translate(-50%, -50%)"
-                    zIndex={1001}
-                    bg={useColorModeValue("white", "gray.800")}
-                    p={6}
-                    borderRadius="md"
-                    boxShadow="lg"
-                >
-                    <VStack spacing="4">
-                        <Spinner size="xl" color="#1c4a95" />
-                        <Text color={useColorModeValue("gray.600", "gray.300")}>Loading...</Text>
-                    </VStack>
-                </Box>
-            )}
             <Card
                 direction="column"
                 w="100%"
@@ -3127,14 +3205,6 @@ export default function Stocks() {
                         >
                             Stock List Management
                         </Text>
-                        {isRefreshing && (
-                            <HStack spacing="2">
-                                <Spinner size="sm" color="blue.500" />
-                                <Text fontSize="sm" color="blue.500">
-                                    Refreshing...
-                                </Text>
-                            </HStack>
-                        )}
                     </HStack>
                     <HStack spacing="3">
                         {activeTab === 0 && (
@@ -3192,7 +3262,6 @@ export default function Stocks() {
                             variant="ghost"
                             aria-label="Refresh"
                             onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })}
-                            isLoading={isLoading}
                         />
                     </HStack>
                 </Flex>
@@ -4253,7 +4322,7 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && (
+                                    {isLoading && stockList.length === 0 && (
                                         <Box
                                             position="fixed"
                                             top="50%"
@@ -4271,26 +4340,8 @@ export default function Stocks() {
                                             </VStack>
                                         </Box>
                                     )}
-                                    {isLoadingAttachment && (
-                                        <Box
-                                            position="fixed"
-                                            top="50%"
-                                            left="50%"
-                                            transform="translate(-50%, -50%)"
-                                            zIndex={1001}
-                                            bg={useColorModeValue("white", "gray.800")}
-                                            p={6}
-                                            borderRadius="md"
-                                            boxShadow="lg"
-                                        >
-                                            <VStack spacing="4">
-                                                <Spinner size="xl" color="#1c4a95" />
-                                                <Text color={tableTextColorSecondary}>Loading...</Text>
-                                            </VStack>
-                                        </Box>
-                                    )}
                                     <Table size="sm" minW="6000px">
-                                        {!isLoading && (
+                                        {(!isLoading || stockList.length > 0) && (
                                             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th
@@ -4364,7 +4415,7 @@ export default function Stocks() {
                                             </Thead>
                                         )}
                                         <Tbody>
-                                            {isLoading ? (
+                                            {isLoading && stockList.length === 0 ? (
                                                 <Tr>
                                                     <Td colSpan={20} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
@@ -4867,7 +4918,7 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && (
+                                    {isLoading && stockList.length === 0 && (
                                         <Box
                                             position="fixed"
                                             top="50%"
@@ -4886,7 +4937,7 @@ export default function Stocks() {
                                         </Box>
                                     )}
                                     <Table variant="unstyled" size="sm" layout="auto">
-                                        {!isLoading && (
+                                        {(!isLoading || stockList.length > 0) && (
                                             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th {...headerProps} w="40px">
@@ -4930,7 +4981,7 @@ export default function Stocks() {
                                             </Thead>
                                         )}
                                         <Tbody>
-                                            {isLoading ? (
+                                            {isLoading && stockList.length === 0 ? (
                                                 <Tr>
                                                     <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
                                                         <Box visibility="hidden" h="100px">
@@ -5215,7 +5266,7 @@ export default function Stocks() {
 
                         {/* Table Container */}
                         <Box pr="25px" overflowX="auto" position="relative" minH="400px">
-                            {isLoading && (
+                            {isLoading && stockList.length === 0 && (
                                 <Box
                                     position="fixed"
                                     top="50%"
@@ -5234,7 +5285,7 @@ export default function Stocks() {
                                 </Box>
                             )}
                             <Table variant="unstyled" size="sm" ml="25px">
-                                {!isLoading && (
+                                {(!isLoading || stockList.length > 0) && (
                                     <Thead bg={tableHeaderBg}>
                                         <Tr>
                                             <Th
@@ -5347,7 +5398,7 @@ export default function Stocks() {
                                     </Thead>
                                 )}
                                 <Tbody>
-                                    {isLoading ? (
+                                    {isLoading && stockList.length === 0 ? (
                                         <Tr>
                                             <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
                                                 <Box visibility="hidden" h="100px">
