@@ -90,6 +90,22 @@ export default function Vessels() {
   const searchIconColor = useColorModeValue("gray.400", "gray.500");
   const inputBg = useColorModeValue("white", "gray.700");
   const inputText = useColorModeValue("gray.700", "white");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -539,22 +555,22 @@ export default function Vessels() {
             <Table variant="unstyled" size="sm">
               <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
                 <Tr>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Vessel
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Client (Customer)
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Vessel Type
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     IMO
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Status
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Actions
                   </Th>
                 </Tr>
@@ -575,33 +591,33 @@ export default function Vessels() {
                         borderBottom="1px"
                         borderColor="gray.200"
                       >
-                        <Td py="12px" px="16px" style={{ width: "150px" }}>
+                        <Td py="12px" px="16px" {...tableCellProps}>
                           <HStack spacing={2}>
                             <Icon as={MdDirectionsBoat} color="blue.500" w="16px" h="16px" />
-                            <Text color={textColor} fontSize="sm" fontWeight="500">
+                            <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                               {vessel.name || "-"}
                             </Text>
                           </HStack>
                         </Td>
-                        <Td py="12px" px="16px">
-                          <Text color={textColor} fontSize="sm" fontWeight="500">
+                        <Td py="12px" px="16px" {...tableCellProps}>
+                          <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                             {(() => {
                               const customer = customers.find(c => c.id === vessel.client_id);
                               return customer ? (customer.name || customer.company_name || `Customer ${customer.id}`) : (vessel.client_id || "-");
                             })()}
                           </Text>
                         </Td>
-                        <Td py="12px" px="16px">
-                          <Text color={textColor} fontSize="sm" fontWeight="500">
+                        <Td py="12px" px="16px" {...tableCellProps}>
+                          <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                             {vessel.vessel_type || "-"}
                           </Text>
                         </Td>
-                        <Td py="12px" px="16px">
-                          <Text color={textColor} fontSize="sm" fontWeight="500">
+                        <Td py="12px" px="16px" {...tableCellProps}>
+                          <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                             {vessel.imo || "-"}
                           </Text>
                         </Td>
-                        <Td py="12px" px="16px">
+                        <Td py="12px" px="16px" {...tableCellProps}>
                           <Badge
                             colorScheme={
                               vessel.status === "active" ? "green" :
@@ -615,7 +631,7 @@ export default function Vessels() {
                             {vessel.status || "-"}
                           </Badge>
                         </Td>
-                        <Td py="12px" px="16px">
+                        <Td py="12px" px="16px" {...tableCellProps}>
                           <HStack spacing={2}>
                             <Tooltip label="View Vessel Details">
                               <IconButton

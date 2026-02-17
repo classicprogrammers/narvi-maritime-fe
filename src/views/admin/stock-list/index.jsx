@@ -252,6 +252,9 @@ export default function StockList() {
         fontWeight: "600",
         color: tableTextColor,
         textTransform: "uppercase",
+        maxW: "240px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
     };
     const cellProps = {
         borderRight: "1px",
@@ -259,10 +262,17 @@ export default function StockList() {
         py: "12px",
         px: "16px",
         minW: "130px",
+        maxW: "240px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
     };
     const cellText = {
         color: tableTextColor,
         fontSize: "sm",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        display: "block",
     };
 
     // Helper to get id from object or value (used for API params)

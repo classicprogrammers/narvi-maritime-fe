@@ -403,6 +403,22 @@ export default function VendorsTable(props) {
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
   const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
   const modalBg = useColorModeValue("white", "gray.800");
   const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
   const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
@@ -1053,6 +1069,7 @@ export default function VendorsTable(props) {
                       cursor="pointer"
                       _hover={{ bg: tableHeaderBg }}
                       transition="all 0.2s"
+                      {...tableHeaderCellProps}
                     >
                       <Flex justify="space-between" align="center">
                         {column.render("Header")}
@@ -1132,6 +1149,7 @@ export default function VendorsTable(props) {
                               color={textColor}
                               fontSize="sm"
                               fontWeight="500"
+                              {...cellText}
                             >
                               {cell.value || "-"}
                             </Text>
@@ -1142,20 +1160,21 @@ export default function VendorsTable(props) {
                               color={textColor}
                               fontSize="sm"
                               fontWeight="600"
+                              {...cellText}
                             >
                               {cell.value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "AGENT TYPE") {
                           data = (
-                            <Text color={textColor} fontSize="sm">
+                            <Text color={textColor} fontSize="sm" {...cellText}>
                               {row.original.type_client || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "CITY / COUNTRY") {
                           const value = row.original.city_country || "-";
                           data = (
-                            <Text color={textColor} fontSize="sm">
+                            <Text color={textColor} fontSize="sm" {...cellText}>
                               {value}
                             </Text>
                           );
@@ -1359,7 +1378,7 @@ export default function VendorsTable(props) {
                           );
                         } else {
                           data = (
-                            <Text color={textColor} fontSize="sm">
+                            <Text color={textColor} fontSize="sm" {...cellText}>
                               {cell.value || "-"}
                             </Text>
                           );
@@ -1372,6 +1391,7 @@ export default function VendorsTable(props) {
                             borderColor={tableBorderColor}
                             py="12px"
                             px="16px"
+                            {...tableCellProps}
                           >
                             {data}
                           </Td>

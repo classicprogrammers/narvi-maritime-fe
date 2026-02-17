@@ -375,6 +375,9 @@ export default function Stocks() {
         color: tableTextColor,
         textTransform: "uppercase",
         whiteSpace: "nowrap",
+        maxW: "240px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
     };
     const cellProps = {
         borderRight: "1px",
@@ -382,10 +385,17 @@ export default function Stocks() {
         py: "12px",
         px: "16px",
         whiteSpace: "nowrap",
+        maxW: "240px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
     };
     const cellText = {
         color: tableTextColor,
         fontSize: "sm",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        display: "block",
     };
 
     const hasFetchedLookupData = useRef(false);

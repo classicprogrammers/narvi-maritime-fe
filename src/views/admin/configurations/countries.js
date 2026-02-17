@@ -60,6 +60,22 @@ export default function Countries() {
   const searchIconColor = useColorModeValue("gray.400", "gray.500");
   const inputBg = useColorModeValue("white", "gray.700");
   const inputText = useColorModeValue("gray.700", "white");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -425,16 +441,16 @@ export default function Countries() {
             <Table variant="unstyled" size="sm">
               <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
                 <Tr>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Name
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Code
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     States
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Actions
                   </Th>
                 </Tr>
@@ -448,27 +464,27 @@ export default function Countries() {
                     borderBottom="1px"
                     borderColor="gray.200"
                   >
-                    <Td py="12px" px="16px">
+                    <Td py="12px" px="16px" {...tableCellProps}>
                       <HStack spacing={2}>
                         <Icon as={MdPublic} color="green.500" w="16px" h="16px" />
-                        <Text color={textColor} fontSize="sm" fontWeight="500">
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                           {country.name || "-"}
                         </Text>
                       </HStack>
                     </Td>
-                    <Td py="12px" px="16px">
-                      <Text color={textColor} fontSize="sm" fontWeight="600">
+                    <Td py="12px" px="16px" {...tableCellProps}>
+                      <Text color={textColor} fontSize="sm" fontWeight="600" {...cellText}>
                         {country.code || "-"}
                       </Text>
                     </Td>
-                    <Td py="12px" px="16px">
-                      <Text color={textColor} fontSize="sm">
+                    <Td py="12px" px="16px" {...tableCellProps}>
+                      <Text color={textColor} fontSize="sm" {...cellText}>
                         {Array.isArray(country.states) && country.states.length > 0
                           ? `${country.states.length} state${country.states.length > 1 ? "s" : ""}`
                           : "-"}
                       </Text>
                     </Td>
-                    <Td py="12px" px="16px">
+                    <Td py="12px" px="16px" {...tableCellProps}>
                       <HStack spacing={2}>
                         <Tooltip label="Edit Country">
                           <IconButton

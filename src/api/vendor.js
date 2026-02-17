@@ -327,6 +327,8 @@ export const getVendorsApi = async (filterParams = {}) => {
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
       if (filterParams.agent_type != null && String(filterParams.agent_type).trim() !== "")
         params.agent_type = String(filterParams.agent_type).trim();
+      if (filterParams.email != null && String(filterParams.email).trim() !== "")
+        params.email = String(filterParams.email).trim();
       const cid = filterParams.country_id;
       if (cid != null && cid !== "" && !Number.isNaN(Number(cid)))
         params.country_id = parseInt(cid, 10);

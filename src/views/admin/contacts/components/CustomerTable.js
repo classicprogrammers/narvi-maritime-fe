@@ -307,6 +307,22 @@ export default function CustomerTable(props) {
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
   const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
   const modalBg = useColorModeValue("white", "gray.800");
   const modalHeaderBg = useColorModeValue("gray.50", "gray.700");
   const modalBorder = useColorModeValue("gray.200", "whiteAlpha.200");
@@ -928,6 +944,7 @@ export default function CustomerTable(props) {
                       transition="all 0.2s"
                       minW={column.minWidth || "150px"}
                       w={column.minWidth || "150px"}
+                      {...tableHeaderCellProps}
                     >
                       <Flex justify="space-between" align="center">
                         {column.render("Header")}
@@ -1002,38 +1019,38 @@ export default function CustomerTable(props) {
                       {row.cells.map((cell, index) => {
                         const value = cell.value;
                         let data = (
-                          <Text color={textColor} fontSize="sm">
+                          <Text color={textColor} fontSize="sm" {...cellText}>
                             {value || "-"}
                           </Text>
                         );
 
                         if (cell.column.Header === "CLIENT CODE") {
                           data = (
-                            <Text color={textColor} fontSize="sm" fontWeight="600">
+                            <Text color={textColor} fontSize="sm" fontWeight="600" {...cellText}>
                               {value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "CLIENT NAME") {
                           data = (
-                            <Text color={textColor} fontSize="sm" fontWeight="500">
+                            <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
                               {value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "CLIENT TYPE") {
                           data = (
-                            <Text color={textColor} fontSize="sm" textTransform="capitalize">
+                            <Text color={textColor} fontSize="sm" textTransform="capitalize" {...cellText}>
                               {value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "COMPANY TYPE") {
                           data = (
-                            <Text color={textColor} fontSize="sm">
+                            <Text color={textColor} fontSize="sm" {...cellText}>
                               {value || "-"}
                             </Text>
                           );
                         } else if (cell.column.Header === "EMAIL") {
                           data = (
-                            <Text color={textColor} fontSize="sm">
+                            <Text color={textColor} fontSize="sm" {...cellText}>
                               {value || "-"}
                             </Text>
                           );
@@ -1146,6 +1163,7 @@ export default function CustomerTable(props) {
                             px="16px"
                             minW={cell.column.minWidth || "150px"}
                             w={cell.column.minWidth || "150px"}
+                            {...tableCellProps}
                           >
                             {data}
                           </Td>

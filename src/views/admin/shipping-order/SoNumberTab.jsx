@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   AlertDialog,
   AlertDialogBody,
@@ -116,6 +116,22 @@ const SoNumberTab = () => {
   const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
   const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
   const tableTextColor = useColorModeValue("gray.600", "gray.300");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
   const inputBg = useColorModeValue("white", "navy.900");
   const inputText = useColorModeValue("gray.800", "gray.100");
   const placeholderColor = useColorModeValue("gray.400", "gray.500");
@@ -302,10 +318,24 @@ const SoNumberTab = () => {
     setPage(1);
   }, [pageSize, searchQuery]);
 
-  // Handle search button click
+  // Search on input change (debounced) – sync searchValue to searchQuery so API is called automatically
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearchQuery(searchValue.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
+
+  // Handle search button click (immediate, no wait for debounce)
   const handleSearch = () => {
     setSearchQuery(searchValue.trim());
-    setPage(1); // Reset to first page when searching
+    setPage(1);
   };
 
   // Handle Enter key in search input
@@ -810,10 +840,10 @@ const SoNumberTab = () => {
 
     return filteredOrders.map((order) => (
       <Tr key={order.id || order.so_number}>
-        <Td>{getSoNumber(order)}</Td>
-        <Td>{order.next_action ? formatDate(order.next_action) : "-"}</Td>
-        <Td>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Td>
-        <Td>
+        <Td {...tableCellProps}><Text {...cellText}>{getSoNumber(order)}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
+        <Td {...tableCellProps}>
           <Badge
             colorScheme={
               order.done === "active"
@@ -842,14 +872,14 @@ const SoNumberTab = () => {
                       : "Active"}
           </Badge>
         </Td>
-        <Td>{order.pic_name || "-"}</Td>
-        <Td>{order.client || "-"}</Td>
-        <Td>{order.vessel_name || "-"}</Td>
-        <Td>{getDestinationDisplay(order)}</Td>
-        <Td>{getEtaDisplay(order)}</Td>
-        <Td>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Td>
-        <Td>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Td>
-        <Td maxW="200px">
+        <Td {...tableCellProps}><Text {...cellText}>{order.pic_name || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.client || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.vessel_name || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{getDestinationDisplay(order)}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{getEtaDisplay(order)}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.etb && order.etb !== false ? formatDate(order.etb) : "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.etd && order.etd !== false ? formatDate(order.etd) : "-"}</Text></Td>
+        <Td {...tableCellProps} maxW="240px">
           <Tooltip label={order.internal_remark || "-"} isDisabled={!order.internal_remark || order.internal_remark === "-"}>
             <Text
               noOfLines={2}
@@ -864,7 +894,7 @@ const SoNumberTab = () => {
             </Text>
           </Tooltip>
         </Td>
-        <Td maxW="200px">
+        <Td {...tableCellProps} maxW="240px">
           <Tooltip label={order.vsls_agent_dtls || "-"} isDisabled={!order.vsls_agent_dtls || order.vsls_agent_dtls === "-"}>
             <Text
               noOfLines={2}
@@ -879,16 +909,16 @@ const SoNumberTab = () => {
             </Text>
           </Tooltip>
         </Td>
-        <Td maxW="200px">
+        <Td {...tableCellProps} maxW="240px">
           <Tooltip label={order.client_case_invoice_ref || "-"} isDisabled={!order.client_case_invoice_ref || order.client_case_invoice_ref === "-"}>
             <Text noOfLines={2} cursor={order.client_case_invoice_ref && order.client_case_invoice_ref !== "-" ? "help" : "default"}>
               {order.client_case_invoice_ref || "-"}
             </Text>
           </Tooltip>
         </Td>
-        <Td>{order.quotation || "-"}</Td>
-        <Td>{formatDateTime(order.timestamp || order.date_created)}</Td>
-        <Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.timestamp || order.date_created)}</Text></Td>
+        <Td {...tableCellProps}>
           <HStack spacing="2">
             <IconButton
               size="sm"
@@ -919,7 +949,7 @@ const SoNumberTab = () => {
         </Text>
         <HStack spacing="3">
           <InputGroup maxW="400px">
-            <InputLeftElement pointerEvents="none">
+            <InputLeftElement pointerEvents="none" h="32px" w="30px">
               <Icon as={MdSearch} color={placeholderColor} />
             </InputLeftElement>
             <Input
@@ -933,20 +963,18 @@ const SoNumberTab = () => {
               size="sm"
             />
             {searchValue && (
-              <InputRightElement>
+              <InputRightElement h="32px" w="30px">
                 <IconButton
                   aria-label="Clear search"
                   icon={<Icon as={MdClear} />}
                   size="xs"
                   variant="ghost"
                   onClick={handleClearSearch}
-                  h="1.5rem"
-                  w="1.5rem"
                 />
               </InputRightElement>
             )}
           </InputGroup>
-          <Button
+          {/* <Button
             size="sm"
             leftIcon={<Icon as={MdSearch} />}
             colorScheme="blue"
@@ -955,10 +983,11 @@ const SoNumberTab = () => {
             px={10}
           >
             Search
-          </Button>
+          </Button> */}
           {searchQuery && (
             <Button
               size="sm"
+              px="6"
               variant="outline"
               onClick={handleClearSearch}
             >
@@ -1317,6 +1346,7 @@ const SoNumberTab = () => {
                   onClick={col.sortable ? () => handleSort(col.field) : undefined}
                   _hover={col.sortable ? { bg: hoverBg } : {}}
                   position="relative"
+                  {...tableHeaderCellProps}
                 >
                   <Flex align="center" gap="2">
                     <Text>{col.label}</Text>
@@ -1345,72 +1375,72 @@ const SoNumberTab = () => {
             </Text>
           </HStack>
 
-            {/* Pagination buttons */}
-            <HStack spacing={2}>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(1)}
-                isDisabled={!hasPrevious || page === 1}
-              >
-                First
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(page - 1)}
-                isDisabled={!hasPrevious}
-              >
-                Previous
-              </Button>
+          {/* Pagination buttons */}
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPage(1)}
+              isDisabled={!hasPrevious || page === 1}
+            >
+              First
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPage(page - 1)}
+              isDisabled={!hasPrevious}
+            >
+              Previous
+            </Button>
 
-              {/* Page numbers */}
-              <HStack spacing={1}>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
+            {/* Page numbers */}
+            <HStack spacing={1}>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
 
-                  return (
-                    <Button
-                      key={pageNum}
-                      size="sm"
-                      variant={page === pageNum ? "solid" : "outline"}
-                      colorScheme={page === pageNum ? "blue" : "gray"}
-                      onClick={() => setPage(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </HStack>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(page + 1)}
-                isDisabled={!hasNext}
-              >
-                Next
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setPage(totalPages)}
-                isDisabled={!hasNext || page === totalPages}
-              >
-                Last
-              </Button>
+                return (
+                  <Button
+                    key={pageNum}
+                    size="sm"
+                    variant={page === pageNum ? "solid" : "outline"}
+                    colorScheme={page === pageNum ? "blue" : "gray"}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
             </HStack>
-          </Flex>
-        </Box>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPage(page + 1)}
+              isDisabled={!hasNext}
+            >
+              Next
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPage(totalPages)}
+              isDisabled={!hasNext || page === totalPages}
+            >
+              Last
+            </Button>
+          </HStack>
+        </Flex>
+      </Box>
 
       <Modal isOpen={formDisclosure.isOpen} onClose={handleFormClose} size="4xl">
         <ModalOverlay />
@@ -1441,7 +1471,7 @@ const SoNumberTab = () => {
               target="_blank"
               variant="outline"
               mr={3}
-              onClick={() => {}}
+              onClick={() => { }}
             >
               Open Vessel DB
             </Button>
@@ -1492,18 +1522,18 @@ const SoNumberTab = () => {
                   const normalizedText = pastedText
                     .replace(/\r\n/g, '\n')  // Convert Windows line breaks (CRLF) to single LF
                     .replace(/\r/g, '\n');  // Convert old Mac line breaks (CR) to LF
-                  
+
                   // Get current cursor position
                   const textarea = e.target;
                   const start = textarea.selectionStart;
                   const end = textarea.selectionEnd;
                   const currentValue = vslsAgentDtlsModalValue;
-                  
+
                   // Insert normalized text at cursor position
                   const newValue = currentValue.substring(0, start) + normalizedText + currentValue.substring(end);
-                  
+
                   setVslsAgentDtlsModalValue(newValue);
-                  
+
                   // Set cursor position after pasted text
                   setTimeout(() => {
                     textarea.selectionStart = textarea.selectionEnd = start + normalizedText.length;

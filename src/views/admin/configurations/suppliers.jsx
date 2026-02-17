@@ -66,6 +66,22 @@ export default function Suppliers() {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const inputBg = useColorModeValue("white", "gray.700");
   const searchIconColor = useColorModeValue("gray.400", "gray.500");
+  const tableHeaderCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const tableCellProps = {
+    maxW: "240px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
 
   const loadSuppliers = useCallback(async () => {
     setIsLoading(true);
@@ -358,17 +374,17 @@ export default function Suppliers() {
                 <Table size="sm">
                   <Thead bg="gray.100" position="sticky" top={0} zIndex={1}>
                     <Tr>
-                      <Th>ID</Th>
-                      <Th>Name</Th>
-                      <Th textAlign="right">Actions</Th>
+                      <Th {...tableHeaderCellProps}>ID</Th>
+                      <Th {...tableHeaderCellProps}>Name</Th>
+                      <Th textAlign="right" {...tableHeaderCellProps}>Actions</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
                     {suppliers.map((supplier) => (
                       <Tr key={supplier.id}>
-                        <Td>{supplier.id}</Td>
-                        <Td>{supplier.name}</Td>
-                        <Td textAlign="right">
+                        <Td {...tableCellProps}><Text as="span" {...cellText}>{supplier.id}</Text></Td>
+                        <Td {...tableCellProps}><Text as="span" {...cellText}>{supplier.name}</Text></Td>
+                        <Td textAlign="right" {...tableCellProps}>
                           <IconButton
                             aria-label="Edit supplier"
                             icon={<MdEdit />}
