@@ -117,7 +117,7 @@ export default function CustomerTable(props) {
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
 
   // Auto-open advanced filters when any advance filter has data (including when restored from persistence)
-  const hasAnyAdvanceFilter = filters.client_code || filters.email || filters.country || overallSearchValue;
+  const hasAnyAdvanceFilter = filters.client_code || filters.email || overallSearchValue;
   const [showFilterFields, setShowFilterFields] = useState(() => !!hasAnyAdvanceFilter);
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
@@ -646,7 +646,6 @@ export default function CustomerTable(props) {
               <HStack spacing={3}>
                 {(filters.client_code ||
                   filters.email ||
-                  filters.country ||
                   nameSearchValue ||
                   overallSearchValue ||
                   sortOrder !== "alphabetical") && (
@@ -672,12 +671,12 @@ export default function CustomerTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.client_code || filters.email || filters.country || overallSearchValue
+                  filters.client_code || filters.email || overallSearchValue
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.client_code || filters.email || filters.country || overallSearchValue
+                  filters.client_code || filters.email || overallSearchValue
                     ? "blue"
                     : "gray"
                 }
@@ -858,37 +857,6 @@ export default function CustomerTable(props) {
                   </InputGroup>
                 </Box>
 
-                <Box minW="200px" flex="1">
-                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                    Country
-                  </Text>
-                  <HStack spacing={1} align="stretch">
-                    <SearchableSelect
-                      value={filters.country ?? ""}
-                      onChange={(val) => handleFilterChange("country", val)}
-                      options={Array.isArray(countries) ? countries : []}
-                      placeholder="Select country..."
-                      displayKey="name"
-                      valueKey="id"
-                      formatOption={(opt) => opt?.name ?? String(opt?.id ?? "")}
-                      bg={inputBg}
-                      color={inputText}
-                      borderColor={borderColor}
-                      flex={1}
-                    />
-                    {filters.country && (
-                      <IconButton
-                        aria-label="Clear Country"
-                        size="md"
-                        style={{ width: "32px", height: "32px" }}
-                        variant="ghost"
-                        icon={<Icon as={MdClose} />}
-                        onClick={() => handleFilterChange("country", "")}
-                        _hover={{ bg: "gray.200" }}
-                      />
-                    )}
-                  </HStack>
-                </Box>
               </HStack>
 
             </Box>

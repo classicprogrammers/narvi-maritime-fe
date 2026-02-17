@@ -14,21 +14,6 @@ const mapSortOrderToApi = (uiSort) => {
   }
 };
 
-function resolveCountryId(countryFilter, countries) {
-  if (!countryFilter || String(countryFilter).trim() === "") return undefined;
-  const typed = String(countryFilter).trim();
-  const num = parseInt(typed, 10);
-  if (!Number.isNaN(num)) return num;
-  const list = Array.isArray(countries) ? countries : (countries?.countries || []);
-  const lower = typed.toLowerCase();
-  const found = list.find(
-    (c) =>
-      (c.name && c.name.toLowerCase() === lower) ||
-      (c.name && c.name.toLowerCase().includes(lower))
-  );
-  return found ? found.id : undefined;
-}
-
 const CLIENT_LIST_STORAGE_KEY = "narvi_client_list_state";
 
 function readPersistedClientListState() {
@@ -44,7 +29,6 @@ function readPersistedClientListState() {
       filters: {
         client_code: p.filters?.client_code != null ? p.filters.client_code : "",
         email: p.filters?.email != null ? p.filters.email : "",
-        country: p.filters?.country != null ? p.filters.country : "",
       },
       sortOrder: p.sortOrder === "newest" || p.sortOrder === "oldest" || p.sortOrder === "alphabetical" ? p.sortOrder : "alphabetical",
     };
@@ -67,7 +51,7 @@ const defaultListState = {
   pageSize: 80,
   nameSearchValue: "",
   overallSearchValue: "",
-  filters: { client_code: "", email: "", country: "" },
+  filters: { client_code: "", email: "" },
   sortOrder: "alphabetical",
 };
 
@@ -94,8 +78,6 @@ export default function Customer() {
     });
   }, [page, pageSize, nameSearchValue, overallSearchValue, filters, sortOrder]);
 
-  const countriesRef = useRef(countries);
-  countriesRef.current = countries;
   const buildFetchParams = useCallback(
     (overrides = {}) => {
       const sortApi = mapSortOrderToApi(overrides.sortOrder ?? sortOrder);
@@ -104,7 +86,6 @@ export default function Customer() {
         search: overallSearchValue?.trim() || undefined,
         client_code: filters.client_code?.trim() || undefined,
         email: filters.email?.trim() || undefined,
-        country_id: resolveCountryId(filters.country, countriesRef.current),
         page: overrides.page ?? page,
         page_size: overrides.page_size ?? pageSize,
         sort_by: sortApi.sort_by,
@@ -147,6 +128,20 @@ export default function Customer() {
     }, 400);
     return () => clearTimeout(timer);
   }, [nameSearchValue, overallSearchValue]);
+
+  // Advance filters on change (debounced) – refetch when client_code, email, or country change
+  const isFirstFiltersRun = useRef(true);
+  useEffect(() => {
+    if (isFirstFiltersRun.current) {
+      isFirstFiltersRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchCustomersRef.current({ page: 1 });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters.client_code, filters.email]);
 
   const refreshCustomers = useCallback(() => {
     fetchCustomers({ page });
@@ -192,7 +187,7 @@ export default function Customer() {
   const handleClearAll = useCallback(() => {
     setNameSearchValue("");
     setOverallSearchValue("");
-    setFilters({ client_code: "", email: "", country: "" });
+    setFilters({ client_code: "", email: "" });
     setSortOrder("alphabetical");
     setPage(1);
     getCustomers({ page: 1, page_size: pageSize, ...mapSortOrderToApi("alphabetical") });

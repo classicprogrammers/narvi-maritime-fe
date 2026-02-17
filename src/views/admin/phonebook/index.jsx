@@ -35,7 +35,6 @@ const Phonebook = () => {
 
   const [source, setSource] = React.useState("client"); // 'client' or 'agent'
   const [company, setCompany] = React.useState("");
-  const [person, setPerson] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [dbId, setDbId] = React.useState("");
@@ -101,7 +100,6 @@ const Phonebook = () => {
       const allRows = [];
       const apiParams = {
         name: company.trim() || undefined,
-        search: person.trim() || undefined,
         email: email.trim() || undefined,
         client_code: source === "client" ? (dbId.trim() || undefined) : undefined,
         agentsdb_id: source === "agent" ? (dbId.trim() || undefined) : undefined,
@@ -228,23 +226,22 @@ const Phonebook = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [source, company, person, email, dbId, fetchAllCustomers, fetchAllAgents]);
+  }, [source, company, email, dbId, fetchAllCustomers, fetchAllAgents]);
 
   // Refetch when source changes immediately
   React.useEffect(() => {
     fetchData();
   }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounce refetch when filter inputs change (company, person, email, dbId)
+  // Debounce refetch when filter inputs change (company, email, dbId)
   const debounceRef = React.useRef(null);
-  const prevFiltersRef = React.useRef({ company, person, email, dbId });
+  const prevFiltersRef = React.useRef({ company, email, dbId });
   React.useEffect(() => {
     const same =
       prevFiltersRef.current.company === company &&
-      prevFiltersRef.current.person === person &&
       prevFiltersRef.current.email === email &&
       prevFiltersRef.current.dbId === dbId;
-    prevFiltersRef.current = { company, person, email, dbId };
+    prevFiltersRef.current = { company, email, dbId };
     if (same) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -254,7 +251,7 @@ const Phonebook = () => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [company, person, email, dbId, fetchData]);
+  }, [company, email, dbId, fetchData]);
 
   // Rows from API are already filtered by company, person, email, dbId; filter by phone client-side (no phone API param)
   const filtered = React.useMemo(() => {
@@ -273,7 +270,7 @@ const Phonebook = () => {
 
   React.useEffect(() => {
     setPage(1);
-  }, [source, company, person, email, phone, dbId]);
+  }, [source, company, email, phone, dbId]);
 
   const handleOpen = (row) => {
     if (row.type === "Client") {
@@ -283,12 +280,11 @@ const Phonebook = () => {
     }
   };
 
-  const hasActiveFilters = company.trim() || person.trim() || email.trim() || phone.trim() || dbId.trim();
+  const hasActiveFilters = company.trim() || email.trim() || phone.trim() || dbId.trim();
 
   const handleClearAll = () => {
     setSource("client");
     setCompany("");
-    setPerson("");
     setEmail("");
     setPhone("");
     setDbId("");
@@ -312,7 +308,6 @@ const Phonebook = () => {
                 <option value="agent">Agent</option>
               </Select>
               <Input placeholder="Company name" value={company} onChange={(e) => setCompany(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} />
-              <Input placeholder="People name" value={person} onChange={(e) => setPerson(e.target.value)} bg={inputBg} w={{ base: "100%", md: "180px" }} />
               <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} />
               <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} bg={inputBg} w={{ base: "100%", md: "180px" }} />
               <Input placeholder="DB ID / Code" value={dbId} onChange={(e) => setDbId(e.target.value)} bg={inputBg} w={{ base: "100%", md: "150px" }} />

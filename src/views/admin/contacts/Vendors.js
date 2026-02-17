@@ -152,6 +152,20 @@ export default function Vendors() {
     return () => clearTimeout(timer);
   }, [nameSearchValue, overallSearchValue]);
 
+  // Advance filters on change (debounced) – refetch when agent_id, agent_type, or country change
+  const isFirstFiltersRun = useRef(true);
+  useEffect(() => {
+    if (isFirstFiltersRun.current) {
+      isFirstFiltersRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPage(1);
+      fetchVendorsRef.current({ page: 1 });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [filters.agent_id, filters.agent_type, filters.country]);
+
   const refreshAgents = useCallback(() => {
     fetchVendors({ page });
   }, [fetchVendors, page]);
