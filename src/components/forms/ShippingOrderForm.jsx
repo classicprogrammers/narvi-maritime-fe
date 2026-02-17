@@ -566,17 +566,7 @@ const ShippingOrderForm = ({
                                                     vslsAgentDtlsDisclosure.onOpen();
                                                 }}
                                             />
-                                            <Button
-                                                size="xs"
-                                                variant="outline"
-                                                alignSelf="flex-start"
-                                                onClick={() => {
-                                                    setVslsAgentDtlsModalValue(formData.vsls_agent_dtls || "");
-                                                    vslsAgentDtlsDisclosure.onOpen();
-                                                }}
-                                            >
-                                                Open editor
-                                            </Button>
+                                          
                                         </VStack>
                                     </FormControl>
                                 </GridItem>

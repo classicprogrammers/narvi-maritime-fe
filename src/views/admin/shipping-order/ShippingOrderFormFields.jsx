@@ -153,7 +153,7 @@ export default function ShippingOrderFormFields({
                   size="xs"
                   variant="link"
                   colorScheme="blue"
-                  onClick={() => {}}
+                  onClick={() => { }}
                 >
                   Open Vessel DB →
                 </Button>
@@ -343,21 +343,7 @@ export default function ShippingOrderFormFields({
                 )
               }
             />
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                onOpenVslsAgentDtlsModal?.(
-                  formData.vsls_agent_dtls || "",
-                  "edit",
-                  `Edit VSLS Agent Details — ${formData.so_number || "SO"}`,
-                  "vsls_agent_dtls"
-                )
-              }
-              alignSelf="flex-start"
-            >
-              Open editor
-            </Button>
+
           </VStack>
         </FormControl>
         <FormControl>

@@ -258,12 +258,23 @@ const SoNumberTab = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
+      const clientIdFrom = (v) => (v != null && typeof v === "object" ? v.id : v);
+      let client_id;
+      let done;
+      if (activeFilters.activeClient && activeClientFilter) {
+        client_id = clientIdFrom(activeClientFilter);
+        done = "active";
+      } else if (activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter) {
+        client_id = clientIdFrom(readyForInvoiceClientFilter);
+        done = "ready_for_invoice";
+      }
       const data = await getShippingOrders({
         page,
         page_size: pageSize,
         sort_by: sortBy,
         sort_order: sortOrder,
         search: searchQuery,
+        ...(client_id != null && client_id !== "" && { client_id, done }),
       });
 
       const list = Array.isArray(data.orders)
@@ -307,16 +318,34 @@ const SoNumberTab = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
+  }, [
+    page,
+    pageSize,
+    sortBy,
+    sortOrder,
+    searchQuery,
+    activeFilters.activeClient,
+    activeFilters.readyForInvoiceClient,
+    activeClientFilter,
+    readyForInvoiceClientFilter,
+    toast,
+  ]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Reset to first page when page size or search changes
+  // Reset to first page when page size, search, or client filter changes
   useEffect(() => {
     setPage(1);
-  }, [pageSize, searchQuery]);
+  }, [
+    pageSize,
+    searchQuery,
+    activeFilters.activeClient,
+    activeFilters.readyForInvoiceClient,
+    activeClientFilter,
+    readyForInvoiceClientFilter,
+  ]);
 
   // Search on input change (debounced) – sync searchValue to searchQuery so API is called automatically
   const isFirstSearchRun = useRef(true);
@@ -953,7 +982,7 @@ const SoNumberTab = () => {
               <Icon as={MdSearch} color={placeholderColor} />
             </InputLeftElement>
             <Input
-              placeholder="Search SO, client, vessel..."
+              placeholder="Search SO Number"
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               onKeyPress={handleSearchKeyPress}
@@ -1338,7 +1367,7 @@ const SoNumberTab = () => {
                   color={tableTextColor}
                   fontSize="11px"
                   textTransform="uppercase"
-                  fontWeight="600"
+                  fontWeight="bold"
                   py="10px"
                   px="12px"
                   minW="130px"
@@ -1472,7 +1501,7 @@ const SoNumberTab = () => {
             >
               Save Draft & Close
             </Button>
-            <Button variant="ghost" mr={3} onClick={handleFormClose}>
+            <Button variant="outline" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>
             <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
@@ -1620,7 +1649,7 @@ const SoNumberTab = () => {
               </Button>
             )}
             <Button
-              variant="ghost"
+              variant="outline"
               onClick={() => {
                 vslsAgentDtlsDisclosure.onClose();
                 setVslsAgentDtlsModalTargetField(null);
@@ -1720,7 +1749,7 @@ const SoNumberTab = () => {
             </VStack>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={picFilterModalDisclosure.onClose}>
+            <Button variant="outline" mr={3} onClick={picFilterModalDisclosure.onClose}>
               Close
             </Button>
           </ModalFooter>

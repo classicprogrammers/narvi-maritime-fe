@@ -63,10 +63,22 @@ const SearchableSelect = ({
     }
   }, [isOpen, value, valueKey, filteredOptions]);
 
-  // Scroll highlighted item into view
+  // Scroll highlighted item into view inside the popover only (avoid scrolling the page)
+  const listContainerRef = useRef(null);
   useEffect(() => {
-    if (isOpen && highlightedItemRef.current) {
-      highlightedItemRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!isOpen || !listContainerRef.current || !highlightedItemRef.current) return;
+    const container = listContainerRef.current;
+    const item = highlightedItemRef.current;
+    const cRect = container.getBoundingClientRect();
+    const iRect = item.getBoundingClientRect();
+    const itemTop = iRect.top - cRect.top + container.scrollTop;
+    const itemHeight = item.offsetHeight;
+    const containerHeight = container.clientHeight;
+    const scrollTop = container.scrollTop;
+    if (itemTop < scrollTop) {
+      container.scrollTo({ top: itemTop, behavior: 'smooth' });
+    } else if (itemTop + itemHeight > scrollTop + containerHeight) {
+      container.scrollTo({ top: itemTop + itemHeight - containerHeight, behavior: 'smooth' });
     }
   }, [highlightedIndex, isOpen]);
 
@@ -165,7 +177,7 @@ const SearchableSelect = ({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
+      <PopoverContent ref={listContainerRef} w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
         <PopoverBody p={0}>
           <Input
             ref={inputRef}

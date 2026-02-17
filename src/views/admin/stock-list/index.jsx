@@ -1587,7 +1587,7 @@ export default function StockList() {
                                                         <Select
                                                             value={selectedStatus}
                                                             onChange={(e) => setSelectedStatus(e.target.value)}
-                                                            placeholder="Filter by Status"
+                                                            // placeholder="Filter by Status"
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}

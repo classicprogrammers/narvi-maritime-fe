@@ -9,6 +9,8 @@ export const getShippingOrders = async (params = {}) => {
       sort_by = "id",
       sort_order = "desc",
       search = "",
+      client_id,
+      done,
     } = params;
 
     const requestParams = {
@@ -22,6 +24,13 @@ export const getShippingOrders = async (params = {}) => {
     const trimmedSearch = search ? search.trim() : "";
     if (trimmedSearch) {
       requestParams.search = trimmedSearch;
+    }
+
+    if (client_id != null && client_id !== "") {
+      requestParams.client_id = client_id;
+    }
+    if (done) {
+      requestParams.done = done;
     }
 
     const response = await api.get('/api/shipping/orders', {

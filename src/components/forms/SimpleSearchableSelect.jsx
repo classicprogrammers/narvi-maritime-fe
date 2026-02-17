@@ -87,10 +87,21 @@ const SimpleSearchableSelect = ({
     }
   }, [isOpen, value, valueKey, filteredOptions]);
 
-  // Scroll highlighted item into view
+  // Scroll highlighted item into view inside the dropdown only (avoid scrolling the page)
   useEffect(() => {
-    if (isOpen && highlightedItemRef.current) {
-      highlightedItemRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (!isOpen || !dropdownRef.current || !highlightedItemRef.current) return;
+    const container = dropdownRef.current;
+    const item = highlightedItemRef.current;
+    const cRect = container.getBoundingClientRect();
+    const iRect = item.getBoundingClientRect();
+    const itemTop = iRect.top - cRect.top + container.scrollTop;
+    const itemHeight = item.offsetHeight;
+    const containerHeight = container.clientHeight;
+    const scrollTop = container.scrollTop;
+    if (itemTop < scrollTop) {
+      container.scrollTo({ top: itemTop, behavior: 'smooth' });
+    } else if (itemTop + itemHeight > scrollTop + containerHeight) {
+      container.scrollTo({ top: itemTop + itemHeight - containerHeight, behavior: 'smooth' });
     }
   }, [highlightedIndex, isOpen]);
 
