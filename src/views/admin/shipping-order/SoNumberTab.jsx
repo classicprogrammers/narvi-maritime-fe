@@ -984,7 +984,7 @@ const SoNumberTab = () => {
           >
             Search
           </Button> */}
-          {searchQuery && (
+          {/* {searchQuery && (
             <Button
               size="sm"
               px="6"
@@ -993,7 +993,7 @@ const SoNumberTab = () => {
             >
               Clear
             </Button>
-          )}
+          )} */}
           <IconButton
             size="sm"
             icon={<Icon as={MdRefresh} />}
@@ -1465,16 +1465,6 @@ const SoNumberTab = () => {
             )}
           </ModalBody>
           <ModalFooter>
-            <Button
-              as={Link}
-              to="/admin/configurations/vessels"
-              target="_blank"
-              variant="outline"
-              mr={3}
-              onClick={() => { }}
-            >
-              Open Vessel DB
-            </Button>
             <Button
               variant="outline"
               mr={3}

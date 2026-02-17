@@ -18,11 +18,10 @@ export const getShippingOrders = async (params = {}) => {
       sort_order,
     };
 
-    // Include search parameter if provided
+    // Include search parameter if provided (only search, not name)
     const trimmedSearch = search ? search.trim() : "";
     if (trimmedSearch) {
       requestParams.search = trimmedSearch;
-      requestParams.name = trimmedSearch;
     }
 
     const response = await api.get('/api/shipping/orders', {
