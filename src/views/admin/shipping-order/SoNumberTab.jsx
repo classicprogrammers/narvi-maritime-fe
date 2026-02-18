@@ -1364,13 +1364,13 @@ const SoNumberTab = () => {
                   key={col.label}
                   borderRight="1px"
                   borderColor={tableBorderColor}
-                  color={tableTextColor}
-                  fontSize="11px"
+                  fontSize="12px"
                   textTransform="uppercase"
                   fontWeight="bold"
                   py="10px"
                   px="12px"
                   minW="130px"
+                  style={{ color: "#000000d4" }}
                   cursor={col.sortable ? "pointer" : "default"}
                   onClick={col.sortable ? () => handleSort(col.field) : undefined}
                   _hover={col.sortable ? { bg: hoverBg } : {}}
