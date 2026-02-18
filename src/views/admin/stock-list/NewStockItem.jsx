@@ -870,6 +870,18 @@ export default function StockForm() {
         }
     };
 
+    // Discard: clear all form data and navigate to stocklist view/edit page (add-stock only)
+    const handleDiscard = () => {
+        setFormRows([getEmptyRow()]);
+        try {
+            sessionStorage.removeItem(ADD_STOCK_HAS_DATA_KEY);
+            window.dispatchEvent(new CustomEvent(ADD_STOCK_HAS_DATA_EVENT));
+        } catch (e) {
+            // ignore
+        }
+        history.push("/admin/stock-list/stocks");
+    };
+
     const getPayload = (rowData, includeStockId = false) => {
         const splitLines = (val) =>
             (val || "")
@@ -1183,19 +1195,34 @@ export default function StockForm() {
 
                 <HStack spacing="3">
                     {!isEditing && (
-                        <Button
-                            leftIcon={<Icon as={MdAdd} />}
-                            bg="blue.500"
-                            color="white"
-                            size="sm"
-                            px="6"
-                            py="3"
-                            borderRadius="md"
-                            _hover={{ bg: "blue.600" }}
-                            onClick={handleAddRow}
-                        >
-                            Add Row
-                        </Button>
+                        <>
+                            <Button
+                                leftIcon={<Icon as={MdAdd} />}
+                                bg="blue.500"
+                                color="white"
+                                size="sm"
+                                px="6"
+                                py="3"
+                                borderRadius="md"
+                                _hover={{ bg: "blue.600" }}
+                                onClick={handleAddRow}
+                            >
+                                Add Row
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                px="6"
+                                py="3"
+                                borderRadius="md"
+                                borderColor={borderColor}
+                                color={textColor}
+                                _hover={{ bg: inputBg }}
+                                onClick={handleDiscard}
+                            >
+                                Discard
+                            </Button>
+                        </>
                     )}
                     <Button
                         leftIcon={<Icon as={MdSave} />}
