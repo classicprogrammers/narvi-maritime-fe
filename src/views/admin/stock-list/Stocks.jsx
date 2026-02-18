@@ -2305,9 +2305,10 @@ export default function Stocks() {
 
             const result = await updateStockItemApi(item.id, payload);
             if (result && result.result && result.result.status === 'success') {
+                const apiMessage = result.result.message;
                 toast({
                     title: 'Success',
-                    description: `Stock item updated successfully`,
+                    description: apiMessage || 'Stock item updated successfully',
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
@@ -2361,9 +2362,10 @@ export default function Stocks() {
             const result = await updateStockItemApi(editingIds[0], payload);
 
             if (result && result.result && result.result.status === 'success') {
+                const apiMessage = result.result.message;
                 toast({
                     title: 'Success',
-                    description: `${lines.length} stock item(s) updated successfully`,
+                    description: apiMessage || `${lines.length} stock item(s) updated successfully`,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,
@@ -2419,7 +2421,7 @@ export default function Stocks() {
                         <AlertDescription>{error}</AlertDescription>
                     </Box>
                 </Alert>
-                                <Button mt="4" onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })} leftIcon={<Icon as={MdRefresh} />}>
+                <Button mt="4" onClick={() => getStockList({ page: 1, page_size: PAGE_SIZE })} leftIcon={<Icon as={MdRefresh} />}>
                     Retry
                 </Button>
             </Box>
@@ -3930,7 +3932,6 @@ export default function Stocks() {
                                                                     <Select
                                                                         value={stockViewStatus}
                                                                         onChange={(e) => setStockViewStatus(e.target.value)}
-                                                                        placeholder="Filter by Status"
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}

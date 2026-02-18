@@ -1016,9 +1016,10 @@ export default function StockForm() {
                 const result = await updateStockItemApi(id || formRows[0]?.stockId, payload);
 
                 if (result && result.result && result.result.status === 'success') {
+                    const apiMessage = result.result.message;
                     toast({
                         title: 'Success',
-                        description: `${lines.length} stock item(s) updated successfully`,
+                        description: apiMessage || `${lines.length} stock item(s) updated successfully`,
                         status: 'success',
                         duration: 3000,
                         isClosable: true,
@@ -1037,9 +1038,10 @@ export default function StockForm() {
                 const payload = { lines: [linePayload] };
                 const result = await updateStockItemApi(id, payload);
                 if (result && result.result && result.result.status === 'success') {
+                    const apiMessage = result.result.message;
                     toast({
                         title: 'Success',
-                        description: 'Stock item updated successfully',
+                        description: apiMessage || 'Stock item updated successfully',
                         status: 'success',
                         duration: 3000,
                         isClosable: true,

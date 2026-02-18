@@ -1494,13 +1494,6 @@ const SoNumberTab = () => {
             )}
           </ModalBody>
           <ModalFooter>
-            <Button
-              variant="outline"
-              mr={3}
-              onClick={() => handleFormClose()}
-            >
-              Save Draft & Close
-            </Button>
             <Button variant="outline" mr={3} onClick={handleFormClose}>
               Cancel
             </Button>

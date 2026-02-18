@@ -1453,9 +1453,11 @@ export default function StockDBMainEdit() {
             const result = await updateStockItemApi(formRows[0]?.stockId, payload);
 
             if (result && result.result && result.result.status === 'success') {
+                const apiMessage = result.result.message;
+                const fallback = `${lines.length} stock item(s) updated successfully (${formRows.length - lines.length} item(s) had no changes)`;
                 toast({
                     title: 'Success',
-                    description: `${lines.length} stock item(s) updated successfully (${formRows.length - lines.length} item(s) had no changes)`,
+                    description: apiMessage || fallback,
                     status: 'success',
                     duration: 3000,
                     isClosable: true,

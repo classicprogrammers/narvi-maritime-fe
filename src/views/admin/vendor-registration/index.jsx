@@ -47,6 +47,8 @@ import { useVendor } from "redux/hooks/useVendor";
 // Constants
 const REQUIRED_PERSON_FIELDS = ["first_name", "email"];
 const MAX_CNEE_FIELDS = 12;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isValidEmail = (v) => !v || (typeof v === "string" && emailRegex.test(String(v).trim()));
 
 const INITIAL_FORM_DATA = {
     name: "",
@@ -432,7 +434,13 @@ function VendorRegistration() {
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
     const hasIncompletePersonRow = React.useMemo(
-        () => peopleRows.some((row) => REQUIRED_PERSON_FIELDS.some((field) => !String(row[field] || "").trim())),
+        () =>
+            peopleRows.some(
+                (row) =>
+                    REQUIRED_PERSON_FIELDS.some((field) => !String(row[field] || "").trim()) ||
+                    (String(row.email || "").trim() !== "" && !isValidEmail(row.email)) ||
+                    (String(row.email2 || "").trim() !== "" && !isValidEmail(row.email2))
+            ),
         [peopleRows]
     );
 
@@ -1098,6 +1106,23 @@ function VendorRegistration() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Agent People email validation (email and email2 must be valid when provided)
+        const invalidFieldsForRow = (row) => {
+            const fields = [];
+            if (String(row.email || "").trim() && !isValidEmail(row.email)) fields.push("Email");
+            if (String(row.email2 || "").trim() && !isValidEmail(row.email2)) fields.push("Email2");
+            return fields;
+        };
+        const invalidAgentPerson = peopleRows.findIndex((row) => invalidFieldsForRow(row).length > 0);
+        if (invalidAgentPerson !== -1) {
+            const fields = invalidFieldsForRow(peopleRows[invalidAgentPerson]);
+            setModalMessage(
+                `Please enter a valid email address for Agent People row ${invalidAgentPerson + 1}: ${fields.join(", ")}.`
+            );
+            setIsFailureModalOpen(true);
+            return;
+        }
+
         try {
             setIsLoading(true);
 
@@ -1317,27 +1342,27 @@ function VendorRegistration() {
                                 <Box display={{ base: "block", md: "grid" }} gridTemplateColumns={{ md: "repeat(2, 1fr)" }}>
                                     {/* LEFT 1: Company name / RIGHT 1: Address Type */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Company name</Text>
                                         <Input name="name" value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder="e.g., ACME Shipping" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address Type</Text>
                                         <Input name="address_type" value={formData.address_type} onChange={(e) => handleInputChange('address_type', e.target.value)} placeholder="e.g., Warehouse, Office, Main" size="sm" w={gridInputWidth} />
                                     </Box>
 
                                     {/* LEFT 2: Address1 / RIGHT 2: Agent Code */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address1</Text>
                                         <Input name="street" value={formData.street} onChange={(e) => handleInputChange('street', e.target.value)} placeholder="Street address" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Code</Text>
                                         <Input name="agentsdb_id" value={formData.agentsdb_id} onChange={(e) => handleInputChange('agentsdb_id', e.target.value)} placeholder="AG-001" size="sm" w={gridInputWidth} />
                                     </Box>
 
                                     {/* LEFT 3: Address2(+) / RIGHT 3: Agent Type */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address2</Text>
                                         <InputGroup w={gridInputWidth}>
                                             <Input
                                                 name="street2"
@@ -1365,7 +1390,7 @@ function VendorRegistration() {
                                         </InputGroup>
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Type</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Agent Type</Text>
                                         <Input name="type_client" value={formData.type_client} onChange={(e) => handleInputChange('type_client', e.target.value)} placeholder="e.g. Key / Regular / Prospect" size="sm" w={gridInputWidth} />
                                     </Box>
 
@@ -1373,7 +1398,7 @@ function VendorRegistration() {
                                     {visibleAddressFields >= 3 && (
                                         <>
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
+                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address3</Text>
                                                 <InputGroup w={gridInputWidth}>
                                                     <Input
                                                         name="street3"
@@ -1419,7 +1444,7 @@ function VendorRegistration() {
                                     {visibleAddressFields >= 4 && (
                                         <>
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
+                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address4</Text>
                                                 <InputGroup w={gridInputWidth}>
                                                     <Input
                                                         name="street4"
@@ -1468,7 +1493,7 @@ function VendorRegistration() {
                                     {visibleAddressFields >= 5 && (
                                         <>
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
+                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address5</Text>
                                                 <InputGroup w={gridInputWidth}>
                                                     <Input
                                                         name="street5"
@@ -1517,7 +1542,7 @@ function VendorRegistration() {
                                     {visibleAddressFields >= 6 && (
                                         <>
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
+                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address6</Text>
                                                 <InputGroup w={gridInputWidth}>
                                                     <Input
                                                         name="street6"
@@ -1566,7 +1591,7 @@ function VendorRegistration() {
                                     {visibleAddressFields >= 7 && (
                                         <>
                                             <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                                <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
+                                                <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Address7</Text>
                                                 <InputGroup w={gridInputWidth}>
                                                     <Input
                                                         name="street7"
@@ -1597,21 +1622,21 @@ function VendorRegistration() {
 
                                     {/* LEFT: Postcode / RIGHT: Payment Terms */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Postcode</Text>
                                         <Input name="zip" value={formData.zip} onChange={(e) => handleInputChange('zip', e.target.value)} placeholder="Zip" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Payment Terms</Text>
                                         <Input name="payment_term" value={formData.payment_term} onChange={(e) => handleInputChange('payment_term', e.target.value)} placeholder="e.g. 30 days" size="sm" w={gridInputWidth} />
                                     </Box>
 
                                     {/* LEFT: City / RIGHT: Remarks */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>City</Text>
                                         <Input name="city" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} placeholder="City" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
                                         <Textarea
                                             name="remarks"
                                             value={formData.remarks}
@@ -1628,7 +1653,7 @@ function VendorRegistration() {
 
                                     {/* LEFT: Country / RIGHT: Website */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Country</Text>
                                         <Box w={gridInputWidth}>
                                             <SearchableSelect
                                                 value={formData.country_id}
@@ -1642,7 +1667,7 @@ function VendorRegistration() {
                                         </Box>
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Website</Text>
                                         <Flex gap={2} w={gridInputWidth} alignItems="center">
                                             <Input name="website" value={formData.website} onChange={(e) => handleInputChange('website', e.target.value)} placeholder="https://..." size="sm" flex="1" />
                                             {isValidUrl(formData.website) && (
@@ -1663,11 +1688,11 @@ function VendorRegistration() {
 
                                     {/* LEFT: RegNo / RIGHT: Warnings */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Reg No</Text>
                                         <Input name="reg_no" value={formData.reg_no} onChange={(e) => handleInputChange('reg_no', e.target.value)} placeholder="Registration" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
                                         <Textarea
                                             value={formData.warnings || ""}
                                             onChange={(e) => handleInputChange("warnings", e.target.value)}
@@ -1681,11 +1706,11 @@ function VendorRegistration() {
 
                                     {/* LEFT: Phone1 / RIGHT: DB ID */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone1</Text>
                                         <Input name="phone" value={formData.phone} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder="+65..." size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary} pt={1}>DB ID</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} pt={1}>DB ID</Text>
                                         <VStack spacing={1} align="flex-start" w={gridInputWidth}>
                                             <Input
                                                 name="id"
@@ -1707,28 +1732,28 @@ function VendorRegistration() {
 
                                     {/* LEFT: Phone2 / RIGHT empty */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Phone2</Text>
                                         <Input name="phone2" value={formData.phone2} onChange={(e) => handleInputChange('phone2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight}></Box>
 
                                     {/* LEFT: Email1 / RIGHT empty */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email1</Text>
                                         <Input type="email" name="email" value={formData.email} onChange={(e) => handleInputChange('email', e.target.value)} placeholder="name@company.com" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight}></Box>
 
                                     {/* LEFT: Email2 / RIGHT empty */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Email2</Text>
                                         <Input type="email" name="email2" value={formData.email2} onChange={(e) => handleInputChange('email2', e.target.value)} placeholder="optional" size="sm" w={gridInputWidth} />
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight}></Box>
 
                                     {/* LEFT: PIC / RIGHT empty */}
                                     <Box px={4} py={2} borderColor={borderLight} borderRight={{ base: "none", md: `1px solid ${borderLight}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>
-                                        <Text fontSize="xs" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
+                                        <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>PIC</Text>
                                         <Input
                                             name="pic"
                                             value={formData.pic}
@@ -1802,7 +1827,7 @@ function VendorRegistration() {
                                                     mb={{ base: 3, md: 0 }}
                                                 >
                                                     <Text
-                                                        fontSize="xs"
+                                                        fontSize="sm"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
@@ -1827,7 +1852,7 @@ function VendorRegistration() {
                                                     mb={{ base: 3, md: 0 }}
                                                 >
                                                     <Text
-                                                        fontSize="xs"
+                                                        fontSize="sm"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
@@ -1862,7 +1887,7 @@ function VendorRegistration() {
                                                     gap={2}
                                                 >
                                                     <Text
-                                                        fontSize="xs"
+                                                        fontSize="sm"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
@@ -1890,7 +1915,7 @@ function VendorRegistration() {
                                                     gap={2}
                                                 >
                                                     <Text
-                                                        fontSize="xs"
+                                                        fontSize="sm"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
@@ -1917,7 +1942,7 @@ function VendorRegistration() {
                                                     gap={2}
                                                 >
                                                     <Text
-                                                        fontSize="xs"
+                                                        fontSize="sm"
                                                         fontWeight="600"
                                                         textTransform="uppercase"
                                                         color={textColorSecondary}
@@ -2071,7 +2096,7 @@ function VendorRegistration() {
                                     {peopleTableColumns.map((column) => (
                                         <Th
                                             key={column.key}
-                                            fontSize="xs"
+                                            fontSize="sm"
                                             minW="170px"
                                             textTransform="uppercase"
                                             color={headingColor}
@@ -2079,7 +2104,7 @@ function VendorRegistration() {
                                             {column.label}
                                         </Th>
                                     ))}
-                                    <Th fontSize="xs" textTransform="uppercase" color={headingColor} w="80px">
+                                    <Th fontSize="sm" textTransform="uppercase" color={headingColor} w="80px">
                                         Actions
                                     </Th>
                                 </Tr>
@@ -2177,7 +2202,7 @@ function VendorRegistration() {
 
                                                             {/* Display existing attachments */}
                                                             {(row.existingAttachments || []).map((att, attIdx) => (
-                                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="sm" gap={1}>
                                                                     <Text isTruncated flex={1} title={att.filename}>
                                                                         {att.filename}
                                                                     </Text>
@@ -2205,7 +2230,7 @@ function VendorRegistration() {
 
                                                             {/* Display newly uploaded attachments */}
                                                             {(row.attachments || []).map((att, attIdx) => (
-                                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs" gap={1}>
+                                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="sm" gap={1}>
                                                                     <Text isTruncated flex={1} title={att.filename}>
                                                                         {att.filename}
                                                                     </Text>
@@ -2222,7 +2247,7 @@ function VendorRegistration() {
 
                                                             {(!row.existingAttachments || row.existingAttachments.length === 0) && 
                                                              (!row.attachments || row.attachments.length === 0) && (
-                                                                <Text fontSize="xs" color={textColorSecondary} textAlign="center" py={1}>
+                                                                <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={1}>
                                                                     No files
                                                                 </Text>
                                                             )}
@@ -2238,17 +2263,43 @@ function VendorRegistration() {
                                                             <Input
                                                                 value={row[column.key] || ""}
                                                                 onChange={(e) => updatePeopleRow(rowIndex, column.key, e.target.value)}
+                                                                type={column.key === "email" || column.key === "email2" ? "email" : undefined}
                                                                 size="sm"
                                                                 isRequired={REQUIRED_PERSON_FIELDS.includes(column.key)}
+                                                                isInvalid={
+                                                                    (column.key === "email" &&
+                                                                        String(row.email || "").trim() !== "" &&
+                                                                        !isValidEmail(row.email)) ||
+                                                                    (column.key === "email2" &&
+                                                                        String(row.email2 || "").trim() !== "" &&
+                                                                        !isValidEmail(row.email2))
+                                                                }
                                                                 isReadOnly={column.key === "company_name"}
                                                                 isDisabled={column.key === "company_name"}
                                                                 placeholder={peoplePlaceholders[column.key] || undefined}
                                                                 border="1px solid"
-                                                                borderColor={borderLight}
+                                                                borderColor={
+                                                                    (column.key === "email" &&
+                                                                        String(row.email || "").trim() !== "" &&
+                                                                        !isValidEmail(row.email)) ||
+                                                                    (column.key === "email2" &&
+                                                                        String(row.email2 || "").trim() !== "" &&
+                                                                        !isValidEmail(row.email2))
+                                                                        ? "red.500"
+                                                                        : borderLight
+                                                                }
                                                                 borderRadius="md"
                                                                 bg="#f7f7f77a"
                                                                 _focus={{
-                                                                    borderColor: "blue.500",
+                                                                    borderColor:
+                                                                        (column.key === "email" &&
+                                                                            String(row.email || "").trim() !== "" &&
+                                                                            !isValidEmail(row.email)) ||
+                                                                        (column.key === "email2" &&
+                                                                            String(row.email2 || "").trim() !== "" &&
+                                                                            !isValidEmail(row.email2))
+                                                                            ? "red.500"
+                                                                            : "blue.500",
                                                                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.3)",
                                                                 }}
                                                                 w="auto"

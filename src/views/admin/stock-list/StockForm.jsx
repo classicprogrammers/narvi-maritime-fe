@@ -774,9 +774,10 @@ export default function StockForm() {
                 const payload = getPayload(formRows[0], true); // Include stock_id
                 const result = await updateStockItem(id, payload, {});
                 if (result && result.success) {
+                    const apiMessage = result.data?.result?.message;
                     toast({
                         title: 'Success',
-                        description: 'Stock item updated successfully',
+                        description: apiMessage || 'Stock item updated successfully',
                         status: 'success',
                         duration: 3000,
                         isClosable: true,
