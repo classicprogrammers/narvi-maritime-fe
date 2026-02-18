@@ -1725,7 +1725,7 @@ function CustomerRegistration() {
                                         <Button
                                             colorScheme="blue"
                                             onClick={() => {
-                                                const required = ["first_name", "email"];
+                                                const required = ["first_name"];
                                                 const hasIncomplete = peopleRows.some(
                                                     (row) =>
                                                         required.some((f) => !String(row[f] || "").trim()) ||
@@ -1740,7 +1740,7 @@ function CustomerRegistration() {
                                             }}
                                             isDisabled={peopleRows.some(
                                                 (row) =>
-                                                    ["first_name", "email"].some((f) => !String(row[f] || "").trim()) ||
+                                                    ["first_name"].some((f) => !String(row[f] || "").trim()) ||
                                                     (String(row.email || "").trim() !== "" && !isValidEmail(row.email)) ||
                                                     (String(row.email2 || "").trim() !== "" && !isValidEmail(row.email2))
                                             )}
@@ -1948,7 +1948,7 @@ function CustomerRegistration() {
                                                                                 }}
                                                                                 size="sm"
                                                                                 type={column.key === "email" || column.key === "email2" ? "email" : undefined}
-                                                                                isRequired={["first_name", "email"].includes(column.key)}
+                                                                                isRequired={column.key === "first_name"}
                                                                                 isInvalid={
                                                                                     (column.key === "email" &&
                                                                                         String(row.email || "").trim() !== "" &&

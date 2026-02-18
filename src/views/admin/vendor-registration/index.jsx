@@ -45,7 +45,7 @@ import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
-const REQUIRED_PERSON_FIELDS = ["first_name", "email"];
+const REQUIRED_PERSON_FIELDS = ["first_name"];
 const MAX_CNEE_FIELDS = 12;
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isValidEmail = (v) => !v || (typeof v === "string" && emailRegex.test(String(v).trim()));
@@ -2265,7 +2265,7 @@ function VendorRegistration() {
                                                                 onChange={(e) => updatePeopleRow(rowIndex, column.key, e.target.value)}
                                                                 type={column.key === "email" || column.key === "email2" ? "email" : undefined}
                                                                 size="sm"
-                                                                isRequired={REQUIRED_PERSON_FIELDS.includes(column.key)}
+                                                                isRequired={column.key === "first_name"}
                                                                 isInvalid={
                                                                     (column.key === "email" &&
                                                                         String(row.email || "").trim() !== "" &&
