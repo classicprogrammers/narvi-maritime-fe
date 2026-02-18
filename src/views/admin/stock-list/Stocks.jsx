@@ -491,15 +491,18 @@ export default function Stocks() {
         if (f.activeTab === 0) {
             const statusParam = f.stockViewStatus?.trim() || undefined;
             const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
+            const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
+            const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
             getStockList({
                 ...base,
-                client_id: f.stockViewClient ?? undefined,
-                vessel_id: f.stockViewVessel ?? undefined,
+                client_id: clientId ?? undefined,
+                vessel_id: vesselId ?? undefined,
                 status: statusParam,
                 search: f.stockViewSearchFilter?.trim() || undefined,
                 name: f.stockViewSearchFilter?.trim() || undefined,
                 so_number: f.stockViewFilterSO?.trim() || undefined,
                 si_number: f.stockViewFilterSI?.trim() || undefined,
+                si_combined: f.stockViewFilterSICombined?.trim() || undefined,
                 di_number: f.stockViewFilterDI?.trim() || undefined,
                 stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                 date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
@@ -1569,6 +1572,50 @@ export default function Stocks() {
 
         // Apply status filter
         filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
+
+        // Apply SO / SI / SI Combined / DI / Hub filters (stock view filter bar)
+        if (stockViewFilterSO) {
+            const searchTerm = stockViewFilterSO.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
+                const prefixed = addSOPrefix(soValue);
+                return String(prefixed || "").toLowerCase().includes(searchTerm);
+            });
+        }
+        if (stockViewFilterSI) {
+            const searchTerm = stockViewFilterSI.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const siValue = item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction || "";
+                const prefixed = addSIPrefix(siValue);
+                return String(prefixed || "").toLowerCase().includes(searchTerm);
+            });
+        }
+        if (stockViewFilterSICombined) {
+            const searchTerm = stockViewFilterSICombined.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const sicValue = item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction || "";
+                const prefixed = addSICombinedPrefix(sicValue);
+                return String(prefixed || "").toLowerCase().includes(searchTerm);
+            });
+        }
+        if (stockViewFilterDI) {
+            const searchTerm = stockViewFilterDI.toLowerCase().trim();
+            filtered = filtered.filter((item) => {
+                const diValue = item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction || "";
+                const prefixed = addDIPrefix(diValue);
+                return String(prefixed || "").toLowerCase().includes(searchTerm);
+            });
+        }
+        if (stockViewHub) {
+            const hubLower = typeof stockViewHub === "object" ? String(stockViewHub?.id ?? stockViewHub?.name ?? "").toLowerCase() : String(stockViewHub).toLowerCase();
+            if (hubLower) {
+                filtered = filtered.filter((item) => {
+                    const hub1 = String(item.via_hub || "").toLowerCase();
+                    const hub2 = String(item.via_hub2 || "").toLowerCase();
+                    return hub1 === hubLower || hub2 === hubLower;
+                });
+            }
+        }
 
         // Sort using the shared sorting function - same order as By Vessel tab
         filtered = sortStockItems(filtered);
