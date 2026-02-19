@@ -340,9 +340,9 @@ export default function StockDBMainEdit() {
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
             // Use getFieldValue to preserve spaces in text fields (e.g., "00021 1.1")
             soNumber: addSOPrefix(getFieldValue(stock.stock_so_number) || getFieldValue(stock.so_number) || ""),
-            siNumber: addSIPrefix(getFieldValue(stock.stock_shipping_instruction) || getFieldValue(stock.si_number) || ""),
+            siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
-            diNumber: addDIPrefix(getFieldValue(stock.stock_delivery_instruction) || getFieldValue(stock.di_number) || ""),
+            diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
@@ -1090,13 +1090,13 @@ export default function StockDBMainEdit() {
             ["vesselDestination", "vessel_destination", (v) => v || ""],
             // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
             ["soNumber", "stock_so_number", (v) => v ? String(removeSOPrefix(String(v))) : ""],
-            ["siNumber", "stock_shipping_instruction", (v) => v ? String(removeSIPrefix(String(v))) : ""],
+            ["siNumber", "si_number", (v) => v ? String(removeSIPrefix(String(v))) : ""],
             ["siCombined", "si_combined", (v) => {
                 const cleaned = v ? String(removeSICombinedPrefix(String(v))) : "";
                 // If empty, send false (as per backend requirement)
                 return cleaned === "" ? false : cleaned;
             }],
-            ["diNumber", "stock_delivery_instruction", (v) => v ? String(removeDIPrefix(String(v))) : ""],
+            ["diNumber", "di_no", (v) => v ? String(removeDIPrefix(String(v))) : ""],
             ["vesselDestination", "vessel_destination_text", (v) => v || ""],
             ["dgUn", "dg_un", (v) => v || ""],
         ];

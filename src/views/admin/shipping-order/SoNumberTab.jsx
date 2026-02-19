@@ -52,6 +52,7 @@ import {
   Tooltip,
   TagCloseButton,
   Menu,
+  Collapse,
   MenuButton,
   MenuList,
   MenuItem,
@@ -110,6 +111,80 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
+const SHIPPING_ORDER_LIST_STORAGE_KEY = "narvi_shipping_order_list_state";
+
+function readPersistedShippingOrderListState() {
+  try {
+    const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SHIPPING_ORDER_LIST_STORAGE_KEY) : null;
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return {
+      searchValue: typeof p.searchValue === "string" ? p.searchValue : "",
+      searchQuery: typeof p.searchQuery === "string" ? p.searchQuery : "",
+      searchClientFilter: p.searchClientFilter != null ? p.searchClientFilter : null,
+      searchVesselFilter: p.searchVesselFilter != null ? p.searchVesselFilter : null,
+      searchCountryFilter: p.searchCountryFilter != null ? p.searchCountryFilter : null,
+      page: typeof p.page === "number" ? p.page : 1,
+      sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
+      sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
+      activeFilters: p.activeFilters && typeof p.activeFilters === "object" ? p.activeFilters : {
+        activeATH: false,
+        activeSIN: false,
+        activeClient: false,
+        readyForInvoiceClient: false,
+        athReadyForInvoice: false,
+        sinReadyForInvoice: false,
+      },
+      activeATHPics: Array.isArray(p.activeATHPics) ? p.activeATHPics : [],
+      activeSINPics: Array.isArray(p.activeSINPics) ? p.activeSINPics : [],
+      athReadyForInvoicePics: Array.isArray(p.athReadyForInvoicePics) ? p.athReadyForInvoicePics : [],
+      sinReadyForInvoicePics: Array.isArray(p.sinReadyForInvoicePics) ? p.sinReadyForInvoicePics : [],
+      activeClientFilter: p.activeClientFilter != null ? p.activeClientFilter : null,
+      readyForInvoiceClientFilter: p.readyForInvoiceClientFilter != null ? p.readyForInvoiceClientFilter : null,
+      sortConfig: p.sortConfig && typeof p.sortConfig === "object" ? p.sortConfig : { field: null, direction: "asc" },
+      nextActionSortOption: p.nextActionSortOption === "none" || p.nextActionSortOption === "next_action" ? p.nextActionSortOption : "none",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedShippingOrderListState(state) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(SHIPPING_ORDER_LIST_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
+
+const defaultShippingOrderListState = {
+  searchValue: "",
+  searchQuery: "",
+  searchClientFilter: null,
+  searchVesselFilter: null,
+  searchCountryFilter: null,
+  page: 1,
+  sortBy: "id",
+  sortOrder: "desc",
+  activeFilters: {
+    activeATH: false,
+    activeSIN: false,
+    activeClient: false,
+    readyForInvoiceClient: false,
+    athReadyForInvoice: false,
+    sinReadyForInvoice: false,
+  },
+  activeATHPics: [],
+  activeSINPics: [],
+  athReadyForInvoicePics: [],
+  sinReadyForInvoicePics: [],
+  activeClientFilter: null,
+  readyForInvoiceClientFilter: null,
+  sortConfig: { field: null, direction: "asc" },
+  nextActionSortOption: "none",
+};
+
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -143,19 +218,27 @@ const SoNumberTab = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Filters state (initialized from sessionStorage so they persist across navigation)
+  const [savedState] = useState(() => readPersistedShippingOrderListState() || defaultShippingOrderListState);
+
   // Search state
-  const [searchValue, setSearchValue] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchValue, setSearchValue] = useState(savedState.searchValue);
+  const [searchQuery, setSearchQuery] = useState(savedState.searchQuery);
+
+  // Search filter state (client, vessel, country/destination)
+  const [searchClientFilter, setSearchClientFilter] = useState(savedState.searchClientFilter);
+  const [searchVesselFilter, setSearchVesselFilter] = useState(savedState.searchVesselFilter);
+  const [searchCountryFilter, setSearchCountryFilter] = useState(savedState.searchCountryFilter);
 
   // Pagination state
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(savedState.page);
   const [pageSize] = useState(80);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const [sortBy, setSortBy] = useState("id");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [sortBy, setSortBy] = useState(savedState.sortBy);
+  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
 
   const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -167,6 +250,7 @@ const SoNumberTab = () => {
   const deleteDisclosure = useDisclosure();
   const picFilterModalDisclosure = useDisclosure();
   const vslsAgentDtlsDisclosure = useDisclosure();
+  const advancedFiltersDisclosure = useDisclosure({ defaultIsOpen: false });
 
   // VSLS Agent Details modal state (used for both edit + view)
   const [vslsAgentDtlsModalValue, setVslsAgentDtlsModalValue] = useState("");
@@ -175,36 +259,67 @@ const SoNumberTab = () => {
   const [vslsAgentDtlsModalTargetField, setVslsAgentDtlsModalTargetField] = useState(null); // e.g. 'vsls_agent_dtls'
 
   // Filter states
-  const [activeFilters, setActiveFilters] = useState({
-    activeATH: false,
-    activeSIN: false,
-    activeClient: false,
-    readyForInvoiceClient: false,
-    athReadyForInvoice: false,
-    sinReadyForInvoice: false,
-  });
+  const [activeFilters, setActiveFilters] = useState(savedState.activeFilters);
 
   // PIC filter states - store PIC IDs
-  const [activeATHPics, setActiveATHPics] = useState([]); // Default: Amanta, Igor, Tasos
-  const [activeSINPics, setActiveSINPics] = useState([]); // Default: Martin
-  const [athReadyForInvoicePics, setAthReadyForInvoicePics] = useState([]); // Default: Amanta, Igor, Tasos
-  const [sinReadyForInvoicePics, setSinReadyForInvoicePics] = useState([]); // Default: Martin
+  const [activeATHPics, setActiveATHPics] = useState(savedState.activeATHPics);
+  const [activeSINPics, setActiveSINPics] = useState(savedState.activeSINPics);
+  const [athReadyForInvoicePics, setAthReadyForInvoicePics] = useState(savedState.athReadyForInvoicePics);
+  const [sinReadyForInvoicePics, setSinReadyForInvoicePics] = useState(savedState.sinReadyForInvoicePics);
 
   // Client filter states
-  const [activeClientFilter, setActiveClientFilter] = useState(null);
-  const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(null);
+  const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
+  const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(savedState.readyForInvoiceClientFilter);
 
   // Sorting state
-  const [sortConfig, setSortConfig] = useState({
-    field: null,
-    direction: 'asc', // 'asc' or 'desc'
-  });
+  const [sortConfig, setSortConfig] = useState(savedState.sortConfig);
 
   // Next Action sorting option
-  const [nextActionSortOption, setNextActionSortOption] = useState('none');
+  const [nextActionSortOption, setNextActionSortOption] = useState(savedState.nextActionSortOption);
 
   // Current PIC filter being edited
   const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
+
+  // Persist filter state so it survives navigation (e.g. edit/create SO then back)
+  useEffect(() => {
+    writePersistedShippingOrderListState({
+      searchValue,
+      searchQuery,
+      searchClientFilter,
+      searchVesselFilter,
+      searchCountryFilter,
+      page,
+      sortBy,
+      sortOrder,
+      activeFilters,
+      activeATHPics,
+      activeSINPics,
+      athReadyForInvoicePics,
+      sinReadyForInvoicePics,
+      activeClientFilter,
+      readyForInvoiceClientFilter,
+      sortConfig,
+      nextActionSortOption,
+    });
+  }, [
+    searchValue,
+    searchQuery,
+    searchClientFilter,
+    searchVesselFilter,
+    searchCountryFilter,
+    page,
+    sortBy,
+    sortOrder,
+    activeFilters,
+    activeATHPics,
+    activeSINPics,
+    athReadyForInvoicePics,
+    sinReadyForInvoicePics,
+    activeClientFilter,
+    readyForInvoiceClientFilter,
+    sortConfig,
+    nextActionSortOption,
+  ]);
 
   const resetForm = () => {
     const now = new Date();
@@ -267,14 +382,29 @@ const SoNumberTab = () => {
       } else if (activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter) {
         client_id = clientIdFrom(readyForInvoiceClientFilter);
         done = "ready_for_invoice";
+      } else if (searchClientFilter) {
+        client_id = clientIdFrom(searchClientFilter);
       }
+      const vesselId = searchVesselFilter != null && typeof searchVesselFilter === "object"
+        ? (searchVesselFilter.id ?? searchVesselFilter.value)
+        : searchVesselFilter;
+      const countryId = searchCountryFilter != null && typeof searchCountryFilter === "object"
+        ? (searchCountryFilter.id ?? searchCountryFilter.value)
+        : searchCountryFilter;
+
+      // When "No Sort" is selected, use sort_by id and sort_order desc for API fetch
+      const effectiveSortBy = nextActionSortOption === "none" ? "id" : sortBy;
+      const effectiveSortOrder = nextActionSortOption === "none" ? "desc" : sortOrder;
+
       const data = await getShippingOrders({
         page,
         page_size: pageSize,
-        sort_by: sortBy,
-        sort_order: sortOrder,
+        sort_by: effectiveSortBy,
+        sort_order: effectiveSortOrder,
         search: searchQuery,
         ...(client_id != null && client_id !== "" && { client_id, done }),
+        ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
+        ...(countryId != null && countryId !== "" && { country_id: countryId }),
       });
 
       const list = Array.isArray(data.orders)
@@ -323,11 +453,15 @@ const SoNumberTab = () => {
     pageSize,
     sortBy,
     sortOrder,
+    nextActionSortOption,
     searchQuery,
     activeFilters.activeClient,
     activeFilters.readyForInvoiceClient,
     activeClientFilter,
     readyForInvoiceClientFilter,
+    searchClientFilter,
+    searchVesselFilter,
+    searchCountryFilter,
     toast,
   ]);
 
@@ -335,8 +469,13 @@ const SoNumberTab = () => {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Reset to first page when page size, search, or client filter changes
+  // Reset to first page when page size, search, or filters change (skip initial mount to preserve persisted page)
+  const isFirstResetPageRun = useRef(true);
   useEffect(() => {
+    if (isFirstResetPageRun.current) {
+      isFirstResetPageRun.current = false;
+      return;
+    }
     setPage(1);
   }, [
     pageSize,
@@ -345,6 +484,9 @@ const SoNumberTab = () => {
     activeFilters.readyForInvoiceClient,
     activeClientFilter,
     readyForInvoiceClientFilter,
+    searchClientFilter,
+    searchVesselFilter,
+    searchCountryFilter,
   ]);
 
   // Search on input change (debounced) – sync searchValue to searchQuery so API is called automatically
@@ -1042,6 +1184,106 @@ const SoNumberTab = () => {
           </Button>
         </HStack>
       </Flex>
+
+      {/* Advanced Filters button and panel */}
+      <Box mb="4">
+        <Button
+          size="sm"
+          leftIcon={<Icon as={MdFilterList} />}
+          variant={advancedFiltersDisclosure.isOpen ? "solid" : "outline"}
+          colorScheme="blue"
+          onClick={advancedFiltersDisclosure.onToggle}
+          mb={advancedFiltersDisclosure.isOpen ? 3 : 0}
+        >
+          Advanced Filters
+          {(searchClientFilter || searchVesselFilter || searchCountryFilter) && (
+            <Badge ml="2" colorScheme="blue" fontSize="xs">
+              {(searchClientFilter ? 1 : 0) + (searchVesselFilter ? 1 : 0) + (searchCountryFilter ? 1 : 0)}
+            </Badge>
+          )}
+        </Button>
+        <Collapse in={advancedFiltersDisclosure.isOpen} animateOpacity>
+          <Flex
+            direction="row"
+            gap="4"
+            p="4"
+            bg={tableHeaderBg}
+            borderRadius="md"
+            border="1px"
+            borderColor={borderColor}
+            flexWrap="wrap"
+          >
+            <Box flex="1" minW="200px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by Client</FormLabel>
+                <SimpleSearchableSelect
+                  value={searchClientFilter}
+                  onChange={setSearchClientFilter}
+                  options={clients || []}
+                  placeholder="Select Client"
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt.name || `Client ${opt.id}`}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                />
+              </FormControl>
+            </Box>
+            <Box flex="1" minW="200px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by Vessel</FormLabel>
+                <SimpleSearchableSelect
+                  value={searchVesselFilter}
+                  onChange={setSearchVesselFilter}
+                  options={vessels || []}
+                  placeholder="Select Vessel"
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt.name || `Vessel ${opt.id}`}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                />
+              </FormControl>
+            </Box>
+            <Box flex="1" minW="200px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by Country</FormLabel>
+                <SimpleSearchableSelect
+                  value={searchCountryFilter}
+                  onChange={setSearchCountryFilter}
+                  options={countries || []}
+                  placeholder="Select Country"
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt.name || opt.code || `Country ${opt.id}`}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                />
+              </FormControl>
+            </Box>
+            {(searchClientFilter || searchVesselFilter || searchCountryFilter) && (
+              <Button
+                size="sm"
+                leftIcon={<Icon as={MdClear} />}
+                variant="outline"
+                colorScheme="gray"
+                alignSelf="flex-end"
+                onClick={() => {
+                  setSearchClientFilter(null);
+                  setSearchVesselFilter(null);
+                  setSearchCountryFilter(null);
+                  setPage(1);
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </Flex>
+        </Collapse>
+      </Box>
 
       {/* Filters Section */}
       <Box mb="4">

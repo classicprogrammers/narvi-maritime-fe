@@ -489,7 +489,10 @@ export default function Stocks() {
         const base = { page, page_size: PAGE_SIZE };
 
         if (f.activeTab === 0) {
-            const statusParam = f.stockViewStatus?.trim() || undefined;
+            const vesselStatusSet = f.vesselViewStatuses || new Set();
+            const statusParam = vesselStatusSet.size > 0
+                ? Array.from(vesselStatusSet).join(",")
+                : (f.stockViewStatus?.trim() || undefined);
             const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
@@ -503,7 +506,7 @@ export default function Stocks() {
                 so_number: f.stockViewFilterSO?.trim() || undefined,
                 si_number: f.stockViewFilterSI?.trim() || undefined,
                 si_combined: f.stockViewFilterSICombined?.trim() || undefined,
-                di_number: f.stockViewFilterDI?.trim() || undefined,
+                di_no: f.stockViewFilterDI?.trim() || undefined,
                 stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                 date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
                 days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
@@ -1293,9 +1296,8 @@ export default function Stocks() {
         if (stockViewFilterSI) {
             const searchTerm = stockViewFilterSI.toLowerCase().trim();
             filtered = filtered.filter(item => {
-                const siValue = item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction || "";
-                const prefixed = addSIPrefix(siValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const siValue = item.si_number || "";
+                return String(siValue).toLowerCase().includes(searchTerm);
             });
         }
 
@@ -1303,9 +1305,8 @@ export default function Stocks() {
         if (stockViewFilterSICombined) {
             const searchTerm = stockViewFilterSICombined.toLowerCase().trim();
             filtered = filtered.filter(item => {
-                const sicValue = item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction || "";
-                const prefixed = addSICombinedPrefix(sicValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const sicValue = item.si_combined || "";
+                return String(sicValue).toLowerCase().includes(searchTerm);
             });
         }
 
@@ -1313,9 +1314,8 @@ export default function Stocks() {
         if (stockViewFilterDI) {
             const searchTerm = stockViewFilterDI.toLowerCase().trim();
             filtered = filtered.filter(item => {
-                const diValue = item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction || "";
-                const prefixed = addDIPrefix(diValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const diValue = item.di_no || "";
+                return String(diValue).toLowerCase().includes(searchTerm);
             });
         }
 
@@ -1336,12 +1336,9 @@ export default function Stocks() {
                 // Get SO, SI, SI Combined, DI with prefixes for search
                 const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
                 const soPrefixed = addSOPrefix(soValue);
-                const siValue = item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction || "";
-                const siPrefixed = addSIPrefix(siValue);
-                const sicValue = item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction || "";
-                const sicPrefixed = addSICombinedPrefix(sicValue);
-                const diValue = item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction || "";
-                const diPrefixed = addDIPrefix(diValue);
+                const siValue = item.si_number || "";
+                const sicValue = item.si_combined || "";
+                const diValue = item.di_no || "";
 
                 // Search across multiple fields including lookup names
                 const searchableFields = [
@@ -1349,9 +1346,9 @@ export default function Stocks() {
                     String(getDisplayName(item.client_id || item.client) || ""),
                     String(getDisplayName(item.vessel_id || item.vessel) || ""),
                     String(soPrefixed || ""),
-                    String(siPrefixed || ""),
-                    String(sicPrefixed || ""),
-                    String(diPrefixed || ""),
+                    String(siValue || ""),
+                    String(sicValue || ""),
+                    String(diValue || ""),
                     String(item.stock_status || ""),
                     String(getDisplayName(item.supplier_id || item.supplier)),
                     String(item.po_text || item.po_number || ""),
@@ -1585,25 +1582,22 @@ export default function Stocks() {
         if (stockViewFilterSI) {
             const searchTerm = stockViewFilterSI.toLowerCase().trim();
             filtered = filtered.filter((item) => {
-                const siValue = item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction || "";
-                const prefixed = addSIPrefix(siValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const siValue = item.si_number || "";
+                return String(siValue).toLowerCase().includes(searchTerm);
             });
         }
         if (stockViewFilterSICombined) {
             const searchTerm = stockViewFilterSICombined.toLowerCase().trim();
             filtered = filtered.filter((item) => {
-                const sicValue = item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction || "";
-                const prefixed = addSICombinedPrefix(sicValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const sicValue = item.si_combined || "";
+                return String(sicValue).toLowerCase().includes(searchTerm);
             });
         }
         if (stockViewFilterDI) {
             const searchTerm = stockViewFilterDI.toLowerCase().trim();
             filtered = filtered.filter((item) => {
-                const diValue = item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction || "";
-                const prefixed = addDIPrefix(diValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
+                const diValue = item.di_no || "";
+                return String(diValue).toLowerCase().includes(searchTerm);
             });
         }
         if (stockViewHub) {
@@ -2107,8 +2101,8 @@ export default function Stocks() {
             // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || item.po_number || "",
             so_number_id: addSOPrefix(getFieldValue("so_number_id", "so_number", "stock_so_number")),
-            shipping_instruction_id: addSIPrefix(getFieldValue("shipping_instruction_id", "si_number", "stock_shipping_instruction")),
-            delivery_instruction_id: addDIPrefix(getFieldValue("delivery_instruction_id", "di_number", "stock_delivery_instruction")),
+            si_number: getFieldValue("si_number") || "",
+            di_no: getFieldValue("di_no") || "",
             origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
             ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
             destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
@@ -2127,7 +2121,7 @@ export default function Stocks() {
             delivered_date: item.delivered_date && item.delivered_date !== false ? item.delivered_date : "",
             vessel_eta: item.vessel_eta && item.vessel_eta !== false ? item.vessel_eta : "",
             // Text fields
-            si_combined: addSICombinedPrefix(item.si_combined === false ? "" : (item.si_combined || "")),
+            si_combined: item.si_combined === false ? "" : (item.si_combined || ""),
             details: item.details || item.item_desc || "",
             dg_un: item.dg_un || "",
             remarks: item.remarks || "",
@@ -2316,8 +2310,8 @@ export default function Stocks() {
             { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
             { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
             { backend: "stock_so_number", original: ["so_number_id", "so_number", "stock_so_number"], edited: ["so_number_id", "stock_so_number"], transform: (v) => v ? removeSOPrefix(String(v)) : "" },
-            { backend: "stock_shipping_instruction", original: ["shipping_instruction_id", "si_number", "stock_shipping_instruction"], edited: ["shipping_instruction_id", "stock_shipping_instruction"], transform: (v) => v ? removeSIPrefix(String(v)) : "" },
-            { backend: "stock_delivery_instruction", original: ["delivery_instruction_id", "di_number", "stock_delivery_instruction"], edited: ["delivery_instruction_id", "stock_delivery_instruction"], transform: (v) => v ? removeDIPrefix(String(v)) : "" },
+            { backend: "si_number", original: ["si_number"], edited: ["si_number"], transform: (v) => v ? removeSIPrefix(String(v)) : "" },
+            { backend: "di_no", original: ["di_no"], edited: ["di_no"], transform: (v) => v ? removeDIPrefix(String(v)) : "" },
             { backend: "vessel_destination_text", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination", "vessel_destination_text"], transform: (v) => v || "" },
             {
                 backend: "si_combined", original: ["si_combined"], edited: ["si_combined"], transform: (v) => {
@@ -2685,29 +2679,7 @@ export default function Stocks() {
             default:
                 // Handle prefixes for SI NUMBER, SI COMBINED, and DI NUMBER fields
                 let displayValue = currentValue || "";
-                let onChangeHandler = (e) => {
-                    let processedValue = e.target.value;
-                    if (field === "shipping_instruction_id") {
-                        if (processedValue && processedValue !== "") {
-                            processedValue = addSIPrefix(processedValue);
-                        } else {
-                            processedValue = "";
-                        }
-                    } else if (field === "si_combined") {
-                        if (processedValue && processedValue !== "") {
-                            processedValue = addSICombinedPrefix(processedValue);
-                        } else {
-                            processedValue = "";
-                        }
-                    } else if (field === "delivery_instruction_id") {
-                        if (processedValue && processedValue !== "") {
-                            processedValue = addDIPrefix(processedValue);
-                        } else {
-                            processedValue = "";
-                        }
-                    }
-                    handleChange(processedValue);
-                };
+                const onChangeHandler = (e) => handleChange(e.target.value);
 
                 return (
                     <Input
@@ -2787,24 +2759,18 @@ export default function Stocks() {
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{(() => {
-                                const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
-                                const prefixed = addSIPrefix(siValue);
-                                return prefixed || "-";
+                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
+                                return renderText(item.si_number) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
-                                const sicValue = renderText(item.si_combined);
-                                const prefixed = addSICombinedPrefix(sicValue);
-                                return prefixed || "-";
+                                return renderText(item.si_combined) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{(() => {
-                                const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
-                                const prefixed = addDIPrefix(diValue);
-                                return prefixed || "-";
+                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <Text {...cellText}>{(() => {
+                                return renderText(item.di_no) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
@@ -3146,24 +3112,18 @@ export default function Stocks() {
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "shipping_instruction_id", item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction) : <Text {...cellText}>{(() => {
-                                const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
-                                const prefixed = addSIPrefix(siValue);
-                                return prefixed || "-";
+                            {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
+                                return renderText(item.si_number) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "si_combined", item.si_combined) : <Text {...cellText}>{(() => {
-                                const sicValue = renderText(item.si_combined);
-                                const prefixed = addSICombinedPrefix(sicValue);
-                                return prefixed || "-";
+                                return renderText(item.si_combined) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "delivery_instruction_id", item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction) : <Text {...cellText}>{(() => {
-                                const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
-                                const prefixed = addDIPrefix(diValue);
-                                return prefixed || "-";
+                            {isEditing ? renderEditableCell(item, "di_no", item.di_no) : <Text {...cellText}>{(() => {
+                                return renderText(item.di_no) || "-";
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
@@ -4524,19 +4484,13 @@ export default function Stocks() {
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                    const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
-                                                                    const prefixed = addSIPrefix(siValue);
-                                                                    return prefixed || "-";
+                                                                    return renderText(item.si_number) || "-";
                                                                 })()}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                    const sicValue = renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction);
-                                                                    const prefixed = addSICombinedPrefix(sicValue);
-                                                                    return prefixed || "-";
+                                                                    return renderText(item.si_combined) || "-";
                                                                 })()}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                    const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
-                                                                    const prefixed = addDIPrefix(diValue);
-                                                                    return prefixed || "-";
+                                                                    return renderText(item.di_no) || "-";
                                                                 })()}</Text></Td>
                                                                 <Td {...cellProps}>
                                                                     <Badge

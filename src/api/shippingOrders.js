@@ -10,6 +10,9 @@ export const getShippingOrders = async (params = {}) => {
       sort_order = "desc",
       search = "",
       client_id,
+      vessel_id,
+      destination_id,
+      country_id,
       done,
     } = params;
 
@@ -28,6 +31,15 @@ export const getShippingOrders = async (params = {}) => {
 
     if (client_id != null && client_id !== "") {
       requestParams.client_id = client_id;
+    }
+    if (vessel_id != null && vessel_id !== "") {
+      requestParams.vessel_id = vessel_id;
+    }
+    if (destination_id != null && destination_id !== "") {
+      requestParams.destination_id = destination_id;
+    }
+    if (country_id != null && country_id !== "") {
+      requestParams.country_id = country_id;
     }
     if (done) {
       requestParams.done = done;
@@ -172,8 +184,8 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       return normalizedNew !== normalizedOld;
     };
 
-    // Build payload with only changed fields (backend fields)
-    const payload = { id };
+    // Build payload with only changed fields (backend expects order_id for update)
+    const payload = { order_id: id };
     const fieldsToCheck = [
       'done',
       'pic_new',
@@ -212,7 +224,7 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
     });
 
     // Only proceed if there are actual changes
-    if (Object.keys(payload).length === 1) { // Only has 'id'
+    if (Object.keys(payload).length === 1) { // Only has 'order_id'
       console.log("No changes detected, skipping update");
       return { result: { status: 'success', message: 'No changes detected' } };
     }

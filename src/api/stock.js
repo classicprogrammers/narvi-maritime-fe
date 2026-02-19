@@ -61,7 +61,7 @@ export const getStockListApi = async (params = {}) => {
       so_number = "",
       si_number = "",
       si_combined = "",
-      di_number = "",
+      di_no = "",
       stock_item_id = "",
       date_on_stock = "",
       days_on_stock = "",
@@ -96,7 +96,7 @@ export const getStockListApi = async (params = {}) => {
     if (so_number != null && String(so_number).trim() !== "") requestParams.so_number = String(so_number).trim();
     if (si_number != null && String(si_number).trim() !== "") requestParams.si_number = String(si_number).trim();
     if (si_combined != null && String(si_combined).trim() !== "") requestParams.si_combined = String(si_combined).trim();
-    if (di_number != null && String(di_number).trim() !== "") requestParams.di_number = String(di_number).trim();
+    if (di_no != null && String(di_no).trim() !== "") requestParams.di_no = String(di_no).trim();
     if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
     if (date_on_stock != null && String(date_on_stock).trim() !== "") requestParams.date_on_stock = String(date_on_stock).trim();
     if (days_on_stock != null && String(days_on_stock).trim() !== "") requestParams.days_on_stock = String(days_on_stock).trim();

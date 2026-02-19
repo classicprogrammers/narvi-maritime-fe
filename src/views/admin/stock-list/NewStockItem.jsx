@@ -622,9 +622,9 @@ export default function StockForm() {
             remarks: getFieldValue(stock.remarks),
             internalRemark: getFieldValue(stock.internal_remark),
             soNumber: addSOPrefix(getFieldValue(stock.so_number) || getFieldValue(stock.stock_so_number) || ""),
-            siNumber: addSIPrefix(getFieldValue(stock.si_number) || getFieldValue(stock.stock_shipping_instruction) || ""),
+            siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
-            diNumber: addDIPrefix(getFieldValue(stock.di_number) || getFieldValue(stock.stock_delivery_instruction) || ""),
+            diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
             clientAccess: Boolean(stock.client_access),
             // Internal fields for API payload (auto-filled or from data)
             vesselDestination: getFieldValue(stock.vessel_destination) || "",
@@ -961,7 +961,7 @@ export default function StockForm() {
                 }
                 return String(removeSOPrefix(value));
             })() : "",
-            stock_shipping_instruction: rowData.siNumber ? (() => {
+            si_number: rowData.siNumber ? (() => {
                 let value = String(rowData.siNumber);
                 // Add prefix if missing (preserves spaces)
                 if (value && !value.startsWith("SI-")) {
@@ -978,7 +978,7 @@ export default function StockForm() {
                 const cleaned = String(removeSICombinedPrefix(value));
                 return cleaned === "" ? false : cleaned;
             })() : false, // SI Combined - Free text (STRING type, can be false if empty)
-            stock_delivery_instruction: rowData.diNumber ? (() => {
+            di_no: rowData.diNumber ? (() => {
                 let value = String(rowData.diNumber);
                 // Add prefix if missing (preserves spaces)
                 if (value && !value.startsWith("DI-")) {
