@@ -6,8 +6,7 @@ import {
 } from "@chakra-ui/react";
 import { MdEdit, MdArrowBack, MdPrint, MdInfo, MdAttachMoney, MdLocationOn, MdBusiness, MdDescription } from "react-icons/md";
 import quotationsAPI from "../../../api/quotations";
-import { getCustomersApi } from "../../../api/customer";
-import vesselsAPI from "../../../api/vessels";
+import { useMasterData } from "../../../hooks/useMasterData";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
 import api from "../../../api/axios";
@@ -17,11 +16,9 @@ export default function QuotationDetail() {
     const history = useHistory();
     const location = useLocation();
     const [quotation, setQuotation] = useState(null);
-    const [customers, setCustomers] = useState([]);
-    const [vessels, setVessels] = useState([]);
+    const { clients: customers, agents: vendors, vessels } = useMasterData();
     const [currencies, setCurrencies] = useState([]);
     const [locations, setLocations] = useState([]);
-    const [vendors, setVendors] = useState([]);
     const [rateItems, setRateItems] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -37,19 +34,13 @@ export default function QuotationDetail() {
                 } catch (e) {
                 }
             }
-            const [cust, ves, cur, loc, vendorsRes, productsRes] = await Promise.all([
-                getCustomersApi(),
-                vesselsAPI.getVessels(),
+            const [cur, loc, productsRes] = await Promise.all([
                 currenciesAPI.getCurrencies(),
                 locationsAPI.getLocations(),
-                api.get('/api/agents').then(r => r.data).catch(() => ({ vendors: [] })),
                 api.get('/api/products').then(r => r.data).catch(() => ({ products: [] })),
             ]);
-            setCustomers(cust.customers || []);
-            setVessels(ves.vessels || []);
             setCurrencies(cur.currencies || []);
             setLocations(loc.locations || loc || []);
-            setVendors(vendorsRes.vendors || []);
             setRateItems(productsRes.products || []);
             setIsLoading(false);
         })();

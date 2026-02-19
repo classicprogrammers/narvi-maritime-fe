@@ -604,10 +604,12 @@ function CustomerRegistration() {
         }));
     };
 
-    // View customer/person attachment: call /api/customers/{id}/attachments (or /attachments/{attachmentId}) and open in new tab
-    const handleViewCustomerAttachment = async (attachment) => {
-        const customerId = editingClient?.id;
-        if (!customerId) {
+    // View customer/person attachment.
+    // Main customer attachments: GET /api/customers/{customer_id}/attachment/{attachment_id}/download
+    // Client people attachments: GET /api/customers/{child_id}/attachment/{attachment_id}/download
+    const handleViewCustomerAttachment = async (attachment, childId = null) => {
+        const entityId = childId !== undefined && childId !== null && childId !== "" ? childId : editingClient?.id;
+        if (!entityId) {
             toast({
                 title: "Cannot view attachment",
                 description: "Save the client first to view attachments.",
@@ -629,7 +631,7 @@ function CustomerRegistration() {
         }
         try {
             setIsLoadingAttachment(true);
-            const response = await getCustomerAttachmentApi(customerId, attachment.id, false);
+            const response = await getCustomerAttachmentApi(entityId, attachment.id, false);
             if (response?.data instanceof Blob) {
                 const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                 const fileUrl = URL.createObjectURL(response.data);
@@ -1889,7 +1891,7 @@ function CustomerRegistration() {
                                                                                             size="xs"
                                                                                             variant="ghost"
                                                                                             colorScheme="blue"
-                                                                                            onClick={() => handleViewCustomerAttachment(att)}
+                                                                                            onClick={() => handleViewCustomerAttachment(att, row._originalId || row.id)}
                                                                                             isLoading={isLoadingAttachment}
                                                                                         />
                                                                                         <IconButton

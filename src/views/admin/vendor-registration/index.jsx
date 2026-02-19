@@ -29,6 +29,13 @@ import {
     AlertDialogContent,
     AlertDialogOverlay,
     useDisclosure,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+    ModalCloseButton,
     Checkbox,
     Textarea,
     Tooltip,
@@ -405,7 +412,10 @@ function VendorRegistration() {
     const [peopleRows, setPeopleRows] = React.useState([]);
     const [originalChildren, setOriginalChildren] = React.useState([]);
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
+    const { isOpen: isCneeTextModalOpen, onOpen: onCneeTextModalOpen, onClose: onCneeTextModalClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
+    const [cneeTextModalRowIndex, setCneeTextModalRowIndex] = React.useState(null);
+    const [cneeTextModalValue, setCneeTextModalValue] = React.useState("");
     const cancelRef = React.useRef();
     const submittedSuccessfully = React.useRef(false);
     // New CNEE rows structure (replaces flat cnee1–cnee12 UI)
@@ -538,6 +548,27 @@ function VendorRegistration() {
                     isClosable: true,
                 });
             });
+    };
+
+    const openCneeTextModal = (rowIndex) => {
+        setCneeTextModalRowIndex(rowIndex);
+        setCneeTextModalValue(cneeRows[rowIndex]?.cnee_text || "");
+        onCneeTextModalOpen();
+    };
+
+    const saveCneeTextModal = () => {
+        if (cneeTextModalRowIndex !== null) {
+            updateCneeRow(cneeTextModalRowIndex, "cnee_text", cneeTextModalValue);
+        }
+        onCneeTextModalClose();
+        setCneeTextModalRowIndex(null);
+        setCneeTextModalValue("");
+    };
+
+    const closeCneeTextModal = () => {
+        onCneeTextModalClose();
+        setCneeTextModalRowIndex(null);
+        setCneeTextModalValue("");
     };
 
     const loadVendorData = React.useCallback(() => {
@@ -1052,9 +1083,12 @@ function VendorRegistration() {
         }));
     };
 
-    // View agent/person attachment: call /api/agents/{id}/attachments/{attachmentId}/download and open in new tab
-    const handleViewAgentAttachment = async (attachment) => {
-        if (!id) {
+    // View agent/person attachment.
+    // Vendor attachments: GET /api/agents/{agent_id}/attachment/{attachment_id}/download
+    // Child (agent people) attachments: GET /api/agents/{child_id}/attachment/{attachment_id}/download
+    const handleViewAgentAttachment = async (attachment, childId = null) => {
+        const entityId = childId !== undefined && childId !== null && childId !== "" ? childId : id;
+        if (!entityId) {
             toast({
                 title: "Cannot view attachment",
                 description: "Save the agent first to view attachments.",
@@ -1076,7 +1110,7 @@ function VendorRegistration() {
         }
         try {
             setIsLoadingAttachment(true);
-            const response = await getAgentAttachmentApi(id, attachment.id, false);
+            const response = await getAgentAttachmentApi(entityId, attachment.id, false);
             if (response?.data instanceof Blob) {
                 const mimeType = response.type || attachment.mimetype || "application/octet-stream";
                 const fileUrl = URL.createObjectURL(response.data);
@@ -1878,7 +1912,7 @@ function VendorRegistration() {
 
 
 
-                                                {/* CNEE Text */}
+                                                {/* CNEE Text - Click to open modal with large text area */}
                                                 <Box
                                                     mt={3}
                                                     display="flex"
@@ -1895,15 +1929,29 @@ function VendorRegistration() {
                                                     >
                                                         CNEE Text
                                                     </Text>
-                                                    <Textarea
-                                                        value={row.cnee_text || ""}
-                                                        onChange={(e) => updateCneeRow(rowIndex, "cnee_text", e.target.value)}
-                                                        placeholder="Enter CNEE notes / free text"
-                                                        size="sm"
+                                                    <Box
                                                         w={gridInputWidth}
-                                                        rows={3}
-                                                        resize="vertical"
-                                                    />
+                                                        minH="80px"
+                                                        px={3}
+                                                        py={2}
+                                                        borderRadius="md"
+                                                        border="1px solid"
+                                                        borderColor={borderColor}
+                                                        bg={inputBg}
+                                                        cursor="pointer"
+                                                        _hover={{ borderColor: "blue.400", bg: "whiteAlpha.50" }}
+                                                        _focusWithin={{ borderColor: "blue.500", boxShadow: "0 0 0 1px var(--chakra-colors-blue-500)" }}
+                                                        onClick={() => openCneeTextModal(rowIndex)}
+                                                    >
+                                                        <Text
+                                                            fontSize="sm"
+                                                            color={row.cnee_text ? textColor : "gray.500"}
+                                                            noOfLines={3}
+                                                            whiteSpace="pre-wrap"
+                                                        >
+                                                            {row.cnee_text?.trim() || "Click to enter CNEE notes / free text..."}
+                                                        </Text>
+                                                    </Box>
                                                 </Box>
 
                                                 {/* Warnings */}
@@ -1965,6 +2013,36 @@ function VendorRegistration() {
                     </form>
                 </Box>
             </Card>
+
+            {/* CNEE Text Modal - Large text area for editing */}
+            <Modal isOpen={isCneeTextModalOpen} onClose={closeCneeTextModal} size="2xl" scrollBehavior="inside">
+                <ModalOverlay />
+                <ModalContent maxH="90vh">
+                    <ModalHeader>
+                        CNEE Text{cneeTextModalRowIndex !== null ? ` (CNEE ${cneeTextModalRowIndex + 1})` : ""}
+                    </ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody pb={6}>
+                        <Textarea
+                            value={cneeTextModalValue}
+                            onChange={(e) => setCneeTextModalValue(e.target.value)}
+                            placeholder="Enter CNEE notes / free text"
+                            size="md"
+                            rows={12}
+                            resize="vertical"
+                            minH="200px"
+                        />
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="ghost" mr={3} onClick={closeCneeTextModal}>
+                            Cancel
+                        </Button>
+                        <Button colorScheme="blue" onClick={saveCneeTextModal}>
+                            Save
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
 
             <Card
                 p="6"
@@ -2213,7 +2291,7 @@ function VendorRegistration() {
                                                                             size="xs"
                                                                             variant="ghost"
                                                                             colorScheme="blue"
-                                                                            onClick={() => handleViewAgentAttachment(att)}
+                                                                            onClick={() => handleViewAgentAttachment(att, row.id || row._originalId)}
                                                                             isLoading={isLoadingAttachment}
                                                                         />
                                                                         <IconButton

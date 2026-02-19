@@ -57,7 +57,7 @@ export const getCustomersForSelect = async (searchTerm = '') => {
 // Get vessels for select dropdown (request all records via page_size=all)
 export const getVesselsForSelect = async (searchTerm = '') => {
   try {
-    const response = await api.get('/api/vessels', { params: { page_size: 'all' } });
+    const response = await api.get('/api/vessels', { params: { page_size: 'all', is_client: true } });
     
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {

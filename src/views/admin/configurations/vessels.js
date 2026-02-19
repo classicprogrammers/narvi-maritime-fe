@@ -56,17 +56,17 @@ import { List, ListItem } from "@chakra-ui/react";
 import { useHistory } from "react-router-dom";
 import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
-
-import { getCustomersApi } from "../../../api/customer";
+import { useMasterData } from "../../../hooks/useMasterData";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
 export default function Vessels() {
   const history = useHistory();
   const [vessels, setVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 80;
   const [totalCount, setTotalCount] = useState(0);
@@ -77,9 +77,8 @@ export default function Vessels() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [editingVessel, setEditingVessel] = useState(null);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
-  const [customers, setCustomers] = useState([]);
-  const [isLoadingApiData, setIsLoadingApiData] = useState(false);
 
+  const { clients } = useMasterData();
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
@@ -169,6 +168,7 @@ export default function Vessels() {
         sort_by: sortBy,
         sort_order: sortOrder,
         search: searchQuery,
+        client_id: clientFilter || undefined,
       });
       if (response.vessels && Array.isArray(response.vessels)) {
         setVessels(response.vessels);
@@ -199,36 +199,15 @@ export default function Vessels() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, searchQuery, toast]);
-
-  const fetchApiData = useCallback(async () => {
-    try {
-      setIsLoadingApiData(true);
-      const customersResponse = await getCustomersApi({ page: 1, page_size: 80 });
-      const customersData = customersResponse.customers || customersResponse;
-      setCustomers(Array.isArray(customersData) ? customersData : []);
-    } catch (error) {
-      console.error("Error fetching API data:", error);
-      toast({
-        title: "Warning",
-        description: "Some dropdown data could not be loaded",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsLoadingApiData(false);
-    }
-  }, [toast]);
+  }, [page, pageSize, sortBy, sortOrder, searchQuery, clientFilter, toast]);
 
   useEffect(() => {
     fetchVessels();
-    fetchApiData();
-  }, [fetchVessels, fetchApiData]);
+  }, [fetchVessels]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, clientFilter]);
 
   // Search on change (debounced) – skip initial mount
   const isFirstSearchRun = useRef(true);
@@ -247,6 +226,7 @@ export default function Vessels() {
   const handleClearSearch = () => {
     setSearchValue("");
     setSearchQuery("");
+    setClientFilter("");
     setPage(1);
   };
 
@@ -286,7 +266,9 @@ export default function Vessels() {
 
       setFormData({
         name: vesselInfo.name || "",
-        client_id: vesselInfo.client_id || "",
+        client_id: vesselInfo.client_id && typeof vesselInfo.client_id === "object"
+          ? vesselInfo.client_id.id
+          : (vesselInfo.client_id || ""),
         status: vesselInfo.status || "active",
         imo: vesselInfo.imo || "",
         vessel_type: vesselInfo.vessel_type || "",
@@ -384,7 +366,7 @@ export default function Vessels() {
       onModalClose();
       resetForm();
       fetchVessels();
-      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
     } catch (error) {
       let errorMessage = `Failed to ${editingVessel ? 'update' : 'create'} vessel`;
       let status = "error";
@@ -435,7 +417,7 @@ export default function Vessels() {
       onDeleteClose();
       setDeleteVesselId(null);
       fetchVessels();
-      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => {});
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
     } catch (error) {
       const message =
         error?.response?.data?.message ||
@@ -483,8 +465,8 @@ export default function Vessels() {
 
         {/* Search Section */}
         <Box px="25px">
-          <Flex gap={2} align="center">
-            <InputGroup flex={1} maxW={{ base: "100%", md: "500px" }}>
+          <Flex gap={2} align="center" flexWrap="wrap">
+            <InputGroup flex={1} minW={{ base: "100%", md: "200px" }} maxW={{ base: "100%", md: "350px" }}>
               <InputLeftElement pointerEvents="none">
                 <Icon as={MdSearch} color={searchIconColor} w="15px" h="15px" />
               </InputLeftElement>
@@ -514,7 +496,21 @@ export default function Vessels() {
                 </InputRightElement>
               )}
             </InputGroup>
-            {searchQuery && (
+            <Box minW={{ base: "100%", md: "300px" }} maxW={{ base: "100%", md: "350px" }}>
+              <SearchableSelect
+                value={clientFilter}
+                onChange={(value) => setClientFilter(value || "")}
+                options={clients}
+                placeholder="Filter by client..."
+                displayKey="name"
+                valueKey="id"
+                formatOption={(c) => c.name || c.company_name || `Client ${c.id}`}
+                sx={{
+                  height: "38px"
+                }}
+              />
+            </Box>
+            {(searchQuery || clientFilter) && (
               <Button
                 variant="outline"
                 onClick={handleClearSearch}
@@ -584,89 +580,88 @@ export default function Vessels() {
                   </Tr>
                 ) : vessels.length > 0 ? (
                   vessels.map((vessel, index) => (
-                      <Tr
-                        key={vessel.id}
-                        bg={index % 2 === 0 ? "white" : "gray.50"}
-                        _hover={{ bg: hoverBg }}
-                        borderBottom="1px"
-                        borderColor="gray.200"
-                      >
-                        <Td py="12px" px="16px" {...tableCellProps}>
-                          <HStack spacing={2}>
-                            <Icon as={MdDirectionsBoat} color="blue.500" w="16px" h="16px" />
-                            <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
-                              {vessel.name || "-"}
-                            </Text>
-                          </HStack>
-                        </Td>
-                        <Td py="12px" px="16px" {...tableCellProps}>
+                    <Tr
+                      key={vessel.id}
+                      bg={index % 2 === 0 ? "white" : "gray.50"}
+                      _hover={{ bg: hoverBg }}
+                      borderBottom="1px"
+                      borderColor="gray.200"
+                    >
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <HStack spacing={2}>
+                          <Icon as={MdDirectionsBoat} color="blue.500" w="16px" h="16px" />
                           <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
-                            {(() => {
-                              const customer = customers.find(c => c.id === vessel.client_id);
-                              return customer ? (customer.name || customer.company_name || `Customer ${customer.id}`) : (vessel.client_id || "-");
-                            })()}
+                            {vessel.name || "-"}
                           </Text>
-                        </Td>
-                        <Td py="12px" px="16px" {...tableCellProps}>
-                          <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
-                            {vessel.vessel_type || "-"}
-                          </Text>
-                        </Td>
-                        <Td py="12px" px="16px" {...tableCellProps}>
-                          <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
-                            {vessel.imo || "-"}
-                          </Text>
-                        </Td>
-                        <Td py="12px" px="16px" {...tableCellProps}>
-                          <Badge
-                            colorScheme={
-                              vessel.status === "active" ? "green" :
-                                vessel.status === "inactive" ? "red" :
-                                  vessel.status === "tbn" ? "yellow" :
-                                    vessel.status === "new_building" ? "green" : "gray"
-                            }
-                            size="sm"
-                            textTransform="capitalize"
-                          >
-                            {vessel.status || "-"}
-                          </Badge>
-                        </Td>
-                        <Td py="12px" px="16px" {...tableCellProps}>
-                          <HStack spacing={2}>
-                            <Tooltip label="View Vessel Details">
-                              <IconButton
-                                icon={<Icon as={MdVisibility} />}
-                                size="sm"
-                                colorScheme="green"
-                                variant="ghost"
-                                aria-label="View vessel details"
-                                onClick={() => history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel })}
-                              />
-                            </Tooltip>
-                            <Tooltip label="Edit Vessel">
-                              <IconButton
-                                icon={<Icon as={MdEdit} />}
-                                size="sm"
-                                colorScheme="blue"
-                                variant="ghost"
-                                aria-label="Edit vessel"
-                                onClick={() => handleEditVessel(vessel)}
-                              />
-                            </Tooltip>
-                            <Tooltip label="Delete Vessel">
-                              <IconButton
-                                icon={<Icon as={MdDelete} />}
-                                size="sm"
-                                colorScheme="red"
-                                variant="ghost"
-                                aria-label="Delete vessel"
-                                onClick={() => handleDeleteVessel(vessel)}
-                              />
-                            </Tooltip>
-                          </HStack>
-                        </Td>
-                      </Tr>
-                    ))
+                        </HStack>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.client_id && typeof vessel.client_id === "object"
+                            ? (vessel.client_id.name || "-")
+                            : (vessel.client_id || "-")}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.vessel_type || "-"}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.imo || "-"}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Badge
+                          colorScheme={
+                            vessel.status === "active" ? "green" :
+                              vessel.status === "inactive" ? "red" :
+                                vessel.status === "tbn" ? "yellow" :
+                                  vessel.status === "new_building" ? "green" : "gray"
+                          }
+                          size="sm"
+                          textTransform="capitalize"
+                        >
+                          {vessel.status || "-"}
+                        </Badge>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <HStack spacing={2}>
+                          <Tooltip label="View Vessel Details">
+                            <IconButton
+                              icon={<Icon as={MdVisibility} />}
+                              size="sm"
+                              colorScheme="green"
+                              variant="ghost"
+                              aria-label="View vessel details"
+                              onClick={() => history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel })}
+                            />
+                          </Tooltip>
+                          <Tooltip label="Edit Vessel">
+                            <IconButton
+                              icon={<Icon as={MdEdit} />}
+                              size="sm"
+                              colorScheme="blue"
+                              variant="ghost"
+                              aria-label="Edit vessel"
+                              onClick={() => handleEditVessel(vessel)}
+                            />
+                          </Tooltip>
+                          <Tooltip label="Delete Vessel">
+                            <IconButton
+                              icon={<Icon as={MdDelete} />}
+                              size="sm"
+                              colorScheme="red"
+                              variant="ghost"
+                              aria-label="Delete vessel"
+                              onClick={() => handleDeleteVessel(vessel)}
+                            />
+                          </Tooltip>
+                        </HStack>
+                      </Td>
+                    </Tr>
+                  ))
                 ) : (
                   <Tr>
                     <Td colSpan={8} py="40px" textAlign="center">
@@ -794,12 +789,11 @@ export default function Vessels() {
                 <SearchableSelect
                   value={formData.client_id}
                   onChange={(value) => handleInputChange("client_id", value)}
-                  options={customers}
-                  placeholder={customers.length === 0 ? "No customers found" : "Select customer"}
+                  options={clients}
+                  placeholder={clients.length === 0 ? "No customers found" : "Select customer"}
                   displayKey="name"
                   valueKey="id"
                   formatOption={(customer) => `${customer.name || customer.company_name || `Customer ${customer.id}`} (ID: ${customer.id})`}
-                  isLoading={isLoadingApiData}
                   isRequired
                 />
               </FormControl>
@@ -990,12 +984,12 @@ export default function Vessels() {
                           </style>
                         </head>
                         <body>
-                          ${previewFile.fileType?.startsWith("image/") 
-                            ? `<img src="${previewFile.fileUrl}" alt="${previewFile.filename}" />`
-                            : previewFile.fileType === "application/pdf"
-                            ? `<iframe src="${previewFile.fileUrl}" style="width: 100%; height: 100vh; border: none;"></iframe>`
-                            : `<p>Preview not available. <a href="${previewFile.fileUrl}" download>Download file</a></p>`
-                          }
+                          ${previewFile.fileType?.startsWith("image/")
+                        ? `<img src="${previewFile.fileUrl}" alt="${previewFile.filename}" />`
+                        : previewFile.fileType === "application/pdf"
+                          ? `<iframe src="${previewFile.fileUrl}" style="width: 100%; height: 100vh; border: none;"></iframe>`
+                          : `<p>Preview not available. <a href="${previewFile.fileUrl}" download>Download file</a></p>`
+                      }
                         </body>
                       </html>
                     `);

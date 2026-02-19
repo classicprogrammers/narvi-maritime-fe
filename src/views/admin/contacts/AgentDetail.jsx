@@ -5,6 +5,7 @@ import {
   Flex,
   Grid,
   GridItem,
+  HStack,
   Heading,
   Stack,
   Text,
@@ -20,12 +21,12 @@ import {
   IconButton,
   useToast,
 } from "@chakra-ui/react";
-import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew } from "react-icons/md";
+import { MdPrint, MdContentCopy, MdEdit, MdOpenInNew, MdAttachFile, MdVisibility, MdDownload } from "react-icons/md";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
 import { useVendor } from "redux/hooks/useVendor";
-import { getVendorByIdApi } from "api/vendor";
+import { getVendorByIdApi, getAgentAttachmentApi } from "api/vendor";
 
 const prettyValue = (value) => {
   if (value === null || value === undefined || value === "") {
@@ -153,6 +154,7 @@ const peopleTableColumns = [
   { key: "tel_other", label: "Tel other" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "remarks", label: "Remark" },
+  { key: "attachments", label: "Attachments" },
 ];
 
 const AgentDetail = () => {
@@ -172,6 +174,87 @@ const AgentDetail = () => {
   const sectionHeadingBg = useColorModeValue("orange.50", "orange.700");
   const rowEvenBg = useColorModeValue("gray.50", "gray.700");
   const toast = useToast();
+  const [loadingAttachmentId, setLoadingAttachmentId] = useState(null);
+
+  // View agent/person attachment. Use childId for agent people, agent id for vendor attachments.
+  const handleViewAgentAttachment = async (attachment, childId = null) => {
+    const entityId = childId != null && childId !== "" ? childId : (agent?.id || agent?.agent_id || agent?.vendor_id || id);
+    if (!entityId || !attachment?.id) {
+      toast({ title: "Cannot view", description: "Agent/child or attachment ID missing.", status: "warning", duration: 2000, isClosable: true });
+      return;
+    }
+    if (attachment.datas) {
+      const url = `data:${attachment.mimetype || "application/octet-stream"};base64,${attachment.datas}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      setLoadingAttachmentId(attachment.id);
+      const response = await getAgentAttachmentApi(entityId, attachment.id, false);
+      if (response?.data instanceof Blob) {
+        const fileUrl = URL.createObjectURL(response.data);
+        window.open(fileUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast({ title: "Error", description: "Failed to load attachment.", status: "error", duration: 3000, isClosable: true });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err?.message || "Failed to view attachment", status: "error", duration: 3000, isClosable: true });
+    } finally {
+      setLoadingAttachmentId(null);
+    }
+  };
+
+  const handleDownloadAgentAttachment = async (attachment, childId = null) => {
+    const entityId = childId != null && childId !== "" ? childId : (agent?.id || agent?.agent_id || agent?.vendor_id || id);
+    if (!entityId || !attachment?.id) {
+      if (attachment?.datas) {
+        const url = `data:${attachment.mimetype || "application/octet-stream"};base64,${attachment.datas}`;
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = attachment.filename || attachment.name || "download";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+      toast({ title: "Cannot download", description: "Agent/child or attachment ID missing.", status: "warning", duration: 2000, isClosable: true });
+      return;
+    }
+    if (attachment.datas) {
+      const url = `data:${attachment.mimetype || "application/octet-stream"};base64,${attachment.datas}`;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.filename || attachment.name || "download";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+    try {
+      setLoadingAttachmentId(attachment.id);
+      const response = await getAgentAttachmentApi(entityId, attachment.id, true);
+      if (response?.data instanceof Blob) {
+        const filename = response.filename || attachment.filename || attachment.name || "download";
+        const url = URL.createObjectURL(response.data);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        toast({ title: "Error", description: "Failed to download attachment.", status: "error", duration: 3000, isClosable: true });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err?.message || "Failed to download attachment", status: "error", duration: 3000, isClosable: true });
+    } finally {
+      setLoadingAttachmentId(null);
+    }
+  };
 
   // Load agent data (depend only on id to avoid loop; location.state can change reference every render)
   const locationStateRef = React.useRef(location.state);
@@ -987,6 +1070,62 @@ const AgentDetail = () => {
                 </Grid>
               ) : null}
 
+              {/* Vendor Attachments */}
+              {Array.isArray(agent.attachments) && agent.attachments.length > 0 && (
+                <Box>
+                  <Heading size="md" color={headingColor} mb={4}>
+                    Vendor Attachments
+                  </Heading>
+                  <Box border="1px solid" borderColor={borderColor} borderRadius="lg" overflow="hidden" bg={cardBg}>
+                    <Stack spacing={2} p={4}>
+                      {agent.attachments.map((att, idx) => (
+                        <Flex
+                          key={att.id || idx}
+                          align="center"
+                          justify="space-between"
+                          p={3}
+                          bg={rowEvenBg}
+                          borderRadius="md"
+                          border="1px"
+                          borderColor={borderColor}
+                        >
+                          <Flex align="center" gap={2} minW={0} flex={1}>
+                            <Icon as={MdAttachFile} color={labelColor} boxSize={4} flexShrink={0} />
+                            <Text fontSize="sm" color={valueColor} isTruncated title={att.filename || att.name}>
+                              {att.filename || att.name || "Attachment"}
+                            </Text>
+                          </Flex>
+                          <HStack spacing={2} flexShrink={0} className="no-print">
+                            <Tooltip label="View">
+                              <IconButton
+                                aria-label="View attachment"
+                                icon={<Icon as={MdVisibility} />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="blue"
+                                onClick={() => handleViewAgentAttachment(att)}
+                                isLoading={loadingAttachmentId === att.id}
+                              />
+                            </Tooltip>
+                            <Tooltip label="Download">
+                              <IconButton
+                                aria-label="Download attachment"
+                                icon={<Icon as={MdDownload} />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="blue"
+                                onClick={() => handleDownloadAgentAttachment(att)}
+                                isLoading={loadingAttachmentId === att.id}
+                              />
+                            </Tooltip>
+                          </HStack>
+                        </Flex>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Box>
+              )}
+
               <Box>
                 <Heading size="md" color={headingColor} mb={4}>
                   Agent People
@@ -1012,31 +1151,74 @@ const AgentDetail = () => {
                           </Td>
                         </Tr>
                       ) : (
-                        agentPeople.map((person, rowIndex) => (
-                          <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
-                            {peopleTableColumns.map((column) => {
-                              const cellValue = prettyValue(person[column.key]);
-                              const isRemarks = column.key === "remarks";
-                              const cellValueStr = String(cellValue || "");
-                              const hasLongText = isRemarks && (cellValueStr.length > 50 || cellValueStr.includes("\n"));
-                              
-                              return (
-                                <Td key={column.key} minW="170px" px={3} py={2}>
-                                  <Text
-                                    fontSize="sm"
-                                    color={valueColor}
-                                    whiteSpace={isRemarks ? "pre-wrap" : "normal"}
-                                    wordBreak="break-word"
-                                    overflow="visible"
-                                    width="100%"
-                                  >
-                                    {cellValue}
-                                  </Text>
-                                </Td>
-                              );
-                            })}
-                          </Tr>
-                        ))
+                        agentPeople.map((person, rowIndex) => {
+                          const rawChild = Array.isArray(agent.children) && agent.children[rowIndex] ? agent.children[rowIndex] : null;
+                          const childAttachments = rawChild?.attachments && Array.isArray(rawChild.attachments) ? rawChild.attachments : [];
+                          const childId = rawChild?.id;
+                          return (
+                            <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
+                              {peopleTableColumns.map((column) => {
+                                if (column.key === "attachments") {
+                                  return (
+                                    <Td key={column.key} minW="170px" px={3} py={2}>
+                                      {childAttachments.length > 0 ? (
+                                        <Stack spacing={1}>
+                                          {childAttachments.map((att, attIdx) => (
+                                            <Flex key={att.id || attIdx} align="center" justify="space-between" gap={1} fontSize="sm">
+                                              <Text isTruncated flex={1} title={att.filename || att.name}>
+                                                {att.filename || att.name || "File"}
+                                              </Text>
+                                              <HStack spacing={0} className="no-print">
+                                                <IconButton
+                                                  aria-label="View"
+                                                  icon={<Icon as={MdVisibility} />}
+                                                  size="xs"
+                                                  variant="ghost"
+                                                  colorScheme="blue"
+                                                  onClick={() => handleViewAgentAttachment(att, childId)}
+                                                  isLoading={loadingAttachmentId === att.id}
+                                                />
+                                                <IconButton
+                                                  aria-label="Download"
+                                                  icon={<Icon as={MdDownload} />}
+                                                  size="xs"
+                                                  variant="ghost"
+                                                  colorScheme="blue"
+                                                  onClick={() => handleDownloadAgentAttachment(att, childId)}
+                                                  isLoading={loadingAttachmentId === att.id}
+                                                />
+                                              </HStack>
+                                            </Flex>
+                                          ))}
+                                        </Stack>
+                                      ) : (
+                                        <Text fontSize="sm" color={labelColor}>-</Text>
+                                      )}
+                                    </Td>
+                                  );
+                                }
+                                const cellValue = prettyValue(person[column.key]);
+                                const isRemarks = column.key === "remarks";
+                                const cellValueStr = String(cellValue || "");
+                                const hasLongText = isRemarks && (cellValueStr.length > 50 || cellValueStr.includes("\n"));
+                                return (
+                                  <Td key={column.key} minW="170px" px={3} py={2}>
+                                    <Text
+                                      fontSize="sm"
+                                      color={valueColor}
+                                      whiteSpace={isRemarks ? "pre-wrap" : "normal"}
+                                      wordBreak="break-word"
+                                      overflow="visible"
+                                      width="100%"
+                                    >
+                                      {cellValue}
+                                    </Text>
+                                  </Td>
+                                );
+                              })}
+                            </Tr>
+                          );
+                        })
                       )}
                     </Tbody>
                   </Table>
@@ -1050,35 +1232,58 @@ const AgentDetail = () => {
                     </Box>
                   ) : (
                     <Stack spacing={6}>
-                      {agentPeople.map((person, personIndex) => (
-                        <Box key={personIndex} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
-                          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                            {peopleTableColumns.map((column, idx) => {
-                              const addRightBorder = idx % 2 === 0; // first column cells
-                              return (
+                      {agentPeople.map((person, personIndex) => {
+                        const rawChild = Array.isArray(agent.children) && agent.children[personIndex] ? agent.children[personIndex] : null;
+                        const childAttachments = rawChild?.attachments && Array.isArray(rawChild.attachments) ? rawChild.attachments : [];
+                        return (
+                          <Box key={personIndex} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+                            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
+                              {peopleTableColumns.filter((c) => c.key !== "attachments").map((column, idx) => {
+                                const addRightBorder = idx % 2 === 0;
+                                return (
+                                  <GridItem
+                                    key={column.key}
+                                    px={4}
+                                    py={2}
+                                    borderColor={borderColor}
+                                    borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                                    display="flex"
+                                    justifyContent="space-between"
+                                    alignItems="center"
+                                    gap={2}
+                                  >
+                                    <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
+                                      {column.label}
+                                    </Text>
+                                    <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
+                                      {prettyValue(person[column.key])}
+                                    </Text>
+                                  </GridItem>
+                                );
+                              })}
+                              {childAttachments.length > 0 && (
                                 <GridItem
-                                  key={column.key}
                                   px={4}
                                   py={2}
                                   borderColor={borderColor}
-                                  borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                                  borderTop="1px solid"
+                                  colSpan={{ base: 1, md: 2 }}
                                   display="flex"
-                                  justifyContent="space-between"
-                                  alignItems="center"
-                                  gap={2}
+                                  flexDirection="column"
+                                  gap={1}
                                 >
                                   <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                                    {column.label}
+                                    Attachments
                                   </Text>
-                                  <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                    {prettyValue(person[column.key])}
+                                  <Text fontSize="sm" color={valueColor}>
+                                    {childAttachments.map((a) => a.filename || a.name || "File").join(", ")}
                                   </Text>
                                 </GridItem>
-                              );
-                            })}
-                          </Grid>
-                        </Box>
-                      ))}
+                              )}
+                            </Grid>
+                          </Box>
+                        );
+                      })}
                     </Stack>
                   )}
                 </Box>

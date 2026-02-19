@@ -1,6 +1,7 @@
 import React from "react";
 import {
   Box,
+  Badge,
   Button,
   Flex,
   HStack,
@@ -15,12 +16,12 @@ import {
   Th,
   Td,
   Icon,
+  Tooltip,
   useColorModeValue,
 } from "@chakra-ui/react";
-import { MdSearch, MdOpenInNew, MdClear } from "react-icons/md";
+import { MdSearch, MdOpenInNew, MdClear, MdPerson } from "react-icons/md";
 import Card from "components/card/Card";
-import { getCustomersApi } from "api/customer";
-import { getVendorsApi } from "api/vendor";
+import { getCached, MASTER_KEYS } from "utils/masterDataCache";
 import { useHistory } from "react-router-dom";
 
 const Phonebook = () => {
@@ -33,8 +34,9 @@ const Phonebook = () => {
   const theadBg = useColorModeValue("gray.50", "gray.800");
   const tableScrollBg = useColorModeValue("white", "gray.900");
 
-  const [source, setSource] = React.useState("client"); // 'client' or 'agent'
+  const [source, setSource] = React.useState("all"); // 'all' | 'client' | 'agent'
   const [company, setCompany] = React.useState("");
+  const [personName, setPersonName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [dbId, setDbId] = React.useState("");
@@ -43,55 +45,50 @@ const Phonebook = () => {
   const [page, setPage] = React.useState(1);
   const pageSize = 50;
 
-  const fetchAllCustomers = React.useCallback(async (apiParams = {}) => {
-    const list = [];
-    let pageNum = 1;
-    let hasMore = true;
-    while (hasMore) {
-      const res = await getCustomersApi({
-        page: pageNum,
-        page_size: 80,
-        sort_by: "name",
-        sort_order: "asc",
-        name: apiParams.name?.trim() || undefined,
-        search: apiParams.search?.trim() || undefined,
-        email: apiParams.email?.trim() || undefined,
-        client_code: apiParams.client_code?.trim() || undefined,
-      });
-      const batch = Array.isArray(res?.customers) ? res.customers : Array.isArray(res) ? res : [];
-      list.push(...batch);
-      hasMore = res?.has_next === true && batch.length > 0;
-      pageNum += 1;
+  const fetchAllCustomers = React.useCallback((apiParams = {}) => {
+    const cached = getCached(MASTER_KEYS.CLIENTS) ?? [];
+    const list = Array.isArray(cached) ? cached : [];
+    const nameFilter = (apiParams.name?.trim() || "").toLowerCase();
+    const emailFilter = (apiParams.email?.trim() || "").toLowerCase();
+    const clientCodeFilter = (apiParams.client_code?.trim() || "").toLowerCase();
+    const searchFilter = (apiParams.search?.trim() || "").toLowerCase();
+    if (!nameFilter && !emailFilter && !clientCodeFilter && !searchFilter) {
+      return list;
     }
-    return list;
+    return list.filter((c) => {
+      const name = (c.name || c.company_name || "").toLowerCase();
+      const email = (c.email || c.email2 || "").toLowerCase();
+      const clientCode = (c.client_code || "").toLowerCase();
+      const matchesName = !nameFilter || name.includes(nameFilter);
+      const matchesEmail = !emailFilter || email.includes(emailFilter) ||
+        (Array.isArray(c.children) && c.children.some((p) =>
+          ((p.email || p.email1 || p.email2 || "").toLowerCase().includes(emailFilter))
+        ));
+      const matchesClientCode = !clientCodeFilter || clientCode.includes(clientCodeFilter);
+      const matchesSearch = !searchFilter ||
+        name.includes(searchFilter) || email.includes(searchFilter) || clientCode.includes(searchFilter);
+      return matchesName && matchesEmail && matchesClientCode && matchesSearch;
+    });
   }, []);
 
-  const fetchAllAgents = React.useCallback(async (apiParams = {}) => {
-    const list = [];
-    let pageNum = 1;
-    let hasMore = true;
-    while (hasMore) {
-      const res = await getVendorsApi({
-        page: pageNum,
-        page_size: 80,
-        sort_by: "name",
-        sort_order: "asc",
-        name: apiParams.name?.trim() || undefined,
-        search: apiParams.search?.trim() || undefined,
-        agentsdb_id: apiParams.agentsdb_id?.trim() || undefined,
-      });
-      const batch = Array.isArray(res?.agents)
-        ? res.agents
-        : Array.isArray(res?.vendors)
-          ? res.vendors
-          : Array.isArray(res)
-            ? res
-            : [];
-      list.push(...batch);
-      hasMore = res?.has_next === true && batch.length > 0;
-      pageNum += 1;
+  const fetchAllAgents = React.useCallback((apiParams = {}) => {
+    const cached = getCached(MASTER_KEYS.AGENTS) ?? [];
+    const list = Array.isArray(cached) ? cached : [];
+    const nameFilter = (apiParams.name?.trim() || "").toLowerCase();
+    const agentsdbIdFilter = (apiParams.agentsdb_id?.trim() || "").toLowerCase();
+    const searchFilter = (apiParams.search?.trim() || "").toLowerCase();
+    if (!nameFilter && !agentsdbIdFilter && !searchFilter) {
+      return list;
     }
-    return list;
+    return list.filter((a) => {
+      const name = (a.name || "").toLowerCase();
+      const agentsdbId = (a.agentsdb_id || "").toLowerCase();
+      const matchesName = !nameFilter || name.includes(nameFilter);
+      const matchesAgentsdbId = !agentsdbIdFilter || agentsdbId.includes(agentsdbIdFilter);
+      const matchesSearch = !searchFilter ||
+        name.includes(searchFilter) || agentsdbId.includes(searchFilter);
+      return matchesName && matchesAgentsdbId && matchesSearch;
+    });
   }, []);
 
   const fetchData = React.useCallback(async () => {
@@ -101,11 +98,11 @@ const Phonebook = () => {
       const apiParams = {
         name: company.trim() || undefined,
         email: email.trim() || undefined,
-        client_code: source === "client" ? (dbId.trim() || undefined) : undefined,
-        agentsdb_id: source === "agent" ? (dbId.trim() || undefined) : undefined,
+        client_code: (source === "client" || source === "all") ? (dbId.trim() || undefined) : undefined,
+        agentsdb_id: (source === "agent" || source === "all") ? (dbId.trim() || undefined) : undefined,
       };
 
-      if (source === "client") {
+      if (source === "client" || source === "all") {
         const clientList = await fetchAllCustomers(apiParams);
 
         const topLevelClients = clientList.filter((c) => {
@@ -162,7 +159,7 @@ const Phonebook = () => {
         });
       }
 
-      if (source === "agent") {
+      if (source === "agent" || source === "all") {
         const agentList = await fetchAllAgents(apiParams);
 
         const topLevelAgents = agentList.filter((a) => {
@@ -253,12 +250,17 @@ const Phonebook = () => {
     };
   }, [company, email, dbId, fetchData]);
 
-  // Rows from API are already filtered by company, person, email, dbId; filter by phone client-side (no phone API param)
+  // Client-side filters: phone and person name (from master data, no API)
   const filtered = React.useMemo(() => {
     const phoneQ = phone.trim().toLowerCase();
-    if (!phoneQ) return rows;
-    return rows.filter((r) => (r.phone || "").toLowerCase().includes(phoneQ));
-  }, [rows, phone]);
+    const personQ = personName.trim().toLowerCase();
+    if (!phoneQ && !personQ) return rows;
+    return rows.filter((r) => {
+      const matchesPhone = !phoneQ || (r.phone || "").toLowerCase().includes(phoneQ);
+      const matchesPerson = !personQ || (r.person || "").toLowerCase().includes(personQ);
+      return matchesPhone && matchesPerson;
+    });
+  }, [rows, phone, personName]);
 
   const totalFiltered = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
@@ -270,7 +272,7 @@ const Phonebook = () => {
 
   React.useEffect(() => {
     setPage(1);
-  }, [source, company, email, phone, dbId]);
+  }, [source, company, personName, email, phone, dbId]);
 
   const handleOpen = (row) => {
     if (row.type === "Client") {
@@ -280,11 +282,12 @@ const Phonebook = () => {
     }
   };
 
-  const hasActiveFilters = company.trim() || email.trim() || phone.trim() || dbId.trim();
+  const hasActiveFilters = company.trim() || personName.trim() || email.trim() || phone.trim() || dbId.trim();
 
   const handleClearAll = () => {
-    setSource("client");
+    setSource("all");
     setCompany("");
+    setPersonName("");
     setEmail("");
     setPhone("");
     setDbId("");
@@ -303,14 +306,16 @@ const Phonebook = () => {
         <Box px="25px" pb="25px">
           <VStack spacing={4} align="stretch" border="1px" borderColor={borderColor} borderRadius="md" p={4}>
             <HStack spacing={4} flexWrap="wrap">
-              <Select value={source} onChange={(e) => setSource(e.target.value)} w={{ base: "100%", md: "200px" }} bg={inputBg}>
+              <Select value={source} onChange={(e) => setSource(e.target.value)} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} bg={inputBg}>
+                <option value="all">All</option>
                 <option value="client">Client</option>
                 <option value="agent">Agent</option>
               </Select>
-              <Input placeholder="Company name" value={company} onChange={(e) => setCompany(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} />
-              <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} />
-              <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} bg={inputBg} w={{ base: "100%", md: "180px" }} />
-              <Input placeholder="DB ID / Code" value={dbId} onChange={(e) => setDbId(e.target.value)} bg={inputBg} w={{ base: "100%", md: "150px" }} />
+              <Input placeholder="Company name" value={company} onChange={(e) => setCompany(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} />
+              <Input placeholder="People name" value={personName} onChange={(e) => setPersonName(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} />
+              <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} />
+              <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} />
+              <Input placeholder="DB ID / Code" value={dbId} onChange={(e) => setDbId(e.target.value)} bg={inputBg} w={{ base: "100%", md: "200px" }} minW={{ base: "0", md: "200px" }} />
               <Button leftIcon={<Icon as={MdSearch} />} onClick={fetchData} isLoading={isLoading} colorScheme="blue">Refresh</Button>
               {hasActiveFilters && (
                 <Button leftIcon={<Icon as={MdClear} />} onClick={handleClearAll} variant="outline" colorScheme="red" _hover={{ bg: "red.50" }}>
@@ -345,7 +350,27 @@ const Phonebook = () => {
                     ) : (
                       paginatedRows.map((r, index) => (
                         <Tr key={`${r.type}-${r.companyId}-${r.personId || "main"}-${index}`}>
-                          <Td>{r.type}</Td>
+                          <Td>
+                            <Tooltip
+                              label={r.personId != null ? (r.type === "Client" ? "This is a client people" : "This is an agent people") : undefined}
+                              isDisabled={r.personId == null}
+                              hasArrow
+                            >
+                              <Badge
+                                colorScheme={r.type === "Client" ? "blue" : "orange"}
+                                variant="subtle"
+                                fontSize="xs"
+                                px={2}
+                                py={0.5}
+                                display="inline-flex"
+                                alignItems="center"
+                                gap={1}
+                              >
+                                {r.type}
+                                {r.personId != null && <Icon as={MdPerson} boxSize={3} />}
+                              </Badge>
+                            </Tooltip>
+                          </Td>
                           <Td>{r.company || "-"}</Td>
                           <Td>
                             {r.person || "-"}

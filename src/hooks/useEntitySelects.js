@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react';
 import {
   getUsersForSelect,
-  getCustomersForSelect,
-  getVesselsForSelect,
   getDestinationsForSelect,
   getQuotationsForSelect,
 } from '../api/entitySelects';
+import { getCached, MASTER_KEYS } from '../utils/masterDataCache';
 
 export const useEntitySelects = () => {
   const [users, setUsers] = useState([]);
@@ -54,47 +53,40 @@ export const useEntitySelects = () => {
     }
   }, [hasLoadedUsers, users.length]);
 
-  const searchCustomers = useCallback(async (searchTerm = '') => {
-    
-    // If we already have data and it's an empty search, just filter locally
-    if (hasLoadedCustomers && customers.length > 0 && searchTerm.trim() === '') {
-      return;
+  const searchCustomers = useCallback((searchTerm = '') => {
+    const cached = getCached(MASTER_KEYS.CLIENTS) ?? [];
+    const list = Array.isArray(cached) ? cached : [];
+    if (searchTerm.trim()) {
+      const term = searchTerm.trim().toLowerCase();
+      const filtered = list.filter(customer =>
+        (customer.name || '').toLowerCase().includes(term) ||
+        (customer.company_name || '').toLowerCase().includes(term) ||
+        (customer.client_code || '').toLowerCase().includes(term)
+      );
+      setCustomers(filtered);
+    } else {
+      setCustomers(list);
     }
-    
-    setIsLoadingCustomers(true);
-    try {
-      const data = await getCustomersForSelect(searchTerm);
-      setCustomers(data);
-      setHasLoadedCustomers(true);
-    } catch (error) {
-      console.error('❌ [CUSTOMERS] API call failed:', error);
-      setCustomers([]);
-      setErrorCustomers(error.response?.data?.result?.message || error.response?.data?.message || error.message);
-    } finally {
-      setIsLoadingCustomers(false);
-    }
-  }, [hasLoadedCustomers, customers.length]);
+    setHasLoadedCustomers(true);
+    setErrorCustomers(null);
+  }, []);
 
-  const searchVessels = useCallback(async (searchTerm = '') => {
-    
-    // If we already have data and it's an empty search, just filter locally
-    if (hasLoadedVessels && vessels.length > 0 && searchTerm.trim() === '') {
-      return;
+  const searchVessels = useCallback((searchTerm = '') => {
+    const cached = getCached(MASTER_KEYS.VESSELS) ?? [];
+    const list = Array.isArray(cached) ? cached : [];
+    if (searchTerm.trim()) {
+      const term = searchTerm.trim().toLowerCase();
+      const filtered = list.filter(vessel =>
+        (vessel.name || '').toLowerCase().includes(term) ||
+        (vessel.imo_number || vessel.imo || '').toLowerCase().includes(term)
+      );
+      setVessels(filtered);
+    } else {
+      setVessels(list);
     }
-    
-    setIsLoadingVessels(true);
-    try {
-      const data = await getVesselsForSelect(searchTerm);
-      setVessels(data);
-      setHasLoadedVessels(true);
-    } catch (error) {
-      console.error('❌ [VESSELS] API call failed:', error);
-      setVessels([]);
-      setErrorVessels(error.response?.data?.result?.message || error.response?.data?.message || error.message);
-    } finally {
-      setIsLoadingVessels(false);
-    }
-  }, [hasLoadedVessels, vessels.length]);
+    setHasLoadedVessels(true);
+    setErrorVessels(null);
+  }, []);
 
   const searchDestinations = useCallback(async (searchTerm = '') => {
     

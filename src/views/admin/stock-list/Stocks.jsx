@@ -55,7 +55,7 @@ import {
     Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdInventory2 } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -3346,7 +3346,7 @@ export default function Stocks() {
                                                 <Flex direction={{ base: "column", md: "row" }} gap="4" align="flex-start">
                                                     {/* Vessel Filter */}
                                                     {!vesselViewVesselData && (
-                                                        <Box flex="1" minW="0">
+                                                        <Box w="220px" minW="200px">
                                                             <Flex justify="space-between" align="center" mb="12px">
                                                                 <Text fontSize="sm" fontWeight="600" color={textColor}>
                                                                     Filter by Vessel
@@ -3370,7 +3370,7 @@ export default function Stocks() {
 
                                                     {/* Client Filter */}
                                                     {!vesselViewClientData && (
-                                                        <Box flex="1" minW="0">
+                                                        <Box w="220px" minW="200px">
                                                             <Flex justify="space-between" align="center" mb="12px">
                                                                 <Text fontSize="sm" fontWeight="600" color={textColor}>
                                                                     Filter by Client
@@ -3519,7 +3519,7 @@ export default function Stocks() {
                                                     </HStack>
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* Client Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
@@ -3550,7 +3550,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Vessel Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
@@ -3593,7 +3593,7 @@ export default function Stocks() {
 
                                                 <Flex direction="row" gap="4" align="stretch">
                                                     {/* Client ID Input */}
-                                                    <FormControl>
+                                                    <FormControl w="220px" minW="200px">
                                                         <Flex justify="space-between" align="center" >
                                                             <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
                                                                 Filter by Client ID
@@ -3630,7 +3630,7 @@ export default function Stocks() {
                                                     </FormControl>
 
                                                     {/* Client Name Input (Auto-filled, Read-only) */}
-                                                    <FormControl>
+                                                    <FormControl w="220px" minW="200px">
                                                         <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
                                                             Client Name
                                                         </FormLabel>
@@ -3654,7 +3654,7 @@ export default function Stocks() {
                                                 </Text>
                                                 <Flex direction="row" gap="4" align="stretch">
                                                     {/* Client Name Search */}
-                                                    <FormControl flex="1">
+                                                    <FormControl w="220px" minW="200px">
                                                         <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
                                                             Search by Client Name
                                                         </FormLabel>
@@ -3687,7 +3687,7 @@ export default function Stocks() {
                                                     </FormControl>
 
                                                     {/* Vessel Name Search */}
-                                                    <FormControl flex="1">
+                                                    <FormControl w="220px" minW="200px">
                                                         <FormLabel fontSize="xs" fontWeight="600" color={textColor} mb="8px">
                                                             Search by Vessel Name
                                                         </FormLabel>
@@ -3882,9 +3882,9 @@ export default function Stocks() {
                                                             )}
                                                         </HStack>
                                                     </HStack>
-                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
+                                                    <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap" mb="10px">
                                                         {/* Stock Item ID Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -3911,7 +3911,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Client Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
@@ -3942,7 +3942,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Vessel Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
@@ -3973,7 +3973,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Status Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <Select
@@ -4010,7 +4010,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Date on Stock Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Input
                                                                     type="date"
@@ -4019,7 +4019,7 @@ export default function Stocks() {
                                                                     bg={inputBg}
                                                                     color={inputText}
                                                                     borderColor={borderColor}
-                                                                    size="sm"
+                                                                    size="md"
                                                                 />
                                                                 {stockViewDateOnStock && (
                                                                     <IconButton
@@ -4035,7 +4035,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Days on Stock Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4063,13 +4063,12 @@ export default function Stocks() {
                                                         </Box>
 
                                                     </Flex>
-                                                </Box>
+                                                    {/* </Box>
 
-                                                {/* Reference Number Filters */}
-                                                <Box>
+                                                <Box> */}
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* SO Number Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4096,7 +4095,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* SI Number Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4123,7 +4122,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* SI Combined Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4150,7 +4149,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* DI Number Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4177,7 +4176,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                         {/* Hub Filter */}
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
@@ -4205,7 +4204,7 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
-                                                        <Box w="220px">
+                                                        <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
                                                                 <InputGroup size="sm">
                                                                     <Input
@@ -4398,8 +4397,18 @@ export default function Stocks() {
                                             </VStack>
                                         </Box>
                                     )}
-                                    <Table size="sm" minW="6000px">
-                                        {(!isLoading || stockList.length > 0) && (
+                                    {!isLoading && getFilteredStockByStatus().length === 0 ? (
+                                        <Center py="60px" px="25px">
+                                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={borderColor}>
+                                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
+                                                {stockList.length > 0 && (
+                                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                                )}
+                                            </VStack>
+                                        </Center>
+                                    ) : (
+                                        <Table size="sm" minW="6000px">
                                             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th
@@ -4471,205 +4480,193 @@ export default function Stocks() {
                                                     <Th {...headerProps}>ACTIONS</Th>
                                                 </Tr>
                                             </Thead>
-                                        )}
-                                        <Tbody>
-                                            {isLoading && stockList.length === 0 ? (
-                                                <Tr>
-                                                    <Td colSpan={20} textAlign="center" py="40px">
-                                                        <Box visibility="hidden" h="100px">
-                                                            {/* Placeholder to maintain table structure */}
-                                                        </Box>
-                                                    </Td>
-                                                </Tr>
-                                            ) : getFilteredStockByStatus().length === 0 ? (
-                                                <Tr>
-                                                    <Td colSpan={20} textAlign="center" py="40px">
-                                                        <Text color={tableTextColorSecondary}>
-                                                            {stockList.length === 0
-                                                                ? "No stock items available."
-                                                                : "No stock items match your filter criteria."}
-                                                        </Text>
-                                                    </Td>
-                                                </Tr>
-                                            ) : (
-                                                displayedItems.map((item, index) => {
-                                                    const statusStyle = getStatusStyle(item.stock_status);
-                                                    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                    return (
-                                                        <Tr key={item.id} bg={rowBg}>
-                                                            <Td
-                                                                borderRight="1px"
-                                                                borderColor={tableBorderColor}
-                                                                py="12px"
-                                                                px="8px"
-                                                                width="40px"
-                                                                minW="40px"
-                                                                maxW="40px"
-                                                            >
-                                                                <Checkbox
-                                                                    isChecked={selectedRows.has(item.id)}
-                                                                    onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                                                    size="sm"
-                                                                    borderColor="gray.600"
-                                                                    sx={{
-                                                                        "& .chakra-checkbox__control": {
-                                                                            borderColor: "gray.600",
-                                                                            _checked: {
-                                                                                borderColor: "blue.500",
-                                                                                bg: "blue.500",
-                                                                            },
-                                                                        },
-                                                                    }}
-                                                                />
-                                                            </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                            <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
-                                                                const prefixed = addSIPrefix(siValue);
-                                                                return prefixed || "-";
-                                                            })()}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                const sicValue = renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction);
-                                                                const prefixed = addSICombinedPrefix(sicValue);
-                                                                return prefixed || "-";
-                                                            })()}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                                const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
-                                                                const prefixed = addDIPrefix(diValue);
-                                                                return prefixed || "-";
-                                                            })()}</Text></Td>
-                                                            <Td {...cellProps}>
-                                                                <Badge
-                                                                    colorScheme={statusStyle.color}
-                                                                    size="sm"
-                                                                    borderRadius="full"
-                                                                    px="3"
-                                                                    py="1"
-                                                                    bg={statusStyle.bgColor}
-                                                                    color={statusStyle.textColor}
+                                            <Tbody>
+                                                {isLoading && stockList.length === 0 ? (
+                                                    <Tr>
+                                                        <Td colSpan={20} textAlign="center" py="40px">
+                                                            <Box visibility="hidden" h="100px" />
+                                                        </Td>
+                                                    </Tr>
+                                                ) : (
+                                                    displayedItems.map((item, index) => {
+                                                        const statusStyle = getStatusStyle(item.stock_status);
+                                                        const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                        return (
+                                                            <Tr key={item.id} bg={rowBg}>
+                                                                <Td
+                                                                    borderRight="1px"
+                                                                    borderColor={tableBorderColor}
+                                                                    py="12px"
+                                                                    px="8px"
+                                                                    width="40px"
+                                                                    minW="40px"
+                                                                    maxW="40px"
                                                                 >
-                                                                    {getStatusLabel(item.stock_status)}
-                                                                </Badge>
-                                                            </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                                            <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                                            <Td
-                                                                {...cellProps}
-                                                                cursor="pointer"
-                                                                onClick={() => {
-                                                                    setSelectedDimensions(item.dimensions || []);
-                                                                    onDimensionsModalOpen();
-                                                                }}
-                                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
-                                                            >
-                                                                <HStack spacing={2} align="center" justify="flex-start">
-                                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                                        {renderText(item.total_volume_cbm)}
-                                                                    </Text>
-                                                                    <Tooltip label="View dimensions" hasArrow>
-                                                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                                    </Tooltip>
-                                                                </HStack>
-                                                            </Td>
-                                                            <Td
-                                                                {...cellProps}
-                                                                cursor="pointer"
-                                                                onClick={() => {
-                                                                    setSelectedDimensions(item.dimensions || []);
-                                                                    onDimensionsModalOpen();
-                                                                }}
-                                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
-                                                            >
-                                                                <HStack spacing={2} align="center" justify="flex-start">
-                                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                                        {renderText(item.total_cw_air_freight)}
-                                                                    </Text>
-                                                                    <Tooltip label="View dimensions" hasArrow>
-                                                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                                    </Tooltip>
-                                                                </HStack>
-                                                            </Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
-                                                            <Td {...cellProps}>
-                                                                {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                                                    <VStack spacing={1} align="stretch">
-                                                                        {item.attachments.map((att, idx) => (
-                                                                            <HStack key={idx} spacing={1} align="center">
-                                                                                <Text
-                                                                                    fontSize="xs"
-                                                                                    isTruncated
-                                                                                    flex={1}
-                                                                                    title={att.filename || att.name}
-                                                                                    cursor="pointer"
-                                                                                    color="blue.500"
-                                                                                    _hover={{ textDecoration: "underline" }}
-                                                                                    onClick={() => handleViewFile(att)}
-                                                                                >
-                                                                                    {att.filename || att.name || `File ${idx + 1}`}
-                                                                                </Text>
-                                                                                <IconButton
-                                                                                    icon={<Icon as={MdVisibility} />}
-                                                                                    size="xs"
-                                                                                    variant="ghost"
-                                                                                    colorScheme="blue"
-                                                                                    aria-label="View file"
-                                                                                    onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                                                />
-                                                                                <IconButton
-                                                                                    icon={<Icon as={MdDownload} />}
-                                                                                    size="xs"
-                                                                                    variant="ghost"
-                                                                                    colorScheme="green"
-                                                                                    aria-label="Download file"
-                                                                                    onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                                                                />
-                                                                            </HStack>
-                                                                        ))}
-                                                                    </VStack>
-                                                                ) : (
-                                                                    <Text fontSize="xs" color="gray.500">No files</Text>
-                                                                )}
-                                                            </Td>
-                                                            <Td {...cellProps}>
-                                                                <IconButton
-                                                                    icon={<Icon as={MdEdit} />}
-                                                                    size="sm"
-                                                                    variant="ghost"
-                                                                    colorScheme="blue"
-                                                                    onClick={() => handleEditItem(item)}
-                                                                    aria-label="Edit"
-                                                                />
-                                                            </Td>
-                                                        </Tr>
-                                                    );
-                                                })
-                                            )}
-                                        </Tbody>
-                                    </Table>
+                                                                    <Checkbox
+                                                                        isChecked={selectedRows.has(item.id)}
+                                                                        onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                                                                        size="sm"
+                                                                        borderColor="gray.600"
+                                                                        sx={{
+                                                                            "& .chakra-checkbox__control": {
+                                                                                borderColor: "gray.600",
+                                                                                _checked: {
+                                                                                    borderColor: "blue.500",
+                                                                                    bg: "blue.500",
+                                                                                },
+                                                                            },
+                                                                        }}
+                                                                    />
+                                                                </Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                    const siValue = renderText(item.shipping_instruction_id || item.si_number || item.stock_shipping_instruction);
+                                                                    const prefixed = addSIPrefix(siValue);
+                                                                    return prefixed || "-";
+                                                                })()}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                    const sicValue = renderText(item.si_combined || item.shipping_instruction_id || item.stock_shipping_instruction);
+                                                                    const prefixed = addSICombinedPrefix(sicValue);
+                                                                    return prefixed || "-";
+                                                                })()}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                                    const diValue = renderText(item.delivery_instruction_id || item.di_number || item.stock_delivery_instruction);
+                                                                    const prefixed = addDIPrefix(diValue);
+                                                                    return prefixed || "-";
+                                                                })()}</Text></Td>
+                                                                <Td {...cellProps}>
+                                                                    <Badge
+                                                                        colorScheme={statusStyle.color}
+                                                                        size="sm"
+                                                                        borderRadius="full"
+                                                                        px="3"
+                                                                        py="1"
+                                                                        bg={statusStyle.bgColor}
+                                                                        color={statusStyle.textColor}
+                                                                    >
+                                                                        {getStatusLabel(item.stock_status)}
+                                                                    </Badge>
+                                                                </Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                                                                <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                                                <Td
+                                                                    {...cellProps}
+                                                                    cursor="pointer"
+                                                                    onClick={() => {
+                                                                        setSelectedDimensions(item.dimensions || []);
+                                                                        onDimensionsModalOpen();
+                                                                    }}
+                                                                    _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                                >
+                                                                    <HStack spacing={2} align="center" justify="flex-start">
+                                                                        <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                            {renderText(item.total_volume_cbm)}
+                                                                        </Text>
+                                                                        <Tooltip label="View dimensions" hasArrow>
+                                                                            <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                        </Tooltip>
+                                                                    </HStack>
+                                                                </Td>
+                                                                <Td
+                                                                    {...cellProps}
+                                                                    cursor="pointer"
+                                                                    onClick={() => {
+                                                                        setSelectedDimensions(item.dimensions || []);
+                                                                        onDimensionsModalOpen();
+                                                                    }}
+                                                                    _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                                                >
+                                                                    <HStack spacing={2} align="center" justify="flex-start">
+                                                                        <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                                            {renderText(item.total_cw_air_freight)}
+                                                                        </Text>
+                                                                        <Tooltip label="View dimensions" hasArrow>
+                                                                            <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                                        </Tooltip>
+                                                                    </HStack>
+                                                                </Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
+                                                                <Td {...cellProps}>
+                                                                    {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                                                        <VStack spacing={1} align="stretch">
+                                                                            {item.attachments.map((att, idx) => (
+                                                                                <HStack key={idx} spacing={1} align="center">
+                                                                                    <Text
+                                                                                        fontSize="xs"
+                                                                                        isTruncated
+                                                                                        flex={1}
+                                                                                        title={att.filename || att.name}
+                                                                                        cursor="pointer"
+                                                                                        color="blue.500"
+                                                                                        _hover={{ textDecoration: "underline" }}
+                                                                                        onClick={() => handleViewFile(att)}
+                                                                                    >
+                                                                                        {att.filename || att.name || `File ${idx + 1}`}
+                                                                                    </Text>
+                                                                                    <IconButton
+                                                                                        icon={<Icon as={MdVisibility} />}
+                                                                                        size="xs"
+                                                                                        variant="ghost"
+                                                                                        colorScheme="blue"
+                                                                                        aria-label="View file"
+                                                                                        onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                                                                    />
+                                                                                    <IconButton
+                                                                                        icon={<Icon as={MdDownload} />}
+                                                                                        size="xs"
+                                                                                        variant="ghost"
+                                                                                        colorScheme="green"
+                                                                                        aria-label="Download file"
+                                                                                        onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
+                                                                                    />
+                                                                                </HStack>
+                                                                            ))}
+                                                                        </VStack>
+                                                                    ) : (
+                                                                        <Text fontSize="xs" color="gray.500">No files</Text>
+                                                                    )}
+                                                                </Td>
+                                                                <Td {...cellProps}>
+                                                                    <IconButton
+                                                                        icon={<Icon as={MdEdit} />}
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        colorScheme="blue"
+                                                                        onClick={() => handleEditItem(item)}
+                                                                        aria-label="Edit"
+                                                                    />
+                                                                </Td>
+                                                            </Tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </Tbody>
+                                        </Table>
+                                    )}
                                 </Box>
 
                                 {/* Pagination Controls for Stock View / Edit */}
@@ -4807,7 +4804,7 @@ export default function Stocks() {
                                                 </HStack>
                                                 <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                     {/* Client Filter */}
-                                                    <Box w="220px">
+                                                    <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
                                                                 <SimpleSearchableSelect
@@ -4838,7 +4835,7 @@ export default function Stocks() {
                                                     </Box>
 
                                                     {/* Vessel Filter */}
-                                                    <Box w="220px">
+                                                    <Box w="220px" minW="200px">
                                                         <HStack spacing="1">
                                                             <Box flex="1">
                                                                 <SimpleSearchableSelect
@@ -4994,8 +4991,18 @@ export default function Stocks() {
                                             </VStack>
                                         </Box>
                                     )}
-                                    <Table variant="unstyled" size="sm" layout="auto">
-                                        {(!isLoading || stockList.length > 0) && (
+                                    {!isLoading && filteredAndSortedStock.length === 0 ? (
+                                        <Center py="60px" px="25px">
+                                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={borderColor}>
+                                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
+                                                {stockList.length > 0 && (
+                                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                                )}
+                                            </VStack>
+                                        </Center>
+                                    ) : (
+                                        <Table variant="unstyled" size="sm" layout="auto">
                                             <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                                 <Tr>
                                                     <Th {...headerProps} w="40px">
@@ -5037,117 +5044,105 @@ export default function Stocks() {
                                                     )}
                                                 </Tr>
                                             </Thead>
-                                        )}
-                                        <Tbody>
-                                            {isLoading && stockList.length === 0 ? (
-                                                <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
-                                                        <Box visibility="hidden" h="100px">
-                                                            {/* Placeholder to maintain table structure */}
-                                                        </Box>
-                                                    </Td>
-                                                </Tr>
-                                            ) : filteredAndSortedStock.length === 0 ? (
-                                                <Tr>
-                                                    <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
-                                                        <Text color={tableTextColorSecondary}>
-                                                            {stockList.length === 0
-                                                                ? "No stock items available."
-                                                                : "No stock items match your filter criteria."}
-                                                        </Text>
-                                                    </Td>
-                                                </Tr>
-                                            ) : (
-                                                displayedItems.map((item, index) => {
-                                                    const statusStyle = getStatusStyle(item.stock_status);
-                                                    const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
-                                                    const itemId = item.id || item.stock_item_id;
-                                                    return (
-                                                        <Tr key={itemId} bg={rowBg}>
-                                                            <Td {...cellProps} bg={rowBg} w="40px">
-                                                                <Checkbox
-                                                                    isChecked={clientViewSelectedRows.has(itemId)}
-                                                                    onChange={() => handleClientViewRowToggle(itemId)}
-                                                                    colorScheme="blue"
-                                                                />
-                                                            </Td>
-                                                            {clientViewFilterType === 'filter1' ? (
-                                                                <>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}>
-                                                                        <Badge
-                                                                            colorScheme={statusStyle.color}
-                                                                            size="sm"
-                                                                            borderRadius="full"
-                                                                            px="3"
-                                                                            py="1"
-                                                                            bg={statusStyle.bgColor}
-                                                                            color={statusStyle.textColor}
-                                                                        >
-                                                                            {getStatusLabel(item.stock_status)}
-                                                                        </Badge>
-                                                                    </Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}>
-                                                                        <IconButton
-                                                                            aria-label="Print row"
-                                                                            icon={<MdPrint />}
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={() => handlePrintClientViewRow(item)}
-                                                                        />
-                                                                    </Td>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                                                    <Td {...cellProps} bg={rowBg}>
-                                                                        <Badge
-                                                                            colorScheme={statusStyle.color}
-                                                                            size="sm"
-                                                                            borderRadius="full"
-                                                                            px="3"
-                                                                            py="1"
-                                                                            bg={statusStyle.bgColor}
-                                                                            color={statusStyle.textColor}
-                                                                        >
-                                                                            {getStatusLabel(item.stock_status)}
-                                                                        </Badge>
-                                                                    </Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                    <Td {...cellProps} bg={rowBg}>
-                                                                        <IconButton
-                                                                            aria-label="Print row"
-                                                                            icon={<MdPrint />}
-                                                                            size="sm"
-                                                                            variant="ghost"
-                                                                            colorScheme="blue"
-                                                                            onClick={() => handlePrintClientViewRow(item)}
-                                                                        />
-                                                                    </Td>
-                                                                </>
-                                                            )}
-                                                        </Tr>
-                                                    );
-                                                })
-                                            )}
-                                        </Tbody>
-                                    </Table>
+                                            <Tbody>
+                                                {isLoading && stockList.length === 0 ? (
+                                                    <Tr>
+                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
+                                                            <Box visibility="hidden" h="100px" />
+                                                        </Td>
+                                                    </Tr>
+                                                ) : (
+                                                    displayedItems.map((item, index) => {
+                                                        const statusStyle = getStatusStyle(item.stock_status);
+                                                        const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
+                                                        const itemId = item.id || item.stock_item_id;
+                                                        return (
+                                                            <Tr key={itemId} bg={rowBg}>
+                                                                <Td {...cellProps} bg={rowBg} w="40px">
+                                                                    <Checkbox
+                                                                        isChecked={clientViewSelectedRows.has(itemId)}
+                                                                        onChange={() => handleClientViewRowToggle(itemId)}
+                                                                        colorScheme="blue"
+                                                                    />
+                                                                </Td>
+                                                                {clientViewFilterType === 'filter1' ? (
+                                                                    <>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <Badge
+                                                                                colorScheme={statusStyle.color}
+                                                                                size="sm"
+                                                                                borderRadius="full"
+                                                                                px="3"
+                                                                                py="1"
+                                                                                bg={statusStyle.bgColor}
+                                                                                color={statusStyle.textColor}
+                                                                            >
+                                                                                {getStatusLabel(item.stock_status)}
+                                                                            </Badge>
+                                                                        </Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <IconButton
+                                                                                aria-label="Print row"
+                                                                                icon={<MdPrint />}
+                                                                                size="sm"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={() => handlePrintClientViewRow(item)}
+                                                                            />
+                                                                        </Td>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <Badge
+                                                                                colorScheme={statusStyle.color}
+                                                                                size="sm"
+                                                                                borderRadius="full"
+                                                                                px="3"
+                                                                                py="1"
+                                                                                bg={statusStyle.bgColor}
+                                                                                color={statusStyle.textColor}
+                                                                            >
+                                                                                {getStatusLabel(item.stock_status)}
+                                                                            </Badge>
+                                                                        </Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <IconButton
+                                                                                aria-label="Print row"
+                                                                                icon={<MdPrint />}
+                                                                                size="sm"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={() => handlePrintClientViewRow(item)}
+                                                                            />
+                                                                        </Td>
+                                                                    </>
+                                                                )}
+                                                            </Tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </Tbody>
+                                        </Table>
+                                    )}
                                 </Box>
 
                                 {/* Pagination Controls for Client View */}
@@ -5342,8 +5337,42 @@ export default function Stocks() {
                                     </VStack>
                                 </Box>
                             )}
-                            <Table variant="unstyled" size="sm" ml="25px">
-                                {(!isLoading || stockList.length > 0) && (
+                            {!isLoading && filteredAndSortedStock.length === 0 ? (
+                                <Center py="80px" px="25px">
+                                    <VStack
+                                        spacing="5"
+                                        maxW="400px"
+                                        p="8"
+                                        bg={useColorModeValue("gray.50", "gray.800")}
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor={borderColor}
+                                    >
+                                        <Icon as={MdInventory2} boxSize="16" color={useColorModeValue("gray.400", "gray.500")} />
+                                        <VStack spacing="1">
+                                            <Text color={tableTextColor} fontSize="lg" fontWeight="600">
+                                                No stock items found
+                                            </Text>
+                                            <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
+                                                {(() => {
+                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
+                                                    if (activeTab === 0) {
+                                                        return hasStockViewFilters
+                                                            ? "Try adjusting your filters or status selections to see more results."
+                                                            : "No stock items are available yet.";
+                                                    } else {
+                                                        return hasClientViewFilters
+                                                            ? "Try adjusting your filters or status selections to see more results."
+                                                            : "No stock items are available yet.";
+                                                    }
+                                                })()}
+                                            </Text>
+                                        </VStack>
+                                    </VStack>
+                                </Center>
+                            ) : (
+                                <Table variant="unstyled" size="sm" ml="25px">
                                     <Thead bg={tableHeaderBg}>
                                         <Tr>
                                             <Th
@@ -5454,53 +5483,10 @@ export default function Stocks() {
                                             )}
                                         </Tr>
                                     </Thead>
-                                )}
-                                <Tbody>
-                                    {isLoading && stockList.length === 0 ? (
-                                        <Tr>
-                                            <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
-                                                <Box visibility="hidden" h="100px">
-                                                    {/* Placeholder to maintain table structure */}
-                                                </Box>
-                                            </Td>
-                                        </Tr>
-                                    ) : paginatedStock.length === 0 ? (
-                                        <Tr>
-                                            <Td colSpan={activeTab === 0 ? 20 : 33} textAlign="center" py="40px">
-                                                <Text color={tableTextColorSecondary}>
-                                                    {stockList.length === 0
-                                                        ? "No stock items available."
-                                                        : "No stock items match your filter criteria."}
-                                                </Text>
-                                            </Td>
-                                        </Tr>
-                                    ) : (
-                                        renderTableRows(paginatedStock)
-                                    )}
-                                </Tbody>
-                            </Table>
-
-                            {!isLoading && filteredAndSortedStock.length === 0 && (
-                                <Box textAlign="center" py="16" px="25px">
-                                    <VStack spacing="4">
-                                        <Text color={tableTextColor} fontSize="lg" fontWeight="600">
-                                            No stock items found
-                                        </Text>
-                                        <Text color={tableTextColorSecondary} fontSize="sm" maxW="520px">
-                                            {(() => {
-                                                if (activeTab === 0) {
-                                                    return (vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0)
-                                                        ? "Try adjusting your filters to see more results."
-                                                        : "No stock items found.";
-                                                } else {
-                                                    return (clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0)
-                                                        ? "Try adjusting your filters to see more results."
-                                                        : "No stock items found.";
-                                                }
-                                            })()}
-                                        </Text>
-                                    </VStack>
-                                </Box>
+                                    <Tbody>
+                                        {renderTableRows(paginatedStock)}
+                                    </Tbody>
+                                </Table>
                             )}
                         </Box>
 

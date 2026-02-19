@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -29,7 +29,6 @@ import { useHistory, useLocation, useParams } from "react-router-dom";
 
 import Card from "components/card/Card";
 import vesselsAPI from "../../../api/vessels";
-import { getCustomersApi } from "../../../api/customer";
 
 const prettyValue = (value) => {
   if (value === null || value === undefined || value === "") {
@@ -43,7 +42,6 @@ const VesselDetail = () => {
   const history = useHistory();
   const location = useLocation();
   const [vessel, setVessel] = useState(null);
-  const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
@@ -132,20 +130,6 @@ const VesselDetail = () => {
 
     loadVessel();
   }, [id, location.state, toast]);
-
-  // Load customers for client name lookup
-  useEffect(() => {
-    const loadCustomers = async () => {
-      try {
-        const customersResponse = await getCustomersApi();
-        const customersData = customersResponse.customers || customersResponse;
-        setCustomers(Array.isArray(customersData) ? customersData : []);
-      } catch (error) {
-        console.error("Error loading customers:", error);
-      }
-    };
-    loadCustomers();
-  }, []);
 
   const handlePrint = () => {
     window.print();
@@ -258,11 +242,10 @@ const VesselDetail = () => {
     history.push(`/admin/configurations/vessels`, { vessel, editMode: true });
   };
 
-  const clientName = useMemo(() => {
-    if (!vessel || !vessel.client_id) return "-";
-    const customer = customers.find(c => c.id === vessel.client_id);
-    return customer ? (customer.name || customer.company_name || `Customer ${customer.id}`) : "-";
-  }, [vessel, customers]);
+  const clientName =
+    vessel?.client_id && typeof vessel.client_id === "object"
+      ? (vessel.client_id.name || "-")
+      : (vessel?.client_id != null && vessel.client_id !== "" ? String(vessel.client_id) : "-");
 
   const attachments = vessel?.attachments || [];
 

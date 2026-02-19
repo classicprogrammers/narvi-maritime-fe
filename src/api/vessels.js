@@ -29,6 +29,11 @@ export const getVessels = async (params = {}) => {
     if (params.sort_order != null && String(params.sort_order).trim() !== "") {
       requestParams.sort_order = String(params.sort_order).trim();
     }
+    const clientId = params.client_id;
+    if (clientId != null && clientId !== "") {
+      requestParams.client_id = clientId;
+    }
+    requestParams.is_client = true;
 
     const response = await axios.get('/api/vessels', { params: requestParams });
     const data = response.data || response;
@@ -81,7 +86,7 @@ export const getVesselById = async (vesselId) => {
   try {
     const id = vesselId == null || vesselId === "" ? null : String(vesselId).trim();
     if (!id) return null;
-    const response = await axios.get(`/api/vessels/${id}`);
+    const response = await axios.get(`/api/vessels/${id}`, { params: { is_client: true } });
     const data = response.data || response;
     if (data.status === "error") {
       throw new Error(data.message || "Failed to fetch vessel");
@@ -102,6 +107,7 @@ export const getVessel = async (vesselId) => {
   try {
     const response = await axios.post('/api/vessel', {
       vessel_id: vesselId,
+      is_client: true,
     });
     return response.data;
   } catch (error) {
@@ -115,7 +121,7 @@ export const getVessel = async (vesselId) => {
  */
 export const getVesselTypes = async () => {
   try {
-    const response = await axios.get('/api/vessels/type');
+    const response = await axios.get('/api/vessels/type', { params: { is_client: true } });
 
     // Be flexible with possible response shapes
     const data = response.data;
@@ -144,6 +150,7 @@ export const createVessel = async (vesselData) => {
       current_user: getCurrentUserId(),
       name: vesselData.name,
       client_id: vesselData.client_id,
+      is_client: true,
       imo: vesselData.imo || "",
       vessel_type: vesselData.vessel_type || "",
       // Ensure status is always sent; default to "active" if missing
@@ -212,6 +219,7 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
     const payload = {
       vessel_id: vesselId,
       current_user: getCurrentUserId(),
+      is_client: true,
     };
 
     // Only include fields that have changed (if originalVesselData is provided)
@@ -282,6 +290,7 @@ export const deleteVessel = async (id) => {
     const response = await axios.post(`/api/vessel/delete`, {
       vessel_id: id,
       current_user: getCurrentUserId(),
+      is_client: true,
     });
     return { result: response.data };
   } catch (error) {

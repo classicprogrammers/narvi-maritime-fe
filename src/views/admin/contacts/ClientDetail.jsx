@@ -110,6 +110,7 @@ const peopleTableColumns = [
   { key: "tel_other", label: "Tel other" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "remarks", label: "Remark" },
+  { key: "attachments", label: "Attachments" },
 ];
 
 const ClientDetail = () => {
@@ -130,9 +131,10 @@ const ClientDetail = () => {
   const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
   const [loadingAttachmentId, setLoadingAttachmentId] = useState(null);
 
-  // View: call /api/customers/{id}/attachments/{attachmentId} and open in new tab
-  const handleViewAttachment = async (att) => {
-    if (!client?.id || !att?.id) {
+  // View: use childId for client people attachments, client.id for main customer attachments
+  const handleViewAttachment = async (att, childId = null) => {
+    const entityId = childId != null && childId !== "" ? childId : client?.id;
+    if (!entityId || !att?.id) {
       toast({ title: "Cannot view", description: "Client or attachment ID missing.", status: "warning", duration: 2000, isClosable: true });
       return;
     }
@@ -143,7 +145,7 @@ const ClientDetail = () => {
     }
     try {
       setLoadingAttachmentId(att.id);
-      const response = await getCustomerAttachmentApi(client.id, att.id, false);
+      const response = await getCustomerAttachmentApi(entityId, att.id, false);
       if (response?.data instanceof Blob) {
         const fileUrl = URL.createObjectURL(response.data);
         window.open(fileUrl, "_blank", "noopener,noreferrer");
@@ -157,9 +159,10 @@ const ClientDetail = () => {
     }
   };
 
-  // Download: call /api/customers/{id}/attachments/{attachmentId}?download=true and trigger download
-  const handleDownloadAttachment = async (att) => {
-    if (!client?.id || !att?.id) {
+  // Download: use childId for client people attachments, client.id for main customer attachments
+  const handleDownloadAttachment = async (att, childId = null) => {
+    const entityId = childId != null && childId !== "" ? childId : client?.id;
+    if (!entityId || !att?.id) {
       if (att?.datas) {
         const url = `data:${att.mimetype || "application/octet-stream"};base64,${att.datas}`;
         const link = document.createElement("a");
@@ -187,7 +190,7 @@ const ClientDetail = () => {
     }
     try {
       setLoadingAttachmentId(att.id);
-      const response = await getCustomerAttachmentApi(client.id, att.id, true);
+      const response = await getCustomerAttachmentApi(entityId, att.id, true);
       if (response?.data instanceof Blob) {
         const filename = response.filename || att.filename || att.name || "download";
         const url = URL.createObjectURL(response.data);
@@ -642,24 +645,70 @@ const ClientDetail = () => {
                           </Td>
                         </Tr>
                       ) : (
-                        clientPeople.map((person, rowIndex) => (
-                          <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
-                            {peopleTableColumns.map((column) => (
-                              <Td key={column.key} minW="170px" px={3} py={2}>
-                                <Text
-                                  fontSize="sm"
-                                  color={valueColor}
-                                  whiteSpace={column.key === "remarks" ? "pre-wrap" : "normal"}
-                                  wordBreak="break-word"
-                                  overflow="visible"
-                                  width="100%"
-                                >
-                                  {prettyValue(person[column.key])}
-                                </Text>
-                              </Td>
-                            ))}
-                          </Tr>
-                        ))
+                        clientPeople.map((person, rowIndex) => {
+                          const rawChild = Array.isArray(client.children) && client.children[rowIndex] ? client.children[rowIndex] : null;
+                          const childAttachments = rawChild?.attachments && Array.isArray(rawChild.attachments) ? rawChild.attachments : [];
+                          const childId = rawChild?.id;
+                          return (
+                            <Tr key={rowIndex} bg={rowIndex % 2 === 0 ? rowEvenBg : "transparent"}>
+                              {peopleTableColumns.map((column) => {
+                                if (column.key === "attachments") {
+                                  return (
+                                    <Td key={column.key} minW="170px" px={3} py={2}>
+                                      {childAttachments.length > 0 ? (
+                                        <Stack spacing={1}>
+                                          {childAttachments.map((att, attIdx) => (
+                                            <Flex key={att.id || attIdx} align="center" justify="space-between" gap={1} fontSize="sm">
+                                              <Text isTruncated flex={1} title={att.filename || att.name}>
+                                                {att.filename || att.name || "File"}
+                                              </Text>
+                                              <HStack spacing={0} className="no-print">
+                                                <IconButton
+                                                  aria-label="View"
+                                                  icon={<Icon as={MdVisibility} />}
+                                                  size="xs"
+                                                  variant="ghost"
+                                                  colorScheme="blue"
+                                                  onClick={() => handleViewAttachment(att, childId)}
+                                                  isLoading={loadingAttachmentId === att.id}
+                                                />
+                                                <IconButton
+                                                  aria-label="Download"
+                                                  icon={<Icon as={MdDownload} />}
+                                                  size="xs"
+                                                  variant="ghost"
+                                                  colorScheme="blue"
+                                                  onClick={() => handleDownloadAttachment(att, childId)}
+                                                  isLoading={loadingAttachmentId === att.id}
+                                                />
+                                              </HStack>
+                                            </Flex>
+                                          ))}
+                                        </Stack>
+                                      ) : (
+                                        <Text fontSize="sm" color={labelColor}>-</Text>
+                                      )}
+                                    </Td>
+                                  );
+                                }
+                                return (
+                                  <Td key={column.key} minW="170px" px={3} py={2}>
+                                    <Text
+                                      fontSize="sm"
+                                      color={valueColor}
+                                      whiteSpace={column.key === "remarks" ? "pre-wrap" : "normal"}
+                                      wordBreak="break-word"
+                                      overflow="visible"
+                                      width="100%"
+                                    >
+                                      {prettyValue(person[column.key])}
+                                    </Text>
+                                  </Td>
+                                );
+                              })}
+                            </Tr>
+                          );
+                        })
                       )}
                     </Tbody>
                   </Table>
@@ -673,35 +722,58 @@ const ClientDetail = () => {
                     </Box>
                   ) : (
                     <Stack spacing={6}>
-                      {clientPeople.map((person, personIndex) => (
-                        <Box key={personIndex} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
-                          <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
-                            {peopleTableColumns.map((column, idx) => {
-                              const addRightBorder = idx % 2 === 0;
-                              return (
+                      {clientPeople.map((person, personIndex) => {
+                        const rawChild = Array.isArray(client.children) && client.children[personIndex] ? client.children[personIndex] : null;
+                        const childAttachments = rawChild?.attachments && Array.isArray(rawChild.attachments) ? rawChild.attachments : [];
+                        return (
+                          <Box key={personIndex} border="1px solid" borderColor={borderColor} borderRadius="md" overflow="hidden">
+                            <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={0}>
+                              {peopleTableColumns.filter((c) => c.key !== "attachments").map((column, idx) => {
+                                const addRightBorder = idx % 2 === 0;
+                                return (
+                                  <GridItem
+                                    key={column.key}
+                                    px={4}
+                                    py={2}
+                                    borderColor={borderColor}
+                                    borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                                    display="flex"
+                                    justifyContent="space-between"
+                                    alignItems="center"
+                                    gap={2}
+                                  >
+                                    <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
+                                      {column.label}
+                                    </Text>
+                                    <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
+                                      {prettyValue(person[column.key])}
+                                    </Text>
+                                  </GridItem>
+                                );
+                              })}
+                              {childAttachments.length > 0 && (
                                 <GridItem
-                                  key={column.key}
                                   px={4}
                                   py={2}
                                   borderColor={borderColor}
-                                  borderRight={{ base: "none", md: addRightBorder ? `1px solid ${borderColor}` : "none" }}
+                                  borderTop="1px solid"
+                                  colSpan={{ base: 1, md: 2 }}
                                   display="flex"
-                                  justifyContent="space-between"
-                                  alignItems="center"
-                                  gap={2}
+                                  flexDirection="column"
+                                  gap={1}
                                 >
                                   <Text fontSize="xs" fontWeight="600" color={labelColor} textTransform="uppercase">
-                                    {column.label}
+                                    Attachments
                                   </Text>
-                                  <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                    {prettyValue(person[column.key])}
+                                  <Text fontSize="sm" color={valueColor}>
+                                    {childAttachments.map((a) => a.filename || a.name || "File").join(", ")}
                                   </Text>
                                 </GridItem>
-                              );
-                            })}
-                          </Grid>
-                        </Box>
-                      ))}
+                              )}
+                            </Grid>
+                          </Box>
+                        );
+                      })}
                     </Stack>
                   )}
                 </Box>

@@ -1,6 +1,5 @@
 import destinationsAPI from './destinations';
-import vesselsAPI from './vessels';
-import { getCustomersApi } from './customer';
+import { getCached, MASTER_KEYS } from '../utils/masterDataCache';
 
 // Cache for storing lookup data
 const lookupCache = {
@@ -30,17 +29,17 @@ export const getEntityName = async (entityType, id) => {
                 name = destination?.name || `Destination ${id}`;
                 break;
 
-            case 'vessels':
-                // Fetch all vessels and filter
-                const vesselResponse = await vesselsAPI.getVessels();
-                const vessel = vesselResponse.vessels?.find(v => v.id === id);
+            case 'vessels': {
+                const vesselsList = getCached(MASTER_KEYS.VESSELS) ?? [];
+                const vessel = Array.isArray(vesselsList) ? vesselsList.find(v => v.id === id) : null;
                 name = vessel?.name || `Vessel ${id}`;
                 break;
+            }
 
             case 'customers':
-                const customersResponse = await getCustomersApi();
-                const customer = customersResponse.customers?.find(c => c.id === id);
-                name = customer?.name || `Customer ${id}`;
+                const customersList = getCached(MASTER_KEYS.CLIENTS) ?? [];
+                const customer = Array.isArray(customersList) ? customersList.find(c => c.id === id) : null;
+                name = customer?.name || customer?.company_name || `Customer ${id}`;
                 break;
 
             case 'users':
@@ -111,25 +110,30 @@ export const getEntityNames = async (entityType, ids) => {
                     });
                     break;
 
-                case 'vessels':
-                    response = await vesselsAPI.getVessels();
-                    response.vessels?.forEach(vessel => {
+                case 'vessels': {
+                    const vesselsList = getCached(MASTER_KEYS.VESSELS) ?? [];
+                    const list = Array.isArray(vesselsList) ? vesselsList : [];
+                    list.forEach(vessel => {
                         if (uncachedIds.includes(vessel.id)) {
-                            results[vessel.id] = vessel.name;
-                            cache?.set(vessel.id, vessel.name);
+                            results[vessel.id] = vessel.name || `Vessel ${vessel.id}`;
+                            cache?.set(vessel.id, vessel.name || `Vessel ${vessel.id}`);
                         }
                     });
                     break;
+                }
 
-                case 'customers':
-                    response = await getCustomersApi();
-                    response.customers?.forEach(customer => {
+                case 'customers': {
+                    const customersList = getCached(MASTER_KEYS.CLIENTS) ?? [];
+                    const list = Array.isArray(customersList) ? customersList : [];
+                    list.forEach(customer => {
                         if (uncachedIds.includes(customer.id)) {
-                            results[customer.id] = customer.name;
-                            cache?.set(customer.id, customer.name);
+                            const customerName = customer.name || customer.company_name || `Customer ${customer.id}`;
+                            results[customer.id] = customerName;
+                            cache?.set(customer.id, customerName);
                         }
                     });
                     break;
+                }
 
                 default:
                     // Set fallback names for unknown entity types

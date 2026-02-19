@@ -38,8 +38,9 @@ import {
     Tooltip,
     Grid,
     Collapse,
+    Center,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear } from "react-icons/md";
+import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear, MdInventory2 } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
@@ -1488,7 +1489,7 @@ export default function StockList() {
                                         </HStack>
                                         <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                             {/* Client Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1519,7 +1520,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Vessel Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1550,7 +1551,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Supplier Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1581,7 +1582,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Status Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <Select
@@ -1619,7 +1620,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Warehouse Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1650,7 +1651,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Currency Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1690,7 +1691,7 @@ export default function StockList() {
                                     <Box>
                                         <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                             {/* SO Number Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
                                                         <Input
@@ -1717,7 +1718,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* SI Number Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
                                                         <Input
@@ -1744,7 +1745,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* SI Combined Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
                                                         <Input
@@ -1771,7 +1772,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* DI Number Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
                                                         <Input
@@ -1798,7 +1799,7 @@ export default function StockList() {
                                             </Box>
 
                                             {/* Hub Filter */}
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <Box flex="1">
                                                         <SimpleSearchableSelect
@@ -1826,7 +1827,7 @@ export default function StockList() {
                                                     )}
                                                 </HStack>
                                             </Box>
-                                            <Box w="220px">
+                                            <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
                                                         <InputLeftElement pointerEvents="none">
@@ -1969,14 +1970,24 @@ export default function StockList() {
                             </VStack>
                         </Box>
                     )}
+                    {!isLoading && filteredAndSortedStock.length === 0 ? (
+                        <Center py="80px" px="25px">
+                            <VStack spacing="4" maxW="400px" p="6" bg={useColorModeValue("gray.50", "gray.800")} borderRadius="lg" border="1px" borderColor={useColorModeValue("gray.200", "gray.700")}>
+                                <Icon as={MdInventory2} boxSize="14" color={useColorModeValue("gray.400", "gray.500")} />
+                                <Text color={tableTextColor} fontWeight="600">{stockList.length === 0 ? "No stock items available." : "No stock items match your filter criteria."}</Text>
+                                {stockList.length > 0 && (
+                                    <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">Try adjusting your filters to see more results.</Text>
+                                )}
+                            </VStack>
+                        </Center>
+                    ) : (
                     <Table
                         variant="unstyled"
                         size="sm"
                         minW="5000px"
                         ml="25px"
                     >
-                        {(!isLoading || stockList.length > 0) && (
-                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
+                        <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
                                         <Checkbox
@@ -2083,24 +2094,11 @@ export default function StockList() {
                                     <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
                             </Thead>
-                        )}
                         <Tbody>
                             {isLoading && stockList.length === 0 ? (
                                 <Tr>
                                     <Td colSpan={45} textAlign="center" py="40px">
-                                        <Box visibility="hidden" h="100px">
-                                            {/* Placeholder to maintain table structure */}
-                                        </Box>
-                                    </Td>
-                                </Tr>
-                            ) : filteredAndSortedStock.length === 0 ? (
-                                <Tr>
-                                    <Td colSpan={45} textAlign="center" py="40px">
-                                        <Text color={tableTextColorSecondary}>
-                                            {stockList.length === 0
-                                                ? "No stock items available."
-                                                : "No stock items match your filter criteria."}
-                                        </Text>
+                                        <Box visibility="hidden" h="100px" />
                                     </Td>
                                 </Tr>
                             ) : (
@@ -2272,6 +2270,7 @@ export default function StockList() {
                             )}
                         </Tbody>
                     </Table>
+                    )}
                 </Box>
 
                 {/* Pagination Controls - outside table scroll so always visible */}

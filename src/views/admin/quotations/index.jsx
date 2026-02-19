@@ -58,9 +58,8 @@ import {
     MdKeyboardArrowDown,
 } from "react-icons/md";
 import quotationsAPI from "../../../api/quotations";
-import { getCustomersApi } from "../../../api/customer";
 import { useHistory } from "react-router-dom";
-import vesselsAPI from "../../../api/vessels";
+import { useMasterData } from "../../../hooks/useMasterData";
 import api from "../../../api/axios";
 import uomAPI from "../../../api/uom";
 import currenciesAPI from "../../../api/currencies";
@@ -169,15 +168,13 @@ const SearchableSelect = ({
 export default function Quotations() {
     const history = useHistory();
     const [quotations, setQuotations] = useState([]);
-    const [customers, setCustomers] = useState([]);
-    const [vessels, setVessels] = useState([]);
+    const { clients: customers, agents, vessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(false);
     const [editingQuotation, setEditingQuotation] = useState(null);
     const [originalQuotationData, setOriginalQuotationData] = useState(null);
 
     // Master data for quotation lines
     const [rateItems, setRateItems] = useState([]);
-    const [agents, setAgents] = useState([]);
     const [uomList, setUomList] = useState([]);
     const [currenciesList, setCurrenciesList] = useState([]);
     const [locationsList, setLocationsList] = useState([]);
@@ -292,37 +289,6 @@ export default function Quotations() {
         }
     }, [toast]);
 
-    // Fetch customers
-    const fetchCustomers = useCallback(async () => {
-        try {
-            const response = await getCustomersApi();
-            if (response.customers && Array.isArray(response.customers)) {
-                setCustomers(response.customers);
-            } else {
-                setCustomers([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch customers:", error);
-            setCustomers([]);
-            // Don't show toast for customers as it's not critical
-        }
-    }, []);
-
-    // Fetch vessels
-    const fetchVessels = useCallback(async () => {
-        try {
-            const response = await vesselsAPI.getVessels();
-            if (response.vessels && Array.isArray(response.vessels)) {
-                setVessels(response.vessels);
-            } else {
-                setVessels([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch vessels:", error);
-            setVessels([]);
-        }
-    }, []);
-
     // Fetch rate items (products)
     const fetchRateItems = useCallback(async () => {
         try {
@@ -336,26 +302,6 @@ export default function Quotations() {
         } catch (error) {
             console.error("Failed to fetch rate items:", error);
             setRateItems([]);
-        }
-    }, []);
-
-    // Fetch agents (from /api/agents instead of /api/vendor/list)
-    const fetchAgents = useCallback(async () => {
-        try {
-            const response = await api.get("/api/agents");
-            const result = response.data;
-            if (result.vendors && Array.isArray(result.vendors)) {
-                setAgents(result.vendors);
-            } else if (result.agents && Array.isArray(result.agents)) {
-                setAgents(result.agents);
-            } else if (Array.isArray(result)) {
-                setAgents(result);
-            } else {
-                setAgents([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch agents:", error);
-            setAgents([]);
         }
     }, []);
 
@@ -397,12 +343,9 @@ export default function Quotations() {
     // Fetch data on component mount
     useEffect(() => {
         fetchQuotations();
-        fetchCustomers();
-        fetchVessels();
         fetchRateItems();
-        fetchAgents();
         fetchMasterData();
-    }, [fetchQuotations, fetchCustomers, fetchVessels, fetchRateItems, fetchAgents, fetchMasterData]);
+    }, [fetchQuotations, fetchRateItems, fetchMasterData]);
 
     // Handler functions
 

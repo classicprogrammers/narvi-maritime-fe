@@ -67,6 +67,7 @@ import {
 } from "react-icons/md";
 
 import api from "../../../api/axios";
+import { useMasterData } from "../../../hooks/useMasterData";
 import uomAPI from "../../../api/uom";
 import currenciesAPI from "../../../api/currencies";
 import locationsAPI from "../../../api/locations";
@@ -228,8 +229,7 @@ export default function RateList() {
     // Rate items state - will be populated from API
     const [rateItems, setRateItems] = useState([]);
 
-    // Vendors state for seller dropdown
-    const [vendors, setVendors] = useState([]);
+    const { agents: vendors } = useMasterData();
 
     // Master data states
     const [uomList, setUomList] = useState([]);
@@ -243,27 +243,6 @@ export default function RateList() {
     const inputBg = useColorModeValue("white", "gray.700");
     const inputText = useColorModeValue("gray.700", "white");
     const borderColor = useColorModeValue("gray.200", "gray.600");
-
-    // Fetch vendors/agents for seller dropdown (agents API)
-    const fetchVendors = async () => {
-        try {
-            const response = await api.get("/api/agents");
-            const result = response.data;
-
-            if (result.vendors && Array.isArray(result.vendors)) {
-                setVendors(result.vendors);
-            } else if (result.agents && Array.isArray(result.agents)) {
-                setVendors(result.agents);
-            } else if (Array.isArray(result)) {
-                setVendors(result);
-            } else {
-                setVendors([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch vendors/agents:", error);
-            setVendors([]);
-        }
-    };
 
     // Fetch master data
     const fetchMasterData = async () => {
@@ -511,7 +490,6 @@ export default function RateList() {
     // Load products, vendors and master data on component mount
     useEffect(() => {
         fetchProducts();
-        fetchVendors();
         fetchMasterData();
     }, [fetchProducts]);
 
