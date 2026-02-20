@@ -228,6 +228,14 @@ function CustomerRegistration() {
     const [vesselTypes, setVesselTypes] = React.useState([]);
     const [isLoadingVesselTypes, setIsLoadingVesselTypes] = React.useState(false);
     const [isLoadingAttachment, setIsLoadingAttachment] = React.useState(false);
+    const vesselTypeOptionValues = React.useMemo(() => {
+        const values = Array.isArray(vesselTypes)
+            ? vesselTypes
+                .map((item) => (item?.vessel_type != null ? String(item.vessel_type).trim() : ""))
+                .filter((v) => v !== "")
+            : [];
+        return Array.from(new Set(values));
+    }, [vesselTypes]);
 
     const [visibleAddressFields, setVisibleAddressFields] = React.useState(2);
 
@@ -1410,15 +1418,13 @@ function CustomerRegistration() {
                                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type</Text>
                                                         <Flex gap={2} alignItems="center" w={gridInputWidth}>
                                                             <Box flex="1">
-                                                                <SearchableSelect
+                                                                <Input
+                                                                    name="vessel_type1"
                                                                     value={formData.vessel_type1}
-                                                                    onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type1: val }))}
-                                                                    options={vesselTypes || []}
-                                                                    placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
-                                                                    displayKey="vessel_type"
-                                                                    valueKey="vessel_type"
-                                                                    formatOption={(option) => option?.vessel_type || ""}
-                                                                    isLoading={isLoadingVesselTypes}
+                                                                    onChange={handleInputChange}
+                                                                    placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Type or select vessel type"}
+                                                                    size="sm"
+                                                                    list="customer-vessel-type-options"
                                                                 />
                                                             </Box>
                                                             {visibleVesselTypeFields < 2 && (
@@ -1445,15 +1451,13 @@ function CustomerRegistration() {
                                                                 <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type 2</Text>
                                                                 <Flex gap={2} alignItems="center" w={gridInputWidth}>
                                                                     <Box flex="1">
-                                                                        <SearchableSelect
+                                                                        <Input
+                                                                            name="vessel_type2"
                                                                             value={formData.vessel_type2}
-                                                                            onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type2: val }))}
-                                                                            options={vesselTypes || []}
-                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
-                                                                            displayKey="vessel_type"
-                                                                            valueKey="vessel_type"
-                                                                            formatOption={(option) => option?.vessel_type || ""}
-                                                                            isLoading={isLoadingVesselTypes}
+                                                                            onChange={handleInputChange}
+                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Type or select vessel type"}
+                                                                            size="sm"
+                                                                            list="customer-vessel-type-options"
                                                                         />
                                                                     </Box>
                                                                     {visibleVesselTypeFields < 3 && (
@@ -1493,15 +1497,13 @@ function CustomerRegistration() {
                                                                 <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary}>Vessel Type 3</Text>
                                                                 <Flex gap={2} alignItems="center" w={gridInputWidth}>
                                                                     <Box flex="1">
-                                                                        <SearchableSelect
+                                                                        <Input
+                                                                            name="vessel_type3"
                                                                             value={formData.vessel_type3}
-                                                                            onChange={(val) => setFormData((prev) => ({ ...prev, vessel_type3: val }))}
-                                                                            options={vesselTypes || []}
-                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Select Vessel Type"}
-                                                                            displayKey="vessel_type"
-                                                                            valueKey="vessel_type"
-                                                                            formatOption={(option) => option?.vessel_type || ""}
-                                                                            isLoading={isLoadingVesselTypes}
+                                                                            onChange={handleInputChange}
+                                                                            placeholder={isLoadingVesselTypes ? "Loading vessel types..." : "Type or select vessel type"}
+                                                                            size="sm"
+                                                                            list="customer-vessel-type-options"
                                                                         />
                                                                     </Box>
                                                                     <IconButton
@@ -1519,6 +1521,11 @@ function CustomerRegistration() {
                                                             </Box>
                                                         </>
                                                     )}
+                                                    <datalist id="customer-vessel-type-options">
+                                                        {vesselTypeOptionValues.map((typeValue) => (
+                                                            <option key={typeValue} value={typeValue} />
+                                                        ))}
+                                                    </datalist>
 
                                                     {/* LEFT: Country / RIGHT: Remarks */}
                                                     <Box px={4} py={2} borderColor={borderColor} borderRight={{ base: "none", md: `1px solid ${borderColor}` }} display="flex" justifyContent="space-between" alignItems="center" gap={2}>

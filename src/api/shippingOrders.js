@@ -48,9 +48,9 @@ export const getShippingOrders = async (params = {}) => {
     const response = await api.get('/api/shipping/orders', {
       params: requestParams,
     });
-    
+
     const data = response.data || response;
-    
+
     // Check if response has error status (JSON-RPC format)
     if (data.result && data.result.status === 'error') {
       throw new Error(data.result.message || 'Failed to fetch shipping orders');
@@ -108,12 +108,12 @@ export const getShippingOrderById = async (id) => {
   try {
     // Backend expects POST /api/shipping/order with { id }
     const response = await api.post('/api/shipping/order', { id });
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to fetch shipping order');
     }
-    
+
     return response.data;
   } catch (error) {
     throw error;
@@ -124,12 +124,12 @@ export const getShippingOrderById = async (id) => {
 export const createShippingOrder = async (orderData) => {
   try {
     const response = await api.post('/api/create/shipping/order', orderData);
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to create shipping order');
     }
-    
+
     return response.data;
   } catch (error) {
     throw error;
@@ -184,8 +184,13 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
       return normalizedNew !== normalizedOld;
     };
 
-    // Build payload with only changed fields (backend expects order_id for update)
-    const payload = { order_id: id };
+    // Ensure numeric IDs are sent as numbers (not route-param strings)
+    const normalizedId =
+      typeof id === "string" && id.trim() !== "" && !Number.isNaN(Number(id))
+        ? Number(id)
+        : id;
+    // Build payload with only changed fields (backend expects id for update)
+    const payload = { id: normalizedId };
     const fieldsToCheck = [
       'done',
       'pic_new',
@@ -224,18 +229,18 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
     });
 
     // Only proceed if there are actual changes
-    if (Object.keys(payload).length === 1) { // Only has 'order_id'
+    if (Object.keys(payload).length === 1) { // Only has 'id'
       console.log("No changes detected, skipping update");
       return { result: { status: 'success', message: 'No changes detected' } };
     }
 
     const response = await api.post('/api/shipping/order/update', payload);
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to update shipping order');
     }
-    
+
     return response.data;
   } catch (error) {
     throw error;
@@ -246,12 +251,12 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
 export const deleteShippingOrder = async (id) => {
   try {
     const response = await api.post('/api/shipping/order/delete', { id });
-    
+
     // Check if response has error status (JSON-RPC format)
     if (response.data.result && response.data.result.status === 'error') {
       throw new Error(response.data.result.message || 'Failed to delete shipping order');
     }
-    
+
     return response.data;
   } catch (error) {
     throw error;
