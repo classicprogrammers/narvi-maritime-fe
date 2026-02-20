@@ -77,15 +77,20 @@ const SimpleSearchableSelect = ({
     } else {
       setFilteredOptions(options);
     }
-  }, [searchValue, options, formatOption]);
+  // Exclude formatOption from deps to avoid re-filtering/highlight resets on every parent render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue, options]);
 
-  // When dropdown opens or filtered options change, set highlighted index
+  // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
     if (isOpen) {
       const idx = filteredOptions.findIndex(opt => String(opt[valueKey]) === String(value));
       setHighlightedIndex(idx >= 0 ? idx : 0);
     }
-  }, [isOpen, value, valueKey, filteredOptions]);
+  // Intentionally exclude filteredOptions to avoid resetting highlighted item
+  // while navigating with keyboard after typing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, value, valueKey]);
 
   // Scroll highlighted item into view inside the dropdown only (avoid scrolling the page)
   useEffect(() => {
