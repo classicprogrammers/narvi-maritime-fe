@@ -1908,7 +1908,7 @@ const SoNumberTab = () => {
             </AlertDialogHeader>
 
             <AlertDialogBody>
-              Are you sure you want to delete {orderToDelete?.name || "this SO"}?
+              Are you sure you want to delete {orderToDelete?.so_number || (orderToDelete?.so_id != null ? `SO-${orderToDelete.so_id}` : "this SO")}?
               This action cannot be undone.
             </AlertDialogBody>
 

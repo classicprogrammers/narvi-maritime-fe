@@ -95,11 +95,24 @@ const agentInfoSections = [
       { label: "Warnings", key: "warnings" },
       { label: "PIC", key: "pic", formatter: (value, agent) => agent.pic || agent.agents_pic || value || "-" },
       { label: "DB ID", key: "id" },
-      { label: "Email1", key: "email" },
-      { label: "Email2", key: "email2" },
       { label: "Phone1", key: "phone" },
       { label: "Phone2", key: "phone2" },
       { label: "Website", key: "website" },
+      { label: "Address Type", key: "address_type", formatter: (_, agent) => agent.address_type || agent.agents_address_type || "-" },
+      { label: "Company Type Text", key: "company_type_text" },
+      {
+        label: "Vessel Types", key: "vessel_type", formatter: (_, agent) => {
+          const types = [
+            agent.vessel_type,
+            agent.vessel_type1,
+            agent.vessel_type2,
+            agent.vessel_type3
+          ].filter(v => v && typeof v === 'string' && v.trim() !== "");
+          return types.length > 0 ? types.join("\n") : "-";
+        }
+      },
+      { label: "Tariffs", key: "tariffs" },
+      { label: "Client Invoicing", key: "client_invoicing" },
       { label: "Remarks", key: "remarks" },
     ],
   },
@@ -505,10 +518,10 @@ const AgentDetail = () => {
     }
 
     const row = cneeRows[rowIndex];
-    
+
     // Only copy CNEE TEXT
-    const cneeText = row.cnee_text && String(row.cnee_text).trim() !== "" 
-      ? String(row.cnee_text).trim() 
+    const cneeText = row.cnee_text && String(row.cnee_text).trim() !== ""
+      ? String(row.cnee_text).trim()
       : "";
 
     if (!cneeText) {
@@ -760,6 +773,10 @@ const AgentDetail = () => {
                     "remarks",
                     "website",
                     "warnings",
+                    "company_type_text",
+                    "vessel_type",
+                    "tariffs",
+                    "client_invoicing",
                     "id", // DB ID
                   ];
 
@@ -776,6 +793,9 @@ const AgentDetail = () => {
                     if (key === "type_client" && !rawValue) {
                       rawValue = agent.agents_type || agent.type_client || "";
                     }
+                    if (key === "address_type" && !rawValue) {
+                      rawValue = agent.agents_address_type || agent.address_type || "";
+                    }
                     return rawValue;
                   };
 
@@ -787,6 +807,7 @@ const AgentDetail = () => {
                         const rawValue = getRawValue(item);
                         // Always show DB ID even if value is falsy
                         if (item.key === "id") return true;
+
                         const displayValue = prettyValue(rawValue);
                         return displayValue && displayValue !== "-" && displayValue !== "";
                       });
@@ -842,8 +863,8 @@ const AgentDetail = () => {
                       );
                     }
 
-                    // Special handling for remarks field - preserve line breaks for numbered lists
-                    if (key === "remarks") {
+                    // Special handling for remarks, client_invoicing, and vessel_type fields - preserve line breaks
+                    if (key === "remarks" || key === "client_invoicing" || key === "vessel_type" || key === "tariffs") {
                       return (
                         <Flex
                           key={key}

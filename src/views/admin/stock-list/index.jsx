@@ -73,6 +73,7 @@ function readPersistedStockMainDbState() {
             filterSI: typeof p.filterSI === "string" ? p.filterSI : "",
             filterSICombined: typeof p.filterSICombined === "string" ? p.filterSICombined : "",
             filterDI: typeof p.filterDI === "string" ? p.filterDI : "",
+            filterPO: typeof p.filterPO === "string" ? p.filterPO : "",
             sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
             sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
         };
@@ -105,6 +106,7 @@ const defaultStockMainDbState = {
     filterSI: "",
     filterSICombined: "",
     filterDI: "",
+    filterPO: "",
     sortBy: "id",
     sortOrder: "desc",
 };
@@ -187,6 +189,7 @@ export default function StockList() {
     const [filterSI, setFilterSI] = useState(savedState.filterSI);
     const [filterSICombined, setFilterSICombined] = useState(savedState.filterSICombined);
     const [filterDI, setFilterDI] = useState(savedState.filterDI);
+    const [filterPO, setFilterPO] = useState(savedState.filterPO);
     // Search state (searchFilter used as API param; no separate searchQuery)
     const [searchFilter, setSearchFilter] = useState(savedState.searchFilter);
 
@@ -217,10 +220,11 @@ export default function StockList() {
             filterSI,
             filterSICombined,
             filterDI,
+            filterPO,
             sortBy,
             sortOrder,
         });
-    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, sortBy, sortOrder]);
+    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortBy, sortOrder]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -294,20 +298,20 @@ export default function StockList() {
             sort_by: sortBy,
             sort_order: sortOrder,
             search: searchFilter?.trim() || undefined,
-            name: searchFilter?.trim() || undefined,
             client_id: getIdParam(selectedClient),
             vessel_id: getIdParam(selectedVessel),
             status: selectedStatus?.trim() || undefined,
-            so_number: filterSO?.trim() || undefined,
+            so_id: resolveSoFilterToId(filterSO),
             si_number: filterSI?.trim() || undefined,
             si_combined: filterSICombined?.trim() || undefined,
             di_no: filterDI?.trim() || undefined,
+            po_number: filterPO?.trim() || undefined,
             hub: hubParam != null ? String(hubParam).trim() : undefined,
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
@@ -325,7 +329,7 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI]);
+    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO]);
 
     // Fetch stock list on mount and when page or fetchTrigger changes
     useEffect(() => {
@@ -353,11 +357,6 @@ export default function StockList() {
         if (reduxHasPrevious !== undefined) setHasPrevious(reduxHasPrevious);
     }, [reduxTotalCount, reduxTotalPages, reduxHasNext, reduxHasPrevious, totalCount, totalPages]);
 
-    const handleClearSearch = () => {
-        setSearchFilter("");
-        setPage(1);
-    };
-
     // Restore filter state from location.state when returning from edit mode
     useEffect(() => {
         if (location.state && location.state.filterState) {
@@ -372,6 +371,7 @@ export default function StockList() {
             if (filterState.filterSI !== undefined) setFilterSI(filterState.filterSI);
             if (filterState.filterSICombined !== undefined) setFilterSICombined(filterState.filterSICombined);
             if (filterState.filterDI !== undefined) setFilterDI(filterState.filterDI);
+            if (filterState.filterPO !== undefined) setFilterPO(filterState.filterPO);
             if (filterState.searchFilter !== undefined) setSearchFilter(filterState.searchFilter);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
@@ -467,13 +467,31 @@ export default function StockList() {
 
     const getSoNumberNameFromNumber = (soNumber) => {
         if (!soNumber) return "-";
-        if (typeof soNumber === "object" && soNumber?.name != null) return String(soNumber.name);
-        if (typeof soNumber === "object" && soNumber?.id != null) return String(soNumber.id);
+        if (typeof soNumber === "object" && soNumber?.so_id != null) return `SO-${soNumber.so_id}`;
+        if (typeof soNumber === "object" && soNumber?.name != null) return ensureSoPrefix(soNumber.name);
+        if (typeof soNumber === "object" && soNumber?.id != null) return ensureSoPrefix(soNumber.id);
         const so = shippingOrders.find(s =>
+            (s.so_id != null && String(s.so_id) === String(soNumber)) ||
             String(s.so_number || s.name || "") === String(soNumber) ||
             String(s.id) === String(soNumber)
         );
-        return so ? (so.name || so.so_number || `SO ${soNumber}`) : `SO ${soNumber}`;
+        return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || soNumber)) : ensureSoPrefix(soNumber);
+    };
+
+    // Resolve SO filter value to id for API (backend expects so_id as the SO's id)
+    const resolveSoFilterToId = (filterValue) => {
+        if (!filterValue || (typeof filterValue === "string" && !filterValue.trim())) return undefined;
+        const val = typeof filterValue === "object" ? (filterValue?.id ?? filterValue?.value) : filterValue;
+        const str = String(val).trim();
+        if (!str) return undefined;
+        if (typeof filterValue === "object" && filterValue?.id != null) return filterValue.id;
+        const so = shippingOrders.find(s =>
+            String(s.id) === str ||
+            (s.so_id != null && String(s.so_id).toLowerCase().includes(str.toLowerCase())) ||
+            String(s.so_number || "").toLowerCase().includes(str.toLowerCase()) ||
+            String(s.name || "").toLowerCase().includes(str.toLowerCase())
+        );
+        return so ? so.id : (str.match(/^\d+$/) ? str : undefined);
     };
 
     // Helpers for API response format: { id, name } - display name, pass id for filtering/editing
@@ -578,7 +596,7 @@ export default function StockList() {
         if (filterSO) {
             const searchTerm = filterSO.toLowerCase().trim();
             filtered = filtered.filter(item => {
-                const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
+                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
                 const prefixed = addSOPrefix(soValue);
                 return String(prefixed || "").toLowerCase().includes(searchTerm);
             });
@@ -611,14 +629,23 @@ export default function StockList() {
             });
         }
 
-        // Note: General search is handled server-side via searchFilter (passed as search/name API params)
+        // Filter by PO Number
+        if (filterPO) {
+            const searchTerm = filterPO.toLowerCase().trim();
+            filtered = filtered.filter(item => {
+                const poValue = String(item.po_text || item.po_number || "").toLowerCase();
+                return poValue.includes(searchTerm);
+            });
+        }
+
+        // Note: General search is handled server-side via searchFilter (passed as search API param)
         // Keeping this commented for reference:
         /*
         if (searchFilter) {
             const searchTerm = searchFilter.toLowerCase().trim();
             filtered = filtered.filter(item => {
                 // Get SO, SI, SI Combined, DI with prefixes for search
-                const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
+                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
                 const soPrefixed = addSOPrefix(soValue);
                 const siValue = item.si_number || "";
                 const sicValue = item.si_combined || "";
@@ -679,9 +706,9 @@ export default function StockList() {
                 } else if (sortField === 'currency_id' || sortField === 'currency') {
                     aVal = getDisplayName(a.currency_id || a.currency);
                     bVal = getDisplayName(b.currency_id || b.currency);
-                } else if (sortField === 'so_number_id' || sortField === 'so_number') {
-                    aVal = a.so_number_id ? getSoNumberName(a.so_number_id) : (a.so_number || a.stock_so_number || "");
-                    bVal = b.so_number_id ? getSoNumberName(b.so_number_id) : (b.so_number || b.stock_so_number || "");
+                } else if (sortField === 'so_id' || sortField === 'so_number') {
+                    aVal = a.so_id ? getSoNumberName(a.so_id) : (a.stock_so_number ? getSoNumberNameFromNumber(a.stock_so_number) : ensureSoPrefix(a.so_number));
+                    bVal = b.so_id ? getSoNumberName(b.so_id) : (b.stock_so_number ? getSoNumberNameFromNumber(b.stock_so_number) : ensureSoPrefix(b.so_number));
                 } else if (sortField === 'origin_id' || sortField === 'origin_text') {
                     aVal = a.origin_text || getDisplayName(a.origin_id);
                     bVal = b.origin_text || getDisplayName(b.origin_id);
@@ -821,7 +848,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
 
     // Get selected items for the view modal
     const viewSelectedItems = useMemo(() => {
@@ -860,6 +887,7 @@ export default function StockList() {
                 filterSI,
                 filterSICombined,
                 filterDI,
+                filterPO,
                 searchFilter
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' };
@@ -948,17 +976,24 @@ export default function StockList() {
         return "-";
     };
 
+    const ensureSoPrefix = (val) => {
+        if (val == null || val === "" || val === false) return "-";
+        const str = String(val).replace(/^SO[- ]?/i, "").trim();
+        return str ? `SO-${str}` : "-";
+    };
+
     const getSoNumberName = (soId) => {
         if (!soId) return "-";
-        if (typeof soId === "object" && soId?.name != null) return String(soId.name);
-        if (typeof soId === "object" && soId?.id != null) return String(soId.id);
+        if (typeof soId === "object" && soId?.so_id != null) return `SO-${soId.so_id}`;
+        if (typeof soId === "object" && soId?.name != null) return ensureSoPrefix(soId.name);
+        if (typeof soId === "object" && soId?.id != null) return ensureSoPrefix(soId.id);
         const so = shippingOrders.find(s => String(s.id) === String(soId));
-        return so ? (so.so_number || so.name || `SO-${so.id}`) : `SO-${soId}`;
+        return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)) : ensureSoPrefix(soId);
     };
 
     const getSoStatus = (item) => {
-        if (item.so_number_id) {
-            const soId = typeof item.so_number_id === "object" ? item.so_number_id?.id : item.so_number_id;
+        if (item.so_id) {
+            const soId = typeof item.so_id === "object" ? item.so_id?.id : item.so_id;
             const so = shippingOrders.find(s => String(s.id) === String(soId));
             if (so && so.done) {
                 return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
@@ -967,6 +1002,7 @@ export default function StockList() {
         // Try to get from stock_so_number
         if (item.stock_so_number) {
             const so = shippingOrders.find(s =>
+                (s.so_id != null && String(s.so_id) === String(item.stock_so_number)) ||
                 String(s.so_number || s.name || "") === String(item.stock_so_number) ||
                 String(s.id) === String(item.stock_so_number)
             );
@@ -1377,6 +1413,32 @@ export default function StockList() {
                         </Text>
                     </HStack>
                     <HStack spacing="3">
+                        <InputGroup size="sm" w="220px" minW="180px">
+                            <InputLeftElement pointerEvents="none">
+                                <Icon as={MdSearch} color="gray.400" />
+                            </InputLeftElement>
+                            <Input
+                                value={searchFilter}
+                                onChange={(e) => setSearchFilter(e.target.value)}
+                                placeholder="Search all fields..."
+                                bg={inputBg}
+                                color={inputText}
+                                borderColor={borderColor}
+                                pl="9"
+                            />
+                            {searchFilter && (
+                                <InputRightElement>
+                                    <IconButton
+                                        size="xs"
+                                        icon={<Icon as={MdClose} />}
+                                        colorScheme="red"
+                                        variant="ghost"
+                                        onClick={() => setSearchFilter("")}
+                                        aria-label="Clear search all fields"
+                                    />
+                                </InputRightElement>
+                            )}
+                        </InputGroup>
                         <IconButton
                             size="sm"
                             icon={<Icon as={MdRefresh} />}
@@ -1417,7 +1479,7 @@ export default function StockList() {
                                                 <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter) && (
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || searchFilter) && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
@@ -1435,6 +1497,7 @@ export default function StockList() {
                                                             setFilterSI("");
                                                             setFilterSICombined("");
                                                             setFilterDI("");
+                                                            setFilterPO("");
                                                             setSearchFilter("");
                                                         }}
                                                     >
@@ -1821,35 +1884,30 @@ export default function StockList() {
                                                     )}
                                                 </HStack>
                                             </Box>
+                                            {/* PO Number Filter */}
                                             <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
                                                     <InputGroup size="sm">
-                                                        <InputLeftElement pointerEvents="none">
-                                                            <Icon as={MdSearch} color="gray.400" />
-                                                        </InputLeftElement>
                                                         <Input
-                                                            value={searchFilter}
-                                                            onChange={(e) => setSearchFilter(e.target.value)}
-                                                            placeholder="Search all fields..."
+                                                            value={filterPO}
+                                                            onChange={(e) => setFilterPO(e.target.value)}
+                                                            placeholder="Search by PO number..."
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
                                                             pl="8"
                                                         />
-                                                        {searchFilter && (
-                                                            <InputRightElement>
-                                                                <IconButton
-                                                                    aria-label="Clear search"
-                                                                    icon={<Icon as={MdClear} />}
-                                                                    size="xs"
-                                                                    variant="ghost"
-                                                                    onClick={handleClearSearch}
-                                                                    h="1.5rem"
-                                                                    w="1.5rem"
-                                                                />
-                                                            </InputRightElement>
-                                                        )}
                                                     </InputGroup>
+                                                    {filterPO && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterPO("")}
+                                                            aria-label="Clear PO number filter"
+                                                        />
+                                                    )}
                                                 </HStack>
                                             </Box>
                                         </Flex>
@@ -1888,7 +1946,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || searchFilter || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -2004,8 +2062,8 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         VESSEL {sortField === "vessel_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("so_number_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        SO NUMBER {sortField === "so_number_id" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("so_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                        SO NUMBER {sortField === "so_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("si_number")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SI NUMBER {sortField === "si_number" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -2116,7 +2174,7 @@ export default function StockList() {
                                         <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                         <Td {...cellProps}><Text {...cellText}>{(() => {
-                                            const soValue = item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number));
+                                            const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
                                             const prefixed = addSOPrefix(soValue);
                                             return prefixed || "-";
                                         })()}</Text></Td>
@@ -2422,7 +2480,7 @@ export default function StockList() {
                                                     SO Number
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {item.so_number_id ? getSoNumberName(item.so_number_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : renderText(item.so_number))}
+                                                    {item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}
                                                 </Text>
                                             </Box>
                                             <Box>

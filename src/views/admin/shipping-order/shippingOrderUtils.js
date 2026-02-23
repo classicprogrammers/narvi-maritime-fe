@@ -7,6 +7,17 @@ export function toDateOnly(dateStr) {
   return String(dateStr).split(" ")[0];
 }
 
+/** Parse so_id from display value like "SO-3662" or "3662" */
+function parseSoIdFromDisplay(val) {
+  if (val == null || val === "" || val === false) return null;
+  const str = String(val).trim();
+  if (!str) return null;
+  const match = str.replace(/^SO[- ]?/i, "").trim();
+  if (!match) return null;
+  const num = Number(match);
+  return Number.isNaN(num) ? match : num;
+}
+
 /**
  * Normalize backend order data into the shape the form and table expect.
  * API may return pic_new, client_id, vessel_id, country_id as { id, name }.
@@ -21,9 +32,15 @@ export function normalizeOrder(order) {
   const vesselVal = order.vessel_id;
   const countryVal = order.country_id;
 
+  const soIdVal = order.so_id;
+  const soDisplay = soIdVal != null && soIdVal !== "" && soIdVal !== false
+    ? `SO-${soIdVal}`
+    : (order.so_number || (order.id ? `SO-${order.id}` : ""));
+
   return {
     id: order.id,
-    so_number: order.so_number || order.name || (order.id ? `SO-${order.id}` : ""),
+    so_id: soIdVal,
+    so_number: soDisplay,
     date_created: createdDateOnly,
     done:
       typeof order.done === "string"
@@ -99,11 +116,11 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   const payload = {};
 
   if (isUpdate) {
-    if (data.so_number) {
-      const originalSoNumber = originalData.so_number || originalData.name;
-      if (hasChanged(data.so_number, originalSoNumber)) {
-        payload.name = data.so_number;
-        payload.so_number = data.so_number;
+    if (data.so_id != null || data.so_number) {
+      const newSoId = data.so_id != null ? data.so_id : parseSoIdFromDisplay(data.so_number);
+      const origSoId = originalData.so_id != null ? originalData.so_id : parseSoIdFromDisplay(originalData.so_number);
+      if (hasChanged(newSoId, origSoId)) {
+        payload.so_id = newSoId;
       }
     }
 
@@ -181,9 +198,9 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
     return payload;
   }
 
-  if (data.so_number) {
-    payload.name = data.so_number;
-    payload.so_number = data.so_number;
+  if (data.so_id != null || data.so_number) {
+    const soId = data.so_id != null ? data.so_id : parseSoIdFromDisplay(data.so_number);
+    if (soId != null) payload.so_id = soId;
   }
   if (hasValue(data.client_id)) payload.client_id = data.client_id;
   if (hasValue(data.vessel_id)) payload.vessel_id = data.vessel_id;

@@ -84,7 +84,18 @@ const clientInfoSections = [
       { label: "Payment Terms", key: "payment_term" },
       { label: "Clients Type", key: "type_client" },
       { label: "Company Type Text", key: "company_type_text" },
-      { label: "Vessel Types", key: "vessel_type" },
+      {
+        label: "Vessel Types", key: "vessel_type", formatter: (_, client) => {
+          // Vessel types are saved as separate fields: vessel_type, vessel_type1, vessel_type2, vessel_type3
+          const types = [
+            client.vessel_type,
+            client.vessel_type1,
+            client.vessel_type2,
+            client.vessel_type3
+          ].filter(v => v && typeof v === 'string' && v.trim() !== "");
+          return types.length > 0 ? types.join(", ") : "-";
+        }
+      },
       { label: "Category", key: "client_category" },
       { label: "Client Code", key: "client_code" },
       { label: "Email1", key: "email" },
@@ -267,6 +278,10 @@ const ClientDetail = () => {
       "website",          // Website
       "remarks",          // Remarks
       "client_code",      // Client Code (right hand side)
+      "email2",           // Email 2
+      "company_type_text",// Company Type Text
+      "tariffs",          // Tariffs
+      "client_invoicing", // Client Invoicing
     ];
 
     const values = clientInfoSections[0].items
@@ -426,6 +441,7 @@ const ClientDetail = () => {
                     "client_code",
                     "client_category",
                     "type_client",
+                    "company_type_text",
                     "payment_term",
                     "vessel_type",
                     "website",

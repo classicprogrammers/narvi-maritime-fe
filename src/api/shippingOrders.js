@@ -192,6 +192,7 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
     // Build payload with only changed fields (backend expects id for update)
     const payload = { id: normalizedId };
     const fieldsToCheck = [
+      'so_id',
       'done',
       'pic_new',
       'client_id',
