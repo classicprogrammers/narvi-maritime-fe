@@ -58,14 +58,17 @@ export const getStockListApi = async (params = {}) => {
       client_id,
       vessel_id,
       status = "",
+      stock_status = "",
       so_id = "",
       si_number = "",
       si_combined = "",
       di_no = "",
-      po_number = "",
+      po_text = "",
+      remarks = "",
       stock_item_id = "",
       date_on_stock = "",
       days_on_stock = "",
+      days_on_stock_min = "",
       hub = "",
       supplier_id,
       warehouse_id,
@@ -90,15 +93,20 @@ export const getStockListApi = async (params = {}) => {
 
     if (client_id != null && client_id !== "") requestParams.client_id = client_id;
     if (vessel_id != null && vessel_id !== "") requestParams.vessel_id = vessel_id;
-    if (status != null && String(status).trim() !== "") requestParams.status = String(status).trim();
+    // Backend expects stock_status for status filter (not status)
+    const statusVal = (stock_status != null && String(stock_status).trim() !== "") ? String(stock_status).trim() : (status != null && String(status).trim() !== "" ? String(status).trim() : "");
+    if (statusVal !== "") requestParams.stock_status = statusVal;
     if (so_id != null && String(so_id).trim() !== "") requestParams.so_id = String(so_id).trim();
     if (si_number != null && String(si_number).trim() !== "") requestParams.si_number = String(si_number).trim();
     if (si_combined != null && String(si_combined).trim() !== "") requestParams.si_combined = String(si_combined).trim();
     if (di_no != null && String(di_no).trim() !== "") requestParams.di_no = String(di_no).trim();
-    if (po_number != null && String(po_number).trim() !== "") requestParams.po_number = String(po_number).trim();
+    if (po_text != null && String(po_text).trim() !== "") requestParams.po_text = String(po_text).trim();
+    if (remarks != null && String(remarks).trim() !== "") requestParams.remarks = String(remarks).trim();
     if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
     if (date_on_stock != null && String(date_on_stock).trim() !== "") requestParams.date_on_stock = String(date_on_stock).trim();
-    if (days_on_stock != null && String(days_on_stock).trim() !== "") requestParams.days_on_stock = String(days_on_stock).trim();
+    // Backend expects days_on_stock_min for "days on stock" filter
+    const daysMin = days_on_stock_min != null && String(days_on_stock_min).trim() !== "" ? String(days_on_stock_min).trim() : (days_on_stock != null && String(days_on_stock).trim() !== "" ? String(days_on_stock).trim() : "");
+    if (daysMin !== "") requestParams.days_on_stock_min = daysMin;
     if (hub != null && String(hub).trim() !== "") requestParams.hub = String(hub).trim();
     if (supplier_id != null && supplier_id !== "") requestParams.supplier_id = supplier_id;
     if (warehouse_id != null && warehouse_id !== "") requestParams.warehouse_id = warehouse_id;
@@ -226,16 +234,16 @@ export const createStockItemApi = async (stockData) => {
     // API can return status: "success" but still have errors in errors array
     if (response.data.result) {
       const result = response.data.result;
-      
+
       // Check if there are errors (error_count > 0 or errors array has items)
-      if ((result.error_count && result.error_count > 0) || 
-          (result.errors && Array.isArray(result.errors) && result.errors.length > 0)) {
-        
+      if ((result.error_count && result.error_count > 0) ||
+        (result.errors && Array.isArray(result.errors) && result.errors.length > 0)) {
+
         // Extract error messages from errors array
         const errorMessages = result.errors
           ? result.errors.map(err => err.message || `${err.field}: ${err.message || 'Unknown error'}`).join('; ')
           : result.message || 'Failed to create stock item';
-        
+
         throw new Error(errorMessages);
       }
     }
@@ -279,12 +287,12 @@ export const getStockItemAttachmentsApi = async (stockId) => {
     if (response.data instanceof Blob && response.data.type === 'application/json') {
       const text = await response.data.text();
       const jsonData = JSON.parse(text);
-      
+
       // Check if response has error status (JSON-RPC format)
       if (jsonData.result && jsonData.result.status === 'error') {
         throw new Error(jsonData.result.message || 'Failed to fetch attachments');
       }
-      
+
       return jsonData;
     }
 
@@ -326,12 +334,12 @@ export const downloadStockItemAttachmentApi = async (stockId, attachmentId, forc
     if (response.data instanceof Blob && response.data.type === 'application/json') {
       const text = await response.data.text();
       const jsonData = JSON.parse(text);
-      
+
       // Check if response has error status (JSON-RPC format)
       if (jsonData.result && jsonData.result.status === 'error') {
         throw new Error(jsonData.result.message || 'Failed to download attachment');
       }
-      
+
       return jsonData;
     }
 
@@ -339,8 +347,8 @@ export const downloadStockItemAttachmentApi = async (stockId, attachmentId, forc
     return {
       data: response.data,
       type: response.headers['content-type'] || 'application/octet-stream',
-      filename: response.headers['content-disposition'] 
-        ? response.headers['content-disposition'].match(/filename="?(.+)"?/)?.[1] 
+      filename: response.headers['content-disposition']
+        ? response.headers['content-disposition'].match(/filename="?(.+)"?/)?.[1]
         : null,
     };
   } catch (error) {

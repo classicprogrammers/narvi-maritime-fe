@@ -345,7 +345,7 @@ export default function StockDBMainEdit() {
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
-            poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
+            poNumber: getFieldValue(stock.po_text) || "",
             origin_text: (() => {
                 if (stock.origin_text && typeof stock.origin_text === 'string') return stock.origin_text;
                 if (typeof stock.origin_id === "object" && stock.origin_id?.name != null) return String(stock.origin_id.name);

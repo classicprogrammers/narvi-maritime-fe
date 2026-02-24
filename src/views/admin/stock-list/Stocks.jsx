@@ -422,9 +422,9 @@ export default function Stocks() {
         stockViewFilterSO,
         stockViewFilterSI,
         stockViewFilterSICombined,
-                stockViewFilterDI,
-                stockViewFilterPO,
-                stockViewSearchFilter,
+        stockViewFilterDI,
+        stockViewFilterPO,
+        stockViewSearchFilter,
         stockViewHub,
         vesselViewClient,
         vesselViewVessel,
@@ -507,13 +507,14 @@ export default function Stocks() {
                 ...base,
                 client_id: clientId ?? undefined,
                 vessel_id: vesselId ?? undefined,
-                status: statusParam,
+                stock_status: statusParam,
                 search: f.stockViewSearchFilter?.trim() || undefined,
-                so_id: resolveSoFilterToId(f.stockViewFilterSO),
+                // SO number filter: pass raw text like PO filter (backend handles matching)
+                so_id: f.stockViewFilterSO?.trim() || undefined,
                 si_number: f.stockViewFilterSI?.trim() || undefined,
                 si_combined: f.stockViewFilterSICombined?.trim() || undefined,
                 di_no: f.stockViewFilterDI?.trim() || undefined,
-                po_number: f.stockViewFilterPO?.trim() || undefined,
+                po_text: f.stockViewFilterPO?.trim() || undefined,
                 stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                 date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
                 days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
@@ -526,7 +527,7 @@ export default function Stocks() {
                 ...base,
                 client_id: f.clientViewClient ?? undefined,
                 vessel_id: f.clientViewVesselFilter ?? undefined,
-                status: statusParam,
+                stock_status: statusParam,
                 search: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
                 name: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
             });
@@ -658,24 +659,6 @@ export default function Stocks() {
             String(s.id) === String(soNumber)
         );
         return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)) : ensureSoPrefix(soNumber);
-    };
-
-    // Resolve SO filter value to id for API (backend expects so_id as the SO's id)
-    const resolveSoFilterToId = (filterValue) => {
-        if (!filterValue || (typeof filterValue === "string" && !filterValue.trim())) return undefined;
-        const val = typeof filterValue === "object" ? (filterValue?.id ?? filterValue?.value) : filterValue;
-        const str = String(val).trim();
-        if (!str) return undefined;
-        // If it's an object with id, use it
-        if (typeof filterValue === "object" && filterValue?.id != null) return filterValue.id;
-        // Match by id, so_number, or name
-        const so = shippingOrders.find(s =>
-            String(s.id) === str ||
-            (s.so_id != null && String(s.so_id).toLowerCase().includes(str.toLowerCase())) ||
-            String(s.so_number || "").toLowerCase().includes(str.toLowerCase()) ||
-            String(s.name || "").toLowerCase().includes(str.toLowerCase())
-        );
-        return so ? so.id : (str.match(/^\d+$/) ? str : undefined);
     };
 
     const getStatusColor = (status) => {
@@ -1264,7 +1247,7 @@ export default function Stocks() {
             .map(hub => ({ id: hub, name: hub }));
     }, [stockList]);
 
-    // Filter stock list by status checkboxes and basic filters for Stock View / Edit tab
+    // Filter stock list for Stock View / Edit tab (status filtering is done by API via status param only)
     const getFilteredStockByStatus = () => {
         let filtered = [...stockList];
 
@@ -1274,151 +1257,7 @@ export default function Stocks() {
             filtered = filtered.filter(item => selectedIds.includes(item.id));
         }
 
-        // Apply basic filters (same as index.jsx)
-        if (stockViewClient) {
-            filtered = filtered.filter(item =>
-                String(getId(item.client_id || item.client)) === String(stockViewClient)
-            );
-        }
-
-        if (stockViewVessel) {
-            filtered = filtered.filter(item =>
-                String(getId(item.vessel_id || item.vessel)) === String(stockViewVessel)
-            );
-        }
-
-        if (stockViewStatus) {
-            filtered = filtered.filter(item => {
-                const normalized = normalizeStatus(item.stock_status);
-                return normalized === stockViewStatus.toLowerCase() ||
-                    normalized.includes(stockViewStatus.toLowerCase()) ||
-                    stockViewStatus.toLowerCase().includes(normalized);
-            });
-        }
-
-        if (stockViewStockItemId) {
-            filtered = filtered.filter(item => {
-                const stockItemId = item.stock_item_id || item.stock_id || "";
-                return String(stockItemId).toLowerCase().includes(String(stockViewStockItemId).toLowerCase());
-            });
-        }
-
-        if (stockViewDateOnStock) {
-            filtered = filtered.filter(item => {
-                if (!item.date_on_stock) return false;
-                const itemDate = new Date(item.date_on_stock).toISOString().split('T')[0];
-                return itemDate === stockViewDateOnStock;
-            });
-        }
-
-        if (stockViewDaysOnStock) {
-            filtered = filtered.filter(item => {
-                const daysOnStock = item.days_on_stock || 0;
-                return String(daysOnStock) === String(stockViewDaysOnStock);
-            });
-        }
-
-        // Filter by SO Number
-        if (stockViewFilterSO) {
-            const searchTerm = stockViewFilterSO.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                const prefixed = addSOPrefix(soValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by SI Number
-        if (stockViewFilterSI) {
-            const searchTerm = stockViewFilterSI.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const siValue = item.si_number || "";
-                return String(siValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by SI Combined
-        if (stockViewFilterSICombined) {
-            const searchTerm = stockViewFilterSICombined.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const sicValue = item.si_combined || "";
-                return String(sicValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by DI Number
-        if (stockViewFilterDI) {
-            const searchTerm = stockViewFilterDI.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const diValue = item.di_no || "";
-                return String(diValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by Hub
-        if (stockViewHub) {
-            const hubLower = stockViewHub.toLowerCase();
-            filtered = filtered.filter(item => {
-                const hub1 = String(item.via_hub || "").toLowerCase();
-                const hub2 = String(item.via_hub2 || "").toLowerCase();
-                return hub1 === hubLower || hub2 === hubLower;
-            });
-        }
-
-        // PO number filter
-        if (stockViewFilterPO) {
-            const searchTerm = stockViewFilterPO.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const poValue = String(item.po_text || item.po_number || "").toLowerCase();
-                return poValue.includes(searchTerm);
-            });
-        }
-
-        // General search filter - searches across multiple fields
-        if (stockViewSearchFilter) {
-            const searchTerm = stockViewSearchFilter.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                // Get SO, SI, SI Combined, DI with prefixes for search
-                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                const soPrefixed = addSOPrefix(soValue);
-                const siValue = item.si_number || "";
-                const sicValue = item.si_combined || "";
-                const diValue = item.di_no || "";
-
-                // Search across multiple fields including lookup names
-                const searchableFields = [
-                    String(item.stock_item_id || ""),
-                    String(getDisplayName(item.client_id || item.client) || ""),
-                    String(getDisplayName(item.vessel_id || item.vessel) || ""),
-                    String(soPrefixed || ""),
-                    String(siValue || ""),
-                    String(sicValue || ""),
-                    String(diValue || ""),
-                    String(item.stock_status || ""),
-                    String(getDisplayName(item.supplier_id || item.supplier)),
-                    String(item.po_text || item.po_number || ""),
-                    String(item.warehouse_id || item.stock_warehouse || ""),
-                    String(item.shipping_doc || ""),
-                    String(item.export_doc || ""),
-                    String(item.export_doc_2 || ""),
-                    String(item.remarks || ""),
-                    String(item.internal_remark || ""),
-                    String(item.dg_un || ""),
-                    String(item.lwh_text || ""),
-                    String(item.origin_text || getDisplayName(item.origin_id) || ""),
-                    String(item.ap_destination_id || item.ap_destination || ""),
-                    String(getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination) || ""),
-                    String(item.via_hub || ""),
-                    String(item.via_hub2 || ""),
-                    String(item.details || item.item_desc || ""),
-                    String(getDisplayName(item.currency_id || item.currency)),
-                ].join(" ").toLowerCase();
-                return searchableFields.includes(searchTerm);
-            });
-        }
-
-        // Filter by selected statuses using the matchesStatus helper
-        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
+        // Status filter is applied by API only (status checkboxes -> status param); no frontend status filter
 
         // Apply sorting based on selected option
         if (sortOption !== 'none') {
@@ -1536,7 +1375,7 @@ export default function Stocks() {
         return filtered;
     };
 
-    // Filter stock list for By Vessel view (kept for commented out tabs)
+    // Filter stock list for By Vessel view (status filtering is done by API via status param only)
     const getFilteredStockByVessel = () => {
         let filtered = [...stockList];
 
@@ -1546,22 +1385,7 @@ export default function Stocks() {
             filtered = filtered.filter(item => selectedIds.includes(item.id));
         }
 
-        // Apply vessel filter
-        if (vesselViewVessel) {
-            filtered = filtered.filter((item) =>
-                String(getId(item.vessel_id || item.vessel)) === String(vesselViewVessel)
-            );
-        }
-
-        // Apply client filter
-        if (vesselViewClient) {
-            filtered = filtered.filter((item) =>
-                String(getId(item.client_id || item.client)) === String(vesselViewClient)
-            );
-        }
-
-        // Apply status filter
-        filtered = filtered.filter((item) => matchesStatus(item.stock_status, vesselViewStatuses));
+        // Status filter is applied by API only; no frontend status filter
 
         // Sort items using the shared sorting function
         filtered = sortStockItems(filtered);
@@ -1572,7 +1396,7 @@ export default function Stocks() {
         return filtered; // Return sorted array directly instead of grouped object
     };
 
-    // Filter stock list for By Client view
+    // Filter stock list for By Client view (status filtering is done by API via status param only)
     const getFilteredStockByClient = () => {
         let filtered = [...stockList];
 
@@ -1582,86 +1406,7 @@ export default function Stocks() {
             filtered = filtered.filter(item => selectedIds.includes(item.id));
         }
 
-        // Apply client filter
-        if (clientViewClient) {
-            filtered = filtered.filter((item) =>
-                String(getId(item.client_id || item.client)) === String(clientViewClient)
-            );
-        }
-
-        // Apply client text search filter
-        if (clientViewSearchClient) {
-            const searchTerm = clientViewSearchClient.toLowerCase().trim();
-            filtered = filtered.filter((item) =>
-                getDisplayName(item.client_id || item.client).toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Apply vessel dropdown filter
-        if (clientViewVesselFilter) {
-            filtered = filtered.filter((item) =>
-                String(getId(item.vessel_id || item.vessel)) === String(clientViewVesselFilter)
-            );
-        }
-
-        // Apply vessel text search filter
-        if (clientViewSearchVessel) {
-            const searchTerm = clientViewSearchVessel.toLowerCase().trim();
-            filtered = filtered.filter((item) =>
-                getDisplayName(item.vessel_id || item.vessel).toLowerCase().includes(searchTerm)
-            );
-        }
-
-        // Apply status filter
-        filtered = filtered.filter((item) => matchesStatus(item.stock_status, clientViewStatuses));
-
-        // Apply SO / SI / SI Combined / DI / Hub filters (stock view filter bar)
-        if (stockViewFilterSO) {
-            const searchTerm = stockViewFilterSO.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                const prefixed = addSOPrefix(soValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
-            });
-        }
-        if (stockViewFilterSI) {
-            const searchTerm = stockViewFilterSI.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const siValue = item.si_number || "";
-                return String(siValue).toLowerCase().includes(searchTerm);
-            });
-        }
-        if (stockViewFilterSICombined) {
-            const searchTerm = stockViewFilterSICombined.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const sicValue = item.si_combined || "";
-                return String(sicValue).toLowerCase().includes(searchTerm);
-            });
-        }
-        if (stockViewFilterDI) {
-            const searchTerm = stockViewFilterDI.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const diValue = item.di_no || "";
-                return String(diValue).toLowerCase().includes(searchTerm);
-            });
-        }
-        if (stockViewFilterPO) {
-            const searchTerm = stockViewFilterPO.toLowerCase().trim();
-            filtered = filtered.filter((item) => {
-                const poValue = String(item.po_text || item.po_number || "").toLowerCase();
-                return poValue.includes(searchTerm);
-            });
-        }
-        if (stockViewHub) {
-            const hubLower = typeof stockViewHub === "object" ? String(stockViewHub?.id ?? stockViewHub?.name ?? "").toLowerCase() : String(stockViewHub).toLowerCase();
-            if (hubLower) {
-                filtered = filtered.filter((item) => {
-                    const hub1 = String(item.via_hub || "").toLowerCase();
-                    const hub2 = String(item.via_hub2 || "").toLowerCase();
-                    return hub1 === hubLower || hub2 === hubLower;
-                });
-            }
-        }
+        // Status filter is applied by API only; no frontend status filter
 
         // Sort using the shared sorting function - same order as By Vessel tab
         filtered = sortStockItems(filtered);
@@ -1812,7 +1557,7 @@ export default function Stocks() {
 
             if (clientViewFilterType === 'filter1') {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, '<br>');
+                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                 const status = getStatusLabel(item.stock_status);
@@ -1826,7 +1571,7 @@ export default function Stocks() {
                 htmlTable += `<td>${destination}</td>`;
             } else {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, '<br>');
+                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
                 const status = getStatusLabel(item.stock_status);
                 const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
@@ -1868,7 +1613,7 @@ export default function Stocks() {
             selectedItems.forEach(item => {
                 if (clientViewFilterType === 'filter1') {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
+                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                     const status = getStatusLabel(item.stock_status);
@@ -1877,7 +1622,7 @@ export default function Stocks() {
                     plainText += `${supplier}\t${poNumber}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
                 } else {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || item.po_number || '-').replace(/\n/g, ' ');
+                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
                     const status = getStatusLabel(item.stock_status);
                     const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
@@ -1971,7 +1716,7 @@ export default function Stocks() {
             bodyRows += "<tr>";
             if (clientViewFilterType === "filter1") {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
+                const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                 const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                 const weight = item.weight_kg ?? item.weight_kgs ?? "-";
                 const status = getStatusLabel(item.stock_status);
@@ -1984,7 +1729,7 @@ export default function Stocks() {
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
             } else {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || item.po_number || "-").replace(/\n/g, "<br/>");
+                const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                 const status = getStatusLabel(item.stock_status);
                 const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
@@ -2151,7 +1896,7 @@ export default function Stocks() {
             supplier_id: getFieldValue("supplier_id", "supplier"),
             client_id: getFieldValue("client_id", "client"),
             // Keep raw PO text (can contain multiple lines)
-            po_text: item.po_text || item.po_number || "",
+            po_text: item.po_text || "",
             so_id: addSOPrefix(getFieldValue("so_id", "so_number", "stock_so_number")),
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
@@ -2328,7 +2073,7 @@ export default function Stocks() {
             { backend: "height_cm", original: ["height_cm"], edited: ["height_cm"], transform: (v) => toNumber(v) },
             { backend: "volume_dim", original: ["volume_dim", "volume_no_dim"], edited: ["volume_dim"], transform: (v) => toNumber(v) },
             { backend: "volume_cbm", original: ["volume_cbm"], edited: ["volume_cbm"], transform: (v) => toNumber(v) },
-            { backend: "po_text", original: ["po_text", "po_number"], edited: ["po_text"], transform: (v) => v || "" },
+            { backend: "po_text", original: ["po_text"], edited: ["po_text"], transform: (v) => v || "" },
             // Arrays of PO numbers and LWH lines (derived from text, one per line)
             {
                 backend: "po_text_array", original: ["po_text_array"], edited: ["po_text"], transform: (v) => {
@@ -2800,8 +2545,8 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "po_text", item.po_text || item.po_number, "textarea")
-                                : renderMultiLineLabels(item.po_text || item.po_number)}
+                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
+                                : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
@@ -3101,8 +2846,8 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "po_text", item.po_text || item.po_number, "textarea")
-                                : renderMultiLineLabels(item.po_text || item.po_number)}
+                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
+                                : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
@@ -4559,7 +4304,7 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{(() => {
                                                                     return renderText(item.si_number) || "-";
@@ -5102,7 +4847,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
@@ -5135,7 +4880,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <Badge
                                                                                 colorScheme={statusStyle.color}

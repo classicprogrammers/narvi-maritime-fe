@@ -74,6 +74,8 @@ function readPersistedStockMainDbState() {
             filterSICombined: typeof p.filterSICombined === "string" ? p.filterSICombined : "",
             filterDI: typeof p.filterDI === "string" ? p.filterDI : "",
             filterPO: typeof p.filterPO === "string" ? p.filterPO : "",
+            filterRemarks: typeof p.filterRemarks === "string" ? p.filterRemarks : "",
+            filterDaysOnStock: typeof p.filterDaysOnStock === "string" ? p.filterDaysOnStock : "",
             sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
             sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
         };
@@ -107,6 +109,8 @@ const defaultStockMainDbState = {
     filterSICombined: "",
     filterDI: "",
     filterPO: "",
+    filterRemarks: "",
+    filterDaysOnStock: "",
     sortBy: "id",
     sortOrder: "desc",
 };
@@ -190,6 +194,8 @@ export default function StockList() {
     const [filterSICombined, setFilterSICombined] = useState(savedState.filterSICombined);
     const [filterDI, setFilterDI] = useState(savedState.filterDI);
     const [filterPO, setFilterPO] = useState(savedState.filterPO);
+    const [filterRemarks, setFilterRemarks] = useState(savedState.filterRemarks);
+    const [filterDaysOnStock, setFilterDaysOnStock] = useState(savedState.filterDaysOnStock);
     // Search state (searchFilter used as API param; no separate searchQuery)
     const [searchFilter, setSearchFilter] = useState(savedState.searchFilter);
 
@@ -221,10 +227,12 @@ export default function StockList() {
             filterSICombined,
             filterDI,
             filterPO,
+            filterRemarks,
+            filterDaysOnStock,
             sortBy,
             sortOrder,
         });
-    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortBy, sortOrder]);
+    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, sortBy, sortOrder]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -300,18 +308,21 @@ export default function StockList() {
             search: searchFilter?.trim() || undefined,
             client_id: getIdParam(selectedClient),
             vessel_id: getIdParam(selectedVessel),
-            status: selectedStatus?.trim() || undefined,
-            so_id: resolveSoFilterToId(filterSO),
+            stock_status: selectedStatus?.trim() || undefined,
+            // SO number filter: pass raw text like PO filter (backend handles matching)
+            so_id: filterSO?.trim() || undefined,
             si_number: filterSI?.trim() || undefined,
             si_combined: filterSICombined?.trim() || undefined,
             di_no: filterDI?.trim() || undefined,
-            po_number: filterPO?.trim() || undefined,
+            po_text: filterPO?.trim() || undefined,
+            remarks: filterRemarks?.trim() || undefined,
+            days_on_stock_min: filterDaysOnStock?.trim() || undefined,
             hub: hubParam != null ? String(hubParam).trim() : undefined,
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
@@ -329,7 +340,7 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO]);
+    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock]);
 
     // Fetch stock list on mount and when page or fetchTrigger changes
     useEffect(() => {
@@ -367,11 +378,14 @@ export default function StockList() {
             if (filterState.selectedStatus !== undefined) setSelectedStatus(filterState.selectedStatus);
             if (filterState.selectedWarehouse !== undefined) setSelectedWarehouse(filterState.selectedWarehouse);
             if (filterState.selectedCurrency !== undefined) setSelectedCurrency(filterState.selectedCurrency);
+            if (filterState.selectedHub !== undefined) setSelectedHub(filterState.selectedHub);
             if (filterState.filterSO !== undefined) setFilterSO(filterState.filterSO);
             if (filterState.filterSI !== undefined) setFilterSI(filterState.filterSI);
             if (filterState.filterSICombined !== undefined) setFilterSICombined(filterState.filterSICombined);
             if (filterState.filterDI !== undefined) setFilterDI(filterState.filterDI);
             if (filterState.filterPO !== undefined) setFilterPO(filterState.filterPO);
+            if (filterState.filterRemarks !== undefined) setFilterRemarks(filterState.filterRemarks);
+            if (filterState.filterDaysOnStock !== undefined) setFilterDaysOnStock(filterState.filterDaysOnStock);
             if (filterState.searchFilter !== undefined) setSearchFilter(filterState.searchFilter);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
@@ -478,22 +492,6 @@ export default function StockList() {
         return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || soNumber)) : ensureSoPrefix(soNumber);
     };
 
-    // Resolve SO filter value to id for API (backend expects so_id as the SO's id)
-    const resolveSoFilterToId = (filterValue) => {
-        if (!filterValue || (typeof filterValue === "string" && !filterValue.trim())) return undefined;
-        const val = typeof filterValue === "object" ? (filterValue?.id ?? filterValue?.value) : filterValue;
-        const str = String(val).trim();
-        if (!str) return undefined;
-        if (typeof filterValue === "object" && filterValue?.id != null) return filterValue.id;
-        const so = shippingOrders.find(s =>
-            String(s.id) === str ||
-            (s.so_id != null && String(s.so_id).toLowerCase().includes(str.toLowerCase())) ||
-            String(s.so_number || "").toLowerCase().includes(str.toLowerCase()) ||
-            String(s.name || "").toLowerCase().includes(str.toLowerCase())
-        );
-        return so ? so.id : (str.match(/^\d+$/) ? str : undefined);
-    };
-
     // Helpers for API response format: { id, name } - display name, pass id for filtering/editing
     const getDisplayName = (val) => {
         if (val == null || val === false || val === "") return "-";
@@ -552,137 +550,9 @@ export default function StockList() {
             filtered = filtered.filter(item => selectedIds.includes(item.id));
         }
 
-        // Apply filters
-        if (selectedClient) {
-            filtered = filtered.filter(item =>
-                String(getId(item.client_id || item.client)) === String(selectedClient)
-            );
-        }
-        if (selectedVessel) {
-            filtered = filtered.filter(item =>
-                String(getId(item.vessel_id || item.vessel)) === String(selectedVessel)
-            );
-        }
-        if (selectedSupplier) {
-            filtered = filtered.filter(item =>
-                String(getId(item.supplier_id || item.supplier)) === String(selectedSupplier)
-            );
-        }
-        if (selectedStatus) {
-            filtered = filtered.filter(item =>
-                String(item.stock_status) === String(selectedStatus)
-            );
-        }
-        if (selectedWarehouse) {
-            filtered = filtered.filter(item =>
-                String(getId(item.warehouse_id)) === String(selectedWarehouse)
-            );
-        }
-        if (selectedCurrency) {
-            filtered = filtered.filter(item =>
-                String(getId(item.currency_id || item.currency)) === String(selectedCurrency)
-            );
-        }
-        if (selectedHub) {
-            const hubLower = selectedHub.toLowerCase();
-            filtered = filtered.filter(item => {
-                const hub1 = String(item.via_hub || "").toLowerCase();
-                const hub2 = String(item.via_hub2 || "").toLowerCase();
-                return hub1 === hubLower || hub2 === hubLower;
-            });
-        }
-
-        // Filter by SO Number
-        if (filterSO) {
-            const searchTerm = filterSO.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
-                const prefixed = addSOPrefix(soValue);
-                return String(prefixed || "").toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by SI Number
-        if (filterSI) {
-            const searchTerm = filterSI.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const siValue = item.si_number || "";
-                return String(siValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by SI Combined
-        if (filterSICombined) {
-            const searchTerm = filterSICombined.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const sicValue = item.si_combined || "";
-                return String(sicValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by DI Number
-        if (filterDI) {
-            const searchTerm = filterDI.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const diValue = item.di_no || "";
-                return String(diValue).toLowerCase().includes(searchTerm);
-            });
-        }
-
-        // Filter by PO Number
-        if (filterPO) {
-            const searchTerm = filterPO.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                const poValue = String(item.po_text || item.po_number || "").toLowerCase();
-                return poValue.includes(searchTerm);
-            });
-        }
-
-        // Note: General search is handled server-side via searchFilter (passed as search API param)
-        // Keeping this commented for reference:
-        /*
-        if (searchFilter) {
-            const searchTerm = searchFilter.toLowerCase().trim();
-            filtered = filtered.filter(item => {
-                // Get SO, SI, SI Combined, DI with prefixes for search
-                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : (item.so_number || ""));
-                const soPrefixed = addSOPrefix(soValue);
-                const siValue = item.si_number || "";
-                const sicValue = item.si_combined || "";
-                const diValue = item.di_no || "";
-
-                // Search across multiple fields including lookup names
-                const searchableFields = [
-                    String(item.stock_item_id || ""),
-                    String(getDisplayName(item.client_id || item.client) || ""),
-                    String(getDisplayName(item.vessel_id || item.vessel) || ""),
-                    String(soPrefixed || ""),
-                    String(siValue || ""),
-                    String(sicValue || ""),
-                    String(diValue || ""),
-                    String(item.stock_status || ""),
-                    String(getDisplayName(item.supplier_id || item.supplier)),
-                    String(item.po_text || item.po_number || ""),
-                    String(item.warehouse_id || item.stock_warehouse || ""),
-                    String(item.shipping_doc || ""),
-                    String(item.export_doc || ""),
-                    String(item.export_doc_2 || ""),
-                    String(item.remarks || ""),
-                    String(item.internal_remark || ""),
-                    String(item.dg_un || ""),
-                    String(item.lwh_text || ""),
-                    String(item.origin_text || getDisplayName(item.origin_id) || ""),
-                    String(item.ap_destination_id || item.ap_destination || ""),
-                    String(getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination) || ""),
-                    String(item.via_hub || ""),
-                    String(item.via_hub2 || ""),
-                    String(item.details || item.item_desc || ""),
-                    String(getDisplayName(item.currency_id || item.currency)),
-                ].join(" ").toLowerCase();
-                return searchableFields.includes(searchTerm);
-            });
-        }
-        */
+        // Apply filters (Server-side handling handles these, frontend doesn't need to re-filter)
+        // General search is handled server-side via searchFilter (passed as search API param)
+        // Specific field filters are passed via individual API params
 
         // Apply sorting
         if (sortField) {
@@ -883,11 +753,14 @@ export default function StockList() {
                 selectedStatus,
                 selectedWarehouse,
                 selectedCurrency,
+                selectedHub,
                 filterSO,
                 filterSI,
                 filterSICombined,
                 filterDI,
                 filterPO,
+                filterRemarks,
+                filterDaysOnStock,
                 searchFilter
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: true, filterState, sourcePage: 'main-db' };
@@ -913,7 +786,16 @@ export default function StockList() {
             selectedSupplier,
             selectedStatus,
             selectedWarehouse,
-            selectedCurrency
+            selectedCurrency,
+            selectedHub,
+            filterSO,
+            filterSI,
+            filterSICombined,
+            filterDI,
+            filterPO,
+            filterRemarks,
+            filterDaysOnStock,
+            searchFilter
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'main-db' };
         history.push({
@@ -1479,7 +1361,7 @@ export default function StockList() {
                                                 <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || searchFilter) && (
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || searchFilter) && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
@@ -1498,6 +1380,8 @@ export default function StockList() {
                                                             setFilterSICombined("");
                                                             setFilterDI("");
                                                             setFilterPO("");
+                                                            setFilterRemarks("");
+                                                            setFilterDaysOnStock("");
                                                             setSearchFilter("");
                                                         }}
                                                     >
@@ -1891,7 +1775,7 @@ export default function StockList() {
                                                         <Input
                                                             value={filterPO}
                                                             onChange={(e) => setFilterPO(e.target.value)}
-                                                            placeholder="Search by PO number..."
+                                                            placeholder="Filter by PO Number"
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1906,6 +1790,60 @@ export default function StockList() {
                                                             variant="ghost"
                                                             onClick={() => setFilterPO("")}
                                                             aria-label="Clear PO number filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* Remarks Filter */}
+                                            <Box w="220px" minW="200px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterRemarks}
+                                                            onChange={(e) => setFilterRemarks(e.target.value)}
+                                                            placeholder="Filter by Remarks"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterRemarks && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterRemarks("")}
+                                                            aria-label="Clear remarks filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* Days on Stock Filter */}
+                                            <Box w="220px" minW="200px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterDaysOnStock}
+                                                            onChange={(e) => setFilterDaysOnStock(e.target.value)}
+                                                            placeholder="Days on stock (min)"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterDaysOnStock && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterDaysOnStock("")}
+                                                            aria-label="Clear days on stock filter"
                                                         />
                                                     )}
                                                 </HStack>
@@ -1946,7 +1884,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || searchFilter || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -2033,13 +1971,13 @@ export default function StockList() {
                             </VStack>
                         </Center>
                     ) : (
-                    <Table
-                        variant="unstyled"
-                        size="sm"
-                        minW="5000px"
-                        ml="25px"
-                    >
-                        <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
+                        <Table
+                            variant="unstyled"
+                            size="sm"
+                            minW="5000px"
+                            ml="25px"
+                        >
+                            <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                                 <Tr>
                                     <Th borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" fontSize="12px" fontWeight="600" color={tableTextColor} textTransform="uppercase" width="40px" minW="40px" maxW="40px">
                                         <Checkbox
@@ -2080,8 +2018,8 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("supplier_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SUPPLIER {sortField === "supplier_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_number")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        PO NUMBER {sortField === "po_number" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                        PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>EXTRA 2</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -2146,176 +2084,176 @@ export default function StockList() {
                                     <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
                             </Thead>
-                        <Tbody>
-                            {isLoading && stockList.length === 0 ? (
-                                <Tr>
-                                    <Td colSpan={45} textAlign="center" py="40px">
-                                        <Box visibility="hidden" h="100px" />
-                                    </Td>
-                                </Tr>
-                            ) : (
-                                filteredAndSortedStock.map((item, index) => (
-                                    <Tr
-                                        key={item.id}
-                                        bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
-                                        borderBottom="1px"
-                                        borderColor={tableBorderColor}
-                                    >
-                                        <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
-                                            <Checkbox
-                                                isChecked={selectedRows.has(item.id)}
-                                                onChange={(e) => handleRowSelect(item.id, e.target.checked)}
-                                                size="sm"
-                                                isDisabled={!isAuthorizedToEdit}
-                                            />
-                                        </Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{(() => {
-                                            const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                                            const prefixed = addSOPrefix(soValue);
-                                            return prefixed || "-";
-                                        })()}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{(() => {
-                                            return renderText(item.si_number) || "-";
-                                        })()}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{(() => {
-                                            return renderText(item.si_combined) || "-";
-                                        })()}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{(() => {
-                                            return renderText(item.di_no) || "-";
-                                        })()}</Text></Td>
-                                        <Td {...cellProps}>
-                                            <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
-                                                {renderText(item.stock_status)}
-                                            </Badge>
-                                        </Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                        <Td {...cellProps}>{renderMultiLineLabels(item.po_text || item.po_number)}</Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.ap_destination_id || item.ap_destination) || "-"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
-                                        <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
-                                        <Td
-                                            {...cellProps}
-                                            cursor="pointer"
-                                            onClick={() => {
-                                                setSelectedDimensions(item.dimensions || []);
-                                                onDimensionsModalOpen();
-                                            }}
-                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
-                                        >
-                                            <HStack spacing={2} align="center" justify="flex-start">
-                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                    {renderText(item.total_volume_cbm)}
-                                                </Text>
-                                                <Tooltip label="View dimensions" hasArrow>
-                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                </Tooltip>
-                                            </HStack>
-                                        </Td>
-                                        <Td
-                                            {...cellProps}
-                                            cursor="pointer"
-                                            onClick={() => {
-                                                setSelectedDimensions(item.dimensions || []);
-                                                onDimensionsModalOpen();
-                                            }}
-                                            _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
-                                        >
-                                            <HStack spacing={2} align="center" justify="flex-start">
-                                                <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                    {renderText(item.total_cw_air_freight)}
-                                                </Text>
-                                                <Tooltip label="View dimensions" hasArrow>
-                                                    <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
-                                                </Tooltip>
-                                            </HStack>
-                                        </Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getSoStatus(item)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
-                                        <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
-                                        <Td {...cellProps}>
-                                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                                <VStack spacing={1} align="stretch">
-                                                    {item.attachments.map((att, idx) => (
-                                                        <HStack key={idx} spacing={1} align="center">
-                                                            <Text
-                                                                fontSize="xs"
-                                                                isTruncated
-                                                                flex={1}
-                                                                title={att.filename || att.name}
-                                                                cursor="pointer"
-                                                                color="blue.500"
-                                                                _hover={{ textDecoration: "underline" }}
-                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                            >
-                                                                {att.filename || att.name || `File ${idx + 1}`}
-                                                            </Text>
-                                                            <IconButton
-                                                                icon={<Icon as={MdVisibility} />}
-                                                                size="xs"
-                                                                variant="ghost"
-                                                                colorScheme="blue"
-                                                                aria-label="View file"
-                                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                            />
-                                                            <IconButton
-                                                                icon={<Icon as={MdDownload} />}
-                                                                size="xs"
-                                                                variant="ghost"
-                                                                colorScheme="green"
-                                                                aria-label="Download file"
-                                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                                            />
-                                                        </HStack>
-                                                    ))}
-                                                </VStack>
-                                            ) : (
-                                                <Text fontSize="xs" color="gray.500">No files</Text>
-                                            )}
-                                        </Td>
-                                        <Td {...cellProps}>
-                                            <IconButton
-                                                icon={<Icon as={MdEdit} />}
-                                                size="sm"
-                                                variant="ghost"
-                                                colorScheme="blue"
-                                                aria-label="Edit"
-                                                onClick={() => handleEditItem(item)}
-                                                isDisabled={!isAuthorizedToEdit}
-                                                title={!isAuthorizedToEdit ? "Only Igor and Martin can edit" : "Edit item"}
-                                            />
+                            <Tbody>
+                                {isLoading && stockList.length === 0 ? (
+                                    <Tr>
+                                        <Td colSpan={45} textAlign="center" py="40px">
+                                            <Box visibility="hidden" h="100px" />
                                         </Td>
                                     </Tr>
-                                ))
-                            )}
-                        </Tbody>
-                    </Table>
+                                ) : (
+                                    filteredAndSortedStock.map((item, index) => (
+                                        <Tr
+                                            key={item.id}
+                                            bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
+                                            borderBottom="1px"
+                                            borderColor={tableBorderColor}
+                                        >
+                                            <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
+                                                <Checkbox
+                                                    isChecked={selectedRows.has(item.id)}
+                                                    onChange={(e) => handleRowSelect(item.id, e.target.checked)}
+                                                    size="sm"
+                                                    isDisabled={!isAuthorizedToEdit}
+                                                />
+                                            </Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
+                                                const prefixed = addSOPrefix(soValue);
+                                                return prefixed || "-";
+                                            })()}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                return renderText(item.si_number) || "-";
+                                            })()}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                return renderText(item.si_combined) || "-";
+                                            })()}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{(() => {
+                                                return renderText(item.di_no) || "-";
+                                            })()}</Text></Td>
+                                            <Td {...cellProps}>
+                                                <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
+                                                    {renderText(item.stock_status)}
+                                                </Badge>
+                                            </Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                            <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.ap_destination_id || item.ap_destination) || "-"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.remarks)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
+                                            <Td {...cellProps} textAlign="center"><Text {...cellText}>{renderText(item.days_on_stock)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.shipped_date)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.delivered_date)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.lwh_text)}</Text></Td>
+                                            <Td
+                                                {...cellProps}
+                                                cursor="pointer"
+                                                onClick={() => {
+                                                    setSelectedDimensions(item.dimensions || []);
+                                                    onDimensionsModalOpen();
+                                                }}
+                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                            >
+                                                <HStack spacing={2} align="center" justify="flex-start">
+                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                        {renderText(item.total_volume_cbm)}
+                                                    </Text>
+                                                    <Tooltip label="View dimensions" hasArrow>
+                                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                    </Tooltip>
+                                                </HStack>
+                                            </Td>
+                                            <Td
+                                                {...cellProps}
+                                                cursor="pointer"
+                                                onClick={() => {
+                                                    setSelectedDimensions(item.dimensions || []);
+                                                    onDimensionsModalOpen();
+                                                }}
+                                                _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+                                            >
+                                                <HStack spacing={2} align="center" justify="flex-start">
+                                                    <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
+                                                        {renderText(item.total_cw_air_freight)}
+                                                    </Text>
+                                                    <Tooltip label="View dimensions" hasArrow>
+                                                        <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
+                                                    </Tooltip>
+                                                </HStack>
+                                            </Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.value)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{item.client_access ? "Yes" : "No"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.pic)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getSoStatus(item)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getVesselDestination(item.vessel_id || item.vessel, item)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
+                                            <Td {...cellProps}>
+                                                {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
+                                                    <VStack spacing={1} align="stretch">
+                                                        {item.attachments.map((att, idx) => (
+                                                            <HStack key={idx} spacing={1} align="center">
+                                                                <Text
+                                                                    fontSize="xs"
+                                                                    isTruncated
+                                                                    flex={1}
+                                                                    title={att.filename || att.name}
+                                                                    cursor="pointer"
+                                                                    color="blue.500"
+                                                                    _hover={{ textDecoration: "underline" }}
+                                                                    onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                                                >
+                                                                    {att.filename || att.name || `File ${idx + 1}`}
+                                                                </Text>
+                                                                <IconButton
+                                                                    icon={<Icon as={MdVisibility} />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="blue"
+                                                                    aria-label="View file"
+                                                                    onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
+                                                                />
+                                                                <IconButton
+                                                                    icon={<Icon as={MdDownload} />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="green"
+                                                                    aria-label="Download file"
+                                                                    onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
+                                                                />
+                                                            </HStack>
+                                                        ))}
+                                                    </VStack>
+                                                ) : (
+                                                    <Text fontSize="xs" color="gray.500">No files</Text>
+                                                )}
+                                            </Td>
+                                            <Td {...cellProps}>
+                                                <IconButton
+                                                    icon={<Icon as={MdEdit} />}
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    colorScheme="blue"
+                                                    aria-label="Edit"
+                                                    onClick={() => handleEditItem(item)}
+                                                    isDisabled={!isAuthorizedToEdit}
+                                                    title={!isAuthorizedToEdit ? "Only Igor and Martin can edit" : "Edit item"}
+                                                />
+                                            </Td>
+                                        </Tr>
+                                    ))
+                                )}
+                            </Tbody>
+                        </Table>
                     )}
                 </Box>
 
@@ -2488,7 +2426,7 @@ export default function StockList() {
                                                     PO Number
                                                 </Text>
                                                 <Box>
-                                                    {renderMultiLineLabels(item.po_text || item.po_number)}
+                                                    {renderMultiLineLabels(item.po_text)}
                                                 </Box>
                                             </Box>
                                             <Box>

@@ -1044,7 +1044,7 @@ const SoNumberTab = () => {
           </Badge>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.pic_name || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{order.client || "-"}</Text></Td>
+        <Td {...tableCellProps}><Text {...cellText}>{order.client_code != null && order.client_code !== false && order.client_code !== "" ? String(order.client_code) : (order.client || "-")}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.vessel_name || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{getDestinationDisplay(order)}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{getEtaDisplay(order)}</Text></Td>

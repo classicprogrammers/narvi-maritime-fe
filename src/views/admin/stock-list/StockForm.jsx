@@ -379,7 +379,7 @@ export default function StockForm() {
             pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null,
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
-            poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number),
+            poNumber: getFieldValue(stock.po_text),
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
@@ -459,10 +459,10 @@ export default function StockForm() {
                 const result = reader.result || '';
                 // Extract base64 data without data URL prefix
                 const base64data = typeof result === 'string' && result.includes(',') ? result.split(',')[1] : result;
-                resolve({ 
-                    filename: file.name, 
-                    datas: base64data, 
-                    mimetype: file.type || 'application/octet-stream' 
+                resolve({
+                    filename: file.name,
+                    datas: base64data,
+                    mimetype: file.type || 'application/octet-stream'
                 });
             };
             reader.readAsDataURL(file);
@@ -500,8 +500,8 @@ export default function StockForm() {
                 const existingAttachments = [...(row.existingAttachments || [])];
                 const updatedAttachments = existingAttachments.filter(att => att.id !== attachmentId);
                 const attachmentsToDelete = [...(row.attachmentsToDelete || []), attachmentId];
-                return { 
-                    ...row, 
+                return {
+                    ...row,
                     existingAttachments: updatedAttachments,
                     attachmentsToDelete: attachmentsToDelete
                 };
@@ -544,7 +544,7 @@ export default function StockForm() {
             if (field === "dimensions" && updatedRow.dimensions && updatedRow.dimensions[0]) {
                 const dim = updatedRow.dimensions[0];
                 const method = dim.calculation_method || "lwh";
-                
+
                 if (method === "lwh") {
                     // Only calculate from LWH if method is lwh
                     const length = toNumber(dim.length_cm || 0);
@@ -1605,7 +1605,7 @@ export default function StockForm() {
                                                     Upload Files
                                                 </Button>
                                             </label>
-                                            
+
                                             {/* Display existing attachments */}
                                             {(row.existingAttachments || []).map((att, attIdx) => (
                                                 <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs">
@@ -1622,7 +1622,7 @@ export default function StockForm() {
                                                     />
                                                 </Flex>
                                             ))}
-                                            
+
                                             {/* Display newly uploaded attachments */}
                                             {(row.attachments || []).map((att, attIdx) => (
                                                 <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs">

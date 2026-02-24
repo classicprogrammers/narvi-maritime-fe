@@ -52,6 +52,7 @@ export function normalizeOrder(order) {
     pic_name: (picVal && typeof picVal === "object" ? picVal.name : null) || order.pic_name || order.pic || "",
     client: (clientVal && typeof clientVal === "object" ? clientVal.name : null) || order.client || order.client_name || "",
     client_id: (clientVal && typeof clientVal === "object" ? clientVal.id : clientVal) ?? null,
+    client_code: (clientVal && typeof clientVal === "object" && clientVal.client_code) ? clientVal.client_code : null,
     vessel_name: (vesselVal && typeof vesselVal === "object" ? vesselVal.name : null) || order.vessel_name || order.vessel || "",
     vessel_id: (vesselVal && typeof vesselVal === "object" ? vesselVal.id : vesselVal) ?? null,
     country_id: (countryVal && typeof countryVal === "object" ? countryVal.id : countryVal) ?? null,

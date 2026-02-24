@@ -586,7 +586,7 @@ export default function StockForm() {
             pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
             stockStatus: getFieldValue(stock.stock_status),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
-            poNumber: getFieldValue(stock.po_text) || getFieldValue(stock.po_number) || "",
+            poNumber: getFieldValue(stock.po_text) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
