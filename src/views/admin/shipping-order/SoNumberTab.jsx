@@ -1,11 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
-  AlertDialog,
-  AlertDialogBody,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogOverlay,
   Badge,
   Box,
   Button,
@@ -59,7 +53,6 @@ import {
 } from "@chakra-ui/react";
 import {
   MdAdd,
-  MdDelete,
   MdEdit,
   MdRefresh,
   MdSearch,
@@ -77,7 +70,6 @@ import {
   getShippingOrders,
   createShippingOrder,
   updateShippingOrder,
-  deleteShippingOrder,
 } from "../../../api/shippingOrders";
 import { useHistory, Link } from "react-router-dom";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
@@ -240,14 +232,12 @@ const SoNumberTab = () => {
   const [sortBy, setSortBy] = useState(savedState.sortBy);
   const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
 
-  const [orderToDelete, setOrderToDelete] = useState(null);
   const [formData, setFormData] = useState(null);
   const { clients, vessels, countries, pics, destinations } = useMasterData();
   const [quotations, setQuotations] = useState([]);
   const [isLoadingQuotations, setIsLoadingQuotations] = useState(false);
 
   const formDisclosure = useDisclosure();
-  const deleteDisclosure = useDisclosure();
   const picFilterModalDisclosure = useDisclosure();
   const vslsAgentDtlsDisclosure = useDisclosure();
   const advancedFiltersDisclosure = useDisclosure({ defaultIsOpen: false });
@@ -392,16 +382,12 @@ const SoNumberTab = () => {
         ? (searchCountryFilter.id ?? searchCountryFilter.value)
         : searchCountryFilter;
 
-      // When "No Sort" is selected, use sort_by id and sort_order desc for API fetch
-      const effectiveSortBy = nextActionSortOption === "none" ? "id" : sortBy;
-      const effectiveSortOrder = nextActionSortOption === "none" ? "desc" : sortOrder;
+      const soId = searchQuery && searchQuery.trim() !== "" ? searchQuery.trim() : undefined;
 
       const data = await getShippingOrders({
         page,
         page_size: pageSize,
-        sort_by: effectiveSortBy,
-        sort_order: effectiveSortOrder,
-        search: searchQuery,
+        ...(soId != null && soId !== "" && { so_id: soId }),
         ...(client_id != null && client_id !== "" && { client_id, done }),
         ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
         ...(countryId != null && countryId !== "" && { country_id: countryId }),
@@ -503,9 +489,17 @@ const SoNumberTab = () => {
     return () => clearTimeout(timer);
   }, [searchValue]);
 
+  // Normalize SO Number search input to numeric so_id (e.g. "SO-123" -> "123")
+  const normalizeSoSearch = (value) => {
+    if (!value) return "";
+    const digits = String(value).replace(/\D/g, "");
+    return digits;
+  };
+
   // Handle search button click (immediate, no wait for debounce)
   const handleSearch = () => {
-    setSearchQuery(searchValue.trim());
+    const normalized = normalizeSoSearch(searchValue);
+    setSearchQuery(normalized);
     setPage(1);
   };
 
@@ -895,38 +889,6 @@ const SoNumberTab = () => {
     formDisclosure.onClose();
   };
 
-  const handleDeleteRequest = (order) => {
-    setOrderToDelete(order);
-    deleteDisclosure.onOpen();
-  };
-
-  const confirmDelete = async () => {
-    if (!orderToDelete) return;
-
-    try {
-      await deleteShippingOrder(orderToDelete.id);
-      toast({
-        title: "Order deleted",
-        description: `${orderToDelete.so_number || "SO"} has been removed`,
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
-      await fetchOrders();
-    } catch (err) {
-      toast({
-        title: "Delete failed",
-        description: err?.message || "Unable to delete sales order",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
-    } finally {
-      deleteDisclosure.onClose();
-      setOrderToDelete(null);
-    }
-  };
-
   const handleRefresh = () => {
     fetchOrders();
   };
@@ -1010,7 +972,21 @@ const SoNumberTab = () => {
     }
 
     return filteredOrders.map((order) => (
-      <Tr key={order.id || order.so_number}>
+      <Tr
+        key={order.id || order.so_number}
+        _hover={{ bg: hoverBg }}
+      >
+        <Td {...tableCellProps}>
+          <HStack spacing="2">
+            <IconButton
+              size="sm"
+              aria-label="Edit SO"
+              icon={<Icon as={MdEdit} />}
+              variant="ghost"
+              onClick={() => handleEdit(order)}
+            />
+          </HStack>
+        </Td>
         <Td {...tableCellProps}><Text {...cellText}>{getSoNumber(order)}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
@@ -1089,25 +1065,6 @@ const SoNumberTab = () => {
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.timestamp || order.date_created)}</Text></Td>
-        <Td {...tableCellProps}>
-          <HStack spacing="2">
-            <IconButton
-              size="sm"
-              aria-label="Edit SO"
-              icon={<Icon as={MdEdit} />}
-              variant="ghost"
-              onClick={() => handleEdit(order)}
-            />
-            <IconButton
-              size="sm"
-              aria-label="Delete SO"
-              icon={<Icon as={MdDelete} />}
-              variant="ghost"
-              colorScheme="red"
-              onClick={() => handleDeleteRequest(order)}
-            />
-          </HStack>
-        </Td>
       </Tr>
     ));
   };
@@ -1584,6 +1541,7 @@ const SoNumberTab = () => {
           <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
             <Tr>
               {[
+                { label: "Actions", field: null, sortable: false },
                 { label: "SO Number", field: "so_number", sortable: true },
                 { label: "Next Action", field: "next_action", sortable: true },
                 { label: "Date Created", field: "date_created", sortable: true },
@@ -1600,7 +1558,6 @@ const SoNumberTab = () => {
                 { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
                 { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
-                { label: "Actions", field: null, sortable: false },
               ].map((col) => (
                 <Th
                   key={col.label}
@@ -1895,32 +1852,6 @@ const SoNumberTab = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-
-      <AlertDialog
-        isOpen={deleteDisclosure.isOpen}
-        leastDestructiveRef={null}
-        onClose={deleteDisclosure.onClose}
-      >
-        <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
-              Delete SO entry
-            </AlertDialogHeader>
-
-            <AlertDialogBody>
-              Are you sure you want to delete {orderToDelete?.so_number || (orderToDelete?.so_id != null ? `SO-${orderToDelete.so_id}` : "this SO")}?
-              This action cannot be undone.
-            </AlertDialogBody>
-
-            <AlertDialogFooter>
-              <Button onClick={deleteDisclosure.onClose}>Cancel</Button>
-              <Button colorScheme="red" onClick={confirmDelete} ml={3}>
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
 
       {/* PIC Filter Selection Modal */}
       <Modal isOpen={picFilterModalDisclosure.isOpen} onClose={picFilterModalDisclosure.onClose} size="md">

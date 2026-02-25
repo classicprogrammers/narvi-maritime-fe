@@ -118,6 +118,7 @@ export default function StockDBMainEdit() {
     const borderColor = useColorModeValue("gray.200", "gray.700");
     const cardBg = useColorModeValue("white", "navy.800");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+    const rowHoverBg = useColorModeValue("yellow.100", "yellow.700");
 
     // Cell props for consistent styling
     const cellProps = {
@@ -1617,7 +1618,17 @@ export default function StockDBMainEdit() {
                 </Text>
 
                 <Card w="100%" p="0" overflow="visible">
-                    <Table variant="striped" size="sm" colorScheme="gray" minW="6000px">
+                    <Table
+                        variant="striped"
+                        size="sm"
+                        colorScheme="gray"
+                        minW="6000px"
+                        sx={{
+                            "tbody tr:hover td": {
+                                bg: rowHoverBg,
+                            },
+                        }}
+                    >
                         <Thead>
                             <Tr>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="80px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">StockItemID</Th>

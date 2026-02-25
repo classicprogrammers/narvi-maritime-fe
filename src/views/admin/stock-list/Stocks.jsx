@@ -56,7 +56,7 @@ import {
     Grid,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdInventory2 } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -291,6 +291,12 @@ export default function Stocks() {
 
     // State to control filters section visibility - default to open
     const [showFilters, setShowFilters] = useState(true);
+    const [createDateFrom, setCreateDateFrom] = useState("");
+    const [createDateTo, setCreateDateTo] = useState("");
+    const [daysRangeFrom, setDaysRangeFrom] = useState("");
+    const [daysRangeTo, setDaysRangeTo] = useState("");
+    const { isOpen: isCreateDateModalOpen, onOpen: onCreateDateModalOpen, onClose: onCreateDateModalClose } = useDisclosure();
+    const { isOpen: isDaysRangeModalOpen, onOpen: onDaysRangeModalOpen, onClose: onDaysRangeModalClose } = useDisclosure();
 
     // Stock View / Edit tab filters
     const [stockViewClient, setStockViewClient] = useState(savedState.stockViewClient);
@@ -362,6 +368,7 @@ export default function Stocks() {
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
     const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+    const tableRowHoverBg = useColorModeValue("gray.100", "gray.700");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
@@ -410,6 +417,13 @@ export default function Stocks() {
     const currentApiPage = activeTab === 0 ? stockViewPage : clientViewPage;
 
     // Build API params from current tab's filters (stored in ref for use in fetch effect)
+    // Normalize SO Number input to numeric so_id (e.g. "SO-123" -> "123")
+    const normalizeSoNumber = (value) => {
+        if (!value) return "";
+        const digits = String(value).replace(/\D/g, "");
+        return digits;
+    };
+
     const filterRef = useRef({});
     filterRef.current = {
         activeTab,
@@ -434,6 +448,10 @@ export default function Stocks() {
         clientViewSearchVessel,
         clientViewVesselFilter,
         clientViewStatuses,
+        createDateFrom,
+        createDateTo,
+        daysRangeFrom,
+        daysRangeTo,
     };
 
     const isInitialMount = useRef(true);
@@ -497,8 +515,9 @@ export default function Stocks() {
 
         if (f.activeTab === 0) {
             const vesselStatusSet = f.vesselViewStatuses || new Set();
+            // Pass multiple statuses as array so API gets &stock_status=pending&stock_status=stock (repeated param)
             const statusParam = vesselStatusSet.size > 0
-                ? Array.from(vesselStatusSet).join(",")
+                ? Array.from(vesselStatusSet)
                 : (f.stockViewStatus?.trim() || undefined);
             const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
@@ -509,8 +528,8 @@ export default function Stocks() {
                 vessel_id: vesselId ?? undefined,
                 stock_status: statusParam,
                 search: f.stockViewSearchFilter?.trim() || undefined,
-                // SO number filter: pass raw text like PO filter (backend handles matching)
-                so_id: f.stockViewFilterSO?.trim() || undefined,
+                // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
+                so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
                 si_number: f.stockViewFilterSI?.trim() || undefined,
                 si_combined: f.stockViewFilterSICombined?.trim() || undefined,
                 di_no: f.stockViewFilterDI?.trim() || undefined,
@@ -518,11 +537,16 @@ export default function Stocks() {
                 stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                 date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
                 days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
+                days_on_stock_min: f.daysRangeFrom?.trim() || undefined,
+                days_on_stock_max: f.daysRangeTo?.trim() || undefined,
+                date_on_stock_from: f.createDateFrom?.trim() || undefined,
+                date_on_stock_to: f.createDateTo?.trim() || undefined,
                 hub: hubVal?.trim() || undefined,
             });
         } else {
             const statusSet = f.clientViewStatuses || new Set();
-            const statusParam = statusSet.size > 0 ? Array.from(statusSet).join(",") : undefined;
+            // Pass multiple statuses as array so API gets &stock_status=pending&stock_status=stock (repeated param)
+            const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
             getStockList({
                 ...base,
                 client_id: f.clientViewClient ?? undefined,
@@ -3637,7 +3661,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -3650,6 +3674,10 @@ export default function Stocks() {
                                                                         setStockViewStatus("");
                                                                         setStockViewDateOnStock("");
                                                                         setStockViewDaysOnStock("");
+                                                                        setCreateDateFrom("");
+                                                                        setCreateDateTo("");
+                                                                        setDaysRangeFrom("");
+                                                                        setDaysRangeTo("");
                                                                         setStockViewHub(null);
                                                                         setStockViewFilterSO("");
                                                                         setStockViewFilterSI("");
@@ -3791,56 +3819,37 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
 
-                                                        {/* Date on Stock Filter */}
+                                                        {/* Date on Stock Filter (opens range modal) */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
-                                                                <Input
-                                                                    type="date"
-                                                                    value={stockViewDateOnStock}
-                                                                    onChange={(e) => setStockViewDateOnStock(e.target.value)}
-                                                                    bg={inputBg}
-                                                                    color={inputText}
-                                                                    borderColor={borderColor}
-                                                                    size="md"
-                                                                />
-                                                                {stockViewDateOnStock && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewDateOnStock("")}
-                                                                        aria-label="Clear date filter"
-                                                                    />
-                                                                )}
+                                                                <Button
+                                                                    size="sm"
+                                                                    w="100%"
+                                                                    variant={createDateFrom || createDateTo ? "solid" : "outline"}
+                                                                    colorScheme={createDateFrom || createDateTo ? "blue" : "gray"}
+                                                                    leftIcon={<Icon as={MdDateRange} />}
+                                                                    onClick={onCreateDateModalOpen}
+                                                                >
+                                                                    {createDateFrom || createDateTo ? "Edit Date Filter" : "Filter by Dates"}
+                                                                </Button>
                                                             </HStack>
                                                         </Box>
 
-                                                        {/* Days on Stock Filter */}
+                                                        {/* Days on Stock Filter (min and max range) */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={stockViewDaysOnStock}
-                                                                        onChange={(e) => setStockViewDaysOnStock(e.target.value)}
-                                                                        placeholder="Filter by Days on Stock"
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewDaysOnStock && (
-                                                                    <IconButton
+                                                                <Tooltip label="Filter by days on stock (min to max). Single value will be treated as minimum." hasArrow>
+                                                                    <Button
                                                                         size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewDaysOnStock("")}
-                                                                        aria-label="Clear days filter"
-                                                                    />
-                                                                )}
+                                                                        w="100%"
+                                                                        variant={daysRangeFrom || daysRangeTo ? "solid" : "outline"}
+                                                                        colorScheme={daysRangeFrom || daysRangeTo ? "blue" : "gray"}
+                                                                        leftIcon={<Icon as={MdNumbers} />}
+                                                                        onClick={onDaysRangeModalOpen}
+                                                                    >
+                                                                        {daysRangeFrom || daysRangeTo ? "Edit Days Filter" : "Filter by Days"}
+                                                                    </Button>
+                                                                </Tooltip>
                                                             </HStack>
                                                         </Box>
 
@@ -4275,7 +4284,11 @@ export default function Stocks() {
                                                         const statusStyle = getStatusStyle(item.stock_status);
                                                         const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                         return (
-                                                            <Tr key={item.id} bg={rowBg}>
+                                                            <Tr
+                                                                key={item.id}
+                                                                bg={rowBg}
+                                                                _hover={{ bg: tableRowHoverBg }}
+                                                            >
                                                                 <Td
                                                                     borderRight="1px"
                                                                     borderColor={tableBorderColor}
@@ -4834,7 +4847,11 @@ export default function Stocks() {
                                                         const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                         const itemId = item.id || item.stock_item_id;
                                                         return (
-                                                            <Tr key={itemId} bg={rowBg}>
+                                                            <Tr
+                                                                key={itemId}
+                                                                bg={rowBg}
+                                                                _hover={{ bg: tableRowHoverBg }}
+                                                            >
                                                                 <Td {...cellProps} bg={rowBg} w="40px">
                                                                     <Checkbox
                                                                         isChecked={clientViewSelectedRows.has(itemId)}
@@ -5544,6 +5561,147 @@ export default function Stocks() {
                         <Button onClick={onDimensionsModalClose} colorScheme="blue">
                             Close
                         </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
+            {/* Date on Stock Range Filter Modal for Stock View / Edit */}
+            <Modal isOpen={isCreateDateModalOpen} onClose={onCreateDateModalClose} size="sm">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Filter by Date on Stock</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4} align="stretch">
+                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                Choose a Date on Stock range (from – to). This shows items whose Date on Stock falls within that range.
+                            </Text>
+                            <HStack spacing={3}>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>Start date</Text>
+                                    <Input
+                                        type="date"
+                                        size="sm"
+                                        value={createDateFrom}
+                                        onChange={(e) => setCreateDateFrom(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>End date</Text>
+                                    <Input
+                                        type="date"
+                                        size="sm"
+                                        value={createDateTo}
+                                        onChange={(e) => setCreateDateTo(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                            </HStack>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <HStack spacing={3}>
+                            {(createDateFrom || createDateTo) && (
+                                <Button
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                        setCreateDateFrom("");
+                                        setCreateDateTo("");
+                                    }}
+                                >
+                                    Clear
+                                </Button>
+                            )}
+                            <Button
+                                onClick={() => {
+                                    // Reset to first page and trigger API fetch with new date range
+                                    setStockViewPage(1);
+                                    setClientViewPage(1);
+                                    setApiFetchTrigger((t) => t + 1);
+                                    onCreateDateModalClose();
+                                }}
+                                colorScheme="blue"
+                            >
+                                Apply
+                            </Button>
+                        </HStack>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
+            {/* Days on Stock Range Filter Modal for Stock View / Edit */}
+            <Modal isOpen={isDaysRangeModalOpen} onClose={onDaysRangeModalClose} size="sm">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Filter by Days on Stock</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4} align="stretch">
+                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                Choose a Days on Stock range (min – max). This shows items whose days on stock fall within that range.
+                                Leaving max empty will search from the minimum upwards.
+                            </Text>
+                            <HStack spacing={3}>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>Min days</Text>
+                                    <Input
+                                        type="number"
+                                        size="sm"
+                                        value={daysRangeFrom}
+                                        onChange={(e) => setDaysRangeFrom(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>Max days</Text>
+                                    <Input
+                                        type="number"
+                                        size="sm"
+                                        value={daysRangeTo}
+                                        onChange={(e) => setDaysRangeTo(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                            </HStack>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <HStack spacing={3}>
+                            {(daysRangeFrom || daysRangeTo) && (
+                                <Button
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                        setDaysRangeFrom("");
+                                        setDaysRangeTo("");
+                                    }}
+                                >
+                                    Clear
+                                </Button>
+                            )}
+                            <Button
+                                onClick={() => {
+                                    // Reset to first page and trigger API fetch with new days range
+                                    setStockViewPage(1);
+                                    setClientViewPage(1);
+                                    setApiFetchTrigger((t) => t + 1);
+                                    onDaysRangeModalClose();
+                                }}
+                                colorScheme="blue"
+                            >
+                                Apply
+                            </Button>
+                        </HStack>
                     </ModalFooter>
                 </ModalContent>
             </Modal>

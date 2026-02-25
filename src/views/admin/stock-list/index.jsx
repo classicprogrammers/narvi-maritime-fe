@@ -40,7 +40,7 @@ import {
     Collapse,
     Center,
 } from "@chakra-ui/react";
-import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear, MdInventory2 } from "react-icons/md";
+import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
@@ -76,6 +76,8 @@ function readPersistedStockMainDbState() {
             filterPO: typeof p.filterPO === "string" ? p.filterPO : "",
             filterRemarks: typeof p.filterRemarks === "string" ? p.filterRemarks : "",
             filterDaysOnStock: typeof p.filterDaysOnStock === "string" ? p.filterDaysOnStock : "",
+            filterCreateDateFrom: typeof p.filterCreateDateFrom === "string" ? p.filterCreateDateFrom : "",
+            filterCreateDateTo: typeof p.filterCreateDateTo === "string" ? p.filterCreateDateTo : "",
             sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
             sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
         };
@@ -111,6 +113,8 @@ const defaultStockMainDbState = {
     filterPO: "",
     filterRemarks: "",
     filterDaysOnStock: "",
+    filterCreateDateFrom: "",
+    filterCreateDateTo: "",
     sortBy: "id",
     sortOrder: "desc",
 };
@@ -196,6 +200,8 @@ export default function StockList() {
     const [filterPO, setFilterPO] = useState(savedState.filterPO);
     const [filterRemarks, setFilterRemarks] = useState(savedState.filterRemarks);
     const [filterDaysOnStock, setFilterDaysOnStock] = useState(savedState.filterDaysOnStock);
+    const [filterCreateDateFrom, setFilterCreateDateFrom] = useState(savedState.filterCreateDateFrom);
+    const [filterCreateDateTo, setFilterCreateDateTo] = useState(savedState.filterCreateDateTo);
     // Search state (searchFilter used as API param; no separate searchQuery)
     const [searchFilter, setSearchFilter] = useState(savedState.searchFilter);
 
@@ -229,10 +235,12 @@ export default function StockList() {
             filterPO,
             filterRemarks,
             filterDaysOnStock,
+            filterCreateDateFrom,
+            filterCreateDateTo,
             sortBy,
             sortOrder,
         });
-    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, sortBy, sortOrder]);
+    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -243,12 +251,14 @@ export default function StockList() {
     const [sortField, setSortField] = useState(null);
     const [sortDirection, setSortDirection] = useState("asc");
     const [sortOption, setSortOption] = useState("none");
+    const { isOpen: isCreateDateModalOpen, onOpen: onCreateDateModalOpen, onClose: onCreateDateModalClose } = useDisclosure();
 
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
     const tableRowBg = useColorModeValue("white", "gray.800");
     const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+    const tableRowHoverBg = useColorModeValue("gray.100", "gray.700");
     const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
     const tableTextColor = useColorModeValue("gray.600", "gray.300");
     const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
@@ -299,6 +309,13 @@ export default function StockList() {
         : undefined;
 
     // Fetch stock list with pagination and all filters as API params
+    // Normalize SO Number input to numeric so_id (e.g. "SO-123" -> "123")
+    const normalizeSoNumber = (value) => {
+        if (!value) return "";
+        const digits = String(value).replace(/\D/g, "");
+        return digits;
+    };
+
     const fetchStockList = useCallback(() => {
         return getStockList({
             page,
@@ -309,20 +326,23 @@ export default function StockList() {
             client_id: getIdParam(selectedClient),
             vessel_id: getIdParam(selectedVessel),
             stock_status: selectedStatus?.trim() || undefined,
-            // SO number filter: pass raw text like PO filter (backend handles matching)
-            so_id: filterSO?.trim() || undefined,
+            // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
+            so_id: normalizeSoNumber(filterSO) || undefined,
             si_number: filterSI?.trim() || undefined,
             si_combined: filterSICombined?.trim() || undefined,
             di_no: filterDI?.trim() || undefined,
             po_text: filterPO?.trim() || undefined,
             remarks: filterRemarks?.trim() || undefined,
             days_on_stock_min: filterDaysOnStock?.trim() || undefined,
+            // Date on Stock range filter
+            date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
+            date_on_stock_to: filterCreateDateTo?.trim() || undefined,
             hub: hubParam != null ? String(hubParam).trim() : undefined,
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
@@ -1361,7 +1381,7 @@ export default function StockList() {
                                                 <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || searchFilter) && (
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
@@ -1382,12 +1402,24 @@ export default function StockList() {
                                                             setFilterPO("");
                                                             setFilterRemarks("");
                                                             setFilterDaysOnStock("");
+                                                            setFilterCreateDateFrom("");
+                                                            setFilterCreateDateTo("");
                                                             setSearchFilter("");
                                                         }}
                                                     >
                                                         Clear All
                                                     </Button>
                                                 )}
+
+                                                <Button
+                                                    size="sm"
+                                                    variant={filterCreateDateFrom || filterCreateDateTo ? "solid" : "outline"}
+                                                    colorScheme={filterCreateDateFrom || filterCreateDateTo ? "blue" : "gray"}
+                                                    leftIcon={<Icon as={MdDateRange} />}
+                                                    onClick={onCreateDateModalOpen}
+                                                >
+                                                    {filterCreateDateFrom || filterCreateDateTo ? "Edit Date Filter" : "Filter by Dates"}
+                                                </Button>
 
                                                 <Menu>
                                                     <MenuButton
@@ -1825,17 +1857,19 @@ export default function StockList() {
                                             {/* Days on Stock Filter */}
                                             <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
-                                                    <InputGroup size="sm">
-                                                        <Input
-                                                            value={filterDaysOnStock}
-                                                            onChange={(e) => setFilterDaysOnStock(e.target.value)}
-                                                            placeholder="Days on stock (min)"
-                                                            bg={inputBg}
-                                                            color={inputText}
-                                                            borderColor={borderColor}
-                                                            pl="8"
-                                                        />
-                                                    </InputGroup>
+                                                    <Tooltip label="Minimum days on stock; shows items with this many days or more." hasArrow>
+                                                        <InputGroup size="sm">
+                                                            <Input
+                                                                value={filterDaysOnStock}
+                                                                onChange={(e) => setFilterDaysOnStock(e.target.value)}
+                                                                placeholder="Days on stock (min)"
+                                                                bg={inputBg}
+                                                                color={inputText}
+                                                                borderColor={borderColor}
+                                                                pl="8"
+                                                            />
+                                                        </InputGroup>
+                                                    </Tooltip>
                                                     {filterDaysOnStock && (
                                                         <IconButton
                                                             size="sm"
@@ -1884,7 +1918,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || searchFilter || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -1991,9 +2025,6 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_item_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         STOCKITEMID {sortField === "stock_item_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("sl_create_date")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        SL CREATE DATE {sortField === "sl_create_date" && (sortDirection === "asc" ? "↑" : "↓")}
-                                    </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("client_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         CLIENT {sortField === "client_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
@@ -2077,9 +2108,6 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("vessel_eta")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         VESSEL ETA {sortField === "vessel_eta" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("sl_create_datetime")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        SL CREATE DATE TIMESTAMP {sortField === "sl_create_datetime" && (sortDirection === "asc" ? "↑" : "↓")}
-                                    </Th>
                                     <Th {...headerProps}>FILES</Th>
                                     <Th {...headerProps}>ACTIONS</Th>
                                 </Tr>
@@ -2098,6 +2126,7 @@ export default function StockList() {
                                             bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
                                             borderBottom="1px"
                                             borderColor={tableBorderColor}
+                                            _hover={{ bg: tableRowHoverBg }}
                                         >
                                             <Td borderRight="1px" borderColor={tableBorderColor} py="12px" px="8px" width="40px" minW="40px" maxW="40px">
                                                 <Checkbox
@@ -2108,7 +2137,6 @@ export default function StockList() {
                                                 />
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{formatDate(item.sl_create_date || item.sl_create_datetime)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{(() => {
@@ -2512,6 +2540,74 @@ export default function StockList() {
                         <Button onClick={onViewModalClose} colorScheme="blue">
                             Close
                         </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+
+            {/* Date on Stock Range Filter Modal */}
+            <Modal isOpen={isCreateDateModalOpen} onClose={onCreateDateModalClose} size="sm">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Filter by Date on Stock</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4} align="stretch">
+                            <Text fontSize="sm" color={tableTextColorSecondary}>
+                                Choose a Date on Stock range (from – to). This shows items whose Date on Stock falls within that range.
+                            </Text>
+                            <HStack spacing={3}>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>Start date</Text>
+                                    <Input
+                                        type="date"
+                                        size="sm"
+                                        value={filterCreateDateFrom}
+                                        onChange={(e) => setFilterCreateDateFrom(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                                <Box flex="1">
+                                    <Text fontSize="sm" mb={1}>End date</Text>
+                                    <Input
+                                        type="date"
+                                        size="sm"
+                                        value={filterCreateDateTo}
+                                        onChange={(e) => setFilterCreateDateTo(e.target.value)}
+                                        bg={inputBg}
+                                        color={inputText}
+                                        borderColor={borderColor}
+                                    />
+                                </Box>
+                            </HStack>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <HStack spacing={3}>
+                            {(filterCreateDateFrom || filterCreateDateTo) && (
+                                <Button
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    onClick={() => {
+                                        setFilterCreateDateFrom("");
+                                        setFilterCreateDateTo("");
+                                    }}
+                                >
+                                    Clear
+                                </Button>
+                            )}
+                            <Button
+                                onClick={() => {
+                                    setPage(1);
+                                    setFetchTrigger((t) => t + 1);
+                                    onCreateDateModalClose();
+                                }}
+                                colorScheme="blue"
+                            >
+                                Apply
+                            </Button>
+                        </HStack>
                     </ModalFooter>
                 </ModalContent>
             </Modal>

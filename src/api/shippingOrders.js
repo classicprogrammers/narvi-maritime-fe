@@ -6,6 +6,8 @@ export const getShippingOrders = async (params = {}) => {
     const {
       page = 1,
       page_size = 80,
+      // sort_by and sort_order are intentionally not sent to backend;
+      // backend will use its own default sorting.
       sort_by = "id",
       sort_order = "desc",
       search = "",
@@ -14,13 +16,12 @@ export const getShippingOrders = async (params = {}) => {
       destination_id,
       country_id,
       done,
+      so_id,
     } = params;
 
     const requestParams = {
       page,
       page_size,
-      sort_by,
-      sort_order,
     };
 
     // Include search parameter if provided (only search, not name)
@@ -43,6 +44,14 @@ export const getShippingOrders = async (params = {}) => {
     }
     if (done) {
       requestParams.done = done;
+    }
+    // Normalize so_id to only the numeric part (e.g. "SO 123", "so-123" -> "123")
+    if (so_id != null && String(so_id).trim() !== "") {
+      const rawSoId = String(so_id).trim();
+      const digitsMatch = rawSoId.match(/\d+/);
+      if (digitsMatch && digitsMatch[0] !== "") {
+        requestParams.so_id = digitsMatch[0];
+      }
     }
 
     const response = await api.get('/api/shipping/orders', {

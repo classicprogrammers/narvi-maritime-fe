@@ -69,10 +69,14 @@ export const getStockListApi = async (params = {}) => {
       date_on_stock = "",
       days_on_stock = "",
       days_on_stock_min = "",
+      days_on_stock_max = "",
       hub = "",
       supplier_id,
       warehouse_id,
       currency_id,
+      // Optional create date range filters (backend expects these names)
+      create_date_from = "",
+      create_date_to = "",
     } = params;
 
     const requestParams = {
@@ -93,9 +97,14 @@ export const getStockListApi = async (params = {}) => {
 
     if (client_id != null && client_id !== "") requestParams.client_id = client_id;
     if (vessel_id != null && vessel_id !== "") requestParams.vessel_id = vessel_id;
-    // Backend expects stock_status for status filter (not status)
+    // Backend expects stock_status: repeated param per value e.g. &stock_status=pending&stock_status=stock
     const statusVal = (stock_status != null && String(stock_status).trim() !== "") ? String(stock_status).trim() : (status != null && String(status).trim() !== "" ? String(status).trim() : "");
-    if (statusVal !== "") requestParams.stock_status = statusVal;
+    if (Array.isArray(stock_status) && stock_status.length > 0) {
+      const statusArr = stock_status.map((s) => (s != null ? String(s).trim() : "")).filter(Boolean);
+      if (statusArr.length > 0) requestParams.stock_status = statusArr;
+    } else if (statusVal !== "") {
+      requestParams.stock_status = statusVal;
+    }
     if (so_id != null && String(so_id).trim() !== "") requestParams.so_id = String(so_id).trim();
     if (si_number != null && String(si_number).trim() !== "") requestParams.si_number = String(si_number).trim();
     if (si_combined != null && String(si_combined).trim() !== "") requestParams.si_combined = String(si_combined).trim();
@@ -103,10 +112,25 @@ export const getStockListApi = async (params = {}) => {
     if (po_text != null && String(po_text).trim() !== "") requestParams.po_text = String(po_text).trim();
     if (remarks != null && String(remarks).trim() !== "") requestParams.remarks = String(remarks).trim();
     if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
-    if (date_on_stock != null && String(date_on_stock).trim() !== "") requestParams.date_on_stock = String(date_on_stock).trim();
-    // Backend expects days_on_stock_min for "days on stock" filter
-    const daysMin = days_on_stock_min != null && String(days_on_stock_min).trim() !== "" ? String(days_on_stock_min).trim() : (days_on_stock != null && String(days_on_stock).trim() !== "" ? String(days_on_stock).trim() : "");
+    if (date_on_stock != null && String(date_on_stock).trim() !== "") {
+      // Backend expects date_on_stock_from instead of date_on_stock
+      requestParams.date_on_stock_from = String(date_on_stock).trim();
+    }
+    if (create_date_from != null && String(create_date_from).trim() !== "") {
+      requestParams.create_date_from = String(create_date_from).trim();
+    }
+    if (create_date_to != null && String(create_date_to).trim() !== "") {
+      requestParams.create_date_to = String(create_date_to).trim();
+    }
+    // Backend expects days_on_stock_min / days_on_stock_max for "days on stock" range filter.
+    // Single-value "days_on_stock" is treated as the minimum (from) value.
+    const daysMin = days_on_stock_min != null && String(days_on_stock_min).trim() !== ""
+      ? String(days_on_stock_min).trim()
+      : (days_on_stock != null && String(days_on_stock).trim() !== "" ? String(days_on_stock).trim() : "");
     if (daysMin !== "") requestParams.days_on_stock_min = daysMin;
+    if (days_on_stock_max != null && String(days_on_stock_max).trim() !== "") {
+      requestParams.days_on_stock_max = String(days_on_stock_max).trim();
+    }
     if (hub != null && String(hub).trim() !== "") requestParams.hub = String(hub).trim();
     if (supplier_id != null && supplier_id !== "") requestParams.supplier_id = supplier_id;
     if (warehouse_id != null && warehouse_id !== "") requestParams.warehouse_id = warehouse_id;

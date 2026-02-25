@@ -6,6 +6,32 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // Custom params serializer so arrays become repeated keys without [].
+  // Example: { stock_status: ["stock", "delivered"] }
+  // -> "stock_status=stock&stock_status=delivered"
+  paramsSerializer: (params) => {
+    const parts = [];
+    const entries = Object.entries(params || {});
+
+    for (const [key, value] of entries) {
+      if (value === null || value === undefined) continue;
+
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (v === null || v === undefined) continue;
+          parts.push(
+            `${encodeURIComponent(key)}=${encodeURIComponent(String(v))}`
+          );
+        }
+      } else {
+        parts.push(
+          `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+        );
+      }
+    }
+
+    return parts.join("&");
+  },
 });
 
 // Request interceptor to add auth token

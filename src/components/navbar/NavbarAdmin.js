@@ -1,5 +1,5 @@
 // Chakra Imports
-import { Box, Breadcrumb, BreadcrumbItem, BreadcrumbLink, Flex, Link, Text, useColorModeValue } from '@chakra-ui/react';
+import { Box, Breadcrumb, BreadcrumbItem, Flex, Link, Text, useColorModeValue } from '@chakra-ui/react';
 import PropTypes from 'prop-types';
 import React, { useState, useEffect } from 'react';
 import AdminNavbarLinks from 'components/navbar/NavbarLinksAdmin';
@@ -99,15 +99,15 @@ export default function AdminNavbar(props) {
 				<Box mb={{ sm: '8px', md: '0px' }}>
 					<Breadcrumb>
 						<BreadcrumbItem color={secondaryText} fontSize='lg'>
-							<BreadcrumbLink href='#' color={secondaryText}>
+							<Text color={secondaryText} fontSize='lg'>
 								Pages
-							</BreadcrumbLink>
+							</Text>
 						</BreadcrumbItem>
 
-						<BreadcrumbItem color={secondaryText} fontSize='lg'>
-							<BreadcrumbLink href='#' color={secondaryText}>
+						<BreadcrumbItem color={secondaryText} fontSize='lg' isCurrentPage>
+							<Text color={secondaryText} fontSize='lg'>
 								{brandText}
-							</BreadcrumbLink>
+							</Text>
 						</BreadcrumbItem>
 					</Breadcrumb>
 					{/* Here we create navbar brand, based on route name */}
