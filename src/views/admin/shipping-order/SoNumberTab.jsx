@@ -631,20 +631,18 @@ const SoNumberTab = () => {
     return country ? country.name : "-";
   }, [countries]);
 
-  // Helper to format destination display for table (country_id is normalized to id; use getCountryName for lookup)
+  // Helper to format destination display for table: show country name, destination (code/name), or both when available
   const getDestinationDisplay = useCallback((order) => {
-    if (order.destination_type && order.destination) {
-      const countryName = order.country_id ? getCountryName(order.country_id) : "";
-      if (order.destination_type === "country") {
-        return order.destination;
-      } else if (countryName && countryName !== "-") {
-        return `${order.destination}, ${countryName}`;
-      }
-      return order.destination;
-    }
-    if (order.destination_id) {
-      return getDestinationName(order.destination_id);
-    }
+    const countryName = order.country_id ? getCountryName(order.country_id) : "";
+    const hasCountry = countryName && countryName !== "-";
+    const destFromField = order.destination || "";
+    const destFromId = order.destination_id ? getDestinationName(order.destination_id) : "";
+    const destDisplay = destFromField || (destFromId !== "-" ? destFromId : "");
+
+    const parts = [];
+    if (destDisplay) parts.push(destDisplay);
+    if (hasCountry) parts.push(countryName);
+    if (parts.length) return parts.join(", ");
     return "-";
   }, [getCountryName, getDestinationName]);
 
