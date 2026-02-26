@@ -71,14 +71,10 @@ export default function ShippingOrderEditPage() {
       history.replace("/admin/shipping-orders");
       return;
     }
-    const order = normalizeOrder(orderFromState);
-    if (order) {
-      setOriginalOrder(order);
-      setFormData({ ...order });
-    } else {
-      setMissingOrder(true);
-      history.replace("/admin/shipping-orders");
-    }
+    // `orderFromState` is already normalized in the list view (SoNumberTab).
+    // Keep it as-is so we retain the original `_raw` backend object for diffing.
+    setOriginalOrder(orderFromState);
+    setFormData({ ...orderFromState });
   }, [id, location.state, history, toast]);
 
   useEffect(() => {
@@ -120,7 +116,7 @@ export default function ShippingOrderEditPage() {
     }
     try {
       setIsSaving(true);
-      const payload = buildPayloadFromForm(formData, true, originalOrder?._raw || {});
+      const payload = buildPayloadFromForm(formData, true, originalOrder || {});
       await updateShippingOrder(id, payload, originalOrder?._raw || {});
       toast({
         title: "SO updated",

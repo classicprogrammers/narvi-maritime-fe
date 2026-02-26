@@ -145,104 +145,22 @@ export const createShippingOrder = async (orderData) => {
   }
 };
 
-// Update shipping order - only send changed parameters (matching backend spec)
+// Update shipping order
+// `orderData` is expected to already be in the correct shape for the backend.
+// Callers (like `buildPayloadFromForm`) can pre-diff and send only changed fields.
 export const updateShippingOrder = async (id, orderData, originalData = {}) => {
   try {
-    // Helper function to normalize values for comparison
-    const normalize = (val) => {
-      if (val === null || val === undefined || val === "" || val === false) return null;
-      if (typeof val === 'string') {
-        // For date strings, extract just the date part (YYYY-MM-DD) for comparison
-        if (val.includes(' ')) {
-          return val.split(' ')[0];
-        }
-        return val.trim();
-      }
-      return val;
-    };
-
-    // Helper function to check if a value has actually changed
-    const hasChanged = (newValue, oldValue) => {
-      const normalizedNew = normalize(newValue);
-      const normalizedOld = normalize(oldValue);
-
-      // Both are null/empty - no change
-      if (normalizedNew === null && normalizedOld === null) return false;
-
-      // One is null, other is not - changed
-      if (normalizedNew === null || normalizedOld === null) {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // For strings, compare normalized values
-      if (typeof normalizedNew === 'string' && typeof normalizedOld === 'string') {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // For numbers, compare values
-      if (typeof normalizedNew === 'number' && typeof normalizedOld === 'number') {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // For booleans, direct comparison
-      if (typeof normalizedNew === 'boolean' && typeof normalizedOld === 'boolean') {
-        return normalizedNew !== normalizedOld;
-      }
-
-      // Default comparison
-      return normalizedNew !== normalizedOld;
-    };
-
     // Ensure numeric IDs are sent as numbers (not route-param strings)
     const normalizedId =
       typeof id === "string" && id.trim() !== "" && !Number.isNaN(Number(id))
         ? Number(id)
         : id;
-    // Build payload with only changed fields (backend expects id for update)
-    const payload = { id: normalizedId };
-    const fieldsToCheck = [
-      'so_id',
-      'done',
-      'pic_new',
-      'client_id',
-      'vessel_id',
-      'destination_id', // legacy field
-      'destination_type', // new destination structure
-      'destination', // new destination structure
-      'country_id', // new destination structure
-      'quotation_id',
-      'eta_date',
-      'etb',
-      'etd',
-      'date_order',
-      'next_action',
-      'est_to_usd',
-      'est_profit_usd',
-      'internal_remark',
-      'vsls_agent_dtls',
-      'client_case_invoice_ref',
-    ];
-
-    fieldsToCheck.forEach(field => {
-      if (hasChanged(orderData[field], originalData[field])) {
-        // Only include the field if it has a non-null value
-        // Don't include null, undefined, empty string, or false (for dates)
-        const value = orderData[field];
-        if (value !== null && value !== undefined && value !== "" && value !== false) {
-          payload[field] = value;
-        }
-        // Special handling for quotation_id - empty string is valid
-        else if (field === 'quotation_id' && value === "") {
-          payload[field] = "";
-        }
-      }
-    });
-
-    // Only proceed if there are actual changes
-    if (Object.keys(payload).length === 1) { // Only has 'id'
-      console.log("No changes detected, skipping update");
-      return { result: { status: 'success', message: 'No changes detected' } };
-    }
+    // Build payload directly from provided orderData.
+    // Always include id; callers decide which fields to send.
+    const payload = {
+      id: normalizedId,
+      ...(orderData || {}),
+    };
 
     const response = await api.post('/api/shipping/order/update', payload);
 
