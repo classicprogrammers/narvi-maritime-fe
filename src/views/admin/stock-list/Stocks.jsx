@@ -4204,7 +4204,7 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && stockList.length === 0 && (
+                                    {isLoading && (
                                         <Box
                                             position="fixed"
                                             top="50%"
@@ -4796,7 +4796,7 @@ export default function Stocks() {
                                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                                     }}
                                 >
-                                    {isLoading && stockList.length === 0 && (
+                                    {isLoading && (
                                         <Box
                                             position="fixed"
                                             top="50%"
@@ -5145,8 +5145,8 @@ export default function Stocks() {
                         )}
 
                         {/* Table Container */}
-                        <Box pr="25px" overflowX="auto" position="relative" minH="400px">
-                            {isLoading && stockList.length === 0 && (
+                            <Box pr="25px" overflowX="auto" position="relative" minH="400px">
+                            {isLoading && (
                                 <Box
                                     position="fixed"
                                     top="50%"

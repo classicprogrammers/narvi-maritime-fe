@@ -2004,7 +2004,7 @@ export default function StockList() {
                         "&::-webkit-scrollbar-thumb:hover": { background: "gray.400" },
                     }}
                 >
-                    {isLoading && stockList.length === 0 && (
+                    {isLoading && (
                         <Box
                             position="fixed"
                             top="50%"
