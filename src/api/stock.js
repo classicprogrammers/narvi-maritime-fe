@@ -74,6 +74,7 @@ export const getStockListApi = async (params = {}) => {
       supplier_id,
       warehouse_id,
       currency_id,
+      active = "true",
       // Optional create date range filters (backend expects these names)
       create_date_from = "",
       create_date_to = "",
@@ -132,6 +133,9 @@ export const getStockListApi = async (params = {}) => {
       requestParams.days_on_stock_max = String(days_on_stock_max).trim();
     }
     if (hub != null && String(hub).trim() !== "") requestParams.hub = String(hub).trim();
+    if (active != null && String(active).trim() !== "") {
+      requestParams.active = String(active).trim();
+    }
     if (supplier_id != null && supplier_id !== "") requestParams.supplier_id = supplier_id;
     if (warehouse_id != null && warehouse_id !== "") requestParams.warehouse_id = warehouse_id;
     if (currency_id != null && currency_id !== "") requestParams.currency_id = currency_id;

@@ -54,6 +54,7 @@ import {
     useDisclosure,
     Tooltip,
     Grid,
+    Switch,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdInventory2, MdDateRange } from "react-icons/md";
@@ -199,6 +200,7 @@ function readPersistedStockViewEditState() {
             stockViewFilterPO: typeof p.stockViewFilterPO === "string" ? p.stockViewFilterPO : "",
             stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
             stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
+            stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
             sortOption: typeof p.sortOption === "string" ? p.sortOption : "none",
         };
     } catch {
@@ -241,6 +243,7 @@ const defaultStockViewEditState = {
     stockViewFilterPO: "",
     stockViewSearchFilter: "",
     stockViewHub: null,
+    stockViewActiveFilter: "true",
     sortOption: "none",
 };
 
@@ -312,6 +315,7 @@ export default function Stocks() {
     const [stockViewFilterPO, setStockViewFilterPO] = useState(savedState.stockViewFilterPO);
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
     const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
+    const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
     const [sortOption, setSortOption] = useState(savedState.sortOption);
 
     // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
@@ -342,9 +346,10 @@ export default function Stocks() {
             stockViewFilterPO,
             stockViewSearchFilter,
             stockViewHub,
+            stockViewActiveFilter,
             sortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewSearchFilter, stockViewHub, sortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -440,6 +445,7 @@ export default function Stocks() {
         stockViewFilterPO,
         stockViewSearchFilter,
         stockViewHub,
+        stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
         vesselViewStatuses,
@@ -497,6 +503,7 @@ export default function Stocks() {
         stockViewFilterPO,
         stockViewSearchFilter,
         stockViewHub,
+        stockViewActiveFilter,
         vesselViewClient,
         vesselViewVessel,
         vesselViewStatuses,
@@ -527,6 +534,7 @@ export default function Stocks() {
                 client_id: clientId ?? undefined,
                 vessel_id: vesselId ?? undefined,
                 stock_status: statusParam,
+                active: f.stockViewActiveFilter || undefined,
                 search: f.stockViewSearchFilter?.trim() || undefined,
                 // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
                 so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
@@ -638,6 +646,7 @@ export default function Stocks() {
             if (filterState.stockViewFilterDI !== undefined) setStockViewFilterDI(filterState.stockViewFilterDI);
             if (filterState.stockViewFilterPO !== undefined) setStockViewFilterPO(filterState.stockViewFilterPO);
             if (filterState.stockViewSearchFilter !== undefined) setStockViewSearchFilter(filterState.stockViewSearchFilter);
+            if (filterState.stockViewActiveFilter !== undefined) setStockViewActiveFilter(filterState.stockViewActiveFilter);
             // Clear location.state to prevent restoring on subsequent renders
             history.replace(location.pathname, {});
         }
@@ -737,7 +746,8 @@ export default function Stocks() {
             stockViewFilterSICombined,
             stockViewFilterDI,
             stockViewFilterPO,
-            stockViewSearchFilter
+            stockViewSearchFilter,
+            stockViewActiveFilter,
         };
         const editState = { selectedItems: [item], isBulkEdit: false, filterState, sourcePage: 'stocks' };
         history.push({
@@ -770,7 +780,8 @@ export default function Stocks() {
                 stockViewStatus,
                 stockViewStockItemId,
                 stockViewDateOnStock,
-                stockViewDaysOnStock
+                stockViewDaysOnStock,
+                stockViewActiveFilter,
             };
             const editState = { selectedItems: selectedItemsData, isBulkEdit: selectedItemsData.length > 1, filterState, sourcePage: 'stocks' };
             history.push({
@@ -4064,53 +4075,75 @@ export default function Stocks() {
                                     </Box>
                                 </Collapse>
 
-                                {/* Status Filter Checkboxes Section */}
+                                {/* Status Filter Checkboxes Section (options depend on Active items toggle) */}
                                 <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
                                     <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
                                         CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
                                     </Text>
                                     <Flex flexWrap="wrap" gap="3" pb="2">
-                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                            <Box
-                                                key={statusKey}
-                                                p="4"
-                                                minW="130px"
-                                                flex="0 0 auto"
-                                                bg={config.bgColor}
-                                                borderRadius="md"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                            >
-                                                <Text
-                                                    fontSize="xs"
-                                                    fontWeight="600"
-                                                    color={config.textColor}
-                                                    mb="8px"
+                                        {Object.entries(STATUS_CONFIG)
+                                            .filter(([statusKey]) => {
+                                                const inactiveOnly = ["shipped", "delivered", "cancelled"];
+                                                if (stockViewActiveFilter === "false") {
+                                                    return inactiveOnly.includes(statusKey);
+                                                }
+                                                return !inactiveOnly.includes(statusKey);
+                                            })
+                                            .map(([statusKey, config]) => (
+                                                <Box
+                                                    key={statusKey}
+                                                    p="4"
+                                                    minW="130px"
+                                                    flex="0 0 auto"
+                                                    bg={config.bgColor}
+                                                    borderRadius="md"
+                                                    border="1px"
+                                                    borderColor={borderColor}
                                                 >
-                                                    {config.label}
-                                                </Text>
-                                                <Checkbox
-                                                    isChecked={vesselViewStatuses.has(statusKey)}
-                                                    onChange={() => handleVesselViewStatusToggle(statusKey)}
-                                                    size="md"
-                                                    colorScheme={config.color}
-                                                    borderColor="gray.600"
-                                                    sx={{
-                                                        "& .chakra-checkbox__control": {
-                                                            borderColor: "gray.600",
-                                                            _checked: {
-                                                                borderColor: `${config.color}.500`,
+                                                    <Text
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                        color={config.textColor}
+                                                        mb="8px"
+                                                    >
+                                                        {config.label}
+                                                    </Text>
+                                                    <Checkbox
+                                                        isChecked={vesselViewStatuses.has(statusKey)}
+                                                        onChange={() => handleVesselViewStatusToggle(statusKey)}
+                                                        size="md"
+                                                        colorScheme={config.color}
+                                                        borderColor="gray.600"
+                                                        sx={{
+                                                            "& .chakra-checkbox__control": {
+                                                                borderColor: "gray.600",
+                                                                _checked: {
+                                                                    borderColor: `${config.color}.500`,
+                                                                },
                                                             },
-                                                        },
-                                                    }}
-                                                />
-                                            </Box>
-                                        ))}
+                                                        }}
+                                                    />
+                                                </Box>
+                                            ))}
                                     </Flex>
                                 </Card>
 
-                                {/* Select All and Bulk Action Buttons */}
-                                <Flex px="25px" mb="20px" align="center" gap="3" flexWrap="wrap">
+                                {/* Active items toggle, Select All and Bulk Action Buttons */}
+                                <Flex px="25px" mb="20px" align="center" gap="4" flexWrap="wrap">
+                                    <HStack spacing="2" align="center">
+                                        <Text fontSize="sm" color={textColor} fontWeight="600">
+                                            Active items
+                                        </Text>
+                                        <Switch
+                                            size="md"
+                                            colorScheme="green"
+                                            isChecked={stockViewActiveFilter !== "false"}
+                                            onChange={(e) => setStockViewActiveFilter(e.target.checked ? "true" : "false")}
+                                        />
+                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                            {stockViewActiveFilter === "false" ? "Showing inactive items" : "Showing active items"}
+                                        </Text>
+                                    </HStack>
                                     {allFilteredItems.length > 0 && (
                                         <Button
                                             leftIcon={<Icon as={allPageItemsSelected ? MdCheckBox : MdCheckBoxOutlineBlank} />}

@@ -42,7 +42,7 @@ import {
 } from "@chakra-ui/react";
 import { MdRefresh, MdEdit, MdFilterList, MdClose, MdVisibility, MdSearch, MdNumbers, MdDescription, MdSort, MdDownload, MdClear, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider } from "@chakra-ui/react";
+import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider, Switch } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
 import locationsAPI from "../../../api/locations";
@@ -80,6 +80,7 @@ function readPersistedStockMainDbState() {
             filterCreateDateTo: typeof p.filterCreateDateTo === "string" ? p.filterCreateDateTo : "",
             sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
             sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
+            activeFilter: typeof p.activeFilter === "string" ? p.activeFilter : "true",
         };
     } catch {
         return null;
@@ -117,6 +118,7 @@ const defaultStockMainDbState = {
     filterCreateDateTo: "",
     sortBy: "id",
     sortOrder: "desc",
+    activeFilter: "true",
 };
 
 export default function StockList() {
@@ -214,6 +216,7 @@ export default function StockList() {
     const [hasPrevious, setHasPrevious] = useState(false);
     const [sortBy, setSortBy] = useState(savedState.sortBy);
     const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
+    const [activeFilter, setActiveFilter] = useState(savedState.activeFilter);
 
     // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
     useEffect(() => {
@@ -239,8 +242,9 @@ export default function StockList() {
             filterCreateDateTo,
             sortBy,
             sortOrder,
+            activeFilter,
         });
-    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder]);
+    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
     const [isLoadingClients, setIsLoadingClients] = useState(false);
     const [isLoadingVessels, setIsLoadingVessels] = useState(false);
     const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -341,8 +345,9 @@ export default function StockList() {
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
+            active: activeFilter || "true",
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
@@ -1378,7 +1383,23 @@ export default function StockList() {
                                     <Box>
                                         <HStack mb="3" justify="space-between">
                                             <HStack>
-                                                <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
+                                                <HStack spacing="4" align="center">
+                                                    <Text fontSize="sm" fontWeight="600" color={textColor}>Basic Filters</Text>
+                                                    <HStack spacing="2" align="center">
+                                                        <Text fontSize="sm" fontWeight="600" color={textColor}>
+                                                            Active items
+                                                        </Text>
+                                                        <Switch
+                                                            size="sm"
+                                                            colorScheme="green"
+                                                            isChecked={activeFilter !== "false"}
+                                                            onChange={(e) => setActiveFilter(e.target.checked ? "true" : "false")}
+                                                        />
+                                                        <Text fontSize="xs" color={tableTextColorSecondary}>
+                                                            {activeFilter === "false" ? "Showing shipped / delivered / cancelled" : "Showing active statuses"}
+                                                        </Text>
+                                                    </HStack>
+                                                </HStack>
                                             </HStack>
                                             <HStack>
                                                 {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
@@ -1567,16 +1588,23 @@ export default function StockList() {
                                                             borderColor={borderColor}
                                                         >
                                                             <option value="">All Statuses</option>
-                                                            <option value="pending">Pending</option>
-                                                            <option value="stock">Stock</option>
-                                                            <option value="on_shipping">On Shipping Instr</option>
-                                                            <option value="on_delivery">On Delivery Instr</option>
-                                                            <option value="in_transit">In Transit</option>
-                                                            <option value="arrived">Arrived Dest</option>
-                                                            <option value="shipped">Shipped</option>
-                                                            <option value="delivered">Delivered</option>
-                                                            <option value="irregular">Irregularities</option>
-                                                            <option value="cancelled">Cancelled</option>
+                                                            {activeFilter === "false" ? (
+                                                                <>
+                                                                    <option value="shipped">Shipped</option>
+                                                                    <option value="delivered">Delivered</option>
+                                                                    <option value="cancelled">Cancelled</option>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <option value="pending">Pending</option>
+                                                                    <option value="stock">Stock</option>
+                                                                    <option value="on_shipping">On Shipping Instr</option>
+                                                                    <option value="on_delivery">On Delivery Instr</option>
+                                                                    <option value="in_transit">In Transit</option>
+                                                                    <option value="arrived">Arrived Dest</option>
+                                                                    <option value="irregular">Irregularities</option>
+                                                                </>
+                                                            )}
                                                         </Select>
                                                     </Box>
                                                     {selectedStatus && (
