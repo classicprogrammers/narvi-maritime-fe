@@ -66,6 +66,7 @@ import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import narviLogo from "../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
 
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
@@ -202,6 +203,7 @@ function readPersistedStockViewEditState() {
             stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
             sortOption: typeof p.sortOption === "string" ? p.sortOption : "none",
+            clientSortOption: typeof p.clientSortOption === "string" ? p.clientSortOption : "none",
         };
     } catch {
         return null;
@@ -245,6 +247,7 @@ const defaultStockViewEditState = {
     stockViewHub: null,
     stockViewActiveFilter: "true",
     sortOption: "none",
+    clientSortOption: "none",
 };
 
 export default function Stocks() {
@@ -317,6 +320,7 @@ export default function Stocks() {
     const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
     const [sortOption, setSortOption] = useState(savedState.sortOption);
+    const [clientSortOption, setClientSortOption] = useState(savedState.clientSortOption || "none");
 
     // Persist filter and pagination state so it survives navigation (e.g. edit item then back)
     useEffect(() => {
@@ -348,8 +352,9 @@ export default function Stocks() {
             stockViewHub,
             stockViewActiveFilter,
             sortOption,
+            clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -555,6 +560,18 @@ export default function Stocks() {
             const statusSet = f.clientViewStatuses || new Set();
             // Pass multiple statuses as array so API gets &stock_status=pending&stock_status=stock (repeated param)
             const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
+
+            // Map clientSortOption to backend sort_by/sort_order
+            let sort_by;
+            let sort_order;
+            if (clientSortOption === "newest") {
+                sort_by = "create_date";
+                sort_order = "desc";
+            } else if (clientSortOption === "last_updated") {
+                sort_by = "write_date";
+                sort_order = "desc";
+            }
+
             getStockList({
                 ...base,
                 client_id: f.clientViewClient ?? undefined,
@@ -562,9 +579,11 @@ export default function Stocks() {
                 stock_status: statusParam,
                 search: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
                 name: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
+                sort_by,
+                sort_order,
             });
         }
-    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage]);
+    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, clientSortOption]);
 
     // Fetch locations and shipping orders (only once per component mount)
     useEffect(() => {
@@ -1431,6 +1450,28 @@ export default function Stocks() {
         return filtered; // Return sorted array directly instead of grouped object
     };
 
+    // Apply client view sorting option (frontend, for options not supported by API)
+    const applyClientSortOption = (items) => {
+        if (clientSortOption === "none") return items;
+
+        const sorted = [...items];
+
+        // Alphabetical sort by client name
+        if (clientSortOption === "alpha_asc" || clientSortOption === "alpha_desc") {
+            sorted.sort((a, b) => {
+                const nameA = (getDisplayName(a.client_id || a.client || "") || "").toLowerCase().trim();
+                const nameB = (getDisplayName(b.client_id || b.client || "") || "").toLowerCase().trim();
+                const cmp = nameA.localeCompare(nameB);
+                return clientSortOption === "alpha_asc" ? cmp : -cmp;
+            });
+            return sorted;
+        }
+
+        // For "newest" and "last_updated" we rely on backend sort_by/sort_order,
+        // so no additional frontend sorting is applied here.
+        return items;
+    };
+
     // Filter stock list for By Client view (status filtering is done by API via status param only)
     const getFilteredStockByClient = () => {
         let filtered = [...stockList];
@@ -1443,8 +1484,14 @@ export default function Stocks() {
 
         // Status filter is applied by API only; no frontend status filter
 
-        // Sort using the shared sorting function - same order as By Vessel tab
-        filtered = sortStockItems(filtered);
+        // Apply client sorting option if selected:
+        // - For alphabetical options, sort on the frontend
+        // - For "newest"/"last_updated", backend already applied sort_by/sort_order
+        if (clientSortOption === "alpha_asc" || clientSortOption === "alpha_desc") {
+            filtered = applyClientSortOption(filtered);
+        } else if (clientSortOption === "none") {
+            filtered = sortStockItems(filtered);
+        }
 
         return filtered;
     };
@@ -1566,6 +1613,7 @@ export default function Stocks() {
         if (clientViewFilterType === 'filter1') {
             htmlTable += '<th>SUPPLIER</th>';
             htmlTable += '<th>PO NUMBER</th>';
+            htmlTable += '<th>VIA HUB</th>';
             htmlTable += '<th>BOXES</th>';
             htmlTable += '<th>WEIGHT KGS</th>';
             htmlTable += '<th>STOCK STATUS</th>';
@@ -1575,6 +1623,7 @@ export default function Stocks() {
             htmlTable += '<th>PO NUMBER</th>';
             htmlTable += '<th>STOCK STATUS</th>';
             htmlTable += '<th>ORIGIN</th>';
+            htmlTable += '<th>VIA HUB</th>';
             htmlTable += '<th>DESTINATION</th>';
             htmlTable += '<th>SHIPPING DOCS</th>';
             htmlTable += '<th>EXPORT DOC 1</th>';
@@ -1593,6 +1642,7 @@ export default function Stocks() {
             if (clientViewFilterType === 'filter1') {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
+                const viaHub = item.via_hub || '-';
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                 const status = getStatusLabel(item.stock_status);
@@ -1600,6 +1650,7 @@ export default function Stocks() {
 
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
+                htmlTable += `<td>${viaHub}</td>`;
                 htmlTable += `<td>${boxes}</td>`;
                 htmlTable += `<td>${weight}</td>`;
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
@@ -1609,6 +1660,7 @@ export default function Stocks() {
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
                 const status = getStatusLabel(item.stock_status);
                 const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
+                const viaHub = item.via_hub || '-';
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
                 const shippingDoc = item.shipping_doc || '-';
                 const exportDoc = item.export_doc || '-';
@@ -1620,6 +1672,7 @@ export default function Stocks() {
                 htmlTable += `<td>${poNumber}</td>`;
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
                 htmlTable += `<td>${origin}</td>`;
+                htmlTable += `<td>${viaHub}</td>`;
                 htmlTable += `<td>${destination}</td>`;
                 htmlTable += `<td>${shippingDoc}</td>`;
                 htmlTable += `<td>${exportDoc}</td>`;
@@ -1639,9 +1692,9 @@ export default function Stocks() {
 
             // Add header row
             if (clientViewFilterType === 'filter1') {
-                plainText += 'SUPPLIER\tPO NUMBER\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
+                plainText += 'SUPPLIER\tPO NUMBER\tVIA HUB\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
             } else {
-                plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
+                plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tVIA HUB\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
             }
 
             // Add data rows
@@ -1649,17 +1702,19 @@ export default function Stocks() {
                 if (clientViewFilterType === 'filter1') {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
+                    const viaHub = item.via_hub || '-';
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                     const status = getStatusLabel(item.stock_status);
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
 
-                    plainText += `${supplier}\t${poNumber}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
+                    plainText += `${supplier}\t${poNumber}\t${viaHub}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
                 } else {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
                     const status = getStatusLabel(item.stock_status);
                     const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
+                    const viaHub = item.via_hub || '-';
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
                     const shippingDoc = item.shipping_doc || '-';
                     const exportDoc = item.export_doc || '-';
@@ -1667,7 +1722,7 @@ export default function Stocks() {
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
 
-                    plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
+                    plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
                 }
             });
 
@@ -1735,11 +1790,11 @@ export default function Stocks() {
 
         let headerRow = "<tr>";
         if (clientViewFilterType === "filter1") {
-            ["SUPPLIER", "PO NUMBER", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
+            ["SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else {
-            ["SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+            ["SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         }
@@ -1752,12 +1807,14 @@ export default function Stocks() {
             if (clientViewFilterType === "filter1") {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                const viaHub = item.via_hub || "-";
                 const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                 const weight = item.weight_kg ?? item.weight_kgs ?? "-";
                 const status = getStatusLabel(item.stock_status);
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
@@ -1767,6 +1824,7 @@ export default function Stocks() {
                 const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                 const status = getStatusLabel(item.stock_status);
                 const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+                const viaHub = item.via_hub || "-";
                 const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
                 const shippingDoc = item.shipping_doc || "-";
                 const exportDoc = item.export_doc || "-";
@@ -1777,6 +1835,7 @@ export default function Stocks() {
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
+                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
                 bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc}</td>`;
@@ -1788,11 +1847,84 @@ export default function Stocks() {
         });
 
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stocklist - Client View</title>
-<style>body{font-family:Arial,sans-serif;margin:12px;} table{border-collapse:collapse;width:100%;} @media print{body{margin:0;} .no-print{display:none;}}</style></head>
-<body><h2 style="margin-bottom:12px;">Stocklist – Client View</h2>
-<p class="no-print" style="margin-bottom:8px;">Use browser Print (Ctrl+P) and choose "Save as PDF" to export as PDF.</p>
-<table><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table>
-<script>window.onload=function(){window.print();}</script></body></html>`;
+<style>
+    body{
+        font-family: Arial, sans-serif;
+        margin: 18px;
+        background-color: #ffffff;
+    }
+    .header{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        margin-bottom:18px;
+        padding-bottom:10px;
+        border-bottom:2px solid #1c4a95;
+    }
+    .logo{
+        height:200px;
+    }
+    .title-block{
+        text-align:right;
+        font-size:13px;
+        color:#555;
+    }
+    .title-block h2{
+        margin:0;
+        font-size:22px;
+        letter-spacing:0.5px;
+        color:#1c4a95;
+    }
+    table{
+        border-collapse:collapse;
+        width:100%;
+        background:#fff;
+        box-shadow:0 1px 3px rgba(0,0,0,0.08);
+        font-size:12px;
+    }
+    thead th{
+        background:#e6ecf7;
+        border:1px solid #c5d0e6;
+        padding:8px 10px;
+        text-align:left;
+        font-weight:700;
+        color:#21335b;
+        white-space:nowrap;
+    }
+    tbody td{
+        border:1px solid #dde3f0;
+        padding:7px 10px;
+        vertical-align:top;
+    }
+    tbody tr:nth-child(even){
+        background:#f9fbff;
+    }
+    .no-print{
+        margin:10px 0;
+        font-size:11px;
+        color:#777;
+    }
+    @media print{
+        body{margin:6mm; background:#fff;}
+        .no-print{display:none;}
+    }
+</style></head>
+<body>
+    <div class="header">
+        <div>
+            <img src="${narviLogo}" alt="Narvi Maritime" class="logo" />
+        </div>
+        <div class="title-block">
+            <h2>Stocklist</h2>
+            <div>${new Date().toLocaleDateString()}</div>
+        </div>
+    </div>
+    <table>
+        <thead>${headerRow}</thead>
+        <tbody>${bodyRows}</tbody>
+    </table>
+    <script>window.onload=function(){window.print();}</script>
+</body></html>`;
     };
 
     // Print single row (client view) – opens print window for one item
@@ -3865,9 +3997,7 @@ export default function Stocks() {
                                                         </Box>
 
                                                     </Flex>
-                                                    {/* </Box>
 
-                                                <Box> */}
                                                     <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                         {/* SO Number Filter */}
                                                         <Box w="220px" minW="200px">
@@ -4606,8 +4736,38 @@ export default function Stocks() {
                                                         <Icon as={MdFilterList} color="blue.500" />
                                                         <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                     </HStack>
-                                                    <HStack>
-                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel) && (
+                                                    <HStack spacing="2">
+                                                        {/* Client view sorting menu */}
+                                                        <Menu>
+                                                            <MenuButton
+                                                                as={Button}
+                                                                size="xs"
+                                                                leftIcon={<Icon as={MdSort} />}
+                                                                colorScheme={clientSortOption !== "none" ? "blue" : "gray"}
+                                                                variant={clientSortOption !== "none" ? "solid" : "outline"}
+                                                            >
+                                                                {clientSortOption === "none" && "Sorting: Default"}
+                                                                {clientSortOption === "desc" && "Sorting: descending"}
+                                                                {clientSortOption === "newest" && "Sorting: Newly Listed"}
+                                                                {clientSortOption === "last_updated" && "Sorting: Last Updated"}
+                                                            </MenuButton>
+                                                            <MenuList>
+                                                                <MenuItem onClick={() => setClientSortOption("none")} >
+                                                                    Default Order
+                                                                </MenuItem>
+                                                                <MenuItem onClick={() => setClientSortOption("desc")}>
+                                                                    Descending
+                                                                </MenuItem>
+                                                                <MenuItem onClick={() => setClientSortOption("newest")}>
+                                                                    Newly Listed
+                                                                </MenuItem>
+                                                                <MenuItem onClick={() => setClientSortOption("last_updated")}>
+                                                                    Last Updated
+                                                                </MenuItem>
+                                                            </MenuList>
+                                                        </Menu>
+
+                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo) && (
                                                             <Button
                                                                 size="xs"
                                                                 leftIcon={<Icon as={MdClose} />}
@@ -4618,6 +4778,8 @@ export default function Stocks() {
                                                                     setClientViewVesselFilter(null);
                                                                     setClientViewSearchClient("");
                                                                     setClientViewSearchVessel("");
+                                                                    setCreateDateFrom("");
+                                                                    setCreateDateTo("");
                                                                 }}
                                                             >
                                                                 Clear All
@@ -4687,6 +4849,23 @@ export default function Stocks() {
                                                             )}
                                                         </HStack>
                                                     </Box>
+
+                                                    {/* Date on Stock Filter (opens range modal) */}
+                                                    <Box w="220px" minW="200px">
+                                                        <HStack spacing="1">
+                                                            <Button
+                                                                size="sm"
+                                                                w="100%"
+                                                                variant={createDateFrom || createDateTo ? "solid" : "outline"}
+                                                                colorScheme={createDateFrom || createDateTo ? "blue" : "gray"}
+                                                                leftIcon={<Icon as={MdDateRange} />}
+                                                                onClick={onCreateDateModalOpen}
+                                                            >
+                                                                {createDateFrom || createDateTo ? "Edit Date Filter" : "Filter by Dates"}
+                                                            </Button>
+                                                        </HStack>
+                                                    </Box>
+
                                                 </Flex>
                                             </Box>
                                         </VStack>
@@ -4842,6 +5021,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>VESSEL</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO NUMBER</Th>
+                                                            <Th {...headerProps}>VIA HUB</Th>
                                                             <Th {...headerProps}>BOXES</Th>
                                                             <Th {...headerProps}>WEIGHT KGS</Th>
                                                             <Th {...headerProps}>STOCK STATUS</Th>
@@ -4856,6 +5036,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>PO NUMBER</Th>
                                                             <Th {...headerProps}>STOCK STATUS</Th>
                                                             <Th {...headerProps}>ORIGIN</Th>
+                                                            <Th {...headerProps}>VIA HUB</Th>
                                                             <Th {...headerProps}>DESTINATION</Th>
                                                             <Th {...headerProps}>SHIPPING DOCS</Th>
                                                             <Th {...headerProps}>EXPORT DOC 1</Th>
@@ -4870,7 +5051,7 @@ export default function Stocks() {
                                             <Tbody>
                                                 {isLoading && stockList.length === 0 ? (
                                                     <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 10 : 14} textAlign="center" py="40px">
+                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 11 : 15} textAlign="center" py="40px">
                                                             <Box visibility="hidden" h="100px" />
                                                         </Td>
                                                     </Tr>
@@ -4898,6 +5079,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
@@ -4945,6 +5127,7 @@ export default function Stocks() {
                                                                             </Badge>
                                                                         </Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
@@ -5145,7 +5328,7 @@ export default function Stocks() {
                         )}
 
                         {/* Table Container */}
-                            <Box pr="25px" overflowX="auto" position="relative" minH="400px">
+                        <Box pr="25px" overflowX="auto" position="relative" minH="400px">
                             {isLoading && (
                                 <Box
                                     position="fixed"
