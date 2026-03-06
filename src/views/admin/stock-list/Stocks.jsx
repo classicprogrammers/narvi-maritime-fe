@@ -203,7 +203,12 @@ function readPersistedStockViewEditState() {
             stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
             sortOption: typeof p.sortOption === "string" ? p.sortOption : "none",
-            clientSortOption: typeof p.clientSortOption === "string" ? p.clientSortOption : "none",
+            clientSortOption:
+                p.clientSortOption === "vessel_alpha" ||
+                p.clientSortOption === "newest" ||
+                p.clientSortOption === "last_updated"
+                    ? p.clientSortOption
+                    : "vessel_alpha",
         };
     } catch {
         return null;
@@ -247,7 +252,7 @@ const defaultStockViewEditState = {
     stockViewHub: null,
     stockViewActiveFilter: "true",
     sortOption: "none",
-    clientSortOption: "none",
+    clientSortOption: "vessel_alpha",
 };
 
 export default function Stocks() {
@@ -570,6 +575,9 @@ export default function Stocks() {
             } else if (clientSortOption === "last_updated") {
                 sort_by = "write_date";
                 sort_order = "desc";
+            } else if (clientSortOption === "vessel_alpha") {
+                sort_by = "vessel_name";
+                sort_order = "asc";
             }
 
             getStockList({
@@ -1484,12 +1492,10 @@ export default function Stocks() {
 
         // Status filter is applied by API only; no frontend status filter
 
-        // Apply client sorting option if selected:
-        // - For alphabetical options, sort on the frontend
-        // - For "newest"/"last_updated", backend already applied sort_by/sort_order
-        if (clientSortOption === "alpha_asc" || clientSortOption === "alpha_desc") {
-            filtered = applyClientSortOption(filtered);
-        } else if (clientSortOption === "none") {
+        // For client view:
+        // - "vessel_alpha", "newest", "last_updated" are handled by the API via sort_by / sort_order
+        // - If somehow no option is set, fall back to shared sorting
+        if (!clientSortOption || clientSortOption === "none") {
             filtered = sortStockItems(filtered);
         }
 
@@ -4731,62 +4737,58 @@ export default function Stocks() {
                                         <VStack spacing="4" align="stretch">
                                             {/* Basic Filters */}
                                             <Box>
-                                                <HStack mb="3" justify="space-between">
-                                                    <HStack>
-                                                        <Icon as={MdFilterList} color="blue.500" />
-                                                        <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
-                                                    </HStack>
-                                                    <HStack spacing="2">
-                                                        {/* Client view sorting menu */}
-                                                        <Menu>
-                                                            <MenuButton
-                                                                as={Button}
-                                                                size="xs"
-                                                                leftIcon={<Icon as={MdSort} />}
-                                                                colorScheme={clientSortOption !== "none" ? "blue" : "gray"}
-                                                                variant={clientSortOption !== "none" ? "solid" : "outline"}
-                                                            >
-                                                                {clientSortOption === "none" && "Sorting: Default"}
-                                                                {clientSortOption === "desc" && "Sorting: descending"}
-                                                                {clientSortOption === "newest" && "Sorting: Newly Listed"}
-                                                                {clientSortOption === "last_updated" && "Sorting: Last Updated"}
-                                                            </MenuButton>
-                                                            <MenuList>
-                                                                <MenuItem onClick={() => setClientSortOption("none")} >
-                                                                    Default Order
-                                                                </MenuItem>
-                                                                <MenuItem onClick={() => setClientSortOption("desc")}>
-                                                                    Descending
-                                                                </MenuItem>
-                                                                <MenuItem onClick={() => setClientSortOption("newest")}>
-                                                                    Newly Listed
-                                                                </MenuItem>
-                                                                <MenuItem onClick={() => setClientSortOption("last_updated")}>
-                                                                    Last Updated
-                                                                </MenuItem>
-                                                            </MenuList>
-                                                        </Menu>
-
-                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo) && (
-                                                            <Button
-                                                                size="xs"
-                                                                leftIcon={<Icon as={MdClose} />}
-                                                                colorScheme="red"
-                                                                variant="ghost"
-                                                                onClick={() => {
-                                                                    setClientViewClient(null);
-                                                                    setClientViewVesselFilter(null);
-                                                                    setClientViewSearchClient("");
-                                                                    setClientViewSearchVessel("");
-                                                                    setCreateDateFrom("");
-                                                                    setCreateDateTo("");
-                                                                }}
-                                                            >
-                                                                Clear All
-                                                            </Button>
-                                                        )}
-                                                    </HStack>
+                                            <HStack mb="3" justify="space-between">
+                                                <HStack>
+                                                    <Icon as={MdFilterList} color="blue.500" />
+                                                    <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                 </HStack>
+                                                <HStack spacing="2">
+                                                    {/* Client view sorting menu */}
+                                                    <Menu>
+                                                        <MenuButton
+                                                            as={Button}
+                                                            size="xs"
+                                                            leftIcon={<Icon as={MdSort} />}
+                                                            colorScheme="blue"
+                                                            variant="solid"
+                                                        >
+                                                            {clientSortOption === "vessel_alpha" && "Sorting: Vessel Name (A–Z)"}
+                                                            {clientSortOption === "newest" && "Sorting: Newly Listed"}
+                                                            {clientSortOption === "last_updated" && "Sorting: Last Updated"}
+                                                        </MenuButton>
+                                                        <MenuList>
+                                                            <MenuItem onClick={() => setClientSortOption("vessel_alpha")}>
+                                                                Sort by Vessel Name (A–Z)
+                                                            </MenuItem>
+                                                            <MenuItem onClick={() => setClientSortOption("newest")}>
+                                                                Sort by Newly Listed
+                                                            </MenuItem>
+                                                            <MenuItem onClick={() => setClientSortOption("last_updated")}>
+                                                                Sort by Last Updated
+                                                            </MenuItem>
+                                                        </MenuList>
+                                                    </Menu>
+
+                                                    {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo) && (
+                                                        <Button
+                                                            size="xs"
+                                                            leftIcon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                setClientViewClient(null);
+                                                                setClientViewVesselFilter(null);
+                                                                setClientViewSearchClient("");
+                                                                setClientViewSearchVessel("");
+                                                                setCreateDateFrom("");
+                                                                setCreateDateTo("");
+                                                            }}
+                                                        >
+                                                            Clear All
+                                                        </Button>
+                                                    )}
+                                                </HStack>
+                                            </HStack>
                                                 <Flex direction={{ base: "column", md: "row" }} gap="3" wrap="wrap">
                                                     {/* Client Filter */}
                                                     <Box w="220px" minW="200px">

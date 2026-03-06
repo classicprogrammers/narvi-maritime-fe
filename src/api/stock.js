@@ -74,7 +74,7 @@ export const getStockListApi = async (params = {}) => {
       supplier_id,
       warehouse_id,
       currency_id,
-      active = "true",
+      active, // no default; only include if caller explicitly passes it
       // Optional create date range filters (backend expects these names)
       create_date_from = "",
       create_date_to = "",
@@ -83,9 +83,16 @@ export const getStockListApi = async (params = {}) => {
     const requestParams = {
       page,
       page_size,
-      sort_by,
-      sort_order,
     };
+
+    // When a specific sort_by is passed (not the default "id"), do NOT send sort_order.
+    // For the default sort (id), include both sort_by and sort_order.
+    if (sort_by && sort_by !== "id") {
+      requestParams.sort_by = sort_by;
+    } else {
+      requestParams.sort_by = sort_by;
+      requestParams.sort_order = sort_order;
+    }
 
     const trimmedSearch = search ? String(search).trim() : "";
     const trimmedName = name ? String(name).trim() : "";
