@@ -539,6 +539,27 @@ export default function Stocks() {
             const hubVal = f.stockViewHub != null ? (typeof f.stockViewHub === "object" ? (f.stockViewHub?.id ?? f.stockViewHub?.name ?? "") : String(f.stockViewHub)) : "";
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
+
+            // Map Stock View / Edit sortOption to backend sort_by / sort_order
+            let sort_by;
+            let sort_order;
+            if (sortOption === "via_hub") {
+                sort_by = "via_hub";
+                sort_order = "asc";
+            } else if (sortOption === "via_vessel") {
+                sort_by = "vessel_name";
+                sort_order = "asc";
+            } else if (sortOption === "status") {
+                sort_by = "stock_status";
+                sort_order = "asc";
+            } else if (sortOption === "via_hub_status") {
+                sort_by = "via_hub_status";
+                sort_order = "asc";
+            } else if (sortOption === "via_vessel_status") {
+                sort_by = "vessel_status";
+                sort_order = "asc";
+            }
+
             getStockList({
                 ...base,
                 client_id: clientId ?? undefined,
@@ -560,6 +581,8 @@ export default function Stocks() {
                 date_on_stock_from: f.createDateFrom?.trim() || undefined,
                 date_on_stock_to: f.createDateTo?.trim() || undefined,
                 hub: hubVal?.trim() || undefined,
+                sort_by,
+                sort_order,
             });
         } else {
             const statusSet = f.clientViewStatuses || new Set();
@@ -591,7 +614,7 @@ export default function Stocks() {
                 sort_order,
             });
         }
-    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, clientSortOption]);
+    }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, sortOption, clientSortOption]);
 
     // Fetch locations and shipping orders (only once per component mount)
     useEffect(() => {
@@ -1321,7 +1344,18 @@ export default function Stocks() {
 
         // Status filter is applied by API only (status checkboxes -> status param); no frontend status filter
 
-        // Apply sorting based on selected option
+        // When using API-driven sorts, keep backend ordering and skip frontend sorting.
+        if (
+            sortOption === 'via_hub' ||
+            sortOption === 'via_vessel' ||
+            sortOption === 'status' ||
+            sortOption === 'via_hub_status' ||
+            sortOption === 'via_vessel_status'
+        ) {
+            return filtered;
+        }
+
+        // Apply sorting based on selected option (fallback/custom options)
         if (sortOption !== 'none') {
             // Helper function to normalize status for sorting (different from the filter normalizeStatus)
             const normalizeStatusForSort = (status) => {

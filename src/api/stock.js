@@ -80,19 +80,13 @@ export const getStockListApi = async (params = {}) => {
       create_date_to = "",
     } = params;
 
+    // Always pass sort_by and sort_order through exactly as provided.
     const requestParams = {
       page,
       page_size,
+      sort_by,
+      sort_order,
     };
-
-    // When a specific sort_by is passed (not the default "id"), do NOT send sort_order.
-    // For the default sort (id), include both sort_by and sort_order.
-    if (sort_by && sort_by !== "id") {
-      requestParams.sort_by = sort_by;
-    } else {
-      requestParams.sort_by = sort_by;
-      requestParams.sort_order = sort_order;
-    }
 
     const trimmedSearch = search ? String(search).trim() : "";
     const trimmedName = name ? String(name).trim() : "";

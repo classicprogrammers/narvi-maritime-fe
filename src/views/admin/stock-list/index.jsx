@@ -321,11 +321,33 @@ export default function StockList() {
     };
 
     const fetchStockList = useCallback(() => {
+        // Map high-level sortOption to backend sort_by/sort_order when set;
+        // otherwise fall back to the manual column sortBy/sortOrder state.
+        let apiSortBy = sortBy;
+        let apiSortOrder = sortOrder;
+
+        if (sortOption === "via_hub") {
+            apiSortBy = "via_hub";
+            apiSortOrder = "asc";
+        } else if (sortOption === "via_vessel") {
+            apiSortBy = "vessel_name";
+            apiSortOrder = "asc";
+        } else if (sortOption === "status") {
+            apiSortBy = "stock_status";
+            apiSortOrder = "asc";
+        } else if (sortOption === "via_hub_status") {
+            apiSortBy = "via_hub_status";
+            apiSortOrder = "asc";
+        } else if (sortOption === "via_vessel_status") {
+            apiSortBy = "vessel_status";
+            apiSortOrder = "asc";
+        }
+
         return getStockList({
             page,
             page_size: pageSize,
-            sort_by: sortBy,
-            sort_order: sortOrder,
+            sort_by: apiSortBy,
+            sort_order: apiSortOrder,
             search: searchFilter?.trim() || undefined,
             client_id: getIdParam(selectedClient),
             vessel_id: getIdParam(selectedVessel),
@@ -347,7 +369,7 @@ export default function StockList() {
             currency_id: getIdParam(selectedCurrency),
             active: activeFilter || "true",
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+    }, [getStockList, page, pageSize, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
