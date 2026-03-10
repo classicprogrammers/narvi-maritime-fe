@@ -363,7 +363,7 @@ export default function StockList() {
             // Date on Stock range filter
             date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
             date_on_stock_to: filterCreateDateTo?.trim() || undefined,
-            hub: hubParam != null ? String(hubParam).trim() : undefined,
+            via_hub: hubParam != null ? String(hubParam).trim() : undefined,
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),

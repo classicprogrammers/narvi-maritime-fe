@@ -70,12 +70,11 @@ export const getStockListApi = async (params = {}) => {
       days_on_stock = "",
       days_on_stock_min = "",
       days_on_stock_max = "",
-      hub = "",
+      via_hub = "",
       supplier_id,
       warehouse_id,
       currency_id,
       active, // no default; only include if caller explicitly passes it
-      // Optional create date range filters (backend expects these names)
       create_date_from = "",
       create_date_to = "",
     } = params;
@@ -133,7 +132,10 @@ export const getStockListApi = async (params = {}) => {
     if (days_on_stock_max != null && String(days_on_stock_max).trim() !== "") {
       requestParams.days_on_stock_max = String(days_on_stock_max).trim();
     }
-    if (hub != null && String(hub).trim() !== "") requestParams.hub = String(hub).trim();
+    // Backend expects via_hub; only include when explicitly provided.
+    if (via_hub != null && String(via_hub).trim() !== "") {
+      requestParams.via_hub = String(via_hub).trim();
+    }
     if (active != null && String(active).trim() !== "") {
       requestParams.active = String(active).trim();
     }

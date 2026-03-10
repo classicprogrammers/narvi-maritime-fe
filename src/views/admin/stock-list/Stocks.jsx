@@ -580,7 +580,7 @@ export default function Stocks() {
                 days_on_stock_max: f.daysRangeTo?.trim() || undefined,
                 date_on_stock_from: f.createDateFrom?.trim() || undefined,
                 date_on_stock_to: f.createDateTo?.trim() || undefined,
-                hub: hubVal?.trim() || undefined,
+                via_hub: hubVal?.trim() || undefined,
                 sort_by,
                 sort_order,
             });
