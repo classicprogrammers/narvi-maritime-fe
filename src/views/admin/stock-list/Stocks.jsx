@@ -1830,60 +1830,83 @@ export default function Stocks() {
 
         let headerRow = "<tr>";
         if (clientViewFilterType === "filter1") {
-            ["SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
+            ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else {
-            ["SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+            ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         }
         headerRow += "</tr>";
 
-        let bodyRows = "";
+        // Group items by vessel so each vessel has its own table.
+        const groups = new Map();
         items.forEach(item => {
-            const statusStyle = getStatusStyle(item.stock_status);
-            bodyRows += "<tr>";
-            if (clientViewFilterType === "filter1") {
-                const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
-                const viaHub = item.via_hub || "-";
-                const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
-                const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                const status = getStatusLabel(item.stock_status);
-                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-            } else {
-                const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
-                const status = getStatusLabel(item.stock_status);
-                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
-                const viaHub = item.via_hub || "-";
-                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                const shippingDoc = item.shipping_doc || "-";
-                const exportDoc = item.export_doc || "-";
-                const exportDoc2 = item.export_doc_2 || "-";
-                const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
-                const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc2}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+            const vesselName = getDisplayName(item.vessel_id || item.vessel) || "-";
+            if (!groups.has(vesselName)) {
+                groups.set(vesselName, []);
             }
-            bodyRows += "</tr>";
+            groups.get(vesselName).push(item);
+        });
+
+        let vesselTables = "";
+        groups.forEach((groupItems, vesselName) => {
+            let bodyRows = "";
+            groupItems.forEach(item => {
+                const statusStyle = getStatusStyle(item.stock_status);
+                bodyRows += "<tr>";
+                if (clientViewFilterType === "filter1") {
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
+                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const viaHub = item.via_hub || "-";
+                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                    const status = getStatusLabel(item.stock_status);
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
+                } else {
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
+                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const status = getStatusLabel(item.stock_status);
+                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+                    const viaHub = item.via_hub || "-";
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                    const shippingDoc = item.shipping_doc || "-";
+                    const exportDoc = item.export_doc || "-";
+                    const exportDoc2 = item.export_doc_2 || "-";
+                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc2}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                }
+                bodyRows += "</tr>";
+            });
+
+            vesselTables += `
+                <h3 style="margin:16px 0 6px;font-size:14px;color:#1c4a95;">Vessel: ${vesselName}</h3>
+                <table>
+                    <thead>${headerRow}</thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+            `;
         });
 
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stocklist - Client View</title>
@@ -1959,10 +1982,7 @@ export default function Stocks() {
             <div>${new Date().toLocaleDateString()}</div>
         </div>
     </div>
-    <table>
-        <thead>${headerRow}</thead>
-        <tbody>${bodyRows}</tbody>
-    </table>
+    ${vesselTables}
     <script>window.onload=function(){window.print();}</script>
 </body></html>`;
     };
