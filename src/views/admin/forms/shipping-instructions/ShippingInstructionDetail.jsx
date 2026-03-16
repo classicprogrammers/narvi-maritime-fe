@@ -26,13 +26,11 @@ import {
   Select,
   Textarea,
 } from "@chakra-ui/react";
-import {
-  MdPrint,
-  MdSettings,
-  MdChevronLeft,
-  MdHelpOutline,
-  MdSave,
-} from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdSave } from "react-icons/md";
+import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
+import narviLogo from "../../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
+import narviLetterhead from "../../../../assets/letterHead/Letterhead-sidebar.png";
+import narviLetterheadWatermark from "../../../../assets/letterHead/letterhead-watermark.png";
 
 export default function ShippingInstructionDetail() {
   const history = useHistory();
@@ -48,15 +46,15 @@ export default function ShippingInstructionDetail() {
   // Form state
   const [formData, setFormData] = useState({
     vessel: "M/V ANTHOS",
-    consignTo: "M/V ANTHOS",
-    careOf: "Narvi Maritime Pte. Ltd.",
-    address1: "119 Airport Cargo Road #01-03/04",
-    address2: "Changi Cargo Megaplex 1",
-    postcode: "819454",
-    city: "Singapore",
-    att: "Zhi Lin GOH",
-    phone: "(+65) 6542 0626",
-    email: "spares@narvimaritime.com",
+    consignBlock:
+      "M/V ANTHOS\n" +
+      "C/o Narvi Maritime Pte. Ltd.\n" +
+      "119 Airport Cargo Road #01-03/04\n" +
+      "Changi Cargo Megaplex 1\n" +
+      "819454 Singapore\n" +
+      "Att.: Zhi Lin GOH\n" +
+      "Phone: (+65) 6542 0626\n" +
+      "E-mail: spares@narvimaritime.com",
     siNo: "SI 2849 1.2",
     jobNo: "SO 2849",
     shippedBy: "AIR",
@@ -129,9 +127,304 @@ export default function ShippingInstructionDetail() {
     }));
   };
 
+  // Build printable HTML document for Shipping Instruction
+  const buildShippingInstructionPrintHtml = (data, items, totals) => {
+    const consignHtml = (data.consignBlock || "")
+      .split("\n")
+      .map(line => line || "&nbsp;")
+      .join("<br/>");
+
+    const rowsHtml = (items && items.length
+      ? items
+      : [
+          { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
+          { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
+        ]
+    )
+      .map(item => {
+        const safeKg = item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "";
+        const safeCbm = item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "";
+        return `<tr>
+  <td>${item.origin || ""}</td>
+  <td>${item.warehouseId || ""}</td>
+  <td>${item.supplier || ""}</td>
+  <td>${item.poNumber || ""}</td>
+  <td>${item.boxes ?? ""}</td>
+  <td>${safeKg}</td>
+  <td>${safeCbm}</td>
+  <td>${item.lwh || ""}</td>
+</tr>`;
+      })
+      .join("");
+
+    const totalsHtml = `<tr class="summary-row">
+  <td colspan="4" class="summary-label">CARGO TO BE SHIPPED:</td>
+  <td>${totals.boxes}</td>
+  <td>${totals.kg.toFixed(2)}</td>
+  <td></td>
+  <td></td>
+</tr>`;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shipping Instruction</title>
+<style>
+  body{
+    font-family: Arial, sans-serif;
+    margin: 18px;
+    background-color: #ffffff;
+  }
+  .letterhead-wrapper{
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-start;
+    pointer-events: none;
+  }
+  .letterhead-wrapper img{
+    max-width: 100%;
+    height: auto;
+    margin-left: -85px;
+  }
+  .container{
+    position: relative;
+    margin: auto;
+    padding-left: 30px;
+  }
+  .logo-header{
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .logo-header img{
+    height: 250px;
+  }
+  .header-title{
+    margin-top: 8px;
+    margin-bottom: 12px;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .si-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .consign-box{
+    border: 1px solid #d0d0d0;
+    background: #f5f5f5;
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 120px;
+    line-height: 1.1rem;
+  }
+  .si-card{
+    border: 1px solid #d0d0d0;
+    background: #f5f5f5;
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 120px;
+  }
+  .si-card-table{
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .si-card-table td{
+    padding: 4px 10px;
+  }
+  .si-card-table td:first-child{
+    font-weight: bold;
+    text-transform: uppercase;
+    width: 42%;
+  }
+  .si-card-table td:last-child{
+    text-align: left;
+  }
+  .si-card-job{
+    background: #fcd29a;
+    padding: 2px 4px;
+    border-radius: 2px;
+    color: #333;
+    display: inline-block;
+  }
+  .cargo-section-title{
+    font-size: 12px;
+    font-weight: bold;
+    margin: 12px 0 4px;
+  }
+  .cargo-wrapper{
+    position: relative;
+  }
+  .watermark-wrapper{
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+  }
+  .watermark-wrapper img{
+    max-width: 70%;
+    height: auto;
+    opacity: 0.12;
+  }
+  table.cargo-table{
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+  }
+  table.cargo-table th,
+  table.cargo-table td{
+    border: 1px solid #bfbfbf;
+    padding: 4px 4px;
+    text-align: left;
+  }
+  table.cargo-table th{
+    background: #f0f0f0;
+    font-weight: bold;
+  }
+  table.cargo-table th.ww{
+    background: #ffe699;
+  }
+  table.cargo-table td.ww{
+    background: #fff9cc;
+  }
+  tr.summary-row{
+    background: #f0f0f0;
+    font-weight: bold;
+  }
+  .summary-label{
+    text-align: left;
+  }
+  @media print{
+    body{margin:6mm;background:#fff;}
+  }
+</style>
+</head>
+<body>
+  <div class="watermark-wrapper">
+    <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
+  </div>
+  <div class="container">
+    <div class="logo-header">
+      <img src="${narviLogo}" alt="Narvi Maritime" />
+    </div>
+    <div class="header-title">
+      INSTRUCTION / CARGO MANIFEST FOR ${data.vessel || ""}
+    </div>
+    <div class="si-grid">
+      <div>
+        <div style="font-size: 11px; font-weight:bold; margin-bottom:4px;">CONSIGN TO :</div>
+        <div class="consign-box">
+          ${consignHtml || "&nbsp;"}
+        </div>
+      </div>
+      <div>
+        <table class="si-card-table si-card">
+          <tr><td>SI NO:</td><td>${data.siNo || ""}</td></tr>
+          <tr><td>JOB NO:</td><td><span class="si-card-job">${data.jobNo || ""}</span></td></tr>
+          <tr><td>TO BE SHIPPED BY:</td><td>${data.shippedBy || ""}</td></tr>
+          <tr><td>FROM:</td><td>${data.from || ""}</td></tr>
+          <tr><td>TO:</td><td>${data.to || ""}</td></tr>
+          <tr><td>DEADLINE:</td><td>${data.deadline || ""}</td></tr>
+          <tr><td>PIC:</td><td>${data.pic || ""}</td></tr>
+          <tr><td>DATE:</td><td>${data.date || ""}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="cargo-section-title">
+      CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION :
+    </div>
+    <div class="cargo-wrapper">
+      <div class="watermark-wrapper">
+        <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
+      </div>
+      <table class="cargo-table">
+        <thead>
+          <tr>
+            <th>ORIGIN</th>
+            <th>WAREHOUSE ID</th>
+            <th>SUPPLIER</th>
+            <th>PO NUMBER</th>
+            <th>BOXES</th>
+            <th>KG</th>
+            <th>CBM</th>
+            <th>LWH</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          ${totalsHtml}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>window.onload=function(){window.print();}</script>
+</body></html>`;
+  };
+
   // Button handlers
-  const handleBackToShippingInstructions = () => {
-    history.push("/admin/forms/shipping-instructions");
+  const handleResetShippingInstruction = () => {
+    // Reset all editable fields to blank values
+    setFormData({
+      vessel: "",
+      consignBlock: "",
+      siNo: "",
+      jobNo: "",
+      shippedBy: "",
+      from: "",
+      to: "",
+      deadline: "",
+      pic: "",
+      date: "",
+      selectConsignee: "",
+      company: "",
+      consigneeAddress1: "",
+      consigneeAddress2: "",
+      consigneePostcode: "",
+      consigneeCity: "",
+      consigneeCountry: "",
+      regNo: "",
+      consigneeEmail: "",
+      consigneePhone: "",
+      consigneePhone2: "",
+      web: "",
+      cneeText: "",
+      agentsPIC: "",
+      warnings: "",
+    });
+    // Reset cargo items to two empty rows so the table layout stays consistent
+    setCargoItems([
+      {
+        id: 1,
+        origin: "",
+        warehouseId: "",
+        supplier: "",
+        poNumber: "",
+        details: "",
+        boxes: 0,
+        kg: 0,
+        cbm: 0,
+        lwh: "",
+        ww: 0,
+        stockItemId: "",
+      },
+      {
+        id: 2,
+        origin: "",
+        warehouseId: "",
+        supplier: "",
+        poNumber: "",
+        details: "",
+        boxes: 0,
+        kg: 0,
+        cbm: 0,
+        lwh: "",
+        ww: 0,
+        stockItemId: "",
+      },
+    ]);
   };
 
   const handleSaveShippingInstruction = () => {
@@ -140,23 +433,29 @@ export default function ShippingInstructionDetail() {
   };
 
   const handlePrintShippingInstruction = () => {
-    window.print();
+    const printHtml = buildShippingInstructionPrintHtml(formData, cargoItems, totals);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Popup blocked. Please allow popups to print.");
+      return;
+    }
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
   };
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={bgColor} minH="100vh">
-      <Box p={{ base: "4", md: "6", lg: "8" }} mx="auto">
-        {/* Header with Back Button and Actions */}
-        <Flex justify="space-between" align="center" mb={6}>
-          <Button
-            leftIcon={<Icon as={MdChevronLeft} />}
-            variant="ghost"
-            size="sm"
-            onClick={handleBackToShippingInstructions}
-          >
-            Back
-          </Button>
+      <Box px={{ base: "4", md: "6", lg: "8" }} pt={0} pb={6} mx="auto">
+        {/* Header with actions */}
+        <Flex justify="end" align="center" mb={1}>
           <HStack spacing={3}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetShippingInstruction}
+            >
+              Reset
+            </Button>
             <Button
               leftIcon={<Icon as={MdPrint} />}
               variant="outline"
@@ -168,97 +467,209 @@ export default function ShippingInstructionDetail() {
           </HStack>
         </Flex>
 
-        {/* Document Title */}
         <Text fontSize="2xl" fontWeight="bold" mb={6}>
           INSTRUCTION / CARGO MANIFEST FOR {formData.vessel}
         </Text>
 
-        {/* Main Section: Two Columns (Left and Right) */}
-        <Grid templateColumns={{ base: "1fr", lg: "2fr 1fr" }} gap={4} mb={6}>
-          {/* Left Section */}
+        <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={4} mb={6}>
           <Box>
-            {/* Two Columns: CONSIGN TO and SI NO */}
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
-              {/* Left Column: CONSIGN TO */}
               <Box>
                 <Text fontSize="sm" fontWeight="bold" mb={2}>CONSIGN TO:</Text>
-                <VStack align="stretch" spacing={1} fontSize="sm">
-                  <Text fontWeight="semibold">{formData.consignTo}</Text>
-                  <Text>C/o {formData.careOf}</Text>
-                  <Text>{formData.address1}</Text>
-                  <Text>{formData.address2}</Text>
-                  <Text>{formData.postcode} {formData.city}</Text>
-                  <Text mt={2}>Att.: {formData.att}</Text>
-                  <Text>Phone: {formData.phone}</Text>
-                  <Text>E-mail: {formData.email}</Text>
-                </VStack>
+                <Textarea
+                  value={formData.consignBlock || ""}
+                  onChange={(e) => handleInputChange("consignBlock", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                  fontSize="sm"
+                  whiteSpace="pre-wrap"
+                  rows={8}
+                />
               </Box>
 
-              {/* Right Column: SI NO Section */}
               <Box bg="orange.400" p={3} borderRadius="md">
                 <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    SI NO:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.siNo}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="siNo"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      SI NO:
+                    </FormLabel>
+                    <SimpleSearchableSelect
+                      id="siNo"
+                      value={formData.siNo}
+                      onChange={(val) => handleInputChange("siNo", val || "")}
+                      options={[
+                        { id: "SI 2849 1.2", name: "SI 2849 1.2" },
+                        { id: "SI 2849 1.1", name: "SI 2849 1.1" },
+                        { id: "SI 2850 1.0", name: "SI 2850 1.0" },
+                      ]}
+                      displayKey="name"
+                      valueKey="name"
+                      size="sm"
+                      bg="transparent"
+                      borderColor="transparent"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    JOB NO:
-                  </Text>
-                  <Box bg="orange.200" px={2} py={1} borderRadius="sm">
-                    <Text color="gray.800" fontWeight="medium">
-                      {formData.jobNo}
-                    </Text>
-                  </Box>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="jobNo"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      JOB NO:
+                    </FormLabel>
+                    <Box bg="orange.200" px={2} py={1} borderRadius="sm">
+                      <Input
+                        id="jobNo"
+                        value={formData.jobNo}
+                        onChange={(e) => handleInputChange("jobNo", e.target.value)}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="gray.800"
+                      />
+                    </Box>
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    TO BE SHIPPED BY:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.shippedBy}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="shippedBy"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      TO BE SHIPPED BY:
+                    </FormLabel>
+                    <Input
+                      id="shippedBy"
+                      value={formData.shippedBy}
+                      onChange={(e) => handleInputChange("shippedBy", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    FROM:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.from}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="from"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      FROM:
+                    </FormLabel>
+                    <Input
+                      id="from"
+                      value={formData.from}
+                      onChange={(e) => handleInputChange("from", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    TO:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.to}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="to"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      TO:
+                    </FormLabel>
+                    <Input
+                      id="to"
+                      value={formData.to}
+                      onChange={(e) => handleInputChange("to", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    DEADLINE:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.deadline} !!!!
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="deadline"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      DEADLINE:
+                    </FormLabel>
+                    <Input
+                      id="deadline"
+                      type="date"
+                      value={formData.deadline}
+                      onChange={(e) => handleInputChange("deadline", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    PIC:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.pic}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="pic"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      PIC:
+                    </FormLabel>
+                    <Input
+                      id="pic"
+                      value={formData.pic}
+                      onChange={(e) => handleInputChange("pic", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
 
-                  <Text fontWeight="bold" textTransform="uppercase" >
-                    DATE:
-                  </Text>
-                  <Text color="white" fontWeight="medium">
-                    {formData.date}
-                  </Text>
+                  <FormControl display="contents">
+                    <FormLabel
+                      htmlFor="date"
+                      fontWeight="bold"
+                      textTransform="uppercase"
+                      m={0}
+                    >
+                      DATE:
+                    </FormLabel>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => handleInputChange("date", e.target.value)}
+                      size="sm"
+                      fontWeight="medium"
+                      variant="unstyled"
+                      bg="transparent"
+                      color="white"
+                    />
+                  </FormControl>
                 </Grid>
               </Box>
             </Grid>
 
-            {/* Cargo Table Section - Full Width */}
             <Box>
               <Text fontSize="sm" fontWeight="bold" mb={2}>
                 CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:
@@ -277,7 +688,7 @@ export default function ShippingInstructionDetail() {
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">WW</Th>
-                      <Th py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
                     </Tr>
                   </Thead>
                   <Tbody>
@@ -285,21 +696,7 @@ export default function ShippingInstructionDetail() {
                       <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                          <Textarea
-                            value={item.warehouseId || ""}
-                            onChange={(e) => {
-                              const updatedItems = [...cargoItems];
-                              updatedItems[index].warehouseId = e.target.value;
-                              setCargoItems(updatedItems);
-                            }}
-                            size="sm"
-                            rows={2}
-                            resize="vertical"
-                            border="1px solid"
-                            borderColor="gray.300"
-                            fontSize="xs"
-                            minH="40px"
-                          />
+                          {item.warehouseId || ""}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
@@ -309,12 +706,11 @@ export default function ShippingInstructionDetail() {
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.ww.toFixed(2)}</Td>
-                        <Td py={2} px={2} fontSize="xs">{item.stockItemId}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId}</Td>
                       </Tr>
                     ))}
-                    {/* Summary Row */}
                     <Tr bg="gray.100" fontWeight="bold">
-                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                         CARGO TO BE SHIPPED:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
@@ -322,7 +718,7 @@ export default function ShippingInstructionDetail() {
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
-                      <Td py={2} px={2} fontSize="xs"></Td>
+                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
                     </Tr>
                   </Tbody>
                 </Table>
@@ -332,76 +728,228 @@ export default function ShippingInstructionDetail() {
 
           {/* Right Section: Select Consignee */}
           <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
-            <Text fontSize="sm" fontWeight="bold" mb={3}>Select Consignee:</Text>
-            <Grid templateColumns="1fr 2fr" gap={2} fontSize="xs">
-              <Box fontWeight="bold">Select Consignee:</Box>
-              <Box>{formData.selectConsignee}</Box>
+            <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
+              <FormControl display="contents">
+                <FormLabel htmlFor="selectConsignee" fontWeight="bold" m={0}>
+                  Select Consignee:
+                </FormLabel>
+                <SimpleSearchableSelect
+                  id="selectConsignee"
+                  value={formData.selectConsignee}
+                  onChange={(val) => handleInputChange("selectConsignee", val || "")}
+                  options={[
+                    { id: "narvi_sin", name: "Narvi SIN (A/F, C/F, O/F)" },
+                    { id: "narvi_rtm", name: "Narvi RTM (Ocean Freight)" },
+                    { id: "narvi_sgn", name: "Narvi SGN (Air Freight)" },
+                  ]}
+                  displayKey="name"
+                  valueKey="name"
+                  size="sm"
+                  bg="transparent"
+                  borderColor="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Company:</Box>
-              <Box>{formData.company}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="company" fontWeight="bold" m={0} fontSize="sm">
+                  Company:
+                </FormLabel>
+                <Input
+                  id="company"
+                  value={formData.company}
+                  onChange={(e) => handleInputChange("company", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Address 1:</Box>
-              <Box>{formData.consigneeAddress1}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneeAddress1" fontWeight="bold" m={0} fontSize="sm">
+                  Address 1:
+                </FormLabel>
+                <Input
+                  id="consigneeAddress1"
+                  value={formData.consigneeAddress1}
+                  onChange={(e) => handleInputChange("consigneeAddress1", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Address 2:</Box>
-              <Box>{formData.consigneeAddress2}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneeAddress2" fontWeight="bold" m={0} fontSize="sm">
+                  Address 2:
+                </FormLabel>
+                <Input
+                  id="consigneeAddress2"
+                  value={formData.consigneeAddress2}
+                  onChange={(e) => handleInputChange("consigneeAddress2", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Post code:</Box>
-              <Box>{formData.consigneePostcode}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneePostcode" fontWeight="bold" m={0} fontSize="sm">
+                  Post code:
+                </FormLabel>
+                <Input
+                  id="consigneePostcode"
+                  value={formData.consigneePostcode}
+                  onChange={(e) => handleInputChange("consigneePostcode", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">City:</Box>
-              <Box>{formData.consigneeCity}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneeCity" fontWeight="bold" m={0} fontSize="sm">
+                  City:
+                </FormLabel>
+                <Input
+                  id="consigneeCity"
+                  value={formData.consigneeCity}
+                  onChange={(e) => handleInputChange("consigneeCity", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Country:</Box>
-              <Box>{formData.consigneeCountry}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneeCountry" fontWeight="bold" m={0} fontSize="sm">
+                  Country:
+                </FormLabel>
+                <Input
+                  id="consigneeCountry"
+                  value={formData.consigneeCountry}
+                  onChange={(e) => handleInputChange("consigneeCountry", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">RegNo:</Box>
-              <Box>{formData.regNo}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="regNo" fontWeight="bold" m={0} fontSize="sm">
+                  RegNo:
+                </FormLabel>
+                <Input
+                  id="regNo"
+                  value={formData.regNo}
+                  onChange={(e) => handleInputChange("regNo", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">E-mail 1:</Box>
-              <Box>{formData.consigneeEmail}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneeEmail" fontWeight="bold" m={0} fontSize="sm">
+                  E-mail 1:
+                </FormLabel>
+                <Input
+                  id="consigneeEmail"
+                  value={formData.consigneeEmail}
+                  onChange={(e) => handleInputChange("consigneeEmail", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Phone 1:</Box>
-              <Box>{formData.consigneePhone}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneePhone" fontWeight="bold" m={0} fontSize="sm">
+                  Phone 1:
+                </FormLabel>
+                <Input
+                  id="consigneePhone"
+                  value={formData.consigneePhone}
+                  onChange={(e) => handleInputChange("consigneePhone", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Phone 2:</Box>
-              <Box>{formData.consigneePhone2 || ""}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="consigneePhone2" fontWeight="bold" m={0} fontSize="sm">
+                  Phone 2:
+                </FormLabel>
+                <Input
+                  id="consigneePhone2"
+                  value={formData.consigneePhone2 || ""}
+                  onChange={(e) => handleInputChange("consigneePhone2", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Web:</Box>
-              <Box>{formData.web}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="web" fontWeight="bold" m={0} fontSize="sm">
+                  Web:
+                </FormLabel>
+                <Input
+                  id="web"
+                  value={formData.web}
+                  onChange={(e) => handleInputChange("web", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">CNEE Text:</Box>
-              <Box>{formData.cneeText}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="cneeText" fontWeight="bold" m={0} fontSize="sm" >
+                  CNEE Text:
+                </FormLabel>
+                <Input
+                  id="cneeText"
+                  value={formData.cneeText}
+                  onChange={(e) => handleInputChange("cneeText", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Agents PIC:</Box>
-              <Box>{formData.agentsPIC}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="agentsPIC" fontWeight="bold" m={0} fontSize="sm" >
+                  Agents PIC:
+                </FormLabel>
+                <Input
+                  id="agentsPIC"
+                  value={formData.agentsPIC}
+                  onChange={(e) => handleInputChange("agentsPIC", e.target.value)}
+                  size="sm"
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
 
-              <Box fontWeight="bold">Warnings:</Box>
-              <Box>{formData.warnings || ""}</Box>
+              <FormControl display="contents">
+                <FormLabel htmlFor="warnings" fontWeight="bold" m={0} fontSize="sm" >
+                  Warnings:
+                </FormLabel>
+                <Textarea
+                  id="warnings"
+                  value={formData.warnings || ""}
+                  onChange={(e) => handleInputChange("warnings", e.target.value)}
+                  size="sm"
+                  rows={2}
+                  variant="unstyled"
+                  bg="transparent"
+                />
+              </FormControl>
             </Grid>
           </Box>
         </Grid>
 
-        {/* Bottom Section */}
-        <Flex justify="space-between" align="flex-start">
-          <HStack spacing={2}>
-            <Box bg="orange.200" px={3} py={2} fontSize="xs" fontWeight="bold">
-              Change total value to:
-            </Box>
-            <Box bg="orange.200" px={3} py={2} fontSize="xs" fontWeight="bold">
-              Remember to reset!
-            </Box>
-          </HStack>
-
-          {/* Instructions Box */}
-          <Box bg="blue.600" color="white" p={4} maxW="300px" borderRadius="md">
-            <Text fontSize="sm" fontWeight="bold" mb={2}>INSTRUCTIONS:</Text>
-            <VStack align="stretch" spacing={1} fontSize="xs">
-              <Text>All fields with white text must be filled in manually.</Text>
-              <Text>If using the totals override remember to delete after use.</Text>
-            </VStack>
-          </Box>
-        </Flex>
       </Box>
     </Box>
   );
