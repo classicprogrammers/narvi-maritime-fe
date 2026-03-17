@@ -137,9 +137,9 @@ export default function ShippingInstructionDetail() {
     const rowsHtml = (items && items.length
       ? items
       : [
-          { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
-          { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
-        ]
+        { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
+        { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
+      ]
     )
       .map(item => {
         const safeKg = item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "";
@@ -168,9 +168,7 @@ export default function ShippingInstructionDetail() {
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shipping Instruction</title>
 <style>
   body{
-    font-family: Arial, sans-serif;
     margin: 18px;
-    background-color: #ffffff;
   }
   .letterhead-wrapper{
     position: fixed;
@@ -210,31 +208,33 @@ export default function ShippingInstructionDetail() {
     margin-bottom: 16px;
   }
   .consign-box{
-    border: 1px solid #d0d0d0;
     background: #f5f5f5;
     padding: 8px 10px;
-    font-size: 12px;
+    font-size: 14px;
     min-height: 120px;
-    line-height: 1.1rem;
+    line-height: 1.4rem;
+  }
+  .si-card-section{
+    display: flex;
+    justify-content: center;
   }
   .si-card{
-    border: 1px solid #d0d0d0;
-    background: #f5f5f5;
     padding: 8px 10px;
     font-size: 12px;
     min-height: 120px;
+    margin-top: 17px;
   }
   .si-card-table{
-    width: 100%;
+    width: max-content;
     border-collapse: collapse;
   }
   .si-card-table td{
     padding: 4px 10px;
   }
   .si-card-table td:first-child{
-    font-weight: bold;
+    font-weight: 800;
     text-transform: uppercase;
-    width: 42%;
+    width: 55%;
   }
   .si-card-table td:last-child{
     text-align: left;
@@ -302,8 +302,8 @@ export default function ShippingInstructionDetail() {
 </style>
 </head>
 <body>
-  <div class="watermark-wrapper">
-    <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
+  <div class="letterhead-wrapper">
+    <img src="${narviLetterhead}" alt="Narvi Maritime Letterhead" />
   </div>
   <div class="container">
     <div class="logo-header">
@@ -319,7 +319,7 @@ export default function ShippingInstructionDetail() {
           ${consignHtml || "&nbsp;"}
         </div>
       </div>
-      <div>
+      <div class="si-card-section">
         <table class="si-card-table si-card">
           <tr><td>SI NO:</td><td>${data.siNo || ""}</td></tr>
           <tr><td>JOB NO:</td><td><span class="si-card-job">${data.jobNo || ""}</span></td></tr>
@@ -485,6 +485,14 @@ export default function ShippingInstructionDetail() {
                   fontSize="sm"
                   whiteSpace="pre-wrap"
                   rows={8}
+                  placeholder="Consignee Text will show here after you select the consignee."
+                  style={{
+                    background: "#cdd0d3b5",
+                    borderRadius: "6px",
+                    padding: "15px",
+                    minHeight: "255px",
+                    lineHeight: "1.4rem",
+                  }}
                 />
               </Box>
 
@@ -513,6 +521,10 @@ export default function ShippingInstructionDetail() {
                       size="sm"
                       bg="transparent"
                       borderColor="transparent"
+                      style={{
+                        color: "white",
+                      }}
+                      placeholder="Select SI number..."
                     />
                   </FormControl>
 
@@ -535,6 +547,7 @@ export default function ShippingInstructionDetail() {
                         variant="unstyled"
                         bg="transparent"
                         color="gray.800"
+                        placeholder="Job number..."
                       />
                     </Box>
                   </FormControl>
@@ -557,6 +570,7 @@ export default function ShippingInstructionDetail() {
                       variant="unstyled"
                       bg="transparent"
                       color="white"
+                      placeholder="Mode of transport..."
                     />
                   </FormControl>
 
@@ -578,6 +592,7 @@ export default function ShippingInstructionDetail() {
                       variant="unstyled"
                       bg="transparent"
                       color="white"
+                      placeholder="Origin..."
                     />
                   </FormControl>
 
@@ -599,6 +614,7 @@ export default function ShippingInstructionDetail() {
                       variant="unstyled"
                       bg="transparent"
                       color="white"
+                      placeholder="Destination..."
                     />
                   </FormControl>
 
@@ -642,6 +658,7 @@ export default function ShippingInstructionDetail() {
                       variant="unstyled"
                       bg="transparent"
                       color="white"
+                      placeholder="PIC..."
                     />
                   </FormControl>
 
@@ -747,6 +764,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   bg="transparent"
                   borderColor="transparent"
+                  placeholder="Select consignee..."
                 />
               </FormControl>
 
@@ -761,6 +779,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Company name..."
                 />
               </FormControl>
 
@@ -775,6 +794,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Address line 1..."
                 />
               </FormControl>
 
@@ -789,6 +809,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Address line 2..."
                 />
               </FormControl>
 
@@ -803,6 +824,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Post code..."
                 />
               </FormControl>
 
@@ -817,6 +839,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="City..."
                 />
               </FormControl>
 
@@ -831,6 +854,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Country..."
                 />
               </FormControl>
 
@@ -845,6 +869,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Registration number..."
                 />
               </FormControl>
 
@@ -859,6 +884,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Email..."
                 />
               </FormControl>
 
@@ -873,6 +899,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Phone..."
                 />
               </FormControl>
 
@@ -887,6 +914,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Phone 2..."
                 />
               </FormControl>
 
@@ -901,6 +929,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Website..."
                 />
               </FormControl>
 
@@ -915,6 +944,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="CNEE text..."
                 />
               </FormControl>
 
@@ -929,6 +959,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Agent PIC..."
                 />
               </FormControl>
 
@@ -944,6 +975,7 @@ export default function ShippingInstructionDetail() {
                   rows={2}
                   variant="unstyled"
                   bg="transparent"
+                  placeholder="Warnings..."
                 />
               </FormControl>
             </Grid>
