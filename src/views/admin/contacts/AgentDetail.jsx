@@ -156,10 +156,27 @@ const buildLegacyCneeItems = (agent) => {
   return items;
 };
 
+const normalizePrefix = (value) => {
+  if (!value || typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  const map = {
+    mr: "Mr",
+    ms: "Ms",
+    mrs: "Mrs",
+    miss: "Miss",
+    dr: "Dr",
+    prof: "Prof",
+  };
+  const lower = trimmed.toLowerCase();
+  if (map[lower]) return map[lower];
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+};
+
 const peopleTableColumns = [
   { key: "first_name", label: "First name" },
   { key: "last_name", label: "Last name" },
-  { key: "prefix", label: "Prefix" },
+  { key: "prefix", label: "Prefix", formatter: (value) => normalizePrefix(value) },
   { key: "job_title", label: "Job title" },
   { key: "email", label: "E-mail" },
   { key: "tel_direct", label: "Tel direct" },
@@ -1218,7 +1235,11 @@ const AgentDetail = () => {
                                     </Td>
                                   );
                                 }
-                                const cellValue = prettyValue(person[column.key]);
+                                const rawValue = person[column.key];
+                                const formattedValue = column.formatter
+                                  ? column.formatter(rawValue, person)
+                                  : rawValue;
+                                const cellValue = prettyValue(formattedValue);
                                 const isRemarks = column.key === "remarks";
                                 const cellValueStr = String(cellValue || "");
                                 const hasLongText = isRemarks && (cellValueStr.length > 50 || cellValueStr.includes("\n"));

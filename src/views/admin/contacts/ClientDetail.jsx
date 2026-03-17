@@ -110,10 +110,28 @@ const clientInfoSections = [
   },
 ];
 
+const normalizePrefix = (value) => {
+  if (!value || typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  // Common short prefixes – enforce exact casing
+  const map = {
+    mr: "Mr",
+    ms: "Ms",
+    mrs: "Mrs",
+    miss: "Miss",
+    dr: "Dr",
+    prof: "Prof",
+  };
+  const lower = trimmed.toLowerCase();
+  if (map[lower]) return map[lower];
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+};
+
 const peopleTableColumns = [
   { key: "first_name", label: "First name" },
   { key: "last_name", label: "Last name" },
-  { key: "prefix", label: "Prefix" },
+  { key: "prefix", label: "Prefix", formatter: (value) => normalizePrefix(value) },
   { key: "job_title", label: "Job title" },
   { key: "email", label: "E-mail" },
   { key: "tel_direct", label: "Tel direct" },
@@ -717,7 +735,9 @@ const ClientDetail = () => {
                                       overflow="visible"
                                       width="100%"
                                     >
-                                      {prettyValue(person[column.key])}
+                                      {column.formatter
+                                        ? prettyValue(column.formatter(person[column.key], person))
+                                        : prettyValue(person[column.key])}
                                     </Text>
                                   </Td>
                                 );
@@ -762,7 +782,9 @@ const ClientDetail = () => {
                                       {column.label}
                                     </Text>
                                     <Text fontSize="sm" color={valueColor} whiteSpace="pre-wrap">
-                                      {prettyValue(person[column.key])}
+                                      {column.formatter
+                                        ? prettyValue(column.formatter(person[column.key], person))
+                                        : prettyValue(person[column.key])}
                                     </Text>
                                   </GridItem>
                                 );
