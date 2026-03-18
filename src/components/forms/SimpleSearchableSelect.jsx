@@ -14,6 +14,8 @@ const SimpleSearchableSelect = ({
   onChange,
   options = [],
   placeholder = "Select...",
+  onSearchChange,
+  prefillOnFocus = true,
   displayKey = "name",
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
@@ -146,6 +148,7 @@ const SimpleSearchableSelect = ({
   const handleInputChange = (e) => {
     const newValue = e.target.value;
     setSearchValue(newValue);
+    if (typeof onSearchChange === "function") onSearchChange(newValue);
     if (!isOpen) {
       setIsOpen(true);
     }
@@ -153,8 +156,9 @@ const SimpleSearchableSelect = ({
 
   const handleFocus = () => {
     setIsOpen(true);
-    // Initialize searchValue with current display value to preserve it
-    setSearchValue(displayValue);
+    // Optionally prefill with current display value
+    setSearchValue(prefillOnFocus ? displayValue : "");
+    if (typeof onSearchChange === "function") onSearchChange(prefillOnFocus ? displayValue : "");
   };
 
   const handleKeyDown = (e) => {

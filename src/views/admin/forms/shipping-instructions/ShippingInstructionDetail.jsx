@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useHistory, useParams } from "react-router-dom";
 import {
   Box,
@@ -26,18 +26,31 @@ import {
   Select,
   Textarea,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline, MdSave } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
+import { useMasterData } from "../../../../hooks/useMasterData";
 import narviLogo from "../../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
 import narviLetterhead from "../../../../assets/letterHead/Letterhead-sidebar.png";
 import narviLetterheadWatermark from "../../../../assets/letterHead/letterhead-watermark.png";
+import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
 
 export default function ShippingInstructionDetail() {
   const history = useHistory();
   const { id } = useParams();
+  const { countries: countryList = [] } = useMasterData();
   const [currentStep, setCurrentStep] = useState(0);
   const [shippingInstruction, setShippingInstruction] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOptionsLoading, setIsOptionsLoading] = useState(false);
+  const [siOptions, setSiOptions] = useState([]);
+  const [consigneeOptions, setConsigneeOptions] = useState([]);
+  const [isSiFormLoading, setIsSiFormLoading] = useState(false);
+  const [selectedSiName, setSelectedSiName] = useState("");
+  const [siFormId, setSiFormId] = useState(null);
+  // Backend requires agent_cnee_id; keep last valid id even if UI is cleared
+  const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
+  const isApplyingFormRef = useRef(false);
+  const headerUserEditedRef = useRef(false);
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -45,38 +58,31 @@ export default function ShippingInstructionDetail() {
 
   // Form state
   const [formData, setFormData] = useState({
-    vessel: "M/V ANTHOS",
-    consignBlock:
-      "M/V ANTHOS\n" +
-      "C/o Narvi Maritime Pte. Ltd.\n" +
-      "119 Airport Cargo Road #01-03/04\n" +
-      "Changi Cargo Megaplex 1\n" +
-      "819454 Singapore\n" +
-      "Att.: Zhi Lin GOH\n" +
-      "Phone: (+65) 6542 0626\n" +
-      "E-mail: spares@narvimaritime.com",
-    siNo: "SI 2849 1.2",
-    jobNo: "SO 2849",
-    shippedBy: "AIR",
-    from: "ROTTERDAM (RTM)",
-    to: "SINGAPORE (SIN)",
-    deadline: "27/04/25",
-    pic: "IPN",
-    date: "24/04/2025",
-    selectConsignee: "Narvi SIN (A/F, C/F, O/F)",
-    company: "C/o Narvi Maritime Pte. Ltd.",
-    consigneeAddress1: "119 Airport Cargo Road #01-03/04",
-    consigneeAddress2: "Changi Cargo Megaplex 1",
-    consigneePostcode: "819454",
-    consigneeCity: "Singapore",
-    consigneeCountry: "Singapore",
-    regNo: "2020082582",
-    consigneeEmail: "spares@narvimaritime.com",
-    consigneePhone: "(+65) 6542 0626",
+    vessel: "",
+    consignBlock: "",
+    siNo: "", // stores selected option id
+    jobNo: "",
+    shippedBy: "",
+    from: "",
+    to: "", // display name (used for print)
+    toCountryId: "", // stores selected country id
+    deadline: "",
+    pic: "",
+    date: "",
+    selectConsignee: "", // stores selected option id
+    company: "",
+    consigneeAddress1: "",
+    consigneeAddress2: "",
+    consigneePostcode: "",
+    consigneeCity: "",
+    consigneeCountry: "",
+    regNo: "",
+    consigneeEmail: "",
+    consigneePhone: "",
     consigneePhone2: "",
-    web: "www.narvimaritime.com",
-    cneeText: "Ships Spares in transit for:",
-    agentsPIC: "Zhi Lin GOH",
+    web: "",
+    cneeText: "",
+    agentsPIC: "",
     warnings: "",
   });
 
@@ -84,31 +90,31 @@ export default function ShippingInstructionDetail() {
   const [cargoItems, setCargoItems] = useState([
     {
       id: 1,
-      origin: "PVG",
-      warehouseId: "PVG-45778",
-      supplier: "ATLANTIC ENG",
-      poNumber: "07/1U",
+      origin: "",
+      warehouseId: "",
+      supplier: "",
+      poNumber: "",
       details: "",
-      boxes: 1,
-      kg: 1.00,
-      cbm: 0.00,
-      lwh: "20x13x16",
-      ww: 0.69,
-      stockItemId: "SL218224",
+      boxes: 0,
+      kg: 0,
+      cbm: 0,
+      lwh: "",
+      ww: 0,
+      stockItemId: "",
     },
     {
       id: 2,
-      origin: "PVG",
-      warehouseId: "PVG-45779",
-      supplier: "ATLANTIC ENG",
-      poNumber: "02/1U",
+      origin: "",
+      warehouseId: "",
+      supplier: "",
+      poNumber: "",
       details: "",
-      boxes: 1,
-      kg: 138.00,
-      cbm: 0.16,
-      lwh: "66x65x37",
-      ww: 26.92,
-      stockItemId: "SL218223",
+      boxes: 0,
+      kg: 0,
+      cbm: 0,
+      lwh: "",
+      ww: 0,
+      stockItemId: "",
     },
   ]);
 
@@ -126,6 +132,253 @@ export default function ShippingInstructionDetail() {
       [field]: value
     }));
   };
+
+  const [qSi, setQSi] = useState("");
+  const [qCnee, setQCnee] = useState("");
+  const getOptionNameById = (list, id) => {
+    const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
+    return match?.name ? String(match.name) : "";
+  };
+
+  const blankCargoRows = () => ([
+    {
+      id: 1,
+      origin: "",
+      warehouseId: "",
+      supplier: "",
+      poNumber: "",
+      details: "",
+      boxes: 0,
+      kg: 0,
+      cbm: 0,
+      lwh: "",
+      ww: 0,
+      stockItemId: "",
+    },
+    {
+      id: 2,
+      origin: "",
+      warehouseId: "",
+      supplier: "",
+      poNumber: "",
+      details: "",
+      boxes: 0,
+      kg: 0,
+      cbm: 0,
+      lwh: "",
+      ww: 0,
+      stockItemId: "",
+    },
+  ]);
+
+  const applySiFormResponse = (form, { lockedConsigneeId, lockedSiId } = {}) => {
+    if (!form) return;
+    isApplyingFormRef.current = true;
+    setSiFormId(form.id ?? null);
+
+    const countryName =
+      form.country_id && typeof form.country_id === "object" ? (form.country_id.name || "") : "";
+
+    const consigneeId =
+      form.agent_cnee_id && typeof form.agent_cnee_id === "object" ? form.agent_cnee_id.id : "";
+
+    const siId =
+      form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "";
+    const siName =
+      form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "";
+
+    // Build CONSIGN TO text block from cnee lines if present, otherwise from address fields
+    const cneeLines = [
+      form.cnee2,
+      form.cnee3,
+      form.cnee4,
+      form.cnee5,
+      form.cnee6,
+      form.cnee7,
+      form.cnee8,
+    ].filter((v) => v && v !== false).map((v) => String(v));
+
+    const fallbackLines = [
+      form.company,
+      form.address1,
+      form.address2,
+      [form.postcode, form.city].filter(Boolean).join(" ").trim(),
+      countryName,
+      form.phone1 ? `Phone: ${form.phone1}` : "",
+      form.email1 ? `E-mail: ${form.email1}` : "",
+    ].filter((v) => v && v !== false).map((v) => String(v));
+
+    setFormData((prev) => ({
+      ...prev,
+      // header card
+      siNo: (lockedSiId ?? siId) ?? "",
+      jobNo: form.job_no && form.job_no !== false ? String(form.job_no) : "",
+      shippedBy: form.to_be_shipped_by && form.to_be_shipped_by !== false ? String(form.to_be_shipped_by) : "",
+      from: form.from_text && form.from_text !== false ? String(form.from_text) : "",
+      to: (form.to_country_id && typeof form.to_country_id === "object" && form.to_country_id.name)
+        ? String(form.to_country_id.name)
+        : "",
+      toCountryId: (form.to_country_id && typeof form.to_country_id === "object" && form.to_country_id.id != null)
+        ? Number(form.to_country_id.id)
+        : "",
+      deadline: form.deadline_date && form.deadline_date !== false ? String(form.deadline_date) : "",
+      pic: form.header_pic && form.header_pic !== false ? String(form.header_pic) : "",
+      date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
+
+      // consign block + consignee id
+      consignBlock: (cneeLines.length ? cneeLines : fallbackLines).join("\n"),
+      selectConsignee: (lockedConsigneeId ?? consigneeId) ?? "",
+
+      // consignee detail fields
+      company: form.company && form.company !== false ? String(form.company) : "",
+      consigneeAddress1: form.address1 && form.address1 !== false ? String(form.address1) : "",
+      consigneeAddress2: form.address2 && form.address2 !== false ? String(form.address2) : "",
+      consigneePostcode: form.postcode && form.postcode !== false ? String(form.postcode) : "",
+      consigneeCity: form.city && form.city !== false ? String(form.city) : "",
+      consigneeCountry: countryName,
+      regNo: form.reg_no && form.reg_no !== false ? String(form.reg_no) : "",
+      consigneeEmail: form.email1 && form.email1 !== false ? String(form.email1) : "",
+      consigneePhone: form.phone1 && form.phone1 !== false ? String(form.phone1) : "",
+      consigneePhone2: form.phone2 && form.phone2 !== false ? String(form.phone2) : "",
+      web: form.web && form.web !== false ? String(form.web) : "",
+      cneeText: form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "",
+      agentsPIC: form.agents_pic && form.agents_pic !== false ? String(form.agents_pic) : "",
+      warnings: form.warnings && form.warnings !== false ? String(form.warnings) : "",
+    }));
+
+    setSelectedSiName(siName ? String(siName) : "");
+    if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
+
+    const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
+    const mapped = stockList.map((it, idx) => ({
+      id: it.id ?? idx + 1,
+      origin: it.origin || "",
+      warehouseId: it.warehouse_id || "",
+      supplier: it.supplier_id && typeof it.supplier_id === "object" ? (it.supplier_id.name || "") : "",
+      poNumber: it.po_number || "",
+      details: it.details && it.details !== false ? String(it.details) : "",
+      boxes: Number(it.boxes || 0),
+      kg: Number(it.kg || 0),
+      cbm: Number(it.cbm || 0),
+      lwh: it.lwh && it.lwh !== false ? String(it.lwh) : "",
+      ww: Number(it.vw || 0),
+      stockItemId: it.stock_item_id || "",
+    }));
+
+    setCargoItems(mapped.length ? mapped : blankCargoRows());
+    // allow autosave effects after this render flushes
+    setTimeout(() => {
+      isApplyingFormRef.current = false;
+    }, 0);
+  };
+
+  const ensureFormId = async () => {
+    if (siFormId) return siFormId;
+    const latest = await postSiFormApi({ latest_only: true });
+    const id = latest?.id ?? null;
+    if (id) setSiFormId(id);
+    return id;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      try {
+        setIsOptionsLoading(true);
+        const data = await getSiFormOptionsApi({ page: 1, page_size: 20, q_cnee: qCnee, q_si: qSi });
+        if (cancelled) return;
+
+        const result = data?.result;
+        const siNos = Array.isArray(result?.si_number_options) ? result.si_number_options : [];
+        const consignees = Array.isArray(result?.cnee_options) ? result.cnee_options : [];
+
+        const normalizeOptions = (arr) =>
+          arr
+            .filter((x) => x && x.name) // filters out name:false and empty
+            .map((x) => ({ id: Number(x.id), name: String(x.name) }))
+            .filter((x) => Number.isFinite(x.id));
+
+        setSiOptions(normalizeOptions(siNos));
+        setConsigneeOptions(normalizeOptions(consignees));
+      } catch (e) {
+        console.error("Failed to load SI form options:", e);
+      } finally {
+        if (!cancelled) setIsOptionsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [qCnee, qSi]);
+
+  // On page load: fetch latest saved SI form
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsSiFormLoading(true);
+        const form = await postSiFormApi({ latest_only: true });
+        if (cancelled) return;
+        applySiFormResponse(form);
+      } catch (e) {
+        // If backend has no "latest" yet or rejects, keep page usable
+        console.error("Failed to load latest SI form:", e);
+      } finally {
+        if (!cancelled) setIsSiFormLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Autosave centered header fields (debounced)
+  useEffect(() => {
+    if (isApplyingFormRef.current) return;
+    // Don't call update on page load / initial fill. Only after user edits.
+    if (!headerUserEditedRef.current) return;
+    // don't autosave while initial latest record is still loading
+    // (prevents racing user edits vs initial load)
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+
+        setIsSiFormLoading(true);
+        const updated = await postSiFormUpdateApi({
+          id: currentId,
+          to_be_shipped_by: formData.shippedBy ?? "",
+          from_text: formData.from ?? "",
+          to_country_id:
+            formData.toCountryId != null && formData.toCountryId !== ""
+              ? Number(formData.toCountryId)
+              : null,
+          deadline_date: formData.deadline ?? "",
+          header_pic: formData.pic ?? "",
+          header_date: formData.date ?? "",
+        });
+        applySiFormResponse(updated, {
+          lockedConsigneeId: formData.selectConsignee,
+          lockedSiId: formData.siNo,
+        });
+      } catch (e) {
+        console.error("Failed to autosave SI header fields:", e);
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    formData.shippedBy,
+    formData.from,
+    formData.toCountryId,
+    formData.deadline,
+    formData.pic,
+    formData.date,
+  ]);
 
   // Build printable HTML document for Shipping Instruction
   const buildShippingInstructionPrintHtml = (data, items, totals) => {
@@ -365,66 +618,73 @@ export default function ShippingInstructionDetail() {
   };
 
   // Button handlers
-  const handleResetShippingInstruction = () => {
-    // Reset all editable fields to blank values
-    setFormData({
-      vessel: "",
-      consignBlock: "",
-      siNo: "",
-      jobNo: "",
-      shippedBy: "",
-      from: "",
-      to: "",
-      deadline: "",
-      pic: "",
-      date: "",
-      selectConsignee: "",
-      company: "",
-      consigneeAddress1: "",
-      consigneeAddress2: "",
-      consigneePostcode: "",
-      consigneeCity: "",
-      consigneeCountry: "",
-      regNo: "",
-      consigneeEmail: "",
-      consigneePhone: "",
-      consigneePhone2: "",
-      web: "",
-      cneeText: "",
-      agentsPIC: "",
-      warnings: "",
-    });
-    // Reset cargo items to two empty rows so the table layout stays consistent
-    setCargoItems([
-      {
-        id: 1,
-        origin: "",
-        warehouseId: "",
-        supplier: "",
-        poNumber: "",
-        details: "",
-        boxes: 0,
-        kg: 0,
-        cbm: 0,
-        lwh: "",
-        ww: 0,
-        stockItemId: "",
-      },
-      {
-        id: 2,
-        origin: "",
-        warehouseId: "",
-        supplier: "",
-        poNumber: "",
-        details: "",
-        boxes: 0,
-        kg: 0,
-        cbm: 0,
-        lwh: "",
-        ww: 0,
-        stockItemId: "",
-      },
-    ]);
+  const handleResetShippingInstruction = async () => {
+    try {
+      setIsSiFormLoading(true);
+      // Ensure we have a record id to update
+      let currentId = siFormId;
+      if (!currentId) {
+        const latestBefore = await postSiFormApi({ latest_only: true });
+        currentId = latestBefore?.id ?? null;
+        if (currentId) setSiFormId(currentId);
+      }
+      if (!currentId) return;
+
+      // Full reset: send explicit empty/null keys (as requested)
+      const updated = await postSiFormUpdateApi({
+        id: currentId,
+
+        agent_cnee_id: null,
+        agent_contact_id: null,
+        agent_partner_id: null,
+
+        to_be_shipped_by: null,
+        from_text: null,
+        to_country_id: null,
+        deadline_date: null,
+        header_pic: null,
+        header_date: null,
+
+        company: "",
+        address1: "",
+        address2: "",
+        postcode: "",
+        city: "",
+        country_id: null,
+        reg_no: "",
+        email1: "",
+        phone1: "",
+        phone2: "",
+        web: "",
+
+        cnee1: null,
+        cnee2: null,
+        cnee3: null,
+        cnee4: null,
+        cnee5: null,
+        cnee6: null,
+        cnee7: null,
+        cnee8: null,
+        cnee9: null,
+        cnee10: null,
+        cnee11: null,
+        cnee12: null,
+        cnee_text: "",
+
+        agents_pic: null,
+        warnings: "",
+
+        si_number_id: null,
+        job_no: "",
+
+        stock_list: [],
+      });
+      applySiFormResponse(updated);
+    } catch (e) {
+      console.error("Failed to reset SI form:", e);
+    } finally {
+      setIsSiFormLoading(false);
+    }
   };
 
   const handleSaveShippingInstruction = () => {
@@ -433,7 +693,15 @@ export default function ShippingInstructionDetail() {
   };
 
   const handlePrintShippingInstruction = () => {
-    const printHtml = buildShippingInstructionPrintHtml(formData, cargoItems, totals);
+    const siNoLabel =
+      siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
+      selectedSiName ||
+      "";
+    const printHtml = buildShippingInstructionPrintHtml(
+      { ...formData, siNo: siNoLabel },
+      cargoItems,
+      totals
+    );
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       alert("Popup blocked. Please allow popups to print.");
@@ -452,6 +720,7 @@ export default function ShippingInstructionDetail() {
             <Button
               variant="outline"
               size="sm"
+              isLoading={isSiFormLoading}
               onClick={handleResetShippingInstruction}
             >
               Reset
@@ -510,17 +779,48 @@ export default function ShippingInstructionDetail() {
                     <SimpleSearchableSelect
                       id="siNo"
                       value={formData.siNo}
-                      onChange={(val) => handleInputChange("siNo", val || "")}
-                      options={[
-                        { id: "SI 2849 1.2", name: "SI 2849 1.2" },
-                        { id: "SI 2849 1.1", name: "SI 2849 1.1" },
-                        { id: "SI 2850 1.0", name: "SI 2850 1.0" },
-                      ]}
+                      onChange={async (val) => {
+                        const v = val ?? "";
+                        handleInputChange("siNo", v);
+                        const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                        setQSi(selectedName);
+                        setQCnee("");
+
+                        // When an SI number is chosen: update SI form, then render returned form
+                        if (v === "") return;
+                        try {
+                          setIsSiFormLoading(true);
+                          if (!siFormId) {
+                            const latestBefore = await postSiFormApi({ latest_only: true });
+                            if (latestBefore?.id) setSiFormId(latestBefore.id);
+                          }
+                          const currentId = siFormId ?? (await postSiFormApi({ latest_only: true }))?.id;
+                          if (!currentId) return;
+                          const updated = await postSiFormUpdateApi({ id: currentId, si_number_id: Number(v) });
+                          applySiFormResponse(updated, { lockedSiId: v });
+                        } catch (e) {
+                          console.error("Failed to load SI form by SI number:", e);
+                        } finally {
+                          setIsSiFormLoading(false);
+                        }
+                      }}
+                      onSearchChange={(txt) => {
+                        setQSi(txt ?? "");
+                        setQCnee("");
+                      }}
+                      prefillOnFocus={false}
+                      options={siOptions}
                       displayKey="name"
-                      valueKey="name"
+                      valueKey="id"
                       size="sm"
                       bg="transparent"
                       borderColor="transparent"
+                      variant="unstyled"
+                      px={0}
+                      py={0}
+                      _focus={{ boxShadow: "none", outline: "none" }}
+                      _focusVisible={{ boxShadow: "none", outline: "none" }}
+                      isLoading={isOptionsLoading || isSiFormLoading}
                       style={{
                         color: "white",
                       }}
@@ -547,7 +847,7 @@ export default function ShippingInstructionDetail() {
                         variant="unstyled"
                         bg="transparent"
                         color="gray.800"
-                        placeholder="Job number..."
+
                       />
                     </Box>
                   </FormControl>
@@ -564,13 +864,16 @@ export default function ShippingInstructionDetail() {
                     <Input
                       id="shippedBy"
                       value={formData.shippedBy}
-                      onChange={(e) => handleInputChange("shippedBy", e.target.value)}
+                      onChange={(e) => {
+                        headerUserEditedRef.current = true;
+                        handleInputChange("shippedBy", e.target.value);
+                      }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
                       bg="transparent"
                       color="white"
-                      placeholder="Mode of transport..."
+
                     />
                   </FormControl>
 
@@ -586,13 +889,16 @@ export default function ShippingInstructionDetail() {
                     <Input
                       id="from"
                       value={formData.from}
-                      onChange={(e) => handleInputChange("from", e.target.value)}
+                      onChange={(e) => {
+                        headerUserEditedRef.current = true;
+                        handleInputChange("from", e.target.value);
+                      }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
                       bg="transparent"
                       color="white"
-                      placeholder="Origin..."
+
                     />
                   </FormControl>
 
@@ -605,16 +911,34 @@ export default function ShippingInstructionDetail() {
                     >
                       TO:
                     </FormLabel>
-                    <Input
-                      id="to"
-                      value={formData.to}
-                      onChange={(e) => handleInputChange("to", e.target.value)}
+                    <SimpleSearchableSelect
+                      id="toCountryId"
+                      value={formData.toCountryId}
+                      onChange={(val) => {
+                        const v = val ?? "";
+                        headerUserEditedRef.current = true;
+                        handleInputChange("toCountryId", v);
+                        const selectedName =
+                          Array.isArray(countryList)
+                            ? (countryList.find((c) => Number(c.id) === Number(v))?.name ?? "")
+                            : "";
+                        handleInputChange("to", selectedName ? String(selectedName) : "");
+                      }}
+                      options={Array.isArray(countryList) ? countryList : []}
+                      displayKey="name"
+                      valueKey="id"
+                      prefillOnFocus={false}
                       size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
                       bg="transparent"
-                      color="white"
-                      placeholder="Destination..."
+                      borderColor="transparent"
+                      variant="unstyled"
+                      px={0}
+                      py={0}
+                      _focus={{ boxShadow: "none", outline: "none" }}
+                      _focusVisible={{ boxShadow: "none", outline: "none" }}
+                      isLoading={false}
+                      placeholder="Select country..."
+                      style={{ color: "white" }}
                     />
                   </FormControl>
 
@@ -631,7 +955,10 @@ export default function ShippingInstructionDetail() {
                       id="deadline"
                       type="date"
                       value={formData.deadline}
-                      onChange={(e) => handleInputChange("deadline", e.target.value)}
+                      onChange={(e) => {
+                        headerUserEditedRef.current = true;
+                        handleInputChange("deadline", e.target.value);
+                      }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
@@ -652,13 +979,16 @@ export default function ShippingInstructionDetail() {
                     <Input
                       id="pic"
                       value={formData.pic}
-                      onChange={(e) => handleInputChange("pic", e.target.value)}
+                      onChange={(e) => {
+                        headerUserEditedRef.current = true;
+                        handleInputChange("pic", e.target.value);
+                      }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
                       bg="transparent"
                       color="white"
-                      placeholder="PIC..."
+
                     />
                   </FormControl>
 
@@ -675,7 +1005,10 @@ export default function ShippingInstructionDetail() {
                       id="date"
                       type="date"
                       value={formData.date}
-                      onChange={(e) => handleInputChange("date", e.target.value)}
+                      onChange={(e) => {
+                        headerUserEditedRef.current = true;
+                        handleInputChange("date", e.target.value);
+                      }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
@@ -753,17 +1086,53 @@ export default function ShippingInstructionDetail() {
                 <SimpleSearchableSelect
                   id="selectConsignee"
                   value={formData.selectConsignee}
-                  onChange={(val) => handleInputChange("selectConsignee", val || "")}
-                  options={[
-                    { id: "narvi_sin", name: "Narvi SIN (A/F, C/F, O/F)" },
-                    { id: "narvi_rtm", name: "Narvi RTM (Ocean Freight)" },
-                    { id: "narvi_sgn", name: "Narvi SGN (Air Freight)" },
-                  ]}
+                  onChange={async (val) => {
+                    const v = val ?? "";
+                    handleInputChange("selectConsignee", v);
+                    const selectedName = v !== "" ? getOptionNameById(consigneeOptions, v) : "";
+                    setQCnee(selectedName);
+                    setQSi("");
+
+                    // When a consignee is chosen: update SI form, then render returned form
+                    if (v === "") return;
+                    try {
+                      setIsSiFormLoading(true);
+                      setRequiredAgentCneeId(Number(v));
+
+                      // Ensure we have a record id to update (latest record flow)
+                      let currentId = siFormId;
+                      if (!currentId) {
+                        const latestBefore = await postSiFormApi({ latest_only: true });
+                        currentId = latestBefore?.id ?? null;
+                        if (currentId) setSiFormId(currentId);
+                      }
+                      if (!currentId) return;
+
+                      const updated = await postSiFormUpdateApi({ id: currentId, agent_cnee_id: Number(v) });
+                      applySiFormResponse(updated, { lockedConsigneeId: v });
+                    } catch (e) {
+                      console.error("Failed to load SI form by consignee:", e);
+                    } finally {
+                      setIsSiFormLoading(false);
+                    }
+                  }}
+                  onSearchChange={(txt) => {
+                    setQCnee(txt ?? "");
+                    setQSi("");
+                  }}
+                  prefillOnFocus={false}
+                  options={consigneeOptions}
                   displayKey="name"
-                  valueKey="name"
+                  valueKey="id"
                   size="sm"
                   bg="transparent"
                   borderColor="transparent"
+                  variant="unstyled"
+                  px={0}
+                  py={0}
+                  _focus={{ boxShadow: "none", outline: "none" }}
+                  _focusVisible={{ boxShadow: "none", outline: "none" }}
+                  isLoading={isOptionsLoading || isSiFormLoading}
                   placeholder="Select consignee..."
                 />
               </FormControl>
@@ -779,7 +1148,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Company name..."
+
                 />
               </FormControl>
 
@@ -794,7 +1163,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Address line 1..."
+
                 />
               </FormControl>
 
@@ -809,7 +1178,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Address line 2..."
+
                 />
               </FormControl>
 
@@ -824,7 +1193,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Post code..."
+
                 />
               </FormControl>
 
@@ -839,7 +1208,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="City..."
+
                 />
               </FormControl>
 
@@ -854,7 +1223,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Country..."
+
                 />
               </FormControl>
 
@@ -869,7 +1238,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Registration number..."
+
                 />
               </FormControl>
 
@@ -884,7 +1253,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Email..."
+
                 />
               </FormControl>
 
@@ -899,7 +1268,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Phone..."
+
                 />
               </FormControl>
 
@@ -914,7 +1283,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Phone 2..."
+
                 />
               </FormControl>
 
@@ -929,7 +1298,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Website..."
+
                 />
               </FormControl>
 
@@ -944,7 +1313,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="CNEE text..."
+
                 />
               </FormControl>
 
@@ -959,7 +1328,7 @@ export default function ShippingInstructionDetail() {
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Agent PIC..."
+
                 />
               </FormControl>
 
@@ -975,7 +1344,7 @@ export default function ShippingInstructionDetail() {
                   rows={2}
                   variant="unstyled"
                   bg="transparent"
-                  placeholder="Warnings..."
+
                 />
               </FormControl>
             </Grid>
