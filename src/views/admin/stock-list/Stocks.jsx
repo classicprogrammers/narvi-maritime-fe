@@ -186,7 +186,10 @@ function readPersistedStockViewEditState() {
             vesselViewStatuses: Array.isArray(p.vesselViewStatuses) ? p.vesselViewStatuses : [],
             clientViewClient: p.clientViewClient != null ? p.clientViewClient : null,
             clientViewStatuses: Array.isArray(p.clientViewStatuses) ? p.clientViewStatuses : [],
-            clientViewFilterType: p.clientViewFilterType === "filter1" || p.clientViewFilterType === "filter2" ? p.clientViewFilterType : "filter1",
+            clientViewFilterType:
+                p.clientViewFilterType === "filter1" || p.clientViewFilterType === "filter2" || p.clientViewFilterType === "filter3"
+                    ? p.clientViewFilterType
+                    : "filter1",
             clientViewSearchClient: typeof p.clientViewSearchClient === "string" ? p.clientViewSearchClient : "",
             clientViewSearchVessel: typeof p.clientViewSearchVessel === "string" ? p.clientViewSearchVessel : "",
             clientViewVesselFilter: p.clientViewVesselFilter != null ? p.clientViewVesselFilter : null,
@@ -1660,7 +1663,7 @@ export default function Stocks() {
             htmlTable += '<th>WEIGHT KGS</th>';
             htmlTable += '<th>STOCK STATUS</th>';
             htmlTable += '<th>DESTINATION</th>';
-        } else {
+        } else if (clientViewFilterType === 'filter2') {
             htmlTable += '<th>SUPPLIER</th>';
             htmlTable += '<th>PO NUMBER</th>';
             htmlTable += '<th>STOCK STATUS</th>';
@@ -1672,6 +1675,22 @@ export default function Stocks() {
             htmlTable += '<th>EXPORT DOC 2</th>';
             htmlTable += '<th>BOXES</th>';
             htmlTable += '<th>WEIGHT KGS</th>';
+        } else {
+            htmlTable += '<th>VESSEL</th>';
+            htmlTable += '<th>WAREHOUSE ID</th>';
+            htmlTable += '<th>SUPPLIER</th>';
+            htmlTable += '<th>PO#</th>';
+            htmlTable += '<th>BOXES</th>';
+            htmlTable += '<th>WEIGHT</th>';
+            htmlTable += '<th>TOTAL VOLUME CBN (THE EYE)</th>';
+            htmlTable += '<th>ORIGIN</th>';
+            htmlTable += '<th>VIA HUB 1</th>';
+            htmlTable += '<th>VIA HUB 2</th>';
+            htmlTable += '<th>AP DESTINATION</th>';
+            htmlTable += '<th>DESTINATION</th>';
+            htmlTable += '<th>STOCK STATUS</th>';
+            htmlTable += '<th>DATE ON STOCK</th>';
+            htmlTable += '<th>SO NUMBER</th>';
         }
 
         htmlTable += '</tr></thead><tbody>';
@@ -1697,7 +1716,7 @@ export default function Stocks() {
                 htmlTable += `<td>${weight}</td>`;
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
                 htmlTable += `<td>${destination}</td>`;
-            } else {
+            } else if (clientViewFilterType === 'filter2') {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
                 const status = getStatusLabel(item.stock_status);
@@ -1721,6 +1740,38 @@ export default function Stocks() {
                 htmlTable += `<td>${exportDoc2}</td>`;
                 htmlTable += `<td>${boxes}</td>`;
                 htmlTable += `<td>${weight}</td>`;
+            } else {
+                const vessel = getDisplayName(item.vessel_id || item.vessel);
+                const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || '-';
+                const supplier = getDisplayName(item.supplier_id || item.supplier);
+                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
+                const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
+                const weight = (item.weight_kg ?? item.weight_kgs) || '-';
+                const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
+                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
+                const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || '-';
+                const viaHub2 = item.via_hub_2 || item.via_hub2 || '-';
+                const apDestination = item.ap_destination || item.ap_destination_id || '-';
+                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
+                const status = getStatusLabel(item.stock_status);
+                const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
+                const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
+
+                htmlTable += `<td>${vessel}</td>`;
+                htmlTable += `<td>${warehouseId}</td>`;
+                htmlTable += `<td>${supplier}</td>`;
+                htmlTable += `<td>${poNumber}</td>`;
+                htmlTable += `<td>${boxes}</td>`;
+                htmlTable += `<td>${weight}</td>`;
+                htmlTable += `<td>${totalVolume}</td>`;
+                htmlTable += `<td>${origin}</td>`;
+                htmlTable += `<td>${viaHub1}</td>`;
+                htmlTable += `<td>${viaHub2}</td>`;
+                htmlTable += `<td>${apDestination}</td>`;
+                htmlTable += `<td>${destination}</td>`;
+                htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
+                htmlTable += `<td>${dateOnStock}</td>`;
+                htmlTable += `<td>${soNumber}</td>`;
             }
 
             htmlTable += '</tr>';
@@ -1735,8 +1786,10 @@ export default function Stocks() {
             // Add header row
             if (clientViewFilterType === 'filter1') {
                 plainText += 'SUPPLIER\tPO NUMBER\tVIA HUB\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
-            } else {
+            } else if (clientViewFilterType === 'filter2') {
                 plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tVIA HUB\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
+            } else {
+                plainText += 'VESSEL\tWAREHOUSE ID\tSUPPLIER\tPO#\tBOXES\tWEIGHT\tTOTAL VOLUME CBN\tORIGIN\tVIA HUB 1\tVIA HUB 2\tAP DESTINATION\tDESTINATION\tSTOCK STATUS\tDATE ON STOCK\tSO NUMBER\n';
             }
 
             // Add data rows
@@ -1751,7 +1804,7 @@ export default function Stocks() {
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
 
                     plainText += `${supplier}\t${poNumber}\t${viaHub}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
-                } else {
+                } else if (clientViewFilterType === 'filter2') {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
                     const status = getStatusLabel(item.stock_status);
@@ -1765,6 +1818,23 @@ export default function Stocks() {
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
 
                     plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
+                } else {
+                    const vessel = getDisplayName(item.vessel_id || item.vessel);
+                    const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || '-';
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
+                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
+                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
+                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
+                    const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
+                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
+                    const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || '-';
+                    const viaHub2 = item.via_hub_2 || item.via_hub2 || '-';
+                    const apDestination = item.ap_destination || item.ap_destination_id || '-';
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
+                    const status = getStatusLabel(item.stock_status);
+                    const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
+                    const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
+                    plainText += `${vessel}\t${warehouseId}\t${supplier}\t${poNumber}\t${boxes}\t${weight}\t${totalVolume}\t${origin}\t${viaHub1}\t${viaHub2}\t${apDestination}\t${destination}\t${status}\t${dateOnStock}\t${soNumber}\n`;
                 }
             });
 
@@ -1835,8 +1905,12 @@ export default function Stocks() {
             ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
-        } else {
+        } else if (clientViewFilterType === "filter2") {
             ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
+            });
+        } else {
+            ["VESSEL", "WAREHOUSE ID", "SUPPLIER", "PO#", "BOXES", "WEIGHT", "TOTAL VOLUME CBN (THE EYE)", "ORIGIN", "VIA HUB 1", "VIA HUB 2", "AP DESTINATION", "DESTINATION", "STOCK STATUS", "DATE ON STOCK", "SO NUMBER"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         }
@@ -1874,7 +1948,7 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                } else {
+                } else if (clientViewFilterType === "filter2") {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                     const status = getStatusLabel(item.stock_status);
@@ -1898,6 +1972,36 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc2}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                } else {
+                    const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || "-";
+                    const supplier = getDisplayName(item.supplier_id || item.supplier);
+                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                    const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-";
+                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+                    const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || "-";
+                    const viaHub2 = item.via_hub_2 || item.via_hub2 || "-";
+                    const apDestination = item.ap_destination || item.ap_destination_id || "-";
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                    const status = getStatusLabel(item.stock_status);
+                    const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || "-";
+                    const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || "-";
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${warehouseId}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalVolume}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub1}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub2}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${apDestination}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dateOnStock}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${soNumber}</td>`;
                 }
                 bodyRows += "</tr>";
             });
@@ -3862,6 +3966,21 @@ export default function Stocks() {
                                     >
                                         Filter 2
                                     </Button>
+                                    <Button
+                                        size="md"
+                                        leftIcon={<Icon as={MdViewList} />}
+                                        colorScheme={clientViewFilterType === 'filter3' ? 'blue' : 'gray'}
+                                        variant={clientViewFilterType === 'filter3' ? 'solid' : 'outline'}
+                                        onClick={() => setClientViewFilterType('filter3')}
+                                        fontWeight="600"
+                                        _hover={{
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: 'md'
+                                        }}
+                                        transition="all 0.2s"
+                                    >
+                                        Filter 3
+                                    </Button>
                                     {clientViewSelectedRows.size > 0 && (
                                         <Button
                                             size="md"
@@ -5119,7 +5238,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>DESTINATION</Th>
                                                             <Th {...headerProps}>ACTION</Th>
                                                         </>
-                                                    ) : (
+                                                    ) : clientViewFilterType === 'filter2' ? (
                                                         <>
                                                             <Th {...headerProps}>CLIENT</Th>
                                                             <Th {...headerProps}>VESSEL</Th>
@@ -5136,13 +5255,33 @@ export default function Stocks() {
                                                             <Th {...headerProps}>WEIGHT KGS</Th>
                                                             <Th {...headerProps}>ACTION</Th>
                                                         </>
+                                                    ) : (
+                                                        <>
+                                                            <Th {...headerProps}>CLIENT</Th>
+                                                            <Th {...headerProps}>VESSEL</Th>
+                                                            <Th {...headerProps}>WAREHOUSE ID</Th>
+                                                            <Th {...headerProps}>SUPPLIER</Th>
+                                                            <Th {...headerProps}>PO#</Th>
+                                                            <Th {...headerProps}>BOXES</Th>
+                                                            <Th {...headerProps}>WEIGHT</Th>
+                                                            <Th {...headerProps}>TOTAL VOLUME CBN (THE EYE)</Th>
+                                                            <Th {...headerProps}>ORIGIN</Th>
+                                                            <Th {...headerProps}>VIA HUB 1</Th>
+                                                            <Th {...headerProps}>VIA HUB 2</Th>
+                                                            <Th {...headerProps}>AP DESTINATION</Th>
+                                                            <Th {...headerProps}>DESTINATION</Th>
+                                                            <Th {...headerProps}>STOCK STATUS</Th>
+                                                            <Th {...headerProps}>DATE ON STOCK</Th>
+                                                            <Th {...headerProps}>SO NUMBER</Th>
+                                                            <Th {...headerProps}>ACTION</Th>
+                                                        </>
                                                     )}
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
                                                 {isLoading && stockList.length === 0 ? (
                                                     <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 11 : 15} textAlign="center" py="40px">
+                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 11 : (clientViewFilterType === 'filter2' ? 15 : 18)} textAlign="center" py="40px">
                                                             <Box visibility="hidden" h="100px" />
                                                         </Td>
                                                     </Tr>
@@ -5198,7 +5337,7 @@ export default function Stocks() {
                                                                             />
                                                                         </Td>
                                                                     </>
-                                                                ) : (
+                                                                ) : clientViewFilterType === 'filter2' ? (
                                                                     <>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
@@ -5225,6 +5364,47 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <IconButton
+                                                                                aria-label="Print row"
+                                                                                icon={<MdPrint />}
+                                                                                size="sm"
+                                                                                variant="ghost"
+                                                                                colorScheme="blue"
+                                                                                onClick={() => handlePrintClientViewRow(item)}
+                                                                            />
+                                                                        </Td>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.total_volume_cbm ?? item.cbm_total ?? item.cbm)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_1 || item.via_hub1 || item.via_hub)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.ap_destination || item.ap_destination_id)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}>
+                                                                            <Badge
+                                                                                colorScheme={statusStyle.color}
+                                                                                size="sm"
+                                                                                borderRadius="full"
+                                                                                px="3"
+                                                                                py="1"
+                                                                                bg={statusStyle.bgColor}
+                                                                                color={statusStyle.textColor}
+                                                                            >
+                                                                                {getStatusLabel(item.stock_status)}
+                                                                            </Badge>
+                                                                        </Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.date_on_stock || item.stock_date || item.create_date)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.so_number || item.so_no || item.sale_order_no || item.sale_order)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <IconButton
                                                                                 aria-label="Print row"

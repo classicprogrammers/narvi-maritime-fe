@@ -187,26 +187,8 @@ export default function ShippingInstructionDetail() {
     const siName =
       form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "";
 
-    // Build CONSIGN TO text block from cnee lines if present, otherwise from address fields
-    const cneeLines = [
-      form.cnee2,
-      form.cnee3,
-      form.cnee4,
-      form.cnee5,
-      form.cnee6,
-      form.cnee7,
-      form.cnee8,
-    ].filter((v) => v && v !== false).map((v) => String(v));
-
-    const fallbackLines = [
-      form.company,
-      form.address1,
-      form.address2,
-      [form.postcode, form.city].filter(Boolean).join(" ").trim(),
-      countryName,
-      form.phone1 ? `Phone: ${form.phone1}` : "",
-      form.email1 ? `E-mail: ${form.email1}` : "",
-    ].filter((v) => v && v !== false).map((v) => String(v));
+    const cneeTextOnly =
+      form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "";
 
     setFormData((prev) => ({
       ...prev,
@@ -226,7 +208,7 @@ export default function ShippingInstructionDetail() {
       date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
 
       // consign block + consignee id
-      consignBlock: (cneeLines.length ? cneeLines : fallbackLines).join("\n"),
+      consignBlock: cneeTextOnly,
       selectConsignee: (lockedConsigneeId ?? consigneeId) ?? "",
 
       // consignee detail fields
@@ -1295,21 +1277,6 @@ export default function ShippingInstructionDetail() {
                   id="web"
                   value={formData.web}
                   onChange={(e) => handleInputChange("web", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
-
-                />
-              </FormControl>
-
-              <FormControl display="contents">
-                <FormLabel htmlFor="cneeText" fontWeight="bold" m={0} fontSize="sm" >
-                  CNEE Text:
-                </FormLabel>
-                <Input
-                  id="cneeText"
-                  value={formData.cneeText}
-                  onChange={(e) => handleInputChange("cneeText", e.target.value)}
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
