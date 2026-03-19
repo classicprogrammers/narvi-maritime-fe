@@ -73,8 +73,8 @@ export default function Vessels() {
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const [sortBy, setSortBy] = useState("id");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc");
   const [editingVessel, setEditingVessel] = useState(null);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
 

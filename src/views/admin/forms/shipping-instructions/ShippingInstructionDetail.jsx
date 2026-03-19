@@ -285,7 +285,7 @@ export default function ShippingInstructionDetail() {
     const timeoutId = setTimeout(async () => {
       try {
         setIsOptionsLoading(true);
-        const data = await getSiFormOptionsApi({ page: 1, page_size: 20, q_cnee: qCnee, q_si: qSi });
+        const data = await getSiFormOptionsApi({ page: 1, page_size: 200, q_cnee: qCnee, q_si: qSi });
         if (cancelled) return;
 
         const result = data?.result;
