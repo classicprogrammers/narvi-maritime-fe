@@ -45,6 +45,7 @@ export default function ShippingInstructionDetail() {
   const [siOptions, setSiOptions] = useState([]);
   const [agentOptions, setAgentOptions] = useState([]);
   const [consigneeOptions, setConsigneeOptions] = useState([]);
+  const [picOptions, setPicOptions] = useState([]);
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
@@ -52,6 +53,7 @@ export default function ShippingInstructionDetail() {
   const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
   const isApplyingFormRef = useRef(false);
   const headerUserEditedRef = useRef(false);
+  const packedTotalsUserEditedRef = useRef(false);
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -70,6 +72,8 @@ export default function ShippingInstructionDetail() {
     deadline: "",
     pic: "",
     date: "",
+    totalPackedQuantity: "",
+    totalPackedWeight: "",
     selectAgent: "", // stores selected agent id
     selectConsignee: "", // stores selected option id
     company: "",
@@ -208,6 +212,20 @@ export default function ShippingInstructionDetail() {
 
     const cneeTextOnly =
       form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "";
+    const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
+    const stockTotals = {
+      quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
+      weight: stockList.reduce((sum, it) => sum + Number(it?.kg || 0), 0),
+    };
+    const hasPackedQty =
+      form.total_packed_quantity != null &&
+      form.total_packed_quantity !== false &&
+      form.total_packed_quantity !== "";
+    const hasPackedWeight =
+      form.total_packed_weight != null &&
+      form.total_packed_weight !== false &&
+      form.total_packed_weight !== "";
+    packedTotalsUserEditedRef.current = Boolean(hasPackedQty || hasPackedWeight);
 
     setFormData((prev) => ({
       ...prev,
@@ -229,6 +247,8 @@ export default function ShippingInstructionDetail() {
       deadline: form.deadline_date && form.deadline_date !== false ? String(form.deadline_date) : "",
       pic: form.header_pic && form.header_pic !== false ? String(form.header_pic) : "",
       date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
+      totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
+      totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
 
       // consign block + consignee id
       consignBlock: cneeTextOnly,
@@ -264,7 +284,6 @@ export default function ShippingInstructionDetail() {
     setSelectedSiName(siName ? String(siName) : "");
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
 
-    const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const mapped = stockList.map((it, idx) => ({
       id: it.id ?? idx + 1,
       origin: it.origin || "",
@@ -314,6 +333,11 @@ export default function ShippingInstructionDetail() {
         const siNos = Array.isArray(result?.si_number_options) ? result.si_number_options : [];
         const agents = Array.isArray(result?.agent_options) ? result.agent_options : [];
         const consignees = Array.isArray(result?.cnee_options) ? result.cnee_options : [];
+        const pics = Array.isArray(result?.pic_options)
+          ? result.pic_options
+          : Array.isArray(result?.pics)
+            ? result.pics
+            : [];
 
         const normalizeOptions = (arr) =>
           arr
@@ -324,6 +348,7 @@ export default function ShippingInstructionDetail() {
         setSiOptions(normalizeOptions(siNos));
         setAgentOptions(normalizeOptions(agents));
         setConsigneeOptions(formData.selectAgent ? normalizeOptions(consignees) : []);
+        setPicOptions(normalizeOptions(pics));
       } catch (e) {
         console.error("Failed to load SI form options:", e);
       } finally {
@@ -430,6 +455,44 @@ export default function ShippingInstructionDetail() {
 
     return () => clearTimeout(timeoutId);
   }, [formData.consignBlock]);
+
+  // Keep packed totals auto-calculated from cargo unless user overrides.
+  useEffect(() => {
+    if (isApplyingFormRef.current || packedTotalsUserEditedRef.current) return;
+    setFormData((prev) => ({
+      ...prev,
+      totalPackedQuantity: Number(totals.boxes || 0),
+      totalPackedWeight: Number((totals.kg || 0).toFixed(2)),
+    }));
+  }, [totals.boxes, totals.kg]);
+
+  // Autosave packed totals (debounced)
+  useEffect(() => {
+    if (isApplyingFormRef.current) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+
+        setIsSiFormLoading(true);
+        const updated = await postSiFormUpdateApi({
+          id: currentId,
+          total_packed_quantity: Number(formData.totalPackedQuantity || 0),
+          total_packed_weight: Number(formData.totalPackedWeight || 0),
+        });
+        applySiFormResponse(updated, {
+          lockedConsigneeId: formData.selectConsignee,
+          lockedSiId: formData.siNo,
+        });
+      } catch (e) {
+        console.error("Failed to autosave packed totals:", e);
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.totalPackedQuantity, formData.totalPackedWeight]);
 
   // Build printable HTML document for Shipping Instruction
   const buildShippingInstructionPrintHtml = (data, items, totals) => {
@@ -722,6 +785,8 @@ export default function ShippingInstructionDetail() {
         cnee11: null,
         cnee12: null,
         cnee_text: "",
+        total_packed_quantity: 0,
+        total_packed_weight: 0,
 
         agents_pic: null,
         warnings: "",
@@ -731,6 +796,7 @@ export default function ShippingInstructionDetail() {
 
         stock_list: [],
       });
+      packedTotalsUserEditedRef.current = false;
       setQAgent("");
       setQCnee("");
       applySiFormResponse(updated);
@@ -1030,19 +1096,28 @@ export default function ShippingInstructionDetail() {
                     >
                       PIC:
                     </FormLabel>
-                    <Input
+                    <SimpleSearchableSelect
                       id="pic"
                       value={formData.pic}
-                      onChange={(e) => {
+                      onChange={(val) => {
                         headerUserEditedRef.current = true;
-                        handleInputChange("pic", e.target.value);
+                        handleInputChange("pic", val ?? "");
                       }}
+                      options={picOptions}
+                      displayKey="name"
+                      valueKey="name"
+                      prefillOnFocus={false}
                       size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
                       bg="transparent"
-                      color="white"
-
+                      borderColor="transparent"
+                      variant="unstyled"
+                      px={0}
+                      py={0}
+                      _focus={{ boxShadow: "none", outline: "none" }}
+                      _focusVisible={{ boxShadow: "none", outline: "none" }}
+                      isLoading={isOptionsLoading || isSiFormLoading}
+                      placeholder="Select PIC..."
+                      style={{ color: "white" }}
                     />
                   </FormControl>
 
@@ -1119,6 +1194,57 @@ export default function ShippingInstructionDetail() {
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
+                    </Tr>
+                    <Tr bg="gray.50">
+                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                        TOTAL PACKED QUANTITY:
+                      </Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                        <Input
+                          id="totalPackedQuantity"
+                          type="number"
+                          value={formData.totalPackedQuantity}
+                          onChange={(e) => {
+                            packedTotalsUserEditedRef.current = true;
+                            handleInputChange("totalPackedQuantity", e.target.value);
+                          }}
+                          size="xs"
+                          variant="unstyled"
+                          bg="transparent"
+                          fontWeight="semibold"
+                        />
+                      </Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
+                    </Tr>
+                    <Tr bg="gray.50">
+                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                        TOTAL PACKED WEIGHT:
+                      </Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                        <Input
+                          id="totalPackedWeight"
+                          type="number"
+                          step="0.01"
+                          value={formData.totalPackedWeight}
+                          onChange={(e) => {
+                            packedTotalsUserEditedRef.current = true;
+                            handleInputChange("totalPackedWeight", e.target.value);
+                          }}
+                          size="xs"
+                          variant="unstyled"
+                          bg="transparent"
+                          fontWeight="semibold"
+                        />
+                      </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
