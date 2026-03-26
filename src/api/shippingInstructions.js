@@ -1,6 +1,6 @@
 import api from "./axios";
 
-export const getSiFormOptionsApi = async ({ page = 1, page_size = 100, q_cnee, q_si } = {}) => {
+export const getSiFormOptionsApi = async ({ page = 1, page_size = 100, q_cnee, q_si, q_agent, agent_id } = {}) => {
   const payload = {};
   const safePage = Number.isFinite(Number(page)) ? Number(page) : 1;
   const safePageSize = Number.isFinite(Number(page_size)) ? Number(page_size) : 100;
@@ -10,6 +10,8 @@ export const getSiFormOptionsApi = async ({ page = 1, page_size = 100, q_cnee, q
   // Backend expects search text (ilike on display_name / si_number)
   if (q_cnee != null && String(q_cnee).trim() !== "") payload.q_cnee = String(q_cnee);
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
+  if (q_agent != null && String(q_agent).trim() !== "") payload.q_agent = String(q_agent);
+  if (agent_id != null && agent_id !== "") payload.agent_id = Number(agent_id);
 
   const response = await api.post("/api/si/form/options", payload);
 

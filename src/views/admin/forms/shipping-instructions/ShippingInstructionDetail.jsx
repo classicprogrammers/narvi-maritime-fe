@@ -43,6 +43,7 @@ export default function ShippingInstructionDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOptionsLoading, setIsOptionsLoading] = useState(false);
   const [siOptions, setSiOptions] = useState([]);
+  const [agentOptions, setAgentOptions] = useState([]);
   const [consigneeOptions, setConsigneeOptions] = useState([]);
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
@@ -69,6 +70,7 @@ export default function ShippingInstructionDetail() {
     deadline: "",
     pic: "",
     date: "",
+    selectAgent: "", // stores selected agent id
     selectConsignee: "", // stores selected option id
     company: "",
     consigneeAddress1: "",
@@ -134,6 +136,7 @@ export default function ShippingInstructionDetail() {
   };
 
   const [qSi, setQSi] = useState("");
+  const [qAgent, setQAgent] = useState("");
   const [qCnee, setQCnee] = useState("");
   const getOptionNameById = (list, id) => {
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
@@ -181,6 +184,22 @@ export default function ShippingInstructionDetail() {
 
     const consigneeId =
       form.agent_cnee_id && typeof form.agent_cnee_id === "object" ? form.agent_cnee_id.id : "";
+    const agentId =
+      form.agent_id && typeof form.agent_id === "object"
+        ? form.agent_id.id
+        : form.agent_id != null && form.agent_id !== false && form.agent_id !== ""
+          ? form.agent_id
+          : form.agent_partner_id && typeof form.agent_partner_id === "object"
+            ? form.agent_partner_id.id
+            : form.agent_partner_id != null && form.agent_partner_id !== false && form.agent_partner_id !== ""
+              ? form.agent_partner_id
+              : "";
+    const agentName =
+      form.agent_id && typeof form.agent_id === "object"
+        ? (form.agent_id.name || "")
+        : form.agent_partner_id && typeof form.agent_partner_id === "object"
+          ? (form.agent_partner_id.name || "")
+          : "";
 
     const siId =
       form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "";
@@ -192,6 +211,10 @@ export default function ShippingInstructionDetail() {
 
     setFormData((prev) => ({
       ...prev,
+      vessel:
+        form.vessel_name && form.vessel_name !== false
+          ? String(form.vessel_name)
+          : prev.vessel,
       // header card
       siNo: (lockedSiId ?? siId) ?? "",
       jobNo: form.job_no && form.job_no !== false ? String(form.job_no) : "",
@@ -209,6 +232,7 @@ export default function ShippingInstructionDetail() {
 
       // consign block + consignee id
       consignBlock: cneeTextOnly,
+      selectAgent: agentId ?? "",
       selectConsignee: (lockedConsigneeId ?? consigneeId) ?? "",
 
       // consignee detail fields
@@ -227,6 +251,15 @@ export default function ShippingInstructionDetail() {
       agentsPIC: form.agents_pic && form.agents_pic !== false ? String(form.agents_pic) : "",
       warnings: form.warnings && form.warnings !== false ? String(form.warnings) : "",
     }));
+
+    // Keep selected agent visible in the dropdown even before options list refreshes.
+    if (agentId !== "" && Number.isFinite(Number(agentId)) && agentName) {
+      setAgentOptions((prev) => {
+        const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(agentId));
+        if (exists) return prev;
+        return [...(Array.isArray(prev) ? prev : []), { id: Number(agentId), name: String(agentName) }];
+      });
+    }
 
     setSelectedSiName(siName ? String(siName) : "");
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
@@ -267,11 +300,19 @@ export default function ShippingInstructionDetail() {
     const timeoutId = setTimeout(async () => {
       try {
         setIsOptionsLoading(true);
-        const data = await getSiFormOptionsApi({ page: 1, page_size: 200, q_cnee: qCnee, q_si: qSi });
+        const data = await getSiFormOptionsApi({
+          page: 1,
+          page_size: 200,
+          q_cnee: qCnee,
+          q_si: qSi,
+          q_agent: qAgent,
+          agent_id: formData.selectAgent || undefined,
+        });
         if (cancelled) return;
 
         const result = data?.result;
         const siNos = Array.isArray(result?.si_number_options) ? result.si_number_options : [];
+        const agents = Array.isArray(result?.agent_options) ? result.agent_options : [];
         const consignees = Array.isArray(result?.cnee_options) ? result.cnee_options : [];
 
         const normalizeOptions = (arr) =>
@@ -281,7 +322,8 @@ export default function ShippingInstructionDetail() {
             .filter((x) => Number.isFinite(x.id));
 
         setSiOptions(normalizeOptions(siNos));
-        setConsigneeOptions(normalizeOptions(consignees));
+        setAgentOptions(normalizeOptions(agents));
+        setConsigneeOptions(formData.selectAgent ? normalizeOptions(consignees) : []);
       } catch (e) {
         console.error("Failed to load SI form options:", e);
       } finally {
@@ -293,7 +335,7 @@ export default function ShippingInstructionDetail() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi]);
+  }, [qCnee, qSi, qAgent, formData.selectAgent]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -361,6 +403,33 @@ export default function ShippingInstructionDetail() {
     formData.pic,
     formData.date,
   ]);
+
+  // Autosave CONSIGN TO block into backend cnee_text (debounced)
+  useEffect(() => {
+    if (isApplyingFormRef.current) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+
+        setIsSiFormLoading(true);
+        const updated = await postSiFormUpdateApi({
+          id: currentId,
+          cnee_text: formData.consignBlock ?? "",
+        });
+        applySiFormResponse(updated, {
+          lockedConsigneeId: formData.selectConsignee,
+          lockedSiId: formData.siNo,
+        });
+      } catch (e) {
+        console.error("Failed to autosave cnee_text:", e);
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.consignBlock]);
 
   // Build printable HTML document for Shipping Instruction
   const buildShippingInstructionPrintHtml = (data, items, totals) => {
@@ -545,7 +614,7 @@ export default function ShippingInstructionDetail() {
       <img src="${narviLogo}" alt="Narvi Maritime" />
     </div>
     <div class="header-title">
-      INSTRUCTION / CARGO MANIFEST FOR ${data.vessel || ""}
+      INSTRUCTION / CARGO MANIFEST FOR ${data.vessel_name || data.vessel || ""}
     </div>
     <div class="si-grid">
       <div>
@@ -616,6 +685,7 @@ export default function ShippingInstructionDetail() {
       const updated = await postSiFormUpdateApi({
         id: currentId,
 
+        agent_id: null,
         agent_cnee_id: null,
         agent_contact_id: null,
         agent_partner_id: null,
@@ -661,6 +731,8 @@ export default function ShippingInstructionDetail() {
 
         stock_list: [],
       });
+      setQAgent("");
+      setQCnee("");
       applySiFormResponse(updated);
     } catch (e) {
       console.error("Failed to reset SI form:", e);
@@ -680,7 +752,7 @@ export default function ShippingInstructionDetail() {
       selectedSiName ||
       "";
     const printHtml = buildShippingInstructionPrintHtml(
-      { ...formData, siNo: siNoLabel },
+      { ...formData, vessel_name: formData.vessel, siNo: siNoLabel },
       cargoItems,
       totals
     );
@@ -1062,6 +1134,66 @@ export default function ShippingInstructionDetail() {
           <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
             <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
               <FormControl display="contents">
+                <FormLabel htmlFor="selectAgent" fontWeight="bold" m={0}>
+                  Select Agent:
+                </FormLabel>
+                <SimpleSearchableSelect
+                  id="selectAgent"
+                  value={formData.selectAgent}
+                  onChange={async (val) => {
+                    const v = val ?? "";
+                    handleInputChange("selectAgent", v);
+                    handleInputChange("selectConsignee", "");
+                    setRequiredAgentCneeId(null);
+                    const selectedName = v !== "" ? getOptionNameById(agentOptions, v) : "";
+                    setQAgent(selectedName);
+                    setQCnee("");
+
+                    // Persist selected agent, and clear consignee selection for the new agent
+                    try {
+                      setIsSiFormLoading(true);
+                      let currentId = siFormId;
+                      if (!currentId) {
+                        const latestBefore = await postSiFormApi({ latest_only: true });
+                        currentId = latestBefore?.id ?? null;
+                        if (currentId) setSiFormId(currentId);
+                      }
+                      if (!currentId) return;
+
+                      const updated = await postSiFormUpdateApi({
+                        id: currentId,
+                        agent_id: v !== "" ? Number(v) : null,
+                        agent_cnee_id: null,
+                      });
+                      applySiFormResponse(updated, { lockedConsigneeId: "" });
+                    } catch (e) {
+                      console.error("Failed to update SI form by agent:", e);
+                    } finally {
+                      setIsSiFormLoading(false);
+                    }
+                  }}
+                  onSearchChange={(txt) => {
+                    setQAgent(txt ?? "");
+                    setQCnee("");
+                  }}
+                  prefillOnFocus={false}
+                  options={agentOptions}
+                  displayKey="name"
+                  valueKey="id"
+                  size="sm"
+                  bg="transparent"
+                  borderColor="transparent"
+                  variant="unstyled"
+                  px={0}
+                  py={0}
+                  _focus={{ boxShadow: "none", outline: "none" }}
+                  _focusVisible={{ boxShadow: "none", outline: "none" }}
+                  isLoading={isOptionsLoading || isSiFormLoading}
+                  placeholder="Select agent..."
+                />
+              </FormControl>
+
+              <FormControl display="contents">
                 <FormLabel htmlFor="selectConsignee" fontWeight="bold" m={0}>
                   Select Consignee:
                 </FormLabel>
@@ -1115,6 +1247,7 @@ export default function ShippingInstructionDetail() {
                   _focus={{ boxShadow: "none", outline: "none" }}
                   _focusVisible={{ boxShadow: "none", outline: "none" }}
                   isLoading={isOptionsLoading || isSiFormLoading}
+                  isDisabled={!formData.selectAgent}
                   placeholder="Select consignee..."
                 />
               </FormControl>
