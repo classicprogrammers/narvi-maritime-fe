@@ -26,7 +26,7 @@ import {
   Select,
   Textarea,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import { useMasterData } from "../../../../hooks/useMasterData";
 import narviLogo from "../../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
@@ -54,6 +54,7 @@ export default function ShippingInstructionDetail() {
   const isApplyingFormRef = useRef(false);
   const headerUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
+  const deadlinePickerRef = useRef(null);
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -70,7 +71,7 @@ export default function ShippingInstructionDetail() {
     to: "", // display name (used for print)
     toCountryId: "", // stores selected country id
     deadline: "",
-    pic: "",
+    pic: "", // stores selected PIC id
     date: "",
     totalPackedQuantity: "",
     totalPackedWeight: "",
@@ -227,6 +228,37 @@ export default function ShippingInstructionDetail() {
       form.total_packed_weight !== "";
     packedTotalsUserEditedRef.current = Boolean(hasPackedQty || hasPackedWeight);
 
+    const resolvedPicId = (() => {
+      const fromHeaderPicIdObj =
+        form.header_pic_id && typeof form.header_pic_id === "object" ? form.header_pic_id.id : null;
+      const fromHeaderPicObj =
+        form.header_pic && typeof form.header_pic === "object" ? form.header_pic.id : null;
+      const fromHeaderPicId =
+        fromHeaderPicIdObj != null
+          ? fromHeaderPicIdObj
+          : form.header_pic_id != null && form.header_pic_id !== false && form.header_pic_id !== ""
+            ? form.header_pic_id
+            : fromHeaderPicObj != null
+              ? fromHeaderPicObj
+              : form.header_pic != null && form.header_pic !== false && form.header_pic !== ""
+                ? form.header_pic
+                : "";
+      if (Number.isFinite(Number(fromHeaderPicId))) return String(Number(fromHeaderPicId));
+
+      // Fallback: if backend returns PIC name only, resolve against loaded options.
+      const fromHeaderPicName =
+        form.header_pic && typeof form.header_pic === "object"
+          ? form.header_pic.name
+          : typeof form.header_pic === "string"
+            ? form.header_pic
+            : "";
+      if (fromHeaderPicName) {
+        const match = picOptions.find((opt) => String(opt.name) === String(fromHeaderPicName));
+        if (match?.id != null) return String(match.id);
+      }
+      return "";
+    })();
+
     setFormData((prev) => ({
       ...prev,
       vessel:
@@ -245,7 +277,7 @@ export default function ShippingInstructionDetail() {
         ? Number(form.to_country_id.id)
         : "",
       deadline: form.deadline_date && form.deadline_date !== false ? String(form.deadline_date) : "",
-      pic: form.header_pic && form.header_pic !== false ? String(form.header_pic) : "",
+      pic: resolvedPicId,
       date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
@@ -405,7 +437,8 @@ export default function ShippingInstructionDetail() {
               ? Number(formData.toCountryId)
               : null,
           deadline_date: formData.deadline ?? "",
-          header_pic: formData.pic ?? "",
+          header_pic_id:
+            formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
           header_date: formData.date ?? "",
         });
         applySiFormResponse(updated, {
@@ -530,19 +563,29 @@ export default function ShippingInstructionDetail() {
   <td>${totals.kg.toFixed(2)}</td>
   <td></td>
   <td></td>
+</tr>
+<tr class="summary-row">
+  <td colspan="4" class="summary-label">AS PACKED:</td>
+  <td>${data.totalPackedQuantity ?? ""}</td>
+  <td>${data.totalPackedWeight ?? ""}</td>
+  <td></td>
+  <td></td>
 </tr>`;
 
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shipping Instruction</title>
 <style>
   body{
+    font-family: Arial, sans-serif;
     margin: 18px;
+    background-color: #ffffff;
+    position: relative;
   }
   .letterhead-wrapper{
     position: fixed;
     inset: 0;
     z-index: 1;
     display: flex;
-    justify-content: flex-start;
+    justify-content: start;
     pointer-events: none;
   }
   .letterhead-wrapper img{
@@ -550,23 +593,40 @@ export default function ShippingInstructionDetail() {
     height: auto;
     margin-left: -85px;
   }
+  .watermark-wrapper{
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    display: flex;
+    justify-content: right;
+    align-items: center;
+    pointer-events: none;
+  }
+  .watermark-wrapper img{
+    max-width: 100%;
+    height: auto;
+  }
   .container{
-    position: relative;
     margin: auto;
     padding-left: 30px;
   }
-  .logo-header{
-    text-align: center;
-    margin-bottom: 12px;
+  .header{
+    margin-bottom: 10px;
   }
-  .logo-header img{
-    height: 250px;
+  .logo{
+    max-width: 650px;
+    margin: auto;
+    display: block;
   }
-  .header-title{
-    margin-top: 8px;
-    margin-bottom: 12px;
-    font-size: 18px;
-    font-weight: bold;
+  .title-block{
+    font-size: 16px;
+    color: #555;
+  }
+  .title-block h2{
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    color: #1c4a95;
   }
   .si-grid{
     display: grid;
@@ -621,34 +681,30 @@ export default function ShippingInstructionDetail() {
   .cargo-wrapper{
     position: relative;
   }
-  .watermark-wrapper{
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    pointer-events: none;
-  }
-  .watermark-wrapper img{
-    max-width: 70%;
-    height: auto;
-    opacity: 0.12;
-  }
   table.cargo-table{
     border-collapse: collapse;
     width: 100%;
+    background: transparent;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     font-size: 12px;
   }
-  table.cargo-table th,
-  table.cargo-table td{
-    border: 1px solid #bfbfbf;
-    padding: 4px 4px;
+  table.cargo-table thead th{
+    background: #e6ecf7;
+    border: 1px solid #c5d0e6;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 700;
+    color: #21335b;
+    white-space: nowrap;
+  }
+  table.cargo-table tbody td{
+    border: 1px solid #dde3f0;
+    padding: 7px 10px;
+    vertical-align: top;
     text-align: left;
   }
-  table.cargo-table th{
-    background: #f0f0f0;
-    font-weight: bold;
+  table.cargo-table tbody tr:nth-child(even){
+    background: #f9fbff;
   }
   table.cargo-table th.ww{
     background: #ffe699;
@@ -672,11 +728,20 @@ export default function ShippingInstructionDetail() {
   <div class="letterhead-wrapper">
     <img src="${narviLetterhead}" alt="Narvi Maritime Letterhead" />
   </div>
+  <div class="watermark-wrapper">
+    <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
+  </div>
   <div class="container">
-    <div class="logo-header">
-      <img src="${narviLogo}" alt="Narvi Maritime" />
+    <div class="header">
+      <div class="logo-wrapper">
+        <img src="${narviLogo}" alt="Narvi Maritime" class="logo" />
+      </div>
+      <div class="title-block">
+        <h2>Shipping Instruction</h2>
+        <div>${new Date().toLocaleDateString()}</div>
+      </div>
     </div>
-    <div class="header-title">
+    <div class="header-title" style="margin-bottom:12px; font-size:14px; font-weight:bold;">
       INSTRUCTION / CARGO MANIFEST FOR ${data.vessel_name || data.vessel || ""}
     </div>
     <div class="si-grid">
@@ -704,9 +769,6 @@ export default function ShippingInstructionDetail() {
       CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION :
     </div>
     <div class="cargo-wrapper">
-      <div class="watermark-wrapper">
-        <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
-      </div>
       <table class="cargo-table">
         <thead>
           <tr>
@@ -817,8 +879,10 @@ export default function ShippingInstructionDetail() {
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
       "";
+    const picLabel =
+      picOptions.find((o) => Number(o.id) === Number(formData.pic))?.name || formData.pic || "";
     const printHtml = buildShippingInstructionPrintHtml(
-      { ...formData, vessel_name: formData.vessel, siNo: siNoLabel },
+      { ...formData, vessel_name: formData.vessel, siNo: siNoLabel, pic: picLabel },
       cargoItems,
       totals
     );
@@ -945,6 +1009,7 @@ export default function ShippingInstructionDetail() {
                         color: "white",
                       }}
                       placeholder="Select SI number..."
+                      _placeholder={{ color: "whiteAlpha.800" }}
                     />
                   </FormControl>
 
@@ -1058,33 +1123,79 @@ export default function ShippingInstructionDetail() {
                       _focusVisible={{ boxShadow: "none", outline: "none" }}
                       isLoading={false}
                       placeholder="Select country..."
+                      _placeholder={{ color: "whiteAlpha.800" }}
                       style={{ color: "white" }}
                     />
                   </FormControl>
 
                   <FormControl display="contents">
                     <FormLabel
-                      htmlFor="deadline"
+                      htmlFor="deadline-text"
                       fontWeight="bold"
                       textTransform="uppercase"
                       m={0}
                     >
                       DEADLINE:
                     </FormLabel>
-                    <Input
-                      id="deadline"
-                      type="date"
-                      value={formData.deadline}
-                      onChange={(e) => {
-                        headerUserEditedRef.current = true;
-                        handleInputChange("deadline", e.target.value);
-                      }}
-                      size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
-                      bg="transparent"
-                      color="white"
-                    />
+                    <Box position="relative">
+                      <Input
+                        id="deadline-text"
+                        type="text"
+                        value={formData.deadline}
+                        onChange={(e) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("deadline", e.target.value);
+                        }}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="white"
+                        pr="28px"
+                        placeholder="Type deadline or pick a date"
+                        _placeholder={{ color: "whiteAlpha.800" }}
+                      />
+                      <Input
+                        ref={deadlinePickerRef}
+                        type="date"
+                        value={formData.deadline}
+                        onChange={(e) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("deadline", e.target.value);
+                        }}
+                        position="absolute"
+                        opacity={0}
+                        pointerEvents="none"
+                        h="1px"
+                        w="1px"
+                        p={0}
+                        border={0}
+                        overflow="hidden"
+                        aria-hidden="true"
+                        tabIndex={-1}
+                      />
+                      <IconButton
+                        aria-label="Open deadline calendar"
+                        icon={<Icon as={MdCalendarToday} />}
+                        size="xs"
+                        variant="ghost"
+                        color="whiteAlpha.900"
+                        position="absolute"
+                        right="0"
+                        top="50%"
+                        transform="translateY(-50%)"
+                        onClick={() => {
+                          const pickerEl = deadlinePickerRef.current;
+                          if (!pickerEl) return;
+                          if (typeof pickerEl.showPicker === "function") {
+                            pickerEl.showPicker();
+                          } else {
+                            pickerEl.focus();
+                            pickerEl.click();
+                          }
+                        }}
+                      />
+                    </Box>
                   </FormControl>
 
                   <FormControl display="contents">
@@ -1105,7 +1216,7 @@ export default function ShippingInstructionDetail() {
                       }}
                       options={picOptions}
                       displayKey="name"
-                      valueKey="name"
+                      valueKey="id"
                       prefillOnFocus={false}
                       size="sm"
                       bg="transparent"
@@ -1117,6 +1228,7 @@ export default function ShippingInstructionDetail() {
                       _focusVisible={{ boxShadow: "none", outline: "none" }}
                       isLoading={isOptionsLoading || isSiFormLoading}
                       placeholder="Select PIC..."
+                      _placeholder={{ color: "whiteAlpha.800" }}
                       style={{ color: "white" }}
                     />
                   </FormControl>
@@ -1201,7 +1313,7 @@ export default function ShippingInstructionDetail() {
                     </Tr>
                     <Tr bg="gray.50">
                       <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
-                        TOTAL PACKED QUANTITY:
+                        AS PACKED:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
                         <Input
@@ -1218,17 +1330,6 @@ export default function ShippingInstructionDetail() {
                           fontWeight="semibold"
                         />
                       </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
-                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
-                    </Tr>
-                    <Tr bg="gray.50">
-                      <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
-                        TOTAL PACKED WEIGHT:
-                      </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
                         <Input
                           id="totalPackedWeight"
