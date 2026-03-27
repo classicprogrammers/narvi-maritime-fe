@@ -28,7 +28,6 @@ import {
 } from "@chakra-ui/react";
 import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
-import { useMasterData } from "../../../../hooks/useMasterData";
 import narviLogo from "../../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
 import narviLetterhead from "../../../../assets/letterHead/Letterhead-sidebar.png";
 import narviLetterheadWatermark from "../../../../assets/letterHead/letterhead-watermark.png";
@@ -37,7 +36,6 @@ import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../.
 export default function ShippingInstructionDetail() {
   const history = useHistory();
   const { id } = useParams();
-  const { countries: countryList = [] } = useMasterData();
   const [currentStep, setCurrentStep] = useState(0);
   const [shippingInstruction, setShippingInstruction] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +44,9 @@ export default function ShippingInstructionDetail() {
   const [agentOptions, setAgentOptions] = useState([]);
   const [consigneeOptions, setConsigneeOptions] = useState([]);
   const [picOptions, setPicOptions] = useState([]);
+  const [fromOptions, setFromOptions] = useState([]);
+  const [shippedByOptions, setShippedByOptions] = useState([]);
+  const [toOptions, setToOptions] = useState([]);
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
@@ -55,6 +56,12 @@ export default function ShippingInstructionDetail() {
   const headerUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const deadlinePickerRef = useRef(null);
+  const lastSubmittedHeaderRef = useRef({
+    to_be_shipped_by: "",
+    from_text: "",
+    to_text: "",
+    deadline_text: "",
+  });
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -67,9 +74,11 @@ export default function ShippingInstructionDetail() {
     siNo: "", // stores selected option id
     jobNo: "",
     shippedBy: "",
+    shippedById: null,
     from: "",
+    fromId: null,
     to: "", // display name (used for print)
-    toCountryId: "", // stores selected country id
+    toId: null,
     deadline: "",
     pic: "", // stores selected PIC id
     date: "",
@@ -143,9 +152,22 @@ export default function ShippingInstructionDetail() {
   const [qSi, setQSi] = useState("");
   const [qAgent, setQAgent] = useState("");
   const [qCnee, setQCnee] = useState("");
+  const [qShipBy, setQShipBy] = useState("");
+  const [qFrom, setQFrom] = useState("");
+  const [qTo, setQTo] = useState("");
   const getOptionNameById = (list, id) => {
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
     return match?.name ? String(match.name) : "";
+  };
+  const getTextOptionIdByValue = (list, value) => {
+    if (!Array.isArray(list) || value == null) return null;
+    const match = list.find((opt) => String(opt.name || "").toLowerCase() === String(value).trim().toLowerCase());
+    if (!match || match.id == null || !Number.isFinite(Number(match.id))) return null;
+    return Number(match.id);
+  };
+  const toNullIfEmpty = (value) => {
+    const text = value == null ? "" : String(value).trim();
+    return text === "" ? null : value;
   };
 
   const blankCargoRows = () => ([
@@ -268,15 +290,51 @@ export default function ShippingInstructionDetail() {
       // header card
       siNo: (lockedSiId ?? siId) ?? "",
       jobNo: form.job_no && form.job_no !== false ? String(form.job_no) : "",
-      shippedBy: form.to_be_shipped_by && form.to_be_shipped_by !== false ? String(form.to_be_shipped_by) : "",
-      from: form.from_text && form.from_text !== false ? String(form.from_text) : "",
-      to: (form.to_country_id && typeof form.to_country_id === "object" && form.to_country_id.name)
-        ? String(form.to_country_id.name)
-        : "",
-      toCountryId: (form.to_country_id && typeof form.to_country_id === "object" && form.to_country_id.id != null)
-        ? Number(form.to_country_id.id)
-        : "",
-      deadline: form.deadline_date && form.deadline_date !== false ? String(form.deadline_date) : "",
+      shippedBy:
+        form.to_be_shipped_by && form.to_be_shipped_by !== false
+          ? String(form.to_be_shipped_by)
+          : form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.name
+            ? String(form.si_shipped_by_id.name)
+            : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
+              ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
+              : String(lastSubmittedHeaderRef.current.to_be_shipped_by || ""),
+      shippedById:
+        form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
+          ? Number(form.si_shipped_by_id.id)
+          : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
+            ? (Number.isFinite(Number(form.si_shipped_by_id)) ? Number(form.si_shipped_by_id) : null)
+            : null,
+      from:
+        form.from_text && form.from_text !== false
+          ? String(form.from_text)
+          : form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.name
+            ? String(form.siform_from_id.name)
+            : form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
+              ? (getOptionNameById(fromOptions, form.siform_from_id) || String(form.siform_from_id))
+              : String(lastSubmittedHeaderRef.current.from_text || ""),
+      fromId:
+        form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.id != null
+          ? Number(form.siform_from_id.id)
+          : form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
+            ? (Number.isFinite(Number(form.siform_from_id)) ? Number(form.siform_from_id) : null)
+            : null,
+      to: form.to_text && form.to_text !== false
+        ? String(form.to_text)
+        : form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.name
+          ? String(form.siform_to_id.name)
+          : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+            ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
+            : String(lastSubmittedHeaderRef.current.to_text || ""),
+      toId:
+        form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.id != null
+          ? Number(form.siform_to_id.id)
+          : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+            ? (Number.isFinite(Number(form.siform_to_id)) ? Number(form.siform_to_id) : null)
+            : null,
+      deadline:
+        form.deadline_text && form.deadline_text !== false
+          ? String(form.deadline_text)
+          : String(lastSubmittedHeaderRef.current.deadline_text || ""),
       pic: resolvedPicId,
       date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
@@ -357,6 +415,9 @@ export default function ShippingInstructionDetail() {
           q_cnee: qCnee,
           q_si: qSi,
           q_agent: qAgent,
+          q_ship_by: qShipBy,
+          q_from: qFrom,
+          q_to: qTo,
           agent_id: formData.selectAgent || undefined,
         });
         if (cancelled) return;
@@ -376,11 +437,45 @@ export default function ShippingInstructionDetail() {
             .filter((x) => x && x.name) // filters out name:false and empty
             .map((x) => ({ id: Number(x.id), name: String(x.name) }))
             .filter((x) => Number.isFinite(x.id));
+        const extractOptionArray = (raw) => {
+          if (Array.isArray(raw)) return raw;
+          if (!raw || typeof raw !== "object") return [];
+          const candidate = raw.options || raw.items || raw.records || raw.data || raw.results || raw.list || raw.rows;
+          return Array.isArray(candidate) ? candidate : [];
+        };
+        const normalizeTextOptions = (raw) => {
+          const arr = extractOptionArray(raw);
+          if (!Array.isArray(arr)) return [];
+          const normalized = arr
+            .map((x, idx) => {
+              if (typeof x === "string") return { id: null, name: x.trim(), key: `txt-${idx}-${x.trim()}` };
+              if (x && typeof x === "object") {
+                const name = String(x.name ?? x.value ?? x.label ?? "").trim();
+                const rawId = x.id ?? x.value_id ?? x.option_id ?? null;
+                const id = rawId != null && rawId !== "" && Number.isFinite(Number(rawId)) ? Number(rawId) : null;
+                return { id, name, key: id != null ? `id-${id}` : `txt-${idx}-${name}` };
+              }
+              return null;
+            })
+            .filter((x) => x && x.name);
+          const uniq = [];
+          const seen = new Set();
+          normalized.forEach((opt) => {
+            const dedupeKey = opt.id != null ? `id:${opt.id}` : `name:${String(opt.name).toLowerCase()}`;
+            if (seen.has(dedupeKey)) return;
+            seen.add(dedupeKey);
+            uniq.push(opt);
+          });
+          return uniq;
+        };
 
         setSiOptions(normalizeOptions(siNos));
         setAgentOptions(normalizeOptions(agents));
         setConsigneeOptions(formData.selectAgent ? normalizeOptions(consignees) : []);
         setPicOptions(normalizeOptions(pics));
+        setFromOptions(normalizeTextOptions(result?.from_options));
+        setShippedByOptions(normalizeTextOptions(result?.shipped_by_options));
+        setToOptions(normalizeTextOptions(result?.to_options));
       } catch (e) {
         console.error("Failed to load SI form options:", e);
       } finally {
@@ -392,7 +487,7 @@ export default function ShippingInstructionDetail() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qAgent, formData.selectAgent]);
+  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -428,19 +523,35 @@ export default function ShippingInstructionDetail() {
         if (!currentId) return;
 
         setIsSiFormLoading(true);
-        const updated = await postSiFormUpdateApi({
+        const payload = {
           id: currentId,
-          to_be_shipped_by: formData.shippedBy ?? "",
-          from_text: formData.from ?? "",
-          to_country_id:
-            formData.toCountryId != null && formData.toCountryId !== ""
-              ? Number(formData.toCountryId)
+          si_shipped_by_id:
+            formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
+              ? Number(formData.shippedById)
               : null,
-          deadline_date: formData.deadline ?? "",
+          siform_from_id:
+            formData.fromId != null && Number.isFinite(Number(formData.fromId))
+              ? Number(formData.fromId)
+              : null,
+          siform_to_id:
+            formData.toId != null && Number.isFinite(Number(formData.toId))
+              ? Number(formData.toId)
+              : null,
+          from_text: toNullIfEmpty(formData.from),
+          to_text: toNullIfEmpty(formData.to),
+          to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
+          deadline_text: formData.deadline ?? "",
           header_pic_id:
             formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
           header_date: formData.date ?? "",
-        });
+        };
+        lastSubmittedHeaderRef.current = {
+          to_be_shipped_by: payload.to_be_shipped_by ?? "",
+          from_text: payload.from_text ?? "",
+          to_text: payload.to_text ?? "",
+          deadline_text: payload.deadline_text ?? "",
+        };
+        const updated = await postSiFormUpdateApi(payload);
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
@@ -455,8 +566,11 @@ export default function ShippingInstructionDetail() {
     return () => clearTimeout(timeoutId);
   }, [
     formData.shippedBy,
+    formData.shippedById,
     formData.from,
-    formData.toCountryId,
+    formData.fromId,
+    formData.to,
+    formData.toId,
     formData.deadline,
     formData.pic,
     formData.date,
@@ -815,11 +929,14 @@ export default function ShippingInstructionDetail() {
         agent_contact_id: null,
         agent_partner_id: null,
 
+        si_shipped_by_id: null,
         to_be_shipped_by: null,
+        siform_from_id: null,
         from_text: null,
-        to_country_id: null,
-        deadline_date: null,
-        header_pic: null,
+        siform_to_id: null,
+        to_text: null,
+        deadline_text: null,
+        header_pic_id: null,
         header_date: null,
 
         company: "",
@@ -859,8 +976,21 @@ export default function ShippingInstructionDetail() {
         stock_list: [],
       });
       packedTotalsUserEditedRef.current = false;
+      setFormData((prev) => ({
+        ...prev,
+        shippedBy: "",
+        shippedById: null,
+        from: "",
+        fromId: null,
+        to: "",
+        toId: null,
+        deadline: "",
+      }));
       setQAgent("");
       setQCnee("");
+      setQShipBy("");
+      setQFrom("");
+      setQTo("");
       applySiFormResponse(updated);
     } catch (e) {
       console.error("Failed to reset SI form:", e);
@@ -1048,18 +1178,28 @@ export default function ShippingInstructionDetail() {
                     </FormLabel>
                     <Input
                       id="shippedBy"
+                      list="si-shipped-by-options"
                       value={formData.shippedBy}
                       onChange={(e) => {
+                        const nextVal = e.target.value;
                         headerUserEditedRef.current = true;
-                        handleInputChange("shippedBy", e.target.value);
+                        handleInputChange("shippedBy", nextVal);
+                        handleInputChange("shippedById", getTextOptionIdByValue(shippedByOptions, nextVal));
+                        setQShipBy(nextVal);
                       }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
                       bg="transparent"
                       color="white"
-
+                      placeholder="Select or type shipped by..."
+                      _placeholder={{ color: "whiteAlpha.800" }}
                     />
+                    <datalist id="si-shipped-by-options">
+                      {shippedByOptions.map((opt) => (
+                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                      ))}
+                    </datalist>
                   </FormControl>
 
                   <FormControl display="contents">
@@ -1073,18 +1213,28 @@ export default function ShippingInstructionDetail() {
                     </FormLabel>
                     <Input
                       id="from"
+                      list="si-from-options"
                       value={formData.from}
                       onChange={(e) => {
+                        const nextVal = e.target.value;
                         headerUserEditedRef.current = true;
-                        handleInputChange("from", e.target.value);
+                        handleInputChange("from", nextVal);
+                        handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
+                        setQFrom(nextVal);
                       }}
                       size="sm"
                       fontWeight="medium"
                       variant="unstyled"
                       bg="transparent"
                       color="white"
-
+                      placeholder="Select or type origin..."
+                      _placeholder={{ color: "whiteAlpha.800" }}
                     />
+                    <datalist id="si-from-options">
+                      {fromOptions.map((opt) => (
+                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                      ))}
+                    </datalist>
                   </FormControl>
 
                   <FormControl display="contents">
@@ -1096,36 +1246,30 @@ export default function ShippingInstructionDetail() {
                     >
                       TO:
                     </FormLabel>
-                    <SimpleSearchableSelect
-                      id="toCountryId"
-                      value={formData.toCountryId}
-                      onChange={(val) => {
-                        const v = val ?? "";
+                    <Input
+                      id="to"
+                      list="si-to-options"
+                      value={formData.to}
+                      onChange={(e) => {
+                        const nextVal = e.target.value;
                         headerUserEditedRef.current = true;
-                        handleInputChange("toCountryId", v);
-                        const selectedName =
-                          Array.isArray(countryList)
-                            ? (countryList.find((c) => Number(c.id) === Number(v))?.name ?? "")
-                            : "";
-                        handleInputChange("to", selectedName ? String(selectedName) : "");
+                        handleInputChange("to", nextVal);
+                        handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                        setQTo(nextVal);
                       }}
-                      options={Array.isArray(countryList) ? countryList : []}
-                      displayKey="name"
-                      valueKey="id"
-                      prefillOnFocus={false}
                       size="sm"
-                      bg="transparent"
-                      borderColor="transparent"
+                      fontWeight="medium"
                       variant="unstyled"
-                      px={0}
-                      py={0}
-                      _focus={{ boxShadow: "none", outline: "none" }}
-                      _focusVisible={{ boxShadow: "none", outline: "none" }}
-                      isLoading={false}
-                      placeholder="Select country..."
+                      bg="transparent"
+                      color="white"
+                      placeholder="Select or type destination..."
                       _placeholder={{ color: "whiteAlpha.800" }}
-                      style={{ color: "white" }}
                     />
+                    <datalist id="si-to-options">
+                      {toOptions.map((opt) => (
+                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                      ))}
+                    </datalist>
                   </FormControl>
 
                   <FormControl display="contents">

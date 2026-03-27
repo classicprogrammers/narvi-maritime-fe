@@ -1,6 +1,17 @@
 import api from "./axios";
 
-export const getSiFormOptionsApi = async ({ page = 1, page_size = 100, q_cnee, q_si, q_agent, agent_id } = {}) => {
+export const getSiFormOptionsApi = async ({
+  page = 1,
+  page_size = 100,
+  q_cnee,
+  q_si,
+  q_agent,
+  q_ship_by,
+  q_shipped_by,
+  q_from,
+  q_to,
+  agent_id,
+} = {}) => {
   const payload = {};
   const safePage = Number.isFinite(Number(page)) ? Number(page) : 1;
   const safePageSize = Number.isFinite(Number(page_size)) ? Number(page_size) : 100;
@@ -11,6 +22,10 @@ export const getSiFormOptionsApi = async ({ page = 1, page_size = 100, q_cnee, q
   if (q_cnee != null && String(q_cnee).trim() !== "") payload.q_cnee = String(q_cnee);
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
   if (q_agent != null && String(q_agent).trim() !== "") payload.q_agent = String(q_agent);
+  if (q_ship_by != null && String(q_ship_by).trim() !== "") payload.q_ship_by = String(q_ship_by);
+  if (q_shipped_by != null && String(q_shipped_by).trim() !== "") payload.q_shipped_by = String(q_shipped_by);
+  if (q_from != null && String(q_from).trim() !== "") payload.q_from = String(q_from);
+  if (q_to != null && String(q_to).trim() !== "") payload.q_to = String(q_to);
   if (agent_id != null && agent_id !== "") payload.agent_id = Number(agent_id);
 
   const response = await api.post("/api/si/form/options", payload);
