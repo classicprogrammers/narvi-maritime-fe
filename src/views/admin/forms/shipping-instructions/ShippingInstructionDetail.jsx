@@ -679,7 +679,7 @@ export default function ShippingInstructionDetail() {
   <td></td>
 </tr>
 <tr class="summary-row">
-  <td colspan="4" class="summary-label">AS PACKED:</td>
+  <td colspan="4" class="summary-label">PACKED AS:</td>
   <td>${data.totalPackedQuantity ?? ""}</td>
   <td>${data.totalPackedWeight ?? ""}</td>
   <td></td>
@@ -1457,7 +1457,7 @@ export default function ShippingInstructionDetail() {
                     </Tr>
                     <Tr bg="gray.50">
                       <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
-                        AS PACKED:
+                        PACKED AS:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
                         <Input
