@@ -618,8 +618,8 @@ export default function StockList() {
                     aVal = getDisplayName(a.supplier_id || a.supplier);
                     bVal = getDisplayName(b.supplier_id || b.supplier);
                 } else if (sortField === 'warehouse_id') {
-                    aVal = String(a.warehouse_id || a.stock_warehouse || "");
-                    bVal = String(b.warehouse_id || b.stock_warehouse || "");
+                    aVal = String(a.warehouse_new || a.warehouse_id || a.stock_warehouse || "");
+                    bVal = String(b.warehouse_new || b.warehouse_id || b.stock_warehouse || "");
                 } else if (sortField === 'currency_id' || sortField === 'currency') {
                     aVal = getDisplayName(a.currency_id || a.currency);
                     bVal = getDisplayName(b.currency_id || b.currency);
@@ -627,11 +627,11 @@ export default function StockList() {
                     aVal = a.so_id ? getSoNumberName(a.so_id) : (a.stock_so_number ? getSoNumberNameFromNumber(a.stock_so_number) : ensureSoPrefix(a.so_number));
                     bVal = b.so_id ? getSoNumberName(b.so_id) : (b.stock_so_number ? getSoNumberNameFromNumber(b.stock_so_number) : ensureSoPrefix(b.so_number));
                 } else if (sortField === 'origin_id' || sortField === 'origin_text') {
-                    aVal = a.origin_text || getDisplayName(a.origin_id);
-                    bVal = b.origin_text || getDisplayName(b.origin_id);
+                    aVal = a.origin_text || a.origin || getDisplayName(a.origin_id);
+                    bVal = b.origin_text || b.origin || getDisplayName(b.origin_id);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = String(a.ap_destination_id || a.ap_destination || "");
-                    bVal = String(b.ap_destination_id || b.ap_destination || "");
+                    aVal = String(a.ap_destination_new || a.ap_destination_id || a.ap_destination || "");
+                    bVal = String(b.ap_destination_new || b.ap_destination_id || b.ap_destination || "");
                 } else if (sortField === 'days_on_stock') {
                     // Handle numeric sorting for days_on_stock
                     aVal = Number(a.days_on_stock) || 0;
@@ -2211,12 +2211,12 @@ export default function StockList() {
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || getDisplayName(item.origin_id) || "-"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.ap_destination_id || item.ap_destination) || "-"}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getLocationOrDestinationName(item.destination_id || item.destination || item.stock_destination)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
@@ -2512,7 +2512,7 @@ export default function StockList() {
                                                     Warehouse
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {getDisplayName(item.warehouse_id || item.stock_warehouse) || "-"}
+                                                    {renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}
                                                 </Text>
                                             </Box>
                                             <Box>

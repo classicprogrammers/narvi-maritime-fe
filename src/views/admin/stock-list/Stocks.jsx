@@ -1742,7 +1742,7 @@ export default function Stocks() {
                 htmlTable += `<td>${weight}</td>`;
             } else {
                 const vessel = getDisplayName(item.vessel_id || item.vessel);
-                const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || '-';
+                const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
@@ -1820,7 +1820,7 @@ export default function Stocks() {
                     plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
                 } else {
                     const vessel = getDisplayName(item.vessel_id || item.vessel);
-                    const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || '-';
+                    const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
@@ -1896,16 +1896,108 @@ export default function Stocks() {
         }
     };
 
+    const escapeCsvCell = (value) => {
+        const text = value == null ? "" : String(value);
+        if (/[",\n]/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+    };
+
+    const buildExportDataByView = (items, viewType = clientViewFilterType) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+
+        if (viewType === "filter1") {
+            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"];
+            const rows = items.map((item) => [
+                getDisplayName(item.vessel_id || item.vessel) || "-",
+                getDisplayName(item.supplier_id || item.supplier) || "-",
+                (item.po_text || "-").replace(/\n/g, " "),
+                item.via_hub || "-",
+                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+                item.weight_kg ?? item.weight_kgs ?? "-",
+                getStatusLabel(item.stock_status) || "-",
+                item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+            ]);
+            return { headers, rows };
+        }
+
+        if (viewType === "filter2") {
+            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"];
+            const rows = items.map((item) => [
+                getDisplayName(item.vessel_id || item.vessel) || "-",
+                getDisplayName(item.supplier_id || item.supplier) || "-",
+                (item.po_text || "-").replace(/\n/g, " "),
+                getStatusLabel(item.stock_status) || "-",
+                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.via_hub || "-",
+                item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+                item.shipping_doc || "-",
+                item.export_doc || "-",
+                item.export_doc_2 || "-",
+                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+                item.weight_kg ?? item.weight_kgs ?? "-",
+            ]);
+            return { headers, rows };
+        }
+
+        const headers = ["VESSEL", "WAREHOUSE ID", "SUPPLIER", "PO#", "BOXES", "WEIGHT", "TOTAL VOLUME CBN (THE EYE)", "ORIGIN", "VIA HUB 1", "VIA HUB 2", "AP DESTINATION", "DESTINATION", "STOCK STATUS", "DATE ON STOCK", "SO NUMBER"];
+        const rows = items.map((item) => [
+            getDisplayName(item.vessel_id || item.vessel) || "-",
+            item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
+            getDisplayName(item.supplier_id || item.supplier) || "-",
+            (item.po_text || "-").replace(/\n/g, " "),
+            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            item.weight_kg ?? item.weight_kgs ?? "-",
+            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
+            item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+            item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+            item.via_hub_2 || item.via_hub2 || "-",
+            item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-",
+            item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+            getStatusLabel(item.stock_status) || "-",
+            item.date_on_stock || item.stock_date || item.create_date || "-",
+            item.so_number || item.so_no || item.sale_order_no || item.sale_order || "-",
+        ]);
+        return { headers, rows };
+    };
+
+    const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType) => {
+        const { headers, rows } = buildExportDataByView(items, viewType);
+        if (headers.length === 0 || rows.length === 0) {
+            toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+
+        const csvLines = [
+            headers.map(escapeCsvCell).join(","),
+            ...rows.map((row) => row.map(escapeCsvCell).join(",")),
+        ];
+        const bom = "\uFEFF"; // UTF-8 BOM for Excel compatibility
+        const blob = new Blob([bom + csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const dateTag = new Date().toISOString().slice(0, 10);
+        link.href = url;
+        link.download = `${filePrefix}-${dateTag}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     // Build print/PDF document HTML for client view items
-    const buildClientViewPrintHtml = (items) => {
+    const buildClientViewPrintHtml = (items, viewType = clientViewFilterType) => {
         if (!items || items.length === 0) return "";
 
         let headerRow = "<tr>";
-        if (clientViewFilterType === "filter1") {
+        if (viewType === "filter1") {
             ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
-        } else if (clientViewFilterType === "filter2") {
+        } else if (viewType === "filter2") {
             ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
@@ -1932,7 +2024,7 @@ export default function Stocks() {
             groupItems.forEach(item => {
                 const statusStyle = getStatusStyle(item.stock_status);
                 bodyRows += "<tr>";
-                if (clientViewFilterType === "filter1") {
+                if (viewType === "filter1") {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                     const viaHub = item.via_hub || "-";
@@ -1948,7 +2040,7 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                } else if (clientViewFilterType === "filter2") {
+                } else if (viewType === "filter2") {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                     const status = getStatusLabel(item.stock_status);
@@ -1973,7 +2065,7 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
                 } else {
-                    const warehouseId = getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || "-";
+                    const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
                     const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
@@ -2157,6 +2249,54 @@ export default function Stocks() {
         printWindow.document.write(printHtml);
         printWindow.document.close();
         toast({ title: "Print", description: `${selectedItems.length} row(s). Use Print → Save as PDF to export.`, status: "info", duration: 2500, isClosable: true });
+    };
+
+    const handleExportClientViewSelectedExcel = () => {
+        if (clientViewSelectedRows.size === 0) {
+            toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
+            return;
+        }
+        const selectedItems = filteredAndSortedStock.filter(item =>
+            clientViewSelectedRows.has(item.id || item.stock_item_id)
+        );
+        downloadExcelCsv(selectedItems, "stocklist-client-view", clientViewFilterType);
+        toast({ title: "Excel export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
+    };
+
+    // Print selected rows (stock view/edit) – opens print window for selected items
+    const handlePrintStockViewSelected = () => {
+        if (selectedRows.size === 0) {
+            toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
+            return;
+        }
+        const selectedItems = allFilteredItems.filter(item => selectedRows.has(item.id));
+        if (selectedItems.length === 0) {
+            toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+        const printHtml = buildClientViewPrintHtml(selectedItems, "all");
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+            toast({ title: "Blocked", description: "Please allow popups to print.", status: "warning", duration: 3000, isClosable: true });
+            return;
+        }
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        toast({ title: "Print", description: `${selectedItems.length} row(s). Use Print → Save as PDF to export.`, status: "info", duration: 2500, isClosable: true });
+    };
+
+    const handleExportStockViewSelectedExcel = () => {
+        if (selectedRows.size === 0) {
+            toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
+            return;
+        }
+        const selectedItems = allFilteredItems.filter(item => selectedRows.has(item.id));
+        if (selectedItems.length === 0) {
+            toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+        downloadExcelCsv(selectedItems, "stocklist-view-edit", "all");
+        toast({ title: "Excel export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
     // Handle create new - navigate to form page
@@ -4521,6 +4661,24 @@ export default function Stocks() {
                                                 Edit Selected
                                             </Button>
                                             <Button
+                                                leftIcon={<Icon as={MdPrint} />}
+                                                colorScheme="blue"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handlePrintStockViewSelected}
+                                            >
+                                                Export PDF
+                                            </Button>
+                                            <Button
+                                                leftIcon={<Icon as={MdDownload} />}
+                                                colorScheme="green"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleExportStockViewSelectedExcel}
+                                            >
+                                                Export Excel
+                                            </Button>
+                                            <Button
                                                 size="sm"
                                                 variant="ghost"
                                                 onClick={() => {
@@ -5163,7 +5321,16 @@ export default function Stocks() {
                                                         variant="outline"
                                                         onClick={handlePrintClientViewSelected}
                                                     >
-                                                        Print Selected
+                                                        Export PDF
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        leftIcon={<Icon as={MdDownload} />}
+                                                        colorScheme="green"
+                                                        variant="outline"
+                                                        onClick={handleExportClientViewSelectedExcel}
+                                                    >
+                                                        Export Excel
                                                     </Button>
                                                 </>
                                             )}
@@ -5379,7 +5546,7 @@ export default function Stocks() {
                                                                     <>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.warehouse_id) || item.warehouse_id || item.warehouse || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-"}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>

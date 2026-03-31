@@ -874,7 +874,6 @@ export default function ShippingInstructionDetail() {
           <tr><td>TO:</td><td>${data.to || ""}</td></tr>
           <tr><td>DEADLINE:</td><td>${data.deadline || ""}</td></tr>
           <tr><td>PIC:</td><td>${data.pic || ""}</td></tr>
-          <tr><td>DATE:</td><td>${data.date || ""}</td></tr>
         </table>
       </div>
     </div>
