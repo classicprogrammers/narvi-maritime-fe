@@ -1896,12 +1896,14 @@ export default function Stocks() {
         }
     };
 
-    const escapeCsvCell = (value) => {
+    const escapeHtmlCell = (value) => {
         const text = value == null ? "" : String(value);
-        if (/[",\n]/.test(text)) {
-            return `"${text.replace(/"/g, '""')}"`;
-        }
-        return text;
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
     };
 
     const buildExportDataByView = (items, viewType = clientViewFilterType) => {
@@ -1971,17 +1973,67 @@ export default function Stocks() {
             return;
         }
 
-        const csvLines = [
-            headers.map(escapeCsvCell).join(","),
-            ...rows.map((row) => row.map(escapeCsvCell).join(",")),
-        ];
-        const bom = "\uFEFF"; // UTF-8 BOM for Excel compatibility
-        const blob = new Blob([bom + csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+        const safeHeaders = headers.map(escapeHtmlCell);
+        const safeRows = rows.map((row) => row.map(escapeHtmlCell));
+        const generatedAt = new Date().toLocaleString();
+
+        const colGroup = `<colgroup>${headers.map(() => '<col style="width: 140px;" />').join("")}</colgroup>`;
+        const headerHtml = `<tr>${safeHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>`;
+        const bodyHtml = safeRows
+            .map((row, idx) => `<tr class="${idx % 2 === 0 ? "even" : "odd"}">${row.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+            .join("");
+
+        const excelHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8" />
+  <meta name="ProgId" content="Excel.Sheet" />
+  <meta name="Generator" content="Narvi Stock Export" />
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; margin: 14px; color: #1b2430; }
+    .title { font-size: 18px; font-weight: 700; color: #1c4a95; margin-bottom: 6px; }
+    .meta { font-size: 11px; color: #5b6470; margin-bottom: 10px; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    th {
+      background: #1c4a95;
+      color: #ffffff;
+      border: 1px solid #163971;
+      padding: 7px 8px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: normal;
+    }
+    td {
+      border: 1px solid #ccd6e2;
+      padding: 6px 8px;
+      font-size: 11px;
+      vertical-align: top;
+      white-space: normal;
+      word-break: break-word;
+    }
+    tr.even td { background: #f7faff; }
+    tr.odd td { background: #ffffff; }
+  </style>
+</head>
+<body>
+  <div class="title">Narvi Stocklist Export</div>
+  <div class="meta">Rows: ${rows.length} | Generated: ${escapeHtmlCell(generatedAt)}</div>
+  <table>
+    ${colGroup}
+    <thead>${headerHtml}</thead>
+    <tbody>${bodyHtml}</tbody>
+  </table>
+</body>
+</html>`;
+
+        const bom = "\uFEFF";
+        const blob = new Blob([bom + excelHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         const dateTag = new Date().toISOString().slice(0, 10);
         link.href = url;
-        link.download = `${filePrefix}-${dateTag}.csv`;
+        link.download = `${filePrefix}-${dateTag}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
