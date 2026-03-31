@@ -2045,13 +2045,13 @@ export default function Stocks() {
         const doc = new jsPDF({
             orientation: "portrait",
             unit: "pt",
-            format: "a4",
+            format: "a3",
             compress: true,
         });
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const contentLeft = 30;
-        const contentTop = 160;
+        const contentTop = 200;
 
         // Draw letterhead on each exported PDF page background.
         try {
@@ -2083,7 +2083,7 @@ export default function Stocks() {
             margin: { top: contentTop + 24, right: 12, bottom: 12, left: contentLeft },
             theme: "grid",
             styles: {
-                fontSize: 6,
+                fontSize: 5,
                 cellPadding: 2,
                 overflow: "linebreak",
                 valign: "top",
@@ -2092,7 +2092,7 @@ export default function Stocks() {
                 fillColor: [28, 74, 149],
                 textColor: 255,
                 fontStyle: "bold",
-                fontSize: 6,
+                fontSize: 5,
             },
             alternateRowStyles: {
                 fillColor: [247, 250, 255],
