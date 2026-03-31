@@ -28,10 +28,10 @@ import {
 } from "@chakra-ui/react";
 import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
-import narviLogo from "../../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
-import narviLetterhead from "../../../../assets/letterHead/Letterhead-sidebar.png";
-import narviLetterheadWatermark from "../../../../assets/letterHead/letterhead-watermark.png";
+import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function ShippingInstructionDetail() {
   const history = useHistory();
@@ -641,270 +641,6 @@ export default function ShippingInstructionDetail() {
     return () => clearTimeout(timeoutId);
   }, [formData.totalPackedQuantity, formData.totalPackedWeight]);
 
-  // Build printable HTML document for Shipping Instruction
-  const buildShippingInstructionPrintHtml = (data, items, totals) => {
-    const consignHtml = (data.consignBlock || "")
-      .split("\n")
-      .map(line => line || "&nbsp;")
-      .join("<br/>");
-
-    const rowsHtml = (items && items.length
-      ? items
-      : [
-        { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
-        { origin: "", warehouseId: "", supplier: "", poNumber: "", boxes: "", kg: "", cbm: "", lwh: "" },
-      ]
-    )
-      .map(item => {
-        const safeKg = item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "";
-        const safeCbm = item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "";
-        return `<tr>
-  <td>${item.origin || ""}</td>
-  <td>${item.warehouseId || ""}</td>
-  <td>${item.supplier || ""}</td>
-  <td>${item.poNumber || ""}</td>
-  <td>${item.boxes ?? ""}</td>
-  <td>${safeKg}</td>
-  <td>${safeCbm}</td>
-  <td>${item.lwh || ""}</td>
-</tr>`;
-      })
-      .join("");
-
-    const totalsHtml = `<tr class="summary-row">
-  <td colspan="4" class="summary-label">CARGO TO BE SHIPPED:</td>
-  <td>${totals.boxes}</td>
-  <td>${totals.kg.toFixed(2)}</td>
-  <td></td>
-  <td></td>
-</tr>
-<tr class="summary-row">
-  <td colspan="4" class="summary-label">PACKED AS:</td>
-  <td>${data.totalPackedQuantity ?? ""}</td>
-  <td>${data.totalPackedWeight ?? ""}</td>
-  <td></td>
-  <td></td>
-</tr>`;
-
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Shipping Instruction</title>
-<style>
-  body{
-    font-family: Arial, sans-serif;
-    margin: 18px;
-    background-color: #ffffff;
-    position: relative;
-  }
-  .letterhead-wrapper{
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    display: flex;
-    justify-content: start;
-    pointer-events: none;
-  }
-  .letterhead-wrapper img{
-    max-width: 100%;
-    height: auto;
-    margin-left: -85px;
-  }
-  .watermark-wrapper{
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    display: flex;
-    justify-content: right;
-    align-items: center;
-    pointer-events: none;
-  }
-  .watermark-wrapper img{
-    max-width: 100%;
-    height: auto;
-  }
-  .container{
-    margin: auto;
-    padding-left: 30px;
-  }
-  .header{
-    margin-bottom: 10px;
-  }
-  .logo{
-    max-width: 650px;
-    margin: auto;
-    display: block;
-  }
-  .title-block{
-    font-size: 16px;
-    color: #555;
-  }
-  .title-block h2{
-    margin: 0;
-    font-size: 22px;
-    letter-spacing: 0.5px;
-    color: #1c4a95;
-  }
-  .si-grid{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .consign-box{
-    background: #f5f5f5;
-    padding: 8px 10px;
-    font-size: 14px;
-    min-height: 120px;
-    line-height: 1.4rem;
-  }
-  .si-card-section{
-    display: flex;
-    justify-content: center;
-  }
-  .si-card{
-    padding: 8px 10px;
-    font-size: 12px;
-    min-height: 120px;
-    margin-top: 17px;
-  }
-  .si-card-table{
-    width: max-content;
-    border-collapse: collapse;
-  }
-  .si-card-table td{
-    padding: 4px 10px;
-  }
-  .si-card-table td:first-child{
-    font-weight: 800;
-    text-transform: uppercase;
-    width: 55%;
-  }
-  .si-card-table td:last-child{
-    text-align: left;
-  }
-  .si-card-job{
-    background: #fcd29a;
-    padding: 2px 4px;
-    border-radius: 2px;
-    color: #333;
-    display: inline-block;
-  }
-  .cargo-section-title{
-    font-size: 12px;
-    font-weight: bold;
-    margin: 12px 0 4px;
-  }
-  .cargo-wrapper{
-    position: relative;
-  }
-  table.cargo-table{
-    border-collapse: collapse;
-    width: 100%;
-    background: transparent;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    font-size: 12px;
-  }
-  table.cargo-table thead th{
-    background: #e6ecf7;
-    border: 1px solid #c5d0e6;
-    padding: 8px 10px;
-    text-align: left;
-    font-weight: 700;
-    color: #21335b;
-    white-space: nowrap;
-  }
-  table.cargo-table tbody td{
-    border: 1px solid #dde3f0;
-    padding: 7px 10px;
-    vertical-align: top;
-    text-align: left;
-  }
-  table.cargo-table tbody tr:nth-child(even){
-    background: #f9fbff;
-  }
-  table.cargo-table th.ww{
-    background: #ffe699;
-  }
-  table.cargo-table td.ww{
-    background: #fff9cc;
-  }
-  tr.summary-row{
-    background: #f0f0f0;
-    font-weight: bold;
-  }
-  .summary-label{
-    text-align: left;
-  }
-  @media print{
-    body{margin:6mm;background:#fff;}
-  }
-</style>
-</head>
-<body>
-  <div class="letterhead-wrapper">
-    <img src="${narviLetterhead}" alt="Narvi Maritime Letterhead" />
-  </div>
-  <div class="watermark-wrapper">
-    <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
-  </div>
-  <div class="container">
-    <div class="header">
-      <div class="logo-wrapper">
-        <img src="${narviLogo}" alt="Narvi Maritime" class="logo" />
-      </div>
-      <div class="title-block">
-        <h2>Shipping Instruction</h2>
-        <div>${new Date().toLocaleDateString()}</div>
-      </div>
-    </div>
-    <div class="header-title" style="margin-bottom:12px; font-size:14px; font-weight:bold;">
-      INSTRUCTION / CARGO MANIFEST FOR ${data.vessel_name || data.vessel || ""}
-    </div>
-    <div class="si-grid">
-      <div>
-        <div style="font-size: 11px; font-weight:bold; margin-bottom:4px;">CONSIGN TO :</div>
-        <div class="consign-box">
-          ${consignHtml || "&nbsp;"}
-        </div>
-      </div>
-      <div class="si-card-section">
-        <table class="si-card-table si-card">
-          <tr><td>SI NO:</td><td>${data.siNo || ""}</td></tr>
-          <tr><td>JOB NO:</td><td><span class="si-card-job">${data.jobNo || ""}</span></td></tr>
-          <tr><td>TO BE SHIPPED BY:</td><td>${data.shippedBy || ""}</td></tr>
-          <tr><td>FROM:</td><td>${data.from || ""}</td></tr>
-          <tr><td>TO:</td><td>${data.to || ""}</td></tr>
-          <tr><td>DEADLINE:</td><td>${data.deadline || ""}</td></tr>
-          <tr><td>PIC:</td><td>${data.pic || ""}</td></tr>
-        </table>
-      </div>
-    </div>
-
-    <div class="cargo-section-title">
-      CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION :
-    </div>
-    <div class="cargo-wrapper">
-      <table class="cargo-table">
-        <thead>
-          <tr>
-            <th>ORIGIN</th>
-            <th>WAREHOUSE ID</th>
-            <th>SUPPLIER</th>
-            <th>PO NUMBER</th>
-            <th>BOXES</th>
-            <th>KG</th>
-            <th>CBM</th>
-            <th>LWH</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-          ${totalsHtml}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <script>window.onload=function(){window.print();}</script>
-</body></html>`;
-  };
 
   // Button handlers
   const handleResetShippingInstruction = async () => {
@@ -998,30 +734,137 @@ export default function ShippingInstructionDetail() {
     }
   };
 
-  const handleSaveShippingInstruction = () => {
-    // Save logic here
-    alert("Shipping instruction saved successfully!");
-  };
-
-  const handlePrintShippingInstruction = () => {
+  const handlePrintShippingInstruction = async () => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
       "";
     const picLabel =
       picOptions.find((o) => Number(o.id) === Number(formData.pic))?.name || formData.pic || "";
-    const printHtml = buildShippingInstructionPrintHtml(
-      { ...formData, vessel_name: formData.vessel, siNo: siNoLabel, pic: picLabel },
-      cargoItems,
-      totals
-    );
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      alert("Popup blocked. Please allow popups to print.");
-      return;
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: "a4",
+      compress: true,
+    });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const contentLeft = 30;
+    const contentTop = 160;
+
+    try {
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
+          resolve();
+        };
+        img.onerror = reject;
+        img.src = narviLetterheadPrint;
+      });
+    } catch (e) {
+      console.error("Failed to load letterhead image for PDF:", e);
     }
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
+
+    doc.setFontSize(12);
+    doc.text(`Shipping Instruction - ${formData.vessel || "-"}`, contentLeft, contentTop);
+    doc.setFontSize(9);
+    doc.text(`Date: ${new Date().toLocaleString()}`, contentLeft, contentTop + 14);
+
+    const consignLines = String(formData.consignBlock || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "");
+
+    const twoColStartY = contentTop + 26;
+    const leftColWidth = 250;
+    const gapBetweenCols = 16;
+    const rightColLeft = contentLeft + leftColWidth + gapBetweenCols;
+    const rightColWidth = 260;
+
+    autoTable(doc, {
+      startY: twoColStartY,
+      head: [["CONSIGN TO"]],
+      body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
+      theme: "plain",
+      styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
+      headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+      margin: { left: contentLeft, right: 24 },
+      tableWidth: leftColWidth,
+    });
+    const consignTableTopY = twoColStartY;
+    const consignTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
+
+    autoTable(doc, {
+      startY: twoColStartY,
+      head: [["Field", "Value"]],
+      body: [
+        ["SI NO", siNoLabel || "-"],
+        ["JOB NO", formData.jobNo || "-"],
+        ["TO BE SHIPPED BY", formData.shippedBy || "-"],
+        ["FROM", formData.from || "-"],
+        ["TO", formData.to || "-"],
+        ["DEADLINE", formData.deadline || "-"],
+        ["PIC", picLabel || "-"],
+      ],
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+      margin: { left: rightColLeft, right: 24 },
+      tableWidth: rightColWidth,
+    });
+    const siTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
+    const twoColEndY = Math.max(consignTableEndY, siTableEndY);
+    doc.setDrawColor(205, 215, 232);
+    doc.setLineWidth(0.35);
+    const sharedBoxHeight = Math.max(12, twoColEndY - consignTableTopY);
+    doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
+    doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
+
+    const cargoRows = (cargoItems || []).map((item) => [
+      item.origin || "-",
+      item.warehouseId || "-",
+      item.supplier || "-",
+      item.poNumber || "-",
+      String(item.boxes ?? "-"),
+      item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+      item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
+      item.lwh || "-",
+    ]);
+
+    cargoRows.push([
+      "CARGO TO BE SHIPPED",
+      "",
+      "",
+      "",
+      String(totals.boxes ?? 0),
+      Number(totals.kg || 0).toFixed(2),
+      "",
+      "",
+    ]);
+    cargoRows.push([
+      "PACKED AS",
+      "",
+      "",
+      "",
+      String(formData.totalPackedQuantity ?? ""),
+      String(formData.totalPackedWeight ?? ""),
+      "",
+      "",
+    ]);
+
+    autoTable(doc, {
+      startY: twoColEndY + 14,
+      head: [["ORIGIN", "WAREHOUSE ID", "SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH"]],
+      body: cargoRows,
+      theme: "grid",
+      styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak" },
+      headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
+      margin: { left: contentLeft, right: 24, bottom: 24 },
+    });
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    doc.save(`shipping-instruction-${dateTag}.pdf`);
   };
 
   return (

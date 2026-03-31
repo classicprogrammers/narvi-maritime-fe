@@ -66,9 +66,10 @@ import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import narviLogo from "../../../assets/img/Narvi Maritime Logo2-01 (3).jpg";
-import narviLetterhead from "../../../assets/letterHead/Letterhead-sidebar.png";
-import narviLetterheadWatermark from "../../../assets/letterHead/letterhead-watermark.png";
+import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
@@ -1896,16 +1897,6 @@ export default function Stocks() {
         }
     };
 
-    const escapeHtmlCell = (value) => {
-        const text = value == null ? "" : String(value);
-        return text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-    };
-
     const buildExportDataByView = (items, viewType = clientViewFilterType) => {
         if (!Array.isArray(items) || items.length === 0) {
             return { headers: [], rows: [] };
@@ -1945,23 +1936,79 @@ export default function Stocks() {
             return { headers, rows };
         }
 
-        const headers = ["VESSEL", "WAREHOUSE ID", "SUPPLIER", "PO#", "BOXES", "WEIGHT", "TOTAL VOLUME CBN (THE EYE)", "ORIGIN", "VIA HUB 1", "VIA HUB 2", "AP DESTINATION", "DESTINATION", "STOCK STATUS", "DATE ON STOCK", "SO NUMBER"];
+        const headers = [
+            "STOCK ITEM ID",
+            "VESSEL",
+            "SUPPLIER",
+            "PO#",
+            "SO NUMBER",
+            "SI NUMBER",
+            "SI COMBINED",
+            "DI NUMBER",
+            "STOCK STATUS",
+            "ORIGIN",
+            "VIA HUB 1",
+            "AP DESTINATION",
+            "DESTINATION",
+            "WAREHOUSE ID",
+            "EXP READY IN STOCK",
+            "DATE ON STOCK",
+            "DAYS ON STOCK",
+            "SHIPPED DATE",
+            "DELIVERED DATE",
+            "DG/UN",
+            "SHIPPING DOCS",
+            "EXPORT DOC 1",
+            "EXPORT DOC 2",
+            "REMARKS",
+            "BOXES",
+            "WEIGHT KGS",
+            "LWH",
+            "TOTAL VOLUME CBM",
+            "TOTAL CW AIR FREIGHT",
+            "CURRENCY",
+            "VALUE",
+            "CLIENT",
+            "INTERNAL REMARK",
+            "ATTACHMENTS",
+        ];
         const rows = items.map((item) => [
+            item.stock_item_id || item.stock_id || "-",
             getDisplayName(item.vessel_id || item.vessel) || "-",
-            item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
             getDisplayName(item.supplier_id || item.supplier) || "-",
             (item.po_text || "-").replace(/\n/g, " "),
-            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-            item.weight_kg ?? item.weight_kgs ?? "-",
-            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
+            item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
+            item.si_number || "-",
+            item.si_combined || "-",
+            item.di_no || "-",
+            getStatusLabel(item.stock_status) || "-",
             item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-            item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-            item.via_hub_2 || item.via_hub2 || "-",
+            item.via_hub || "-",
             item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-",
             item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
-            getStatusLabel(item.stock_status) || "-",
-            item.date_on_stock || item.stock_date || item.create_date || "-",
-            item.so_number || item.so_no || item.sale_order_no || item.sale_order || "-",
+            item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
+            formatDate(item.exp_ready_in_stock || item.ready_ex_supplier) || "-",
+            formatDate(item.date_on_stock) || "-",
+            item.days_on_stock || "-",
+            formatDate(item.shipped_date) || "-",
+            formatDate(item.delivered_date) || "-",
+            item.dg_un || "-",
+            item.shipping_doc || "-",
+            item.export_doc || "-",
+            item.export_doc_2 || "-",
+            item.remarks || "-",
+            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            item.weight_kg ?? item.weight_kgs ?? "-",
+            item.lwh_text || "-",
+            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
+            item.total_cw_air_freight || "-",
+            getDisplayName(item.currency_id || item.currency) || "-",
+            item.value || "-",
+            getDisplayName(item.client_id || item.client) || "-",
+            item.internal_remark || "-",
+            Array.isArray(item.attachments) && item.attachments.length > 0
+                ? item.attachments.map((att) => att?.filename || att?.name).filter(Boolean).join(" | ")
+                : "-",
         ]);
         return { headers, rows };
     };
@@ -1972,72 +2019,88 @@ export default function Stocks() {
             toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
+        const aoa = [headers, ...rows];
+        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+        worksheet["!autofilter"] = {
+            ref: XLSX.utils.encode_range({
+                s: { c: 0, r: 0 },
+                e: { c: headers.length - 1, r: Math.max(rows.length, 1) },
+            })
+        };
+        worksheet["!cols"] = headers.map(() => ({ wch: 20 }));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Stocklist");
 
-        const safeHeaders = headers.map(escapeHtmlCell);
-        const safeRows = rows.map((row) => row.map(escapeHtmlCell));
+        const dateTag = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(workbook, `${filePrefix}-${dateTag}.xlsx`);
+    };
+
+    const downloadPdfFile = async (items, filePrefix, viewType = clientViewFilterType) => {
+        const { headers, rows } = buildExportDataByView(items, viewType);
+        if (headers.length === 0 || rows.length === 0) {
+            toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+
+        const doc = new jsPDF({
+            orientation: "portrait",
+            unit: "pt",
+            format: "a4",
+            compress: true,
+        });
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const contentLeft = 30;
+        const contentTop = 160;
+
+        // Draw letterhead on each exported PDF page background.
+        try {
+            await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
+                    resolve();
+                };
+                img.onerror = reject;
+                img.src = narviLetterheadPrint;
+            });
+        } catch (e) {
+            console.error("Failed to load stocklist letterhead image for PDF:", e);
+        }
+
+        const dateTag = new Date().toISOString().slice(0, 10);
         const generatedAt = new Date().toLocaleString();
 
-        const colGroup = `<colgroup>${headers.map(() => '<col style="width: 140px;" />').join("")}</colgroup>`;
-        const headerHtml = `<tr>${safeHeaders.map((h) => `<th>${h}</th>`).join("")}</tr>`;
-        const bodyHtml = safeRows
-            .map((row, idx) => `<tr class="${idx % 2 === 0 ? "even" : "odd"}">${row.map((c) => `<td>${c}</td>`).join("")}</tr>`)
-            .join("");
+        doc.setFontSize(12);
+        doc.text(`Narvi Stocklist Export (${rows.length} rows)`, contentLeft, contentTop);
+        doc.setFontSize(9);
+        doc.text(`Generated: ${generatedAt}`, contentLeft, contentTop + 14);
 
-        const excelHtml = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-  <meta charset="utf-8" />
-  <meta name="ProgId" content="Excel.Sheet" />
-  <meta name="Generator" content="Narvi Stock Export" />
-  <style>
-    body { font-family: Calibri, Arial, sans-serif; margin: 14px; color: #1b2430; }
-    .title { font-size: 18px; font-weight: 700; color: #1c4a95; margin-bottom: 6px; }
-    .meta { font-size: 11px; color: #5b6470; margin-bottom: 10px; }
-    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-    th {
-      background: #1c4a95;
-      color: #ffffff;
-      border: 1px solid #163971;
-      padding: 7px 8px;
-      text-align: left;
-      font-size: 11px;
-      font-weight: 700;
-      white-space: normal;
-    }
-    td {
-      border: 1px solid #ccd6e2;
-      padding: 6px 8px;
-      font-size: 11px;
-      vertical-align: top;
-      white-space: normal;
-      word-break: break-word;
-    }
-    tr.even td { background: #f7faff; }
-    tr.odd td { background: #ffffff; }
-  </style>
-</head>
-<body>
-  <div class="title">Narvi Stocklist Export</div>
-  <div class="meta">Rows: ${rows.length} | Generated: ${escapeHtmlCell(generatedAt)}</div>
-  <table>
-    ${colGroup}
-    <thead>${headerHtml}</thead>
-    <tbody>${bodyHtml}</tbody>
-  </table>
-</body>
-</html>`;
+        autoTable(doc, {
+            head: [headers],
+            body: rows.map((row) => row.map((cell) => String(cell ?? ""))),
+            startY: contentTop + 24,
+            margin: { top: contentTop + 24, right: 12, bottom: 12, left: contentLeft },
+            theme: "grid",
+            styles: {
+                fontSize: 6,
+                cellPadding: 2,
+                overflow: "linebreak",
+                valign: "top",
+            },
+            headStyles: {
+                fillColor: [28, 74, 149],
+                textColor: 255,
+                fontStyle: "bold",
+                fontSize: 6,
+            },
+            alternateRowStyles: {
+                fillColor: [247, 250, 255],
+            },
+            tableWidth: "wrap",
+        });
 
-        const bom = "\uFEFF";
-        const blob = new Blob([bom + excelHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const dateTag = new Date().toISOString().slice(0, 10);
-        link.href = url;
-        link.download = `${filePrefix}-${dateTag}.xls`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        doc.save(`${filePrefix}-${dateTag}.pdf`);
     };
 
     // Build print/PDF document HTML for client view items
@@ -2054,7 +2117,13 @@ export default function Stocks() {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else {
-            ["VESSEL", "WAREHOUSE ID", "SUPPLIER", "PO#", "BOXES", "WEIGHT", "TOTAL VOLUME CBN (THE EYE)", "ORIGIN", "VIA HUB 1", "VIA HUB 2", "AP DESTINATION", "DESTINATION", "STOCK STATUS", "DATE ON STOCK", "SO NUMBER"].forEach(h => {
+            [
+                "STOCK ITEM ID", "VESSEL", "SUPPLIER", "PO#", "SO NUMBER", "SI NUMBER", "SI COMBINED", "DI NUMBER",
+                "STOCK STATUS", "ORIGIN", "VIA HUB 1", "AP DESTINATION", "DESTINATION", "WAREHOUSE ID",
+                "EXP READY IN STOCK", "DATE ON STOCK", "DAYS ON STOCK", "SHIPPED DATE", "DELIVERED DATE", "DG/UN",
+                "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "REMARKS", "BOXES", "WEIGHT KGS", "LWH",
+                "TOTAL VOLUME CBM", "TOTAL CW AIR FREIGHT", "CURRENCY", "VALUE", "CLIENT", "INTERNAL REMARK", "ATTACHMENTS"
+            ].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         }
@@ -2117,35 +2186,73 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
                 } else {
-                    const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
+                    const stockItemId = item.stock_item_id || item.stock_id || "-";
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const soNumber = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
+                    const siNumber = item.si_number || "-";
+                    const siCombined = item.si_combined || "-";
+                    const diNumber = item.di_no || "-";
+                    const status = getStatusLabel(item.stock_status);
+                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+                    const viaHub1 = item.via_hub || "-";
+                    const apDestination = item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-";
+                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+                    const warehouseId = item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-";
+                    const expReadyInStock = formatDate(item.exp_ready_in_stock || item.ready_ex_supplier) || "-";
+                    const dateOnStock = formatDate(item.date_on_stock) || "-";
+                    const daysOnStock = item.days_on_stock || "-";
+                    const shippedDate = formatDate(item.shipped_date) || "-";
+                    const deliveredDate = formatDate(item.delivered_date) || "-";
+                    const dgUn = item.dg_un || "-";
+                    const shippingDoc = item.shipping_doc || "-";
                     const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                     const weight = item.weight_kg ?? item.weight_kgs ?? "-";
+                    const lwh = item.lwh_text || "-";
                     const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-";
-                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
-                    const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || "-";
-                    const viaHub2 = item.via_hub_2 || item.via_hub2 || "-";
-                    const apDestination = item.ap_destination || item.ap_destination_id || "-";
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                    const status = getStatusLabel(item.stock_status);
-                    const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || "-";
-                    const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || "-";
+                    const totalCwAirFreight = item.total_cw_air_freight || "-";
+                    const currency = getDisplayName(item.currency_id || item.currency) || "-";
+                    const value = item.value || "-";
+                    const client = getDisplayName(item.client_id || item.client) || "-";
+                    const internalRemark = item.internal_remark || "-";
+                    const attachments = Array.isArray(item.attachments) && item.attachments.length > 0
+                        ? item.attachments.map((att) => att?.filename || att?.name).filter(Boolean).join("<br/>")
+                        : "-";
+
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${stockItemId}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${warehouseId}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalVolume}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${soNumber || "-"}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${siNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${siCombined}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${diNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub1}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub2}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${apDestination}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${warehouseId}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${expReadyInStock}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dateOnStock}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${soNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${daysOnStock}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippedDate}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${deliveredDate}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.export_doc || "-"}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.export_doc_2 || "-"}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.remarks || "-"}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${lwh}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalVolume}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalCwAirFreight}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${currency}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${value}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${internalRemark}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${attachments}</td>`;
                 }
                 bodyRows += "</tr>";
             });
@@ -2166,55 +2273,21 @@ export default function Stocks() {
         margin: 18px;
         background-color: #ffffff;
         position: relative;
-    }
-    .letterhead-wrapper{
-        position: fixed;
-        inset: 0;
-        z-index: 1;
-        display: flex;
-        justify-content: start;
-        pointer-events: none;
-    }
-    .letterhead-wrapper img{
-        max-width: 100%;
-        height: auto;
-        margin-left: -85px;
-    }
-    .watermark-wrapper{
-        position: fixed;
-        inset: 0;
-        z-index: -1;
-        display: flex;
-        justify-content: right;
-        align-items: center;
-        pointer-events: none;
-    }
-    .watermark-wrapper img{
-        max-width: 100%;
-        height: auto;
-    }
-    .logo{
-        max-width: 650px;
-        margin:auto;
-        display: block;
+        background-image: url('${narviLetterheadPrint}');
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-position: top left;
     }
     .container{
         margin:  auto ;
         padding-left: 30px;
-    }
-    .title-block{
-        font-size:16px;
-        color:#555;
-    }
-    .title-block h2{
-        margin:0;
-        font-size:22px;
-        letter-spacing:0.5px;
-        color:#1c4a95;
+        position: relative;
+        z-index: 2;
     }
     table{
         border-collapse:collapse;
         width:100%;
+        table-layout: fixed;
         background:transparent;
         box-shadow:0 1px 3px rgba(0,0,0,0.08);
         font-size:12px;
@@ -2226,12 +2299,17 @@ export default function Stocks() {
         text-align:left;
         font-weight:700;
         color:#21335b;
-        white-space:nowrap;
+        white-space:normal;
+        word-break:break-word;
+        overflow-wrap:anywhere;
     }
     tbody td{
         border:1px solid #dde3f0;
         padding:7px 10px;
         vertical-align:top;
+        white-space:normal;
+        word-break:break-word;
+        overflow-wrap:anywhere;
     }
     tbody tr:nth-child(even){
         background:#f9fbff;
@@ -2242,28 +2320,31 @@ export default function Stocks() {
         color:#777;
     }
     @media print{
-        body{margin:6mm; background:#fff;}
+        @page{
+            size:A4 landscape;
+            margin:2mm;
+        }
+        html, body{width:100%;}
+        body{margin:0; background:#fff;}
+        .container{padding-left:0; padding-right:0;}
+        table{font-size:8px;}
+        thead th, tbody td{padding:2px 3px;}
+        thead th{line-height:1.15;}
+        tbody td{line-height:1.15;}
+        body{
+            background-image: url('${narviLetterheadPrint}');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: top left;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
         .no-print{display:none;}
     }
 </style></head>
 <body>
-    <div class="letterhead-wrapper">
-        <img src="${narviLetterhead}" alt="Narvi Maritime Letterhead" />
-    </div>
-    <div class="watermark-wrapper">
-        <img src="${narviLetterheadWatermark}" alt="Narvi Maritime Watermark" />
-    </div>
     <div class="container">
 
-    <div class="header">
-        <div class="logo-wrapper">
-            <img src="${narviLogo}" alt="Narvi Maritime" class="logo" />
-        </div>
-        <div class="title-block">
-            <h2>Stocklist</h2>
-            <div>${new Date().toLocaleDateString()}</div>
-        </div>
-    </div>
     ${vesselTables}
     </div>
     <script>window.onload=function(){window.print();}</script>
@@ -2292,15 +2373,8 @@ export default function Stocks() {
         const selectedItems = filteredAndSortedStock.filter(item =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
-        const printHtml = buildClientViewPrintHtml(selectedItems);
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) {
-            toast({ title: "Blocked", description: "Please allow popups to print.", status: "warning", duration: 3000, isClosable: true });
-            return;
-        }
-        printWindow.document.write(printHtml);
-        printWindow.document.close();
-        toast({ title: "Print", description: `${selectedItems.length} row(s). Use Print → Save as PDF to export.`, status: "info", duration: 2500, isClosable: true });
+        downloadPdfFile(selectedItems, "stocklist-client-view", clientViewFilterType);
+        toast({ title: "PDF export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
     const handleExportClientViewSelectedExcel = () => {
@@ -2326,15 +2400,8 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        const printHtml = buildClientViewPrintHtml(selectedItems, "all");
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) {
-            toast({ title: "Blocked", description: "Please allow popups to print.", status: "warning", duration: 3000, isClosable: true });
-            return;
-        }
-        printWindow.document.write(printHtml);
-        printWindow.document.close();
-        toast({ title: "Print", description: `${selectedItems.length} row(s). Use Print → Save as PDF to export.`, status: "info", duration: 2500, isClosable: true });
+        downloadPdfFile(selectedItems, "stocklist-view-edit", "all");
+        toast({ title: "PDF export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
     const handleExportStockViewSelectedExcel = () => {
