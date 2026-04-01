@@ -327,6 +327,17 @@ export const getVendorsApi = async (filterParams = {}) => {
         params.agentsdb_id = String(filterParams.agentsdb_id).trim();
       if (filterParams.agent_type != null && String(filterParams.agent_type).trim() !== "")
         params.agent_type = String(filterParams.agent_type).trim();
+      if (
+        filterParams.narvi_maritime_approved_agent != null &&
+        String(filterParams.narvi_maritime_approved_agent).trim() !== ""
+      ) {
+        const raw = filterParams.narvi_maritime_approved_agent;
+        if (raw === true || raw === "true" || raw === 1 || raw === "1") {
+          params.narvi_maritime_approved_agent = true;
+        } else if (raw === false || raw === "false" || raw === 0 || raw === "0") {
+          params.narvi_maritime_approved_agent = false;
+        }
+      }
       if (filterParams.email != null && String(filterParams.email).trim() !== "")
         params.email = String(filterParams.email).trim();
       const cid = filterParams.country_id;

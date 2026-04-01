@@ -46,6 +46,10 @@ function readPersistedAgentListState() {
         agent_id: p.filters?.agent_id != null ? p.filters.agent_id : "",
         agent_type: p.filters?.agent_type != null ? p.filters.agent_type : "",
         country: p.filters?.country != null ? p.filters.country : "",
+        narvi_maritime_approved_agent:
+          p.filters?.narvi_maritime_approved_agent != null
+            ? p.filters.narvi_maritime_approved_agent
+            : "",
       },
       sortOrder: p.sortOrder === "newest" || p.sortOrder === "oldest" || p.sortOrder === "alphabetical" ? p.sortOrder : "alphabetical",
     };
@@ -68,7 +72,12 @@ const defaultAgentListState = {
   pageSize: 80,
   nameSearchValue: "",
   overallSearchValue: "",
-  filters: { agent_id: "", agent_type: "", country: "" },
+  filters: {
+    agent_id: "",
+    agent_type: "",
+    country: "",
+    narvi_maritime_approved_agent: "",
+  },
   sortOrder: "alphabetical",
 };
 
@@ -109,6 +118,10 @@ export default function Vendors() {
         agentsdb_id: filters.agent_id?.trim() || undefined,
         agent_type: filters.agent_type?.trim() || undefined,
         country_id: resolveCountryId(filters.country, countriesRef.current),
+        narvi_maritime_approved_agent:
+          filters.narvi_maritime_approved_agent === ""
+            ? undefined
+            : filters.narvi_maritime_approved_agent,
         page: overrides.page ?? page,
         page_size: overrides.page_size ?? pageSize,
         sort_by: sortApi.sort_by,
@@ -152,7 +165,7 @@ export default function Vendors() {
     return () => clearTimeout(timer);
   }, [nameSearchValue, overallSearchValue]);
 
-  // Advance filters on change (debounced) – refetch when agent_id, agent_type, or country change
+  // Advance filters on change (debounced) – refetch when advanced filter fields change
   const isFirstFiltersRun = useRef(true);
   useEffect(() => {
     if (isFirstFiltersRun.current) {
@@ -164,7 +177,12 @@ export default function Vendors() {
       fetchVendorsRef.current({ page: 1 });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filters.agent_id, filters.agent_type, filters.country]);
+  }, [
+    filters.agent_id,
+    filters.agent_type,
+    filters.country,
+    filters.narvi_maritime_approved_agent,
+  ]);
 
   const refreshAgents = useCallback(() => {
     fetchVendors({ page });
@@ -223,7 +241,12 @@ export default function Vendors() {
   const handleClearAll = useCallback(() => {
     setNameSearchValue("");
     setOverallSearchValue("");
-    setFilters({ agent_id: "", agent_type: "", country: "" });
+    setFilters({
+      agent_id: "",
+      agent_type: "",
+      country: "",
+      narvi_maritime_approved_agent: "",
+    });
     setSortOrder("alphabetical");
     setPage(1);
     getVendors({ page: 1, page_size: pageSize, ...mapSortOrderToApi("alphabetical") });

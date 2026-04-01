@@ -63,7 +63,7 @@ import ShippingInstructionDetail from "views/admin/forms/shipping-instructions/S
 import DeliveryInstructions from "views/admin/forms/delivery-instructions";
 import DeliveryInstructionDetail from "views/admin/forms/delivery-instructions/DeliveryInstructionDetail";
 import DeliveryConfirmation from "views/admin/forms/delivery-confirmation";
-import ShippingConfirmation from "views/admin/forms/shipping-confirmation";
+import ShippingAdvise from "views/admin/forms/shipping-confirmation";
 
 
 // Configurations Imports
@@ -220,8 +220,8 @@ const routes = [
         component: ShippingInstructions,
       },
       {
-        name: "Shipping Confirmation",
-        path: "/forms/shipping-confirmation",
+        name: "Shipping Advise",
+        path: "/forms/shipping-advise",
         icon: (
           <Icon
             as={MdConfirmationNumber}
@@ -230,7 +230,7 @@ const routes = [
             color="inherit"
           />
         ),
-        component: ShippingConfirmation,
+        component: ShippingAdvise,
       },
       {
         name: "Delivery Instructions",

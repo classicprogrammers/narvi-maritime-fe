@@ -36,6 +36,7 @@ import {
   AlertDialogContent,
   AlertDialogOverlay,
   Select,
+  Checkbox,
 } from "@chakra-ui/react";
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useHistory } from "react-router-dom";
@@ -97,6 +98,7 @@ export default function VendorsTable(props) {
     agent_id: "",
     agent_type: "",
     country: "",
+    narvi_maritime_approved_agent: "",
   });
   const isControlled =
     propsNameSearchValue !== undefined &&
@@ -119,7 +121,12 @@ export default function VendorsTable(props) {
   const setSortOrder = sortOrderControlled ? propsOnSortOrderChange : setInternalSortOrder;
 
   // Auto-open advanced filters when any advance filter has data (including when restored from persistence)
-  const hasAnyAdvanceFilter = filters.agent_id || filters.agent_type || filters.country || overallSearchValue;
+  const hasAnyAdvanceFilter =
+    filters.agent_id ||
+    filters.agent_type ||
+    filters.country ||
+    filters.narvi_maritime_approved_agent ||
+    overallSearchValue;
   const [showFilterFields, setShowFilterFields] = useState(() => !!hasAnyAdvanceFilter);
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
@@ -237,6 +244,19 @@ export default function VendorsTable(props) {
             return c ? c.name : item.country_name || "";
           })();
           return (countryName || "").toLowerCase().includes(needle);
+        });
+      }
+      if (filters.narvi_maritime_approved_agent !== "") {
+        const approvedNeedle = String(filters.narvi_maritime_approved_agent);
+        filtered = filtered.filter((item) => {
+          const approvedRaw =
+            item.narvi_maritime_approved_agent ?? item.narvi_approved;
+          const approvedVal =
+            approvedRaw === true ||
+            approvedRaw === "true" ||
+            approvedRaw === "1" ||
+            approvedRaw === 1;
+          return String(approvedVal) === approvedNeedle;
         });
       }
     }
@@ -446,7 +466,12 @@ export default function VendorsTable(props) {
     if (isControlled && propsOnClearAll) {
       propsOnClearAll();
     } else {
-      setInternalFilters({ agent_id: "", agent_type: "", country: "" });
+      setInternalFilters({
+        agent_id: "",
+        agent_type: "",
+        country: "",
+        narvi_maritime_approved_agent: "",
+      });
       setNameSearchValue("");
       setOverallSearchValue("");
     }
@@ -784,6 +809,7 @@ export default function VendorsTable(props) {
                 {(filters.agent_id ||
                   filters.agent_type ||
                   filters.country ||
+                  filters.narvi_maritime_approved_agent ||
                   nameSearchValue ||
                   overallSearchValue ||
                   sortOrder !== "alphabetical") && (
@@ -809,12 +835,20 @@ export default function VendorsTable(props) {
               <Button
                 size="md"
                 variant={
-                  filters.agent_id || filters.agent_type || filters.country || overallSearchValue
+                  filters.agent_id ||
+                  filters.agent_type ||
+                  filters.country ||
+                  filters.narvi_maritime_approved_agent ||
+                  overallSearchValue
                     ? "solid"
                     : "outline"
                 }
                 colorScheme={
-                  filters.agent_id || filters.agent_type || filters.country || overallSearchValue
+                  filters.agent_id ||
+                  filters.agent_type ||
+                  filters.country ||
+                  filters.narvi_maritime_approved_agent ||
+                  overallSearchValue
                     ? "blue"
                     : "gray"
                 }
@@ -1016,6 +1050,27 @@ export default function VendorsTable(props) {
                       />
                     )}
                   </HStack>
+                </Box>
+
+                {/* Approved Agent Filter */}
+                <Box minW="200px" flex="1">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Approved Agent
+                  </Text>
+                  <Box>
+                    <Checkbox
+                      colorScheme="blue"
+                      isChecked={filters.narvi_maritime_approved_agent === "true"}
+                      onChange={(e) =>
+                        handleFilterChange(
+                          "narvi_maritime_approved_agent",
+                          e.target.checked ? "true" : ""
+                        )
+                      }
+                    >
+                      Show approved agents only
+                    </Checkbox>
+                  </Box>
                 </Box>
               </HStack>
             </Box>
