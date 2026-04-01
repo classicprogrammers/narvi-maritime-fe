@@ -54,6 +54,7 @@ export default function ShippingInstructionDetail() {
   const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
   const isApplyingFormRef = useRef(false);
   const headerUserEditedRef = useRef(false);
+  const consignBlockUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const deadlinePickerRef = useRef(null);
   const lastSubmittedHeaderRef = useRef({
@@ -211,6 +212,10 @@ export default function ShippingInstructionDetail() {
 
     const consigneeId =
       form.agent_cnee_id && typeof form.agent_cnee_id === "object" ? form.agent_cnee_id.id : "";
+    const consigneeName =
+      form.agent_cnee_id && typeof form.agent_cnee_id === "object"
+        ? (form.agent_cnee_id.name || "")
+        : "";
     const agentId =
       form.agent_id && typeof form.agent_id === "object"
         ? form.agent_id.id
@@ -232,6 +237,24 @@ export default function ShippingInstructionDetail() {
       form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "";
     const siName =
       form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "";
+    const shippedByName =
+      form.to_be_shipped_by && form.to_be_shipped_by !== false
+        ? String(form.to_be_shipped_by)
+        : form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.name
+          ? String(form.si_shipped_by_id.name)
+          : "";
+    const fromName =
+      form.from_text && form.from_text !== false
+        ? String(form.from_text)
+        : form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.name
+          ? String(form.siform_from_id.name)
+          : "";
+    const toName =
+      form.to_text && form.to_text !== false
+        ? String(form.to_text)
+        : form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.name
+          ? String(form.siform_to_id.name)
+          : "";
 
     const cneeTextOnly =
       form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "";
@@ -280,6 +303,16 @@ export default function ShippingInstructionDetail() {
       }
       return "";
     })();
+    const resolvedPicName = (() => {
+      if (form.header_pic && typeof form.header_pic === "object" && form.header_pic.name) {
+        return String(form.header_pic.name);
+      }
+      const match =
+        resolvedPicId !== ""
+          ? picOptions.find((opt) => String(opt.id) === String(resolvedPicId))
+          : null;
+      return match?.name ? String(match.name) : "";
+    })();
 
     setFormData((prev) => ({
       ...prev,
@@ -291,13 +324,10 @@ export default function ShippingInstructionDetail() {
       siNo: (lockedSiId ?? siId) ?? "",
       jobNo: form.job_no && form.job_no !== false ? String(form.job_no) : "",
       shippedBy:
-        form.to_be_shipped_by && form.to_be_shipped_by !== false
-          ? String(form.to_be_shipped_by)
-          : form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.name
-            ? String(form.si_shipped_by_id.name)
-            : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
-              ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
-              : String(lastSubmittedHeaderRef.current.to_be_shipped_by || ""),
+        shippedByName ||
+        (form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
+          ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
+          : String(lastSubmittedHeaderRef.current.to_be_shipped_by || "")),
       shippedById:
         form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
           ? Number(form.si_shipped_by_id.id)
@@ -305,26 +335,21 @@ export default function ShippingInstructionDetail() {
             ? (Number.isFinite(Number(form.si_shipped_by_id)) ? Number(form.si_shipped_by_id) : null)
             : null,
       from:
-        form.from_text && form.from_text !== false
-          ? String(form.from_text)
-          : form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.name
-            ? String(form.siform_from_id.name)
-            : form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
-              ? (getOptionNameById(fromOptions, form.siform_from_id) || String(form.siform_from_id))
-              : String(lastSubmittedHeaderRef.current.from_text || ""),
+        fromName ||
+        (form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
+          ? (getOptionNameById(fromOptions, form.siform_from_id) || String(form.siform_from_id))
+          : String(lastSubmittedHeaderRef.current.from_text || "")),
       fromId:
         form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.id != null
           ? Number(form.siform_from_id.id)
           : form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
             ? (Number.isFinite(Number(form.siform_from_id)) ? Number(form.siform_from_id) : null)
             : null,
-      to: form.to_text && form.to_text !== false
-        ? String(form.to_text)
-        : form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.name
-          ? String(form.siform_to_id.name)
-          : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
-            ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
-            : String(lastSubmittedHeaderRef.current.to_text || ""),
+      to:
+        toName ||
+        (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+          ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
+          : String(lastSubmittedHeaderRef.current.to_text || "")),
       toId:
         form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.id != null
           ? Number(form.siform_to_id.id)
@@ -368,6 +393,30 @@ export default function ShippingInstructionDetail() {
         const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(agentId));
         if (exists) return prev;
         return [...(Array.isArray(prev) ? prev : []), { id: Number(agentId), name: String(agentName) }];
+      });
+    }
+    // Keep selected SI number visible even when options are paged/filtered.
+    if (siId !== "" && Number.isFinite(Number(siId)) && siName) {
+      setSiOptions((prev) => {
+        const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(siId));
+        if (exists) return prev;
+        return [...(Array.isArray(prev) ? prev : []), { id: Number(siId), name: String(siName) }];
+      });
+    }
+    // Keep selected consignee visible even when cnee options are scoped by agent/query.
+    if (consigneeId !== "" && Number.isFinite(Number(consigneeId)) && consigneeName) {
+      setConsigneeOptions((prev) => {
+        const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(consigneeId));
+        if (exists) return prev;
+        return [...(Array.isArray(prev) ? prev : []), { id: Number(consigneeId), name: String(consigneeName) }];
+      });
+    }
+    // Keep selected PIC visible if backend returns it in form payload only.
+    if (resolvedPicId !== "" && Number.isFinite(Number(resolvedPicId)) && resolvedPicName) {
+      setPicOptions((prev) => {
+        const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(resolvedPicId));
+        if (exists) return prev;
+        return [...(Array.isArray(prev) ? prev : []), { id: Number(resolvedPicId), name: String(resolvedPicName) }];
       });
     }
 
@@ -579,6 +628,7 @@ export default function ShippingInstructionDetail() {
   // Autosave CONSIGN TO block into backend cnee_text (debounced)
   useEffect(() => {
     if (isApplyingFormRef.current) return;
+    if (!consignBlockUserEditedRef.current) return;
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();
@@ -616,6 +666,7 @@ export default function ShippingInstructionDetail() {
   // Autosave packed totals (debounced)
   useEffect(() => {
     if (isApplyingFormRef.current) return;
+    if (!packedTotalsUserEditedRef.current) return;
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();
@@ -903,7 +954,10 @@ export default function ShippingInstructionDetail() {
                 <Text fontSize="sm" fontWeight="bold" mb={2}>CONSIGN TO:</Text>
                 <Textarea
                   value={formData.consignBlock || ""}
-                  onChange={(e) => handleInputChange("consignBlock", e.target.value)}
+                  onChange={(e) => {
+                    consignBlockUserEditedRef.current = true;
+                    handleInputChange("consignBlock", e.target.value);
+                  }}
                   size="sm"
                   variant="unstyled"
                   bg="transparent"
