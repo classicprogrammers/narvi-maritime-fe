@@ -33,7 +33,8 @@ import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../.
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-export default function ShippingInstructionDetail() {
+export default function ShippingInstructionDetail({ formType = "instruction" }) {
+  const isShippingAdvise = formType === "advise";
   const history = useHistory();
   const { id } = useParams();
   const [currentStep, setCurrentStep] = useState(0);
@@ -944,14 +945,18 @@ export default function ShippingInstructionDetail() {
         </Flex>
 
         <Text fontSize="2xl" fontWeight="bold" mb={6}>
-          SHIPPING ADVICE FOR {formData.vessel}
+          {isShippingAdvise
+            ? `SHIPPING ADVICE FOR ${formData.vessel}`
+            : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
         <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={4} mb={6}>
           <Box>
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
               <Box>
-                <Text fontSize="sm" fontWeight="bold" mb={2}>SHIP TO:</Text>
+                <Text fontSize="sm" fontWeight="bold" mb={2}>
+                  {isShippingAdvise ? "SHIP TO:" : "CONSIGN TO:"}
+                </Text>
                 <Textarea
                   value={formData.consignBlock || ""}
                   onChange={(e) => {
@@ -984,7 +989,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      SI NUMBER:
+                      {isShippingAdvise ? "SI NUMBER:" : "SI NO:"}
                     </FormLabel>
                     <SimpleSearchableSelect
                       id="siNo"
@@ -1046,7 +1051,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      SIC NUMBER:
+                      {isShippingAdvise ? "SIC NUMBER:" : "JOB NO:"}
                     </FormLabel>
                     <Box bg="orange.200" px={2} py={1} borderRadius="sm">
                       <Input
@@ -1070,7 +1075,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      AWB NUMBER:
+                      {isShippingAdvise ? "AWB NUMBER:" : "TO BE SHIPPED BY:"}
                     </FormLabel>
                     <Input
                       id="shippedBy"
@@ -1140,7 +1145,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      DESTINATION:
+                      {isShippingAdvise ? "DESTINATION:" : "TO:"}
                     </FormLabel>
                     <Input
                       id="to"
@@ -1175,7 +1180,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      ETA:
+                      {isShippingAdvise ? "ETA:" : "DEADLINE:"}
                     </FormLabel>
                     <Box position="relative">
                       <Input
@@ -1245,7 +1250,7 @@ export default function ShippingInstructionDetail() {
                       textTransform="uppercase"
                       m={0}
                     >
-                      PAGE:
+                      {isShippingAdvise ? "PAGE:" : "PIC:"}
                     </FormLabel>
                     <SimpleSearchableSelect
                       id="pic"
@@ -1309,47 +1314,76 @@ export default function ShippingInstructionDetail() {
                 <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
                   <Thead bg="gray.100">
                     <Tr>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                      {isShippingAdvise && (
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                      )}
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">FROM</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                      {!isShippingAdvise && (
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN NUMBER</Th>
+                      )}
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{isShippingAdvise ? "BOXES" : "PCS"}</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">VW</Th>
+                      {isShippingAdvise && (
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">VW</Th>
+                      )}
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
+                      {!isShippingAdvise && (
+                        <>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">WW</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
+                        </>
+                      )}
                     </Tr>
                   </Thead>
                   <Tbody>
                     {cargoItems.map((item, index) => (
                       <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                        {isShippingAdvise && (
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                        )}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                           {item.warehouseId || ""}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                        {!isShippingAdvise && (
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.details || ""}</Td>
+                        )}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.ww.toFixed(2)}</Td>
+                        {isShippingAdvise ? (
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.ww.toFixed(2)}</Td>
+                        ) : null}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                        {!isShippingAdvise && (
+                          <>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.ww.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                          </>
+                        )}
                       </Tr>
                     ))}
                     <Tr bg="gray.100" fontWeight="bold">
-                      <Td colSpan={6} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                      <Td colSpan={isShippingAdvise ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                         CARGO TO BE SHIPPED:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      {!isShippingAdvise && (
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                      )}
                       <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
                     </Tr>
                     <Tr bg="gray.50">
-                      <Td colSpan={6} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                      <Td colSpan={isShippingAdvise ? 6 : 5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
                         PACKED AS:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
@@ -1385,6 +1419,9 @@ export default function ShippingInstructionDetail() {
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                      {!isShippingAdvise && (
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                      )}
                       <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
                     </Tr>
                   </Tbody>
@@ -1532,7 +1569,7 @@ export default function ShippingInstructionDetail() {
 
               <FormControl display="contents">
                 <FormLabel htmlFor="consigneeAddress1" fontWeight="bold" m={0} fontSize="sm">
-                  Address1:
+                  {isShippingAdvise ? "Address1:" : "Address 1:"}
                 </FormLabel>
                 <Input
                   id="consigneeAddress1"
@@ -1547,7 +1584,7 @@ export default function ShippingInstructionDetail() {
 
               <FormControl display="contents">
                 <FormLabel htmlFor="consigneeAddress2" fontWeight="bold" m={0} fontSize="sm">
-                  Address2:
+                  {isShippingAdvise ? "Address2:" : "Address 2:"}
                 </FormLabel>
                 <Input
                   id="consigneeAddress2"
@@ -1637,7 +1674,7 @@ export default function ShippingInstructionDetail() {
 
               <FormControl display="contents">
                 <FormLabel htmlFor="consigneePhone" fontWeight="bold" m={0} fontSize="sm">
-                  Phone1:
+                  {isShippingAdvise ? "Phone1:" : "Phone 1:"}
                 </FormLabel>
                 <Input
                   id="consigneePhone"
@@ -1652,7 +1689,7 @@ export default function ShippingInstructionDetail() {
 
               <FormControl display="contents">
                 <FormLabel htmlFor="consigneePhone2" fontWeight="bold" m={0} fontSize="sm">
-                  Phone2:
+                  {isShippingAdvise ? "Phone2:" : "Phone 2:"}
                 </FormLabel>
                 <Input
                   id="consigneePhone2"
