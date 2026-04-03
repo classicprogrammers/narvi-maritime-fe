@@ -30,11 +30,19 @@ import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday } from "react-icons
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
+import {
+  getShippingAdviseOptionsApi,
+  postShippingAdviseFormApi,
+  postShippingAdviseFormUpdateApi,
+} from "../../../../api/shippingAdvise";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ShippingInstructionDetail({ formType = "instruction" }) {
   const isShippingAdvise = formType === "advise";
+  const loadFormLatest = isShippingAdvise ? postShippingAdviseFormApi : postSiFormApi;
+  const loadOptions = isShippingAdvise ? getShippingAdviseOptionsApi : getSiFormOptionsApi;
+  const saveForm = isShippingAdvise ? postShippingAdviseFormUpdateApi : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
   const [currentStep, setCurrentStep] = useState(0);
@@ -83,6 +91,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     toId: null,
     deadline: "",
     pic: "", // stores selected PIC id
+    transportDetails: "",
     date: "",
     totalPackedQuantity: "",
     totalPackedWeight: "",
@@ -321,50 +330,65 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         form.vessel_name && form.vessel_name !== false
           ? String(form.vessel_name)
           : prev.vessel,
-      // header card
+      // header card (Shipping Advise API uses sic_number, awb_number, destination_text, eta_text, date, transport_details)
       siNo: (lockedSiId ?? siId) ?? "",
-      jobNo: form.job_no && form.job_no !== false ? String(form.job_no) : "",
-      shippedBy:
-        shippedByName ||
-        (form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
-          ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
-          : String(lastSubmittedHeaderRef.current.to_be_shipped_by || "")),
-      shippedById:
-        form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
+      jobNo: isShippingAdvise
+        ? (form.sic_number != null && form.sic_number !== false ? String(form.sic_number) : "")
+        : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
+      shippedBy: isShippingAdvise
+        ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
+        : (shippedByName ||
+          (form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
+            ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
+            : String(lastSubmittedHeaderRef.current.to_be_shipped_by || ""))),
+      shippedById: isShippingAdvise
+        ? null
+        : (form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
           ? Number(form.si_shipped_by_id.id)
           : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
             ? (Number.isFinite(Number(form.si_shipped_by_id)) ? Number(form.si_shipped_by_id) : null)
-            : null,
-      from:
-        fromName ||
-        (form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
-          ? (getOptionNameById(fromOptions, form.siform_from_id) || String(form.siform_from_id))
-          : String(lastSubmittedHeaderRef.current.from_text || "")),
+            : null),
+      from: isShippingAdvise
+        ? (form.from_text != null && form.from_text !== false ? String(form.from_text) : "")
+        : (fromName ||
+          (form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
+            ? (getOptionNameById(fromOptions, form.siform_from_id) || String(form.siform_from_id))
+            : String(lastSubmittedHeaderRef.current.from_text || ""))),
       fromId:
         form.siform_from_id && typeof form.siform_from_id === "object" && form.siform_from_id.id != null
           ? Number(form.siform_from_id.id)
           : form.siform_from_id != null && form.siform_from_id !== false && form.siform_from_id !== ""
             ? (Number.isFinite(Number(form.siform_from_id)) ? Number(form.siform_from_id) : null)
             : null,
-      to:
-        toName ||
-        (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
-          ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
-          : String(lastSubmittedHeaderRef.current.to_text || "")),
+      to: isShippingAdvise
+        ? (form.destination_text != null && form.destination_text !== false ? String(form.destination_text) : "")
+        : (toName ||
+          (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+            ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
+            : String(lastSubmittedHeaderRef.current.to_text || ""))),
       toId:
         form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.id != null
           ? Number(form.siform_to_id.id)
           : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
             ? (Number.isFinite(Number(form.siform_to_id)) ? Number(form.siform_to_id) : null)
             : null,
-      deadline:
-        form.deadline_text && form.deadline_text !== false
+      deadline: isShippingAdvise
+        ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
+        : (form.deadline_text && form.deadline_text !== false
           ? String(form.deadline_text)
-          : String(lastSubmittedHeaderRef.current.deadline_text || ""),
-      pic: resolvedPicId,
-      date: form.header_date && form.header_date !== false ? String(form.header_date) : "",
+          : String(lastSubmittedHeaderRef.current.deadline_text || "")),
+      pic: isShippingAdvise
+        ? ""
+        : resolvedPicId,
+      date: isShippingAdvise
+        ? (form.date != null && form.date !== false ? String(form.date) : "")
+        : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
+      transportDetails:
+        isShippingAdvise && form.transport_details && form.transport_details !== false
+          ? String(form.transport_details)
+          : "",
 
       // consign block + consignee id
       consignBlock: cneeTextOnly,
@@ -424,20 +448,39 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     setSelectedSiName(siName ? String(siName) : "");
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
 
-    const mapped = stockList.map((it, idx) => ({
-      id: it.id ?? idx + 1,
-      origin: it.origin || "",
-      warehouseId: it.warehouse_id || "",
-      supplier: it.supplier_id && typeof it.supplier_id === "object" ? (it.supplier_id.name || "") : "",
-      poNumber: it.po_number || "",
-      details: it.details && it.details !== false ? String(it.details) : "",
-      boxes: Number(it.boxes || 0),
-      kg: Number(it.kg || 0),
-      cbm: Number(it.cbm || 0),
-      lwh: it.lwh && it.lwh !== false ? String(it.lwh) : "",
-      ww: Number(it.vw || 0),
-      stockItemId: it.stock_item_id || "",
-    }));
+    const mapped = stockList.map((it, idx) => {
+      const supplierName =
+        it.supplier && typeof it.supplier === "object" && it.supplier.name != null
+          ? String(it.supplier.name)
+          : it.supplier_id && typeof it.supplier_id === "object" && it.supplier_id.name != null
+            ? String(it.supplier_id.name)
+            : typeof it.supplier === "string"
+              ? it.supplier
+              : "";
+      const originVal =
+        it.from != null && it.from !== false ? String(it.from) : (it.origin != null && it.origin !== false ? String(it.origin) : "");
+      const whRaw = it.warehouse_id;
+      const warehouseId =
+        whRaw != null && whRaw !== false ? String(whRaw) : "";
+      const lwhVal = it.lwh != null && it.lwh !== false ? String(it.lwh) : "";
+      const stockIdRaw = it.stock_item_id;
+      const stockItemId =
+        stockIdRaw != null && stockIdRaw !== false ? String(stockIdRaw) : "";
+      return {
+        id: it.id ?? idx + 1,
+        origin: originVal,
+        warehouseId,
+        supplier: supplierName,
+        poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
+        details: it.details && it.details !== false ? String(it.details) : "",
+        boxes: Number(it.boxes || 0),
+        kg: Number(it.kg || 0),
+        cbm: Number(it.cbm || 0),
+        lwh: lwhVal,
+        ww: Number(it.vw ?? it.ww ?? 0),
+        stockItemId,
+      };
+    });
 
     setCargoItems(mapped.length ? mapped : blankCargoRows());
     // allow autosave effects after this render flushes
@@ -448,10 +491,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   const ensureFormId = async () => {
     if (siFormId) return siFormId;
-    const latest = await postSiFormApi({ latest_only: true });
+    const latest = await loadFormLatest({ latest_only: true });
     const id = latest?.id ?? null;
     if (id) setSiFormId(id);
     return id;
+  };
+
+  /** Shipping Advise may omit id so backend updates latest record. */
+  const buildSavePayloadWithId = (currentId, fields) => {
+    if (isShippingAdvise) {
+      if (currentId != null && currentId !== "") {
+        return { id: Number(currentId), ...fields };
+      }
+      return { ...fields };
+    }
+    return { id: Number(currentId), ...fields };
   };
 
   useEffect(() => {
@@ -459,17 +513,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const timeoutId = setTimeout(async () => {
       try {
         setIsOptionsLoading(true);
-        const data = await getSiFormOptionsApi({
+        const optionsParams = {
           page: 1,
           page_size: 200,
           q_cnee: qCnee,
           q_si: qSi,
           q_agent: qAgent,
-          q_ship_by: qShipBy,
           q_from: qFrom,
           q_to: qTo,
           agent_id: formData.selectAgent || undefined,
-        });
+        };
+        if (!isShippingAdvise) {
+          optionsParams.q_ship_by = qShipBy;
+        }
+        const data = await loadOptions(optionsParams);
         if (cancelled) return;
 
         const result = data?.result;
@@ -537,7 +594,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent]);
+  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, isShippingAdvise]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -545,7 +602,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     (async () => {
       try {
         setIsSiFormLoading(true);
-        const form = await postSiFormApi({ latest_only: true });
+        const form = await loadFormLatest({ latest_only: true });
         if (cancelled) return;
         applySiFormResponse(form);
       } catch (e) {
@@ -558,7 +615,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isShippingAdvise]);
 
   // Autosave centered header fields (debounced)
   useEffect(() => {
@@ -570,38 +627,57 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();
-        if (!currentId) return;
+        if (!isShippingAdvise && !currentId) return;
 
         setIsSiFormLoading(true);
-        const payload = {
-          id: currentId,
-          si_shipped_by_id:
-            formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-              ? Number(formData.shippedById)
-              : null,
-          siform_from_id:
-            formData.fromId != null && Number.isFinite(Number(formData.fromId))
-              ? Number(formData.fromId)
-              : null,
-          siform_to_id:
-            formData.toId != null && Number.isFinite(Number(formData.toId))
-              ? Number(formData.toId)
-              : null,
-          from_text: toNullIfEmpty(formData.from),
-          to_text: toNullIfEmpty(formData.to),
-          to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-          deadline_text: formData.deadline ?? "",
-          header_pic_id:
-            formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-          header_date: formData.date ?? "",
-        };
+        const fields = isShippingAdvise
+          ? {
+            siform_from_id:
+              formData.fromId != null && Number.isFinite(Number(formData.fromId))
+                ? Number(formData.fromId)
+                : null,
+            siform_to_id:
+              formData.toId != null && Number.isFinite(Number(formData.toId))
+                ? Number(formData.toId)
+                : null,
+            from_text: toNullIfEmpty(formData.from),
+            destination_text: toNullIfEmpty(formData.to),
+            awb_number: toNullIfEmpty(formData.shippedBy),
+            eta_text: formData.deadline ?? "",
+            date: formData.date ?? "",
+            sic_number: toNullIfEmpty(formData.jobNo),
+            transport_details: toNullIfEmpty(formData.transportDetails),
+          }
+          : {
+            si_shipped_by_id:
+              formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
+                ? Number(formData.shippedById)
+                : null,
+            siform_from_id:
+              formData.fromId != null && Number.isFinite(Number(formData.fromId))
+                ? Number(formData.fromId)
+                : null,
+            siform_to_id:
+              formData.toId != null && Number.isFinite(Number(formData.toId))
+                ? Number(formData.toId)
+                : null,
+            from_text: toNullIfEmpty(formData.from),
+            to_text: toNullIfEmpty(formData.to),
+            to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
+            deadline_text: formData.deadline ?? "",
+            header_pic_id:
+              formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
+            header_date: formData.date ?? "",
+          };
+        const payload = buildSavePayloadWithId(currentId, fields);
         lastSubmittedHeaderRef.current = {
-          to_be_shipped_by: payload.to_be_shipped_by ?? "",
+          to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
-          to_text: payload.to_text ?? "",
-          deadline_text: payload.deadline_text ?? "",
+          to_text: isShippingAdvise ? (payload.destination_text ?? "") : (payload.to_text ?? ""),
+          deadline_text: isShippingAdvise ? (payload.eta_text ?? "") : (payload.deadline_text ?? ""),
         };
-        const updated = await postSiFormUpdateApi(payload);
+        const updated = await saveForm(payload);
+        if (updated?.id != null) setSiFormId(updated.id);
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
@@ -633,13 +709,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();
-        if (!currentId) return;
+        if (!isShippingAdvise && !currentId) return;
 
         setIsSiFormLoading(true);
-        const updated = await postSiFormUpdateApi({
-          id: currentId,
-          cnee_text: formData.consignBlock ?? "",
-        });
+        const updated = await saveForm(
+          buildSavePayloadWithId(currentId, {
+            cnee_text: formData.consignBlock ?? "",
+          })
+        );
+        if (updated?.id != null) setSiFormId(updated.id);
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
@@ -671,14 +749,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const timeoutId = setTimeout(async () => {
       try {
         const currentId = await ensureFormId();
-        if (!currentId) return;
+        if (!isShippingAdvise && !currentId) return;
 
         setIsSiFormLoading(true);
-        const updated = await postSiFormUpdateApi({
-          id: currentId,
-          total_packed_quantity: Number(formData.totalPackedQuantity || 0),
-          total_packed_weight: Number(formData.totalPackedWeight || 0),
-        });
+        const updated = await saveForm(
+          buildSavePayloadWithId(currentId, {
+            total_packed_quantity: Number(formData.totalPackedQuantity || 0),
+            total_packed_weight: Number(formData.totalPackedWeight || 0),
+          })
+        );
+        if (updated?.id != null) setSiFormId(updated.id);
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
@@ -701,67 +781,68 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       // Ensure we have a record id to update
       let currentId = siFormId;
       if (!currentId) {
-        const latestBefore = await postSiFormApi({ latest_only: true });
+        const latestBefore = await loadFormLatest({ latest_only: true });
         currentId = latestBefore?.id ?? null;
         if (currentId) setSiFormId(currentId);
       }
-      if (!currentId) return;
+      if (!isShippingAdvise && !currentId) return;
 
       // Full reset: send explicit empty/null keys (as requested)
-      const updated = await postSiFormUpdateApi({
-        id: currentId,
+      const updated = await saveForm(
+        buildSavePayloadWithId(currentId, {
+          agent_id: null,
+          agent_cnee_id: null,
+          agent_contact_id: null,
+          agent_partner_id: null,
 
-        agent_id: null,
-        agent_cnee_id: null,
-        agent_contact_id: null,
-        agent_partner_id: null,
+          si_shipped_by_id: null,
+          to_be_shipped_by: null,
+          siform_from_id: null,
+          from_text: null,
+          siform_to_id: null,
+          to_text: null,
+          deadline_text: null,
+          header_pic_id: null,
+          header_date: null,
 
-        si_shipped_by_id: null,
-        to_be_shipped_by: null,
-        siform_from_id: null,
-        from_text: null,
-        siform_to_id: null,
-        to_text: null,
-        deadline_text: null,
-        header_pic_id: null,
-        header_date: null,
+          company: "",
+          address1: "",
+          address2: "",
+          postcode: "",
+          city: "",
+          country_id: null,
+          reg_no: "",
+          email1: "",
+          phone1: "",
+          phone2: "",
+          web: "",
 
-        company: "",
-        address1: "",
-        address2: "",
-        postcode: "",
-        city: "",
-        country_id: null,
-        reg_no: "",
-        email1: "",
-        phone1: "",
-        phone2: "",
-        web: "",
+          cnee1: null,
+          cnee2: null,
+          cnee3: null,
+          cnee4: null,
+          cnee5: null,
+          cnee6: null,
+          cnee7: null,
+          cnee8: null,
+          cnee9: null,
+          cnee10: null,
+          cnee11: null,
+          cnee12: null,
+          cnee_text: "",
+          total_packed_quantity: 0,
+          total_packed_weight: 0,
 
-        cnee1: null,
-        cnee2: null,
-        cnee3: null,
-        cnee4: null,
-        cnee5: null,
-        cnee6: null,
-        cnee7: null,
-        cnee8: null,
-        cnee9: null,
-        cnee10: null,
-        cnee11: null,
-        cnee12: null,
-        cnee_text: "",
-        total_packed_quantity: 0,
-        total_packed_weight: 0,
+          agents_pic: null,
+          warnings: "",
 
-        agents_pic: null,
-        warnings: "",
+          si_number_id: null,
+          job_no: "",
 
-        si_number_id: null,
-        job_no: "",
-
-        stock_list: [],
-      });
+          stock_list: [],
+        })
+      );
+      if (updated?.id != null) setSiFormId(updated.id);
       packedTotalsUserEditedRef.current = false;
       setFormData((prev) => ({
         ...prev,
@@ -946,7 +1027,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
         <Text fontSize="2xl" fontWeight="bold" mb={6}>
           {isShippingAdvise
-            ? `SHIPPING ADVICE FOR ${formData.vessel}`
+            ? `SHIPPING ADVISE FOR ${formData.vessel}`
             : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
@@ -1006,12 +1087,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         try {
                           setIsSiFormLoading(true);
                           if (!siFormId) {
-                            const latestBefore = await postSiFormApi({ latest_only: true });
+                            const latestBefore = await loadFormLatest({ latest_only: true });
                             if (latestBefore?.id) setSiFormId(latestBefore.id);
                           }
-                          const currentId = siFormId ?? (await postSiFormApi({ latest_only: true }))?.id;
-                          if (!currentId) return;
-                          const updated = await postSiFormUpdateApi({ id: currentId, si_number_id: Number(v) });
+                          const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                          if (!isShippingAdvise && !currentId) return;
+                          const updated = await saveForm(
+                            buildSavePayloadWithId(currentId, { si_number_id: Number(v) })
+                          );
+                          if (updated?.id != null) setSiFormId(updated.id);
                           applySiFormResponse(updated, { lockedSiId: v });
                         } catch (e) {
                           console.error("Failed to load SI form by SI number:", e);
@@ -1243,40 +1327,70 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </Box>
                   </FormControl>
 
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="pic"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "PAGE:" : "PIC:"}
-                    </FormLabel>
-                    <SimpleSearchableSelect
-                      id="pic"
-                      value={formData.pic}
-                      onChange={(val) => {
-                        headerUserEditedRef.current = true;
-                        handleInputChange("pic", val ?? "");
-                      }}
-                      options={picOptions}
-                      displayKey="name"
-                      valueKey="id"
-                      prefillOnFocus={false}
-                      size="sm"
-                      bg="transparent"
-                      borderColor="transparent"
-                      variant="unstyled"
-                      px={0}
-                      py={0}
-                      _focus={{ boxShadow: "none", outline: "none" }}
-                      _focusVisible={{ boxShadow: "none", outline: "none" }}
-                      isLoading={isOptionsLoading || isSiFormLoading}
-                      placeholder="Select PIC..."
-                      _placeholder={{ color: "whiteAlpha.800" }}
-                      style={{ color: "white" }}
-                    />
-                  </FormControl>
+                  {isShippingAdvise && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="transport-details"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        TRANSPORT DETAILS:
+                      </FormLabel>
+                      <Input
+                        id="transport-details"
+                        value={formData.transportDetails}
+                        onChange={(e) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("transportDetails", e.target.value);
+                        }}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="white"
+                        placeholder="Type transport details..."
+                        _placeholder={{ color: "whiteAlpha.800" }}
+                      />
+                    </FormControl>
+                  )}
+
+                  {!isShippingAdvise && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="pic"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        PIC:
+                      </FormLabel>
+                      <SimpleSearchableSelect
+                        id="pic"
+                        value={formData.pic}
+                        onChange={(val) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("pic", val ?? "");
+                        }}
+                        options={picOptions}
+                        displayKey="name"
+                        valueKey="id"
+                        prefillOnFocus={false}
+                        size="sm"
+                        bg="transparent"
+                        borderColor="transparent"
+                        variant="unstyled"
+                        px={0}
+                        py={0}
+                        _focus={{ boxShadow: "none", outline: "none" }}
+                        _focusVisible={{ boxShadow: "none", outline: "none" }}
+                        isLoading={isOptionsLoading || isSiFormLoading}
+                        placeholder="Select PIC..."
+                        _placeholder={{ color: "whiteAlpha.800" }}
+                        style={{ color: "white" }}
+                      />
+                    </FormControl>
+                  )}
 
                   <FormControl display="contents">
                     <FormLabel
@@ -1454,17 +1568,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       setIsSiFormLoading(true);
                       let currentId = siFormId;
                       if (!currentId) {
-                        const latestBefore = await postSiFormApi({ latest_only: true });
+                        const latestBefore = await loadFormLatest({ latest_only: true });
                         currentId = latestBefore?.id ?? null;
                         if (currentId) setSiFormId(currentId);
                       }
-                      if (!currentId) return;
+                      if (!isShippingAdvise && !currentId) return;
 
-                      const updated = await postSiFormUpdateApi({
-                        id: currentId,
-                        agent_id: v !== "" ? Number(v) : null,
-                        agent_cnee_id: null,
-                      });
+                      const updated = await saveForm(
+                        buildSavePayloadWithId(currentId, {
+                          agent_id: v !== "" ? Number(v) : null,
+                          agent_cnee_id: null,
+                        })
+                      );
+                      if (updated?.id != null) setSiFormId(updated.id);
                       applySiFormResponse(updated, { lockedConsigneeId: "" });
                     } catch (e) {
                       console.error("Failed to update SI form by agent:", e);
@@ -1516,13 +1632,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       // Ensure we have a record id to update (latest record flow)
                       let currentId = siFormId;
                       if (!currentId) {
-                        const latestBefore = await postSiFormApi({ latest_only: true });
+                        const latestBefore = await loadFormLatest({ latest_only: true });
                         currentId = latestBefore?.id ?? null;
                         if (currentId) setSiFormId(currentId);
                       }
-                      if (!currentId) return;
+                      if (!isShippingAdvise && !currentId) return;
 
-                      const updated = await postSiFormUpdateApi({ id: currentId, agent_cnee_id: Number(v) });
+                      const updated = await saveForm(
+                        buildSavePayloadWithId(currentId, { agent_cnee_id: Number(v) })
+                      );
+                      if (updated?.id != null) setSiFormId(updated.id);
                       applySiFormResponse(updated, { lockedConsigneeId: v });
                     } catch (e) {
                       console.error("Failed to load SI form by consignee:", e);
