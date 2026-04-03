@@ -40,6 +40,7 @@ import autoTable from "jspdf-autotable";
 
 export default function ShippingInstructionDetail({ formType = "instruction" }) {
   const isShippingAdvise = formType === "advise";
+  const todayIso = new Date().toISOString().slice(0, 10);
   const loadFormLatest = isShippingAdvise ? postShippingAdviseFormApi : postSiFormApi;
   const loadOptions = isShippingAdvise ? getShippingAdviseOptionsApi : getSiFormOptionsApi;
   const saveForm = isShippingAdvise ? postShippingAdviseFormUpdateApi : postSiFormUpdateApi;
@@ -381,7 +382,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ? ""
         : resolvedPicId,
       date: isShippingAdvise
-        ? (form.date != null && form.date !== false ? String(form.date) : "")
+        ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
+          ? String(form.date)
+          : todayIso)
         : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
@@ -1222,6 +1225,34 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </datalist>
                   </FormControl>
 
+                  {isShippingAdvise && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="transport-details"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        TRANSPORT DETAILS:
+                      </FormLabel>
+                      <Input
+                        id="transport-details"
+                        value={formData.transportDetails}
+                        onChange={(e) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("transportDetails", e.target.value);
+                        }}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="white"
+                        placeholder="Type transport details..."
+                        _placeholder={{ color: "whiteAlpha.800" }}
+                      />
+                    </FormControl>
+                  )}
+
                   <FormControl display="contents">
                     <FormLabel
                       htmlFor="to"
@@ -1326,34 +1357,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       />
                     </Box>
                   </FormControl>
-
-                  {isShippingAdvise && (
-                    <FormControl display="contents">
-                      <FormLabel
-                        htmlFor="transport-details"
-                        fontWeight="bold"
-                        textTransform="uppercase"
-                        m={0}
-                      >
-                        TRANSPORT DETAILS:
-                      </FormLabel>
-                      <Input
-                        id="transport-details"
-                        value={formData.transportDetails}
-                        onChange={(e) => {
-                          headerUserEditedRef.current = true;
-                          handleInputChange("transportDetails", e.target.value);
-                        }}
-                        size="sm"
-                        fontWeight="medium"
-                        variant="unstyled"
-                        bg="transparent"
-                        color="white"
-                        placeholder="Type transport details..."
-                        _placeholder={{ color: "whiteAlpha.800" }}
-                      />
-                    </FormControl>
-                  )}
 
                   {!isShippingAdvise && (
                     <FormControl display="contents">
