@@ -213,7 +213,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     },
   ]);
 
-  const applySiFormResponse = (form, { lockedConsigneeId, lockedSiId } = {}) => {
+  const applySiFormResponse = (form, { lockedConsigneeId, lockedSiId, lockedAgentId } = {}) => {
     if (!form) return;
     isApplyingFormRef.current = true;
     setSiFormId(form.id ?? null);
@@ -395,7 +395,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
       // consign block + consignee id
       consignBlock: cneeTextOnly,
-      selectAgent: agentId ?? "",
+      selectAgent: (() => {
+        const fromForm =
+          agentId !== "" && agentId != null && agentId !== false ? String(agentId) : "";
+        if (fromForm) return fromForm;
+        if (lockedAgentId != null && lockedAgentId !== "" && lockedAgentId !== false) {
+          return String(lockedAgentId);
+        }
+        return "";
+      })(),
       selectConsignee: (lockedConsigneeId ?? consigneeId) ?? "",
 
       // consignee detail fields
@@ -580,7 +588,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         };
 
         setSiOptions(normalizeOptions(siNos));
-        setAgentOptions(normalizeOptions(agents));
+        const normalizedAgents = normalizeOptions(agents);
+        setAgentOptions((prev) => {
+          const sid = formData.selectAgent;
+          if (sid !== "" && Number.isFinite(Number(sid))) {
+            const idNum = Number(sid);
+            if (!normalizedAgents.some((o) => Number(o.id) === idNum)) {
+              const keep = Array.isArray(prev) ? prev.find((o) => Number(o.id) === idNum) : null;
+              if (keep) return [keep, ...normalizedAgents];
+            }
+          }
+          return normalizedAgents;
+        });
         setConsigneeOptions(formData.selectAgent ? normalizeOptions(consignees) : []);
         setPicOptions(normalizeOptions(pics));
         setFromOptions(normalizeTextOptions(result?.from_options));
@@ -684,6 +703,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
+          lockedAgentId: formData.selectAgent,
         });
       } catch (e) {
         console.error("Failed to autosave SI header fields:", e);
@@ -703,6 +723,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     formData.deadline,
     formData.pic,
     formData.date,
+    formData.transportDetails,
   ]);
 
   // Autosave CONSIGN TO block into backend cnee_text (debounced)
@@ -724,6 +745,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
+          lockedAgentId: formData.selectAgent,
         });
       } catch (e) {
         console.error("Failed to autosave cnee_text:", e);
@@ -765,6 +787,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         applySiFormResponse(updated, {
           lockedConsigneeId: formData.selectConsignee,
           lockedSiId: formData.siNo,
+          lockedAgentId: formData.selectAgent,
         });
       } catch (e) {
         console.error("Failed to autosave packed totals:", e);
@@ -1099,7 +1122,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             buildSavePayloadWithId(currentId, { si_number_id: Number(v) })
                           );
                           if (updated?.id != null) setSiFormId(updated.id);
-                          applySiFormResponse(updated, { lockedSiId: v });
+                          applySiFormResponse(updated, {
+                            lockedSiId: v,
+                            lockedAgentId: formData.selectAgent,
+                          });
                         } catch (e) {
                           console.error("Failed to load SI form by SI number:", e);
                         } finally {
@@ -1645,7 +1671,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         buildSavePayloadWithId(currentId, { agent_cnee_id: Number(v) })
                       );
                       if (updated?.id != null) setSiFormId(updated.id);
-                      applySiFormResponse(updated, { lockedConsigneeId: v });
+                      applySiFormResponse(updated, {
+                        lockedConsigneeId: v,
+                        lockedAgentId: formData.selectAgent,
+                      });
                     } catch (e) {
                       console.error("Failed to load SI form by consignee:", e);
                     } finally {
