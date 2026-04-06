@@ -8,8 +8,6 @@ import {
   VStack,
   HStack,
   Grid,
-  GridItem,
-  Badge,
   Progress,
   IconButton,
   useColorModeValue,
@@ -25,8 +23,17 @@ import {
   FormLabel,
   Select,
   Textarea,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalBody,
+  ModalCloseButton,
+  Spinner,
+  useDisclosure,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
@@ -46,6 +53,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const saveForm = isShippingAdvise ? postShippingAdviseFormUpdateApi : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
+  const {
+    isOpen: isPdfPreviewOpen,
+    onOpen: onPdfPreviewOpen,
+    onClose: onPdfPreviewClose,
+  } = useDisclosure();
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
+  const pdfPreviewBlobUrlRef = useRef(null);
+  const pdfPreviewIframeRef = useRef(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [shippingInstruction, setShippingInstruction] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -639,6 +655,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     };
   }, [isShippingAdvise]);
 
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+        pdfPreviewBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
   // Autosave centered header fields (debounced)
   useEffect(() => {
     if (isApplyingFormRef.current) return;
@@ -893,7 +918,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     }
   };
 
-  const handlePrintShippingInstruction = async () => {
+  const getShippingFormPdfFilename = () => {
+    const dateTag = new Date().toISOString().slice(0, 10);
+    return isShippingAdvise
+      ? `shipping-advise-${dateTag}.pdf`
+      : `shipping-instruction-${dateTag}.pdf`;
+  };
+
+  /** Builds the same PDF used for preview, download, and print */
+  const buildShippingFormPdf = async () => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
@@ -925,8 +958,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       console.error("Failed to load letterhead image for PDF:", e);
     }
 
+    const docTitle = isShippingAdvise
+      ? `Shipping Advise - ${formData.vessel || "-"}`
+      : `Shipping Instruction - ${formData.vessel || "-"}`;
     doc.setFontSize(12);
-    doc.text(`Shipping Instruction - ${formData.vessel || "-"}`, contentLeft, contentTop);
+    doc.text(docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
     doc.text(`Date: ${new Date().toLocaleString()}`, contentLeft, contentTop + 14);
 
@@ -943,7 +979,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     autoTable(doc, {
       startY: twoColStartY,
-      head: [["CONSIGN TO"]],
+      head: [[isShippingAdvise ? "SHIP TO" : "CONSIGN TO"]],
       body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
       theme: "plain",
       styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
@@ -954,18 +990,31 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const consignTableTopY = twoColStartY;
     const consignTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
 
+    const summaryRows = isShippingAdvise
+      ? [
+          ["SI NUMBER", siNoLabel || "-"],
+          ["SIC NUMBER", formData.jobNo || "-"],
+          ["AWB NUMBER", formData.shippedBy || "-"],
+          ["FROM", formData.from || "-"],
+          ["DESTINATION", formData.to || "-"],
+          ["ETA", formData.deadline || "-"],
+          ["TRANSPORT DETAILS", formData.transportDetails || "-"],
+          ["DATE", formData.date || "-"],
+        ]
+      : [
+          ["SI NO", siNoLabel || "-"],
+          ["JOB NO", formData.jobNo || "-"],
+          ["TO BE SHIPPED BY", formData.shippedBy || "-"],
+          ["FROM", formData.from || "-"],
+          ["TO", formData.to || "-"],
+          ["DEADLINE", formData.deadline || "-"],
+          ["PIC", picLabel || "-"],
+        ];
+
     autoTable(doc, {
       startY: twoColStartY,
       head: [["Field", "Value"]],
-      body: [
-        ["SI NO", siNoLabel || "-"],
-        ["JOB NO", formData.jobNo || "-"],
-        ["TO BE SHIPPED BY", formData.shippedBy || "-"],
-        ["FROM", formData.from || "-"],
-        ["TO", formData.to || "-"],
-        ["DEADLINE", formData.deadline || "-"],
-        ["PIC", picLabel || "-"],
-      ],
+      body: summaryRows,
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [28, 74, 149], textColor: 255 },
@@ -980,41 +1029,82 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
     doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
 
-    const cargoRows = (cargoItems || []).map((item) => [
-      item.origin || "-",
-      item.warehouseId || "-",
-      item.supplier || "-",
-      item.poNumber || "-",
-      String(item.boxes ?? "-"),
-      item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
-      item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
-      item.lwh || "-",
-    ]);
-
-    cargoRows.push([
-      "CARGO TO BE SHIPPED",
-      "",
-      "",
-      "",
-      String(totals.boxes ?? 0),
-      Number(totals.kg || 0).toFixed(2),
-      "",
-      "",
-    ]);
-    cargoRows.push([
-      "PACKED AS",
-      "",
-      "",
-      "",
-      String(formData.totalPackedQuantity ?? ""),
-      String(formData.totalPackedWeight ?? ""),
-      "",
-      "",
-    ]);
+    let cargoHead;
+    let cargoRows;
+    if (isShippingAdvise) {
+      cargoHead = [
+        "STOKITEM ID",
+        "FROM",
+        "WH ID",
+        "SUPPLIER",
+        "PO",
+        "BOXES",
+        "KG",
+        "CBM",
+        "VW",
+        "LWH",
+      ];
+      cargoRows = (cargoItems || []).map((item) => [
+        item.stockItemId || "-",
+        item.origin || "-",
+        item.warehouseId || "-",
+        item.supplier || "-",
+        item.poNumber || "-",
+        String(item.boxes ?? "-"),
+        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
+        item.ww != null && item.ww !== "" ? Number(item.ww).toFixed(2) : "-",
+        item.lwh || "-",
+      ]);
+      cargoRows.push([
+        "CARGO TO BE SHIPPED",
+        "",
+        "",
+        "",
+        "",
+        String(totals.boxes ?? 0),
+        Number(totals.kg || 0).toFixed(2),
+        Number(totals.cbm || 0).toFixed(2),
+        Number(totals.ww || 0).toFixed(2),
+        "",
+      ]);
+    } else {
+      cargoHead = ["ORIGIN", "WAREHOUSE ID", "SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH"];
+      cargoRows = (cargoItems || []).map((item) => [
+        item.origin || "-",
+        item.warehouseId || "-",
+        item.supplier || "-",
+        item.poNumber || "-",
+        String(item.boxes ?? "-"),
+        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
+        item.lwh || "-",
+      ]);
+      cargoRows.push([
+        "CARGO TO BE SHIPPED",
+        "",
+        "",
+        "",
+        String(totals.boxes ?? 0),
+        Number(totals.kg || 0).toFixed(2),
+        "",
+        "",
+      ]);
+      cargoRows.push([
+        "PACKED AS",
+        "",
+        "",
+        "",
+        String(formData.totalPackedQuantity ?? ""),
+        String(formData.totalPackedWeight ?? ""),
+        "",
+        "",
+      ]);
+    }
 
     autoTable(doc, {
       startY: twoColEndY + 14,
-      head: [["ORIGIN", "WAREHOUSE ID", "SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH"]],
+      head: [cargoHead],
       body: cargoRows,
       theme: "grid",
       styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak" },
@@ -1022,8 +1112,52 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       margin: { left: contentLeft, right: 24, bottom: 24 },
     });
 
-    const dateTag = new Date().toISOString().slice(0, 10);
-    doc.save(`shipping-instruction-${dateTag}.pdf`);
+    return doc;
+  };
+
+  const handleClosePdfPreview = () => {
+    if (pdfPreviewBlobUrlRef.current) {
+      URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+      pdfPreviewBlobUrlRef.current = null;
+    }
+    setPdfPreviewUrl(null);
+    onPdfPreviewClose();
+  };
+
+  const handleOpenPdfPreview = async () => {
+    setIsPdfPreviewLoading(true);
+    try {
+      const doc = await buildShippingFormPdf();
+      const blob = doc.output("blob");
+      if (pdfPreviewBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+        pdfPreviewBlobUrlRef.current = null;
+      }
+      const url = URL.createObjectURL(blob);
+      pdfPreviewBlobUrlRef.current = url;
+      setPdfPreviewUrl(url);
+      onPdfPreviewOpen();
+    } catch (e) {
+      console.error("Failed to build PDF preview:", e);
+    } finally {
+      setIsPdfPreviewLoading(false);
+    }
+  };
+
+  const handleDownloadShippingPdf = async () => {
+    try {
+      const doc = await buildShippingFormPdf();
+      doc.save(getShippingFormPdfFilename());
+    } catch (e) {
+      console.error("Failed to download PDF:", e);
+    }
+  };
+
+  const handlePrintFromPdfPreview = () => {
+    const win = pdfPreviewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
   };
 
   return (
@@ -1041,12 +1175,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               Reset
             </Button>
             <Button
-              leftIcon={<Icon as={MdPrint} />}
+              leftIcon={<Icon as={MdPictureAsPdf} />}
               variant="outline"
               size="sm"
-              onClick={handlePrintShippingInstruction}
+              isLoading={isPdfPreviewLoading}
+              loadingText="Preparing…"
+              onClick={handleOpenPdfPreview}
             >
-              Print
+              Preview PDF
             </Button>
           </HStack>
         </Flex>
@@ -1525,48 +1661,47 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       )}
                       <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
                     </Tr>
-                    <Tr bg="gray.50">
-                      <Td colSpan={isShippingAdvise ? 6 : 5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
-                        PACKED AS:
-                      </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
-                        <Input
-                          id="totalPackedQuantity"
-                          type="number"
-                          value={formData.totalPackedQuantity}
-                          onChange={(e) => {
-                            packedTotalsUserEditedRef.current = true;
-                            handleInputChange("totalPackedQuantity", e.target.value);
-                          }}
-                          size="xs"
-                          variant="unstyled"
-                          bg="transparent"
-                          fontWeight="semibold"
-                        />
-                      </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
-                        <Input
-                          id="totalPackedWeight"
-                          type="number"
-                          step="0.01"
-                          value={formData.totalPackedWeight}
-                          onChange={(e) => {
-                            packedTotalsUserEditedRef.current = true;
-                            handleInputChange("totalPackedWeight", e.target.value);
-                          }}
-                          size="xs"
-                          variant="unstyled"
-                          bg="transparent"
-                          fontWeight="semibold"
-                        />
-                      </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      {!isShippingAdvise && (
+                    {!isShippingAdvise && (
+                      <Tr bg="gray.50">
+                        <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                          PACKED AS:
+                        </Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                          <Input
+                            id="totalPackedQuantity"
+                            type="number"
+                            value={formData.totalPackedQuantity}
+                            onChange={(e) => {
+                              packedTotalsUserEditedRef.current = true;
+                              handleInputChange("totalPackedQuantity", e.target.value);
+                            }}
+                            size="xs"
+                            variant="unstyled"
+                            bg="transparent"
+                            fontWeight="semibold"
+                          />
+                        </Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                          <Input
+                            id="totalPackedWeight"
+                            type="number"
+                            step="0.01"
+                            value={formData.totalPackedWeight}
+                            onChange={(e) => {
+                              packedTotalsUserEditedRef.current = true;
+                              handleInputChange("totalPackedWeight", e.target.value);
+                            }}
+                            size="xs"
+                            variant="unstyled"
+                            bg="transparent"
+                            fontWeight="semibold"
+                          />
+                        </Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
-                      )}
-                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
-                    </Tr>
+                      </Tr>
+                    )}
                   </Tbody>
                 </Table>
               </Box>
@@ -1884,7 +2019,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               </FormControl>
 
               <FormControl display="contents">
-                <FormLabel htmlFor="warnings" fontWeight="bold" m={0} fontSize="sm" >
+                <FormLabel htmlFor="warnings" fontWeight="bold" m={0} fontSize="sm">
                   Warnings:
                 </FormLabel>
                 <Textarea
@@ -1892,10 +2027,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   value={formData.warnings || ""}
                   onChange={(e) => handleInputChange("warnings", e.target.value)}
                   size="sm"
-                  rows={2}
+                  rows={8}
                   variant="unstyled"
                   bg="transparent"
-
                 />
               </FormControl>
             </Grid>
@@ -1903,6 +2037,60 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         </Grid>
 
       </Box>
+
+      <Modal
+        isOpen={isPdfPreviewOpen}
+        onClose={handleClosePdfPreview}
+        size="full"
+        scrollBehavior="inside"
+      >
+        <ModalOverlay />
+        <ModalContent m={4} maxH="calc(100vh - 2rem)">
+          <ModalHeader>
+            {isShippingAdvise ? "Shipping Advise — preview" : "Shipping Instruction — preview"}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>
+            {isPdfPreviewLoading ? (
+              <Flex align="center" justify="center" minH="60vh">
+                <Spinner size="lg" />
+              </Flex>
+            ) : pdfPreviewUrl ? (
+              <iframe
+                ref={pdfPreviewIframeRef}
+                title="PDF preview"
+                src={pdfPreviewUrl}
+                style={{
+                  border: 0,
+                  width: "100%",
+                  minHeight: "70vh",
+                  flex: 1,
+                }}
+              />
+            ) : null}
+          </ModalBody>
+          <ModalFooter gap={2} flexWrap="wrap">
+            <Button variant="ghost" onClick={handleClosePdfPreview}>
+              Close
+            </Button>
+            <Button
+              leftIcon={<Icon as={MdDownload} />}
+              variant="outline"
+              onClick={handleDownloadShippingPdf}
+            >
+              Download
+            </Button>
+            <Button
+              leftIcon={<Icon as={MdPrint} />}
+              colorScheme="blue"
+              onClick={handlePrintFromPdfPreview}
+              isDisabled={!pdfPreviewUrl}
+            >
+              Print
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
