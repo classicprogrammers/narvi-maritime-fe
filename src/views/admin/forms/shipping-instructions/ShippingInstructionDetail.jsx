@@ -58,17 +58,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const todayIso = new Date().toISOString().slice(0, 10);
   const loadFormLatest = isShippingAdvise
     ? postShippingAdviseFormApi
-    : isDeliveryForm
+    : isDeliveryLike
       ? postDeliveryInstructionFormApi
       : postSiFormApi;
   const loadOptions = isShippingAdvise
     ? getShippingAdviseOptionsApi
-    : isDeliveryForm
+    : isDeliveryLike
       ? getDeliveryInstructionOptionsApi
       : getSiFormOptionsApi;
   const saveForm = isShippingAdvise
     ? postShippingAdviseFormUpdateApi
-    : isDeliveryForm
+    : isDeliveryLike
       ? postDeliveryInstructionFormUpdateApi
       : postSiFormUpdateApi;
   const history = useHistory();
@@ -121,6 +121,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     consignBlock: "",
     siNo: "", // stores selected option id
     jobNo: "",
+    soNo: "",
     shippedBy: "",
     shippedById: null,
     from: "",
@@ -286,11 +287,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : "";
 
     const siId =
-      isDeliveryForm
+      isDeliveryLike
         ? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : "")
         : (form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "");
     const siName =
-      isDeliveryForm
+      isDeliveryLike
         ? (form.di_number_id && typeof form.di_number_id === "object" ? (form.di_number_id.name || "") : "")
         : (form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "");
     const shippedByName =
@@ -381,18 +382,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         isDeliveryLike && form.delivery_to_at != null && form.delivery_to_at !== false
           ? String(form.delivery_to_at)
           : "",
-      siNo: isDeliveryForm
+      siNo: isDeliveryLike
         ? (lockedSiId ?? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : (form.di_number_id ?? ""))) ?? ""
         : (lockedSiId ?? siId) ?? "",
       jobNo: isShippingAdvise
         ? (form.sic_number != null && form.sic_number !== false ? String(form.sic_number) : "")
-        : isDeliveryForm
+        : isDeliveryLike
           ? (form.job_no != null && form.job_no !== false
             ? String(form.job_no)
             : form.so_number != null && form.so_number !== false
               ? String(form.so_number)
               : "")
-        : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
+          : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
       shippedBy: isShippingAdvise
         ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
         : (shippedByName ||
@@ -420,22 +421,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : null,
       to: isShippingAdvise
         ? (form.destination_text != null && form.destination_text !== false ? String(form.destination_text) : "")
-        : isDeliveryForm
+        : isDeliveryLike
           ? (form.location_text != null && form.location_text !== false
             ? String(form.location_text)
             : form.delivery_to_at != null && form.delivery_to_at !== false
               ? String(form.delivery_to_at)
               : toName)
-        : isDeliveryConfirmation
-          ? (form.location_text != null && form.location_text !== false
-              ? String(form.location_text)
-              : form.delivery_to_at != null && form.delivery_to_at !== false
-                ? String(form.delivery_to_at)
-                : toName)
-        : (toName ||
-          (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
-            ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
-            : String(lastSubmittedHeaderRef.current.to_text || ""))),
+          : (toName ||
+              (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+                ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
+                : String(lastSubmittedHeaderRef.current.to_text || ""))),
       toId:
         form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.id != null
           ? Number(form.siform_to_id.id)
@@ -444,25 +439,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : null,
       deadline: isShippingAdvise
         ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
-        : isDeliveryForm
+        : isDeliveryLike
           ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
-        : (form.deadline_text && form.deadline_text !== false
-          ? String(form.deadline_text)
-          : String(lastSubmittedHeaderRef.current.deadline_text || "")),
+          : (form.deadline_text && form.deadline_text !== false
+            ? String(form.deadline_text)
+            : String(lastSubmittedHeaderRef.current.deadline_text || "")),
       pic: isShippingAdvise
         ? ""
-        : isDeliveryForm
+        : isDeliveryLike
           ? resolvedPicId
           : resolvedPicId,
       date: isShippingAdvise
         ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
           ? String(form.date)
           : todayIso)
-        : isDeliveryForm
+        : isDeliveryLike
           ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
             ? String(form.header_date)
             : todayIso)
-        : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
+          : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
       transportDetails:
@@ -610,14 +605,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           q_to: qTo,
           agent_id: formData.selectAgent || undefined,
         };
-        if (isDeliveryForm) {
+        if (isDeliveryLike) {
           optionsParams.q_di = qSi;
           optionsParams.q_pic = qShipBy;
         } else {
           optionsParams.q_si = qSi;
           optionsParams.q_from = qFrom;
         }
-        if (!isShippingAdvise && !isDeliveryForm) {
+        if (!isShippingAdvise && !isDeliveryLike) {
           optionsParams.q_ship_by = qShipBy;
         }
         const data = await loadOptions(optionsParams);
@@ -674,7 +669,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           return uniq;
         };
 
-        setSiOptions(normalizeOptions(siNos));
+        const normalizedSiNos = normalizeOptions(siNos);
+        setSiOptions((prev) => {
+          const sid = formData.siNo;
+          if (sid !== "" && Number.isFinite(Number(sid))) {
+            const idNum = Number(sid);
+            if (!normalizedSiNos.some((o) => Number(o.id) === idNum)) {
+              const keep = Array.isArray(prev) ? prev.find((o) => Number(o.id) === idNum) : null;
+              if (keep) return [keep, ...normalizedSiNos];
+              if (selectedSiName && String(selectedSiName).trim() !== "") {
+                return [{ id: idNum, name: String(selectedSiName) }, ...normalizedSiNos];
+              }
+            }
+          }
+          return normalizedSiNos;
+        });
         const normalizedAgents = normalizeOptions(agents);
         setAgentOptions((prev) => {
           const sid = formData.selectAgent;
@@ -692,7 +701,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         setFromOptions(normalizeTextOptions(result?.from_options));
         setShippedByOptions(
           normalizeTextOptions(
-            isDeliveryForm ? (result?.pic_options || result?.pics || []) : result?.shipped_by_options
+            isDeliveryLike ? (result?.pic_options || result?.pics || []) : result?.shipped_by_options
           )
         );
         setToOptions(normalizeTextOptions(result?.to_options || result?.location_options));
@@ -707,7 +716,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, isShippingAdvise, isDeliveryForm]);
+  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, selectedSiName, isShippingAdvise, isDeliveryLike]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -728,7 +737,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return () => {
       cancelled = true;
     };
-  }, [isShippingAdvise]);
+  }, [isShippingAdvise, isDeliveryLike]);
 
   useEffect(() => {
     return () => {
@@ -770,12 +779,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             sic_number: toNullIfEmpty(formData.jobNo),
             transport_details: toNullIfEmpty(formData.transportDetails),
           }
-          : isDeliveryForm
+          : isDeliveryLike
             ? {
               di_number_id:
                 formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
                   ? Number(formData.siNo)
                   : null,
+              so_number: toNullIfEmpty(formData.soNo),
               header_pic_id:
                 formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
                   ? Number(formData.pic)
@@ -790,33 +800,33 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               location_text: toNullIfEmpty(formData.to),
             }
             : {
-            si_shipped_by_id:
-              formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-                ? Number(formData.shippedById)
-                : null,
-            siform_from_id:
-              formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                ? Number(formData.fromId)
-                : null,
-            siform_to_id:
-              formData.toId != null && Number.isFinite(Number(formData.toId))
-                ? Number(formData.toId)
-                : null,
-            from_text: toNullIfEmpty(formData.from),
-            to_text: toNullIfEmpty(formData.to),
-            to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-            deadline_text: formData.deadline ?? "",
-            header_pic_id:
-              formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-            header_date: formData.date ?? "",
-          };
+              si_shipped_by_id:
+                formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
+                  ? Number(formData.shippedById)
+                  : null,
+              siform_from_id:
+                formData.fromId != null && Number.isFinite(Number(formData.fromId))
+                  ? Number(formData.fromId)
+                  : null,
+              siform_to_id:
+                formData.toId != null && Number.isFinite(Number(formData.toId))
+                  ? Number(formData.toId)
+                  : null,
+              from_text: toNullIfEmpty(formData.from),
+              to_text: toNullIfEmpty(formData.to),
+              to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
+              deadline_text: formData.deadline ?? "",
+              header_pic_id:
+                formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
+              header_date: formData.date ?? "",
+            };
         const payload = buildSavePayloadWithId(currentId, fields);
         lastSubmittedHeaderRef.current = {
           to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
           to_text: isShippingAdvise
             ? (payload.destination_text ?? "")
-            : isDeliveryForm
+            : isDeliveryLike
               ? (payload.location_text ?? "")
               : (payload.to_text ?? ""),
           deadline_text: isShippingAdvise ? (payload.eta_text ?? "") : (payload.deadline_text ?? ""),
@@ -987,7 +997,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           warnings: "",
 
           si_number_id: null,
+          di_number_id: null,
           job_no: "",
+          so_number: null,
+          delivery_to_at: null,
+          location_text: null,
 
           stock_list: [],
         })
@@ -996,6 +1010,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       packedTotalsUserEditedRef.current = false;
       setFormData((prev) => ({
         ...prev,
+        siNo: "",
+        jobNo: "",
+        soNo: "",
+        deliveryToAt: "",
         shippedBy: "",
         shippedById: null,
         from: "",
@@ -1024,8 +1042,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       : isDeliveryConfirmation
         ? `delivery-confirmation-${dateTag}.pdf`
         : isDeliveryForm
-        ? `delivery-instruction-${dateTag}.pdf`
-        : `shipping-instruction-${dateTag}.pdf`;
+          ? `delivery-instruction-${dateTag}.pdf`
+          : `shipping-instruction-${dateTag}.pdf`;
   };
 
   /** Builds the same PDF used for preview, download, and print */
@@ -1065,9 +1083,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ? `Shipping Advise - ${formData.vessel || "-"}`
       : isDeliveryConfirmation
         ? `Delivery Confirmation - ${formData.vessel || "-"}`
-      : isDeliveryForm
-        ? `Delivery Instruction - ${formData.vessel || "-"}`
-        : `Shipping Instruction - ${formData.vessel || "-"}`;
+        : isDeliveryForm
+          ? `Delivery Instruction - ${formData.vessel || "-"}`
+          : `Shipping Instruction - ${formData.vessel || "-"}`;
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
@@ -1117,23 +1135,23 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ["LOCATION", formData.to || "-"],
         ]
         : isDeliveryForm
-        ? [
-          ["JOB NO", formData.jobNo || "-"],
-          ["SO NO", siNoLabel || "-"],
-          ["PIC", formData.pic || "-"],
-          ["DATE", formData.date || "-"],
-          ["DEADLINE", formData.deadline || "-"],
-          ["LOCATION", formData.to || "-"],
-        ]
-        : [
-          ["SI NO", siNoLabel || "-"],
-          ["JOB NO", formData.jobNo || "-"],
-          ["TO BE SHIPPED BY", formData.shippedBy || "-"],
-          ["FROM", formData.from || "-"],
-          ["TO", formData.to || "-"],
-          ["DEADLINE", formData.deadline || "-"],
-          ["PIC", picLabel || "-"],
-        ];
+          ? [
+            ["JOB NO", formData.jobNo || "-"],
+            ["SO NO", formData.soNo || "-"],
+            ["PIC", formData.pic || "-"],
+            ["DATE", formData.date || "-"],
+            ["DEADLINE", formData.deadline || "-"],
+            ["LOCATION", formData.to || "-"],
+          ]
+          : [
+            ["SI NO", siNoLabel || "-"],
+            ["JOB NO", formData.jobNo || "-"],
+            ["TO BE SHIPPED BY", formData.shippedBy || "-"],
+            ["FROM", formData.from || "-"],
+            ["TO", formData.to || "-"],
+            ["DEADLINE", formData.deadline || "-"],
+            ["PIC", picLabel || "-"],
+          ];
 
     autoTable(doc, {
       startY: twoColStartY,
@@ -1342,9 +1360,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? `SHIPPING ADVISE FOR ${formData.vessel}`
             : isDeliveryConfirmation
               ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel}`
-            : isDeliveryForm
-              ? `POD FOR M/V ${formData.vessel}`
-              : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
+              : isDeliveryForm
+                ? `POD FOR M/V ${formData.vessel}`
+                : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
         <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={4} mb={6}>
@@ -1667,112 +1685,112 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   )}
 
                   {!isDeliveryLike && (
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="to"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "DESTINATION:" : isDeliveryForm ? "LOCATION:" : "TO:"}
-                    </FormLabel>
-                    <Input
-                      id="to"
-                      list="si-to-options"
-                      value={formData.to}
-                      onChange={(e) => {
-                        const nextVal = e.target.value;
-                        headerUserEditedRef.current = true;
-                        handleInputChange("to", nextVal);
-                        handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
-                        setQTo(nextVal);
-                      }}
-                      size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
-                      bg="transparent"
-                      color="white"
-                      placeholder="Select or type destination..."
-                      _placeholder={{ color: "whiteAlpha.800" }}
-                    />
-                    <datalist id="si-to-options">
-                      {toOptions.map((opt) => (
-                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
-                      ))}
-                    </datalist>
-                  </FormControl>
-                  )}
-
-                  {!isDeliveryLike && (
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="deadline-text"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "ETA:" : "DEADLINE:"}
-                    </FormLabel>
-                    <Box position="relative">
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="to"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        {isShippingAdvise ? "DESTINATION:" : isDeliveryForm ? "LOCATION:" : "TO:"}
+                      </FormLabel>
                       <Input
-                        id="deadline-text"
-                        type="text"
-                        value={formData.deadline}
+                        id="to"
+                        list="si-to-options"
+                        value={formData.to}
                         onChange={(e) => {
+                          const nextVal = e.target.value;
                           headerUserEditedRef.current = true;
-                          handleInputChange("deadline", e.target.value);
+                          handleInputChange("to", nextVal);
+                          handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                          setQTo(nextVal);
                         }}
                         size="sm"
                         fontWeight="medium"
                         variant="unstyled"
                         bg="transparent"
                         color="white"
-                        pr="28px"
-                        placeholder="Type deadline or pick a date"
+                        placeholder="Select or type destination..."
                         _placeholder={{ color: "whiteAlpha.800" }}
                       />
-                      <Input
-                        ref={deadlinePickerRef}
-                        type="date"
-                        value={formData.deadline}
-                        onChange={(e) => {
-                          headerUserEditedRef.current = true;
-                          handleInputChange("deadline", e.target.value);
-                        }}
-                        position="absolute"
-                        opacity={0}
-                        pointerEvents="none"
-                        h="1px"
-                        w="1px"
-                        p={0}
-                        border={0}
-                        overflow="hidden"
-                        aria-hidden="true"
-                        tabIndex={-1}
-                      />
-                      <IconButton
-                        aria-label="Open deadline calendar"
-                        icon={<Icon as={MdCalendarToday} />}
-                        size="xs"
-                        variant="ghost"
-                        color="whiteAlpha.900"
-                        position="absolute"
-                        right="0"
-                        top="50%"
-                        transform="translateY(-50%)"
-                        onClick={() => {
-                          const pickerEl = deadlinePickerRef.current;
-                          if (!pickerEl) return;
-                          if (typeof pickerEl.showPicker === "function") {
-                            pickerEl.showPicker();
-                          } else {
-                            pickerEl.focus();
-                            pickerEl.click();
-                          }
-                        }}
-                      />
-                    </Box>
-                  </FormControl>
+                      <datalist id="si-to-options">
+                        {toOptions.map((opt) => (
+                          <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                        ))}
+                      </datalist>
+                    </FormControl>
+                  )}
+
+                  {!isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="deadline-text"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        {isShippingAdvise ? "ETA:" : "DEADLINE:"}
+                      </FormLabel>
+                      <Box position="relative">
+                        <Input
+                          id="deadline-text"
+                          type="text"
+                          value={formData.deadline}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("deadline", e.target.value);
+                          }}
+                          size="sm"
+                          fontWeight="medium"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          pr="28px"
+                          placeholder="Type deadline or pick a date"
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                        <Input
+                          ref={deadlinePickerRef}
+                          type="date"
+                          value={formData.deadline}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("deadline", e.target.value);
+                          }}
+                          position="absolute"
+                          opacity={0}
+                          pointerEvents="none"
+                          h="1px"
+                          w="1px"
+                          p={0}
+                          border={0}
+                          overflow="hidden"
+                          aria-hidden="true"
+                          tabIndex={-1}
+                        />
+                        <IconButton
+                          aria-label="Open deadline calendar"
+                          icon={<Icon as={MdCalendarToday} />}
+                          size="xs"
+                          variant="ghost"
+                          color="whiteAlpha.900"
+                          position="absolute"
+                          right="0"
+                          top="50%"
+                          transform="translateY(-50%)"
+                          onClick={() => {
+                            const pickerEl = deadlinePickerRef.current;
+                            if (!pickerEl) return;
+                            if (typeof pickerEl.showPicker === "function") {
+                              pickerEl.showPicker();
+                            } else {
+                              pickerEl.focus();
+                              pickerEl.click();
+                            }
+                          }}
+                        />
+                      </Box>
+                    </FormControl>
                   )}
 
                   {!isShippingAdvise && !isDeliveryLike && (
@@ -1845,7 +1863,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="job-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           JOB NO :
                         </FormLabel>
-                        {isDeliveryForm ? (
+                        {
                           <SimpleSearchableSelect
                             id="job-delivery"
                             value={formData.siNo}
@@ -1888,45 +1906,29 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             placeholder="Select DI number..."
                             _placeholder={{ color: "whiteAlpha.800" }}
                           />
-                        ) : (
+                        }
+                      </FormControl>
+                      {isDeliveryForm && (
+                        <FormControl display="contents">
+                          <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                            SO NO:
+                          </FormLabel>
                           <Input
-                            id="job-delivery"
-                            value={formData.jobNo}
+                            id="so-delivery"
+                            value={formData.soNo}
                             onChange={(e) => {
                               headerUserEditedRef.current = true;
-                              handleInputChange("jobNo", e.target.value);
+                              handleInputChange("soNo", e.target.value);
                             }}
                             size="sm"
                             fontWeight="semibold"
                             variant="unstyled"
                             bg="transparent"
                             color="white"
-                            placeholder="Type job number..."
+                            placeholder="SO number"
                             _placeholder={{ color: "whiteAlpha.800" }}
                           />
-                        )}
-                      </FormControl>
-                      {isDeliveryForm && (
-                      <FormControl display="contents">
-                        <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
-                          SO NO:
-                        </FormLabel>
-                        <Input
-                          id="so-delivery"
-                          value={formData.jobNo}
-                          onChange={(e) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("jobNo", e.target.value);
-                          }}
-                          size="sm"
-                          fontWeight="semibold"
-                          variant="unstyled"
-                          bg="transparent"
-                          color="white"
-                          placeholder="SO number"
-                          _placeholder={{ color: "whiteAlpha.800" }}
-                        />
-                      </FormControl>
+                        </FormControl>
                       )}
                       <FormControl display="contents">
                         <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
