@@ -66,22 +66,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     : isDeliveryConfirmation
       ? postDeliveryConfirmationFormApi
       : isDeliveryForm
-      ? postDeliveryInstructionFormApi
-      : postSiFormApi;
+        ? postDeliveryInstructionFormApi
+        : postSiFormApi;
   const loadOptions = isShippingAdvise
     ? getShippingAdviseOptionsApi
     : isDeliveryConfirmation
       ? getDeliveryConfirmationOptionsApi
       : isDeliveryForm
-      ? getDeliveryInstructionOptionsApi
-      : getSiFormOptionsApi;
+        ? getDeliveryInstructionOptionsApi
+        : getSiFormOptionsApi;
   const saveForm = isShippingAdvise
     ? postShippingAdviseFormUpdateApi
     : isDeliveryConfirmation
       ? postDeliveryConfirmationFormUpdateApi
       : isDeliveryForm
-      ? postDeliveryInstructionFormUpdateApi
-      : postSiFormUpdateApi;
+        ? postDeliveryInstructionFormUpdateApi
+        : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
   const {
@@ -457,10 +457,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? String(form.deadline_text)
               : "")
           : isDeliveryForm
-          ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
-          : (form.deadline_text && form.deadline_text !== false
-            ? String(form.deadline_text)
-            : String(lastSubmittedHeaderRef.current.deadline_text || "")),
+            ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
+            : (form.deadline_text && form.deadline_text !== false
+              ? String(form.deadline_text)
+              : String(lastSubmittedHeaderRef.current.deadline_text || "")),
       pic: isShippingAdvise
         ? ""
         : isDeliveryLike
@@ -827,46 +827,46 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               location_text: toNullIfEmpty(formData.to),
             }
             : isDeliveryForm
-            ? {
-              di_number_id:
-                formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                  ? Number(formData.siNo)
-                  : null,
-              so_number: toNullIfEmpty(formData.soNo),
-              header_pic_id:
-                formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
-                  ? Number(formData.pic)
-                  : null,
-              header_date: formData.date ?? "",
-              deadline_text: formData.deadline ?? "",
-              delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
-              siform_to_id:
-                formData.toId != null && Number.isFinite(Number(formData.toId))
-                  ? Number(formData.toId)
-                  : null,
-              location_text: toNullIfEmpty(formData.to),
-            }
-            : {
-              si_shipped_by_id:
-                formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-                  ? Number(formData.shippedById)
-                  : null,
-              siform_from_id:
-                formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                  ? Number(formData.fromId)
-                  : null,
-              siform_to_id:
-                formData.toId != null && Number.isFinite(Number(formData.toId))
-                  ? Number(formData.toId)
-                  : null,
-              from_text: toNullIfEmpty(formData.from),
-              to_text: toNullIfEmpty(formData.to),
-              to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-              deadline_text: formData.deadline ?? "",
-              header_pic_id:
-                formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-              header_date: formData.date ?? "",
-            };
+              ? {
+                di_number_id:
+                  formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
+                    ? Number(formData.siNo)
+                    : null,
+                so_number: toNullIfEmpty(formData.soNo),
+                header_pic_id:
+                  formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
+                    ? Number(formData.pic)
+                    : null,
+                header_date: formData.date ?? "",
+                deadline_text: formData.deadline ?? "",
+                delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
+                siform_to_id:
+                  formData.toId != null && Number.isFinite(Number(formData.toId))
+                    ? Number(formData.toId)
+                    : null,
+                location_text: toNullIfEmpty(formData.to),
+              }
+              : {
+                si_shipped_by_id:
+                  formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
+                    ? Number(formData.shippedById)
+                    : null,
+                siform_from_id:
+                  formData.fromId != null && Number.isFinite(Number(formData.fromId))
+                    ? Number(formData.fromId)
+                    : null,
+                siform_to_id:
+                  formData.toId != null && Number.isFinite(Number(formData.toId))
+                    ? Number(formData.toId)
+                    : null,
+                from_text: toNullIfEmpty(formData.from),
+                to_text: toNullIfEmpty(formData.to),
+                to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
+                deadline_text: formData.deadline ?? "",
+                header_pic_id:
+                  formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
+                header_date: formData.date ?? "",
+              };
         const payload = buildSavePayloadWithId(currentId, fields);
         lastSubmittedHeaderRef.current = {
           to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
@@ -876,8 +876,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : isDeliveryConfirmation
               ? (payload.location_text ?? "")
               : isDeliveryForm
-              ? (payload.location_text ?? "")
-              : (payload.to_text ?? ""),
+                ? (payload.location_text ?? "")
+                : (payload.to_text ?? ""),
           deadline_text: isShippingAdvise
             ? (payload.eta_text ?? "")
             : isDeliveryConfirmation
