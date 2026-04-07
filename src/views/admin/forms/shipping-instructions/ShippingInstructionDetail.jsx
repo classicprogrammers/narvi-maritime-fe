@@ -47,6 +47,11 @@ import {
   postDeliveryInstructionFormApi,
   postDeliveryInstructionFormUpdateApi,
 } from "../../../../api/deliveryInstruction";
+import {
+  getDeliveryConfirmationOptionsApi,
+  postDeliveryConfirmationFormApi,
+  postDeliveryConfirmationFormUpdateApi,
+} from "../../../../api/deliveryConfirmation";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -58,17 +63,23 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const todayIso = new Date().toISOString().slice(0, 10);
   const loadFormLatest = isShippingAdvise
     ? postShippingAdviseFormApi
-    : isDeliveryLike
+    : isDeliveryConfirmation
+      ? postDeliveryConfirmationFormApi
+      : isDeliveryForm
       ? postDeliveryInstructionFormApi
       : postSiFormApi;
   const loadOptions = isShippingAdvise
     ? getShippingAdviseOptionsApi
-    : isDeliveryLike
+    : isDeliveryConfirmation
+      ? getDeliveryConfirmationOptionsApi
+      : isDeliveryForm
       ? getDeliveryInstructionOptionsApi
       : getSiFormOptionsApi;
   const saveForm = isShippingAdvise
     ? postShippingAdviseFormUpdateApi
-    : isDeliveryLike
+    : isDeliveryConfirmation
+      ? postDeliveryConfirmationFormUpdateApi
+      : isDeliveryForm
       ? postDeliveryInstructionFormUpdateApi
       : postSiFormUpdateApi;
   const history = useHistory();
@@ -428,9 +439,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? String(form.delivery_to_at)
               : toName)
           : (toName ||
-              (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
-                ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
-                : String(lastSubmittedHeaderRef.current.to_text || ""))),
+            (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
+              ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
+              : String(lastSubmittedHeaderRef.current.to_text || ""))),
       toId:
         form.siform_to_id && typeof form.siform_to_id === "object" && form.siform_to_id.id != null
           ? Number(form.siform_to_id.id)
@@ -439,7 +450,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : null,
       deadline: isShippingAdvise
         ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
-        : isDeliveryLike
+        : isDeliveryConfirmation
+          ? (form.delivery_date != null && form.delivery_date !== false
+            ? String(form.delivery_date)
+            : form.deadline_text != null && form.deadline_text !== false
+              ? String(form.deadline_text)
+              : "")
+          : isDeliveryForm
           ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
           : (form.deadline_text && form.deadline_text !== false
             ? String(form.deadline_text)
@@ -541,7 +558,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? it.supplier
               : "";
       const originVal =
-        it.from != null && it.from !== false ? String(it.from) : (it.origin != null && it.origin !== false ? String(it.origin) : "");
+        it.from != null && it.from !== false
+          ? String(it.from)
+          : it.from_si_advise != null && it.from_si_advise !== false
+            ? String(it.from_si_advise)
+            : (it.origin != null && it.origin !== false ? String(it.origin) : "");
       const whRaw = it.warehouse_id;
       const warehouseId =
         whRaw != null && whRaw !== false ? String(whRaw) : "";
@@ -554,7 +575,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         origin: originVal,
         warehouseId,
         supplier: supplierName,
-        awbNumber: it.awb_number != null && it.awb_number !== false ? String(it.awb_number) : "",
+        awbNumber:
+          it.awb_number != null && it.awb_number !== false
+            ? String(it.awb_number)
+            : it.awb_si_advise != null && it.awb_si_advise !== false
+              ? String(it.awb_si_advise)
+              : it.awb != null && it.awb !== false
+                ? String(it.awb)
+                : "",
         poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
         details: it.details && it.details !== false ? String(it.details) : "",
         boxes: Number(it.boxes || 0),
@@ -779,7 +807,26 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             sic_number: toNullIfEmpty(formData.jobNo),
             transport_details: toNullIfEmpty(formData.transportDetails),
           }
-          : isDeliveryLike
+          : isDeliveryConfirmation
+            ? {
+              di_number_id:
+                formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
+                  ? Number(formData.siNo)
+                  : null,
+              header_pic_id:
+                formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
+                  ? Number(formData.pic)
+                  : null,
+              header_date: formData.date ?? "",
+              delivery_date: formData.deadline ?? "",
+              delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
+              siform_to_id:
+                formData.toId != null && Number.isFinite(Number(formData.toId))
+                  ? Number(formData.toId)
+                  : null,
+              location_text: toNullIfEmpty(formData.to),
+            }
+            : isDeliveryForm
             ? {
               di_number_id:
                 formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
@@ -826,10 +873,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           from_text: payload.from_text ?? "",
           to_text: isShippingAdvise
             ? (payload.destination_text ?? "")
-            : isDeliveryLike
+            : isDeliveryConfirmation
+              ? (payload.location_text ?? "")
+              : isDeliveryForm
               ? (payload.location_text ?? "")
               : (payload.to_text ?? ""),
-          deadline_text: isShippingAdvise ? (payload.eta_text ?? "") : (payload.deadline_text ?? ""),
+          deadline_text: isShippingAdvise
+            ? (payload.eta_text ?? "")
+            : isDeliveryConfirmation
+              ? (payload.delivery_date ?? "")
+              : (payload.deadline_text ?? ""),
         };
         const updated = await saveForm(payload);
         if (updated?.id != null) setSiFormId(updated.id);
@@ -962,6 +1015,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           siform_to_id: null,
           to_text: null,
           deadline_text: null,
+          delivery_date: null,
           header_pic_id: null,
           header_date: null,
 
@@ -1124,13 +1178,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ["DESTINATION", formData.to || "-"],
         ["ETA", formData.deadline || "-"],
         ["TRANSPORT DETAILS", formData.transportDetails || "-"],
-        ["DATE", formData.date || "-"],
       ]
       : isDeliveryConfirmation
         ? [
           ["JOB NO", formData.jobNo || "-"],
           ["PIC", formData.pic || "-"],
-          ["DATE", formData.date || "-"],
           ["DELIVERY DATE", formData.deadline || "-"],
           ["LOCATION", formData.to || "-"],
         ]
@@ -1139,7 +1191,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ["JOB NO", formData.jobNo || "-"],
             ["SO NO", formData.soNo || "-"],
             ["PIC", formData.pic || "-"],
-            ["DATE", formData.date || "-"],
             ["DEADLINE", formData.deadline || "-"],
             ["LOCATION", formData.to || "-"],
           ]
@@ -1958,6 +2009,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           placeholder="Select PIC..."
                           _placeholder={{ color: "whiteAlpha.800" }}
                           style={{ color: "white" }}
+                        />
+                      </FormControl>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="date-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          DATE :
+                        </FormLabel>
+                        <Input
+                          id="date-delivery"
+                          type="date"
+                          value={formData.date}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("date", e.target.value);
+                          }}
+                          size="sm"
+                          fontWeight="semibold"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
                         />
                       </FormControl>
                       <FormControl display="contents">
