@@ -42,15 +42,35 @@ import {
   postShippingAdviseFormApi,
   postShippingAdviseFormUpdateApi,
 } from "../../../../api/shippingAdvise";
+import {
+  getDeliveryInstructionOptionsApi,
+  postDeliveryInstructionFormApi,
+  postDeliveryInstructionFormUpdateApi,
+} from "../../../../api/deliveryInstruction";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ShippingInstructionDetail({ formType = "instruction" }) {
   const isShippingAdvise = formType === "advise";
+  const isDeliveryForm = formType === "delivery";
+  const isDeliveryConfirmation = formType === "deliveryConfirmation";
+  const isDeliveryLike = isDeliveryForm || isDeliveryConfirmation;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const loadFormLatest = isShippingAdvise ? postShippingAdviseFormApi : postSiFormApi;
-  const loadOptions = isShippingAdvise ? getShippingAdviseOptionsApi : getSiFormOptionsApi;
-  const saveForm = isShippingAdvise ? postShippingAdviseFormUpdateApi : postSiFormUpdateApi;
+  const loadFormLatest = isShippingAdvise
+    ? postShippingAdviseFormApi
+    : isDeliveryForm
+      ? postDeliveryInstructionFormApi
+      : postSiFormApi;
+  const loadOptions = isShippingAdvise
+    ? getShippingAdviseOptionsApi
+    : isDeliveryForm
+      ? getDeliveryInstructionOptionsApi
+      : getSiFormOptionsApi;
+  const saveForm = isShippingAdvise
+    ? postShippingAdviseFormUpdateApi
+    : isDeliveryForm
+      ? postDeliveryInstructionFormUpdateApi
+      : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
   const {
@@ -97,6 +117,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   // Form state
   const [formData, setFormData] = useState({
     vessel: "",
+    deliveryToAt: "",
     consignBlock: "",
     siNo: "", // stores selected option id
     jobNo: "",
@@ -145,6 +166,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       lwh: "",
       ww: 0,
       stockItemId: "",
+      awbNumber: "",
     },
     {
       id: 2,
@@ -159,6 +181,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       lwh: "",
       ww: 0,
       stockItemId: "",
+      awbNumber: "",
     },
   ]);
 
@@ -212,6 +235,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       lwh: "",
       ww: 0,
       stockItemId: "",
+      awbNumber: "",
     },
     {
       id: 2,
@@ -226,6 +250,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       lwh: "",
       ww: 0,
       stockItemId: "",
+      awbNumber: "",
     },
   ]);
 
@@ -261,9 +286,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : "";
 
     const siId =
-      form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "";
+      isDeliveryForm
+        ? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : "")
+        : (form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "");
     const siName =
-      form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "";
+      isDeliveryForm
+        ? (form.di_number_id && typeof form.di_number_id === "object" ? (form.di_number_id.name || "") : "")
+        : (form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "");
     const shippedByName =
       form.to_be_shipped_by && form.to_be_shipped_by !== false
         ? String(form.to_be_shipped_by)
@@ -347,10 +376,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         form.vessel_name && form.vessel_name !== false
           ? String(form.vessel_name)
           : prev.vessel,
-      // header card (Shipping Advise API uses sic_number, awb_number, destination_text, eta_text, date, transport_details)
-      siNo: (lockedSiId ?? siId) ?? "",
+      // header card mapping by form type
+      deliveryToAt:
+        isDeliveryLike && form.delivery_to_at != null && form.delivery_to_at !== false
+          ? String(form.delivery_to_at)
+          : "",
+      siNo: isDeliveryForm
+        ? (lockedSiId ?? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : (form.di_number_id ?? ""))) ?? ""
+        : (lockedSiId ?? siId) ?? "",
       jobNo: isShippingAdvise
         ? (form.sic_number != null && form.sic_number !== false ? String(form.sic_number) : "")
+        : isDeliveryForm
+          ? (form.job_no != null && form.job_no !== false
+            ? String(form.job_no)
+            : form.so_number != null && form.so_number !== false
+              ? String(form.so_number)
+              : "")
         : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
       shippedBy: isShippingAdvise
         ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
@@ -379,6 +420,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : null,
       to: isShippingAdvise
         ? (form.destination_text != null && form.destination_text !== false ? String(form.destination_text) : "")
+        : isDeliveryForm
+          ? (form.location_text != null && form.location_text !== false
+            ? String(form.location_text)
+            : form.delivery_to_at != null && form.delivery_to_at !== false
+              ? String(form.delivery_to_at)
+              : toName)
+        : isDeliveryConfirmation
+          ? (form.location_text != null && form.location_text !== false
+              ? String(form.location_text)
+              : form.delivery_to_at != null && form.delivery_to_at !== false
+                ? String(form.delivery_to_at)
+                : toName)
         : (toName ||
           (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
             ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
@@ -391,16 +444,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : null,
       deadline: isShippingAdvise
         ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
+        : isDeliveryForm
+          ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
         : (form.deadline_text && form.deadline_text !== false
           ? String(form.deadline_text)
           : String(lastSubmittedHeaderRef.current.deadline_text || "")),
       pic: isShippingAdvise
         ? ""
-        : resolvedPicId,
+        : isDeliveryForm
+          ? resolvedPicId
+          : resolvedPicId,
       date: isShippingAdvise
         ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
           ? String(form.date)
           : todayIso)
+        : isDeliveryForm
+          ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
+            ? String(form.header_date)
+            : todayIso)
         : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
@@ -498,6 +559,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         origin: originVal,
         warehouseId,
         supplier: supplierName,
+        awbNumber: it.awb_number != null && it.awb_number !== false ? String(it.awb_number) : "",
         poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
         details: it.details && it.details !== false ? String(it.details) : "",
         boxes: Number(it.boxes || 0),
@@ -544,20 +606,29 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           page: 1,
           page_size: 200,
           q_cnee: qCnee,
-          q_si: qSi,
           q_agent: qAgent,
-          q_from: qFrom,
           q_to: qTo,
           agent_id: formData.selectAgent || undefined,
         };
-        if (!isShippingAdvise) {
+        if (isDeliveryForm) {
+          optionsParams.q_di = qSi;
+          optionsParams.q_pic = qShipBy;
+        } else {
+          optionsParams.q_si = qSi;
+          optionsParams.q_from = qFrom;
+        }
+        if (!isShippingAdvise && !isDeliveryForm) {
           optionsParams.q_ship_by = qShipBy;
         }
         const data = await loadOptions(optionsParams);
         if (cancelled) return;
 
-        const result = data?.result;
-        const siNos = Array.isArray(result?.si_number_options) ? result.si_number_options : [];
+        const result = data?.result && typeof data.result === "object" ? data.result : data;
+        const siNos = Array.isArray(result?.si_number_options)
+          ? result.si_number_options
+          : Array.isArray(result?.di_number_options)
+            ? result.di_number_options
+            : [];
         const agents = Array.isArray(result?.agent_options) ? result.agent_options : [];
         const consignees = Array.isArray(result?.cnee_options) ? result.cnee_options : [];
         const pics = Array.isArray(result?.pic_options)
@@ -619,10 +690,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         setConsigneeOptions(formData.selectAgent ? normalizeOptions(consignees) : []);
         setPicOptions(normalizeOptions(pics));
         setFromOptions(normalizeTextOptions(result?.from_options));
-        setShippedByOptions(normalizeTextOptions(result?.shipped_by_options));
-        setToOptions(normalizeTextOptions(result?.to_options));
+        setShippedByOptions(
+          normalizeTextOptions(
+            isDeliveryForm ? (result?.pic_options || result?.pics || []) : result?.shipped_by_options
+          )
+        );
+        setToOptions(normalizeTextOptions(result?.to_options || result?.location_options));
       } catch (e) {
-        console.error("Failed to load SI form options:", e);
+        console.error("Failed to load form options:", e);
       } finally {
         if (!cancelled) setIsOptionsLoading(false);
       }
@@ -632,7 +707,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, isShippingAdvise]);
+  }, [qCnee, qSi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, isShippingAdvise, isDeliveryForm]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -695,7 +770,26 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             sic_number: toNullIfEmpty(formData.jobNo),
             transport_details: toNullIfEmpty(formData.transportDetails),
           }
-          : {
+          : isDeliveryForm
+            ? {
+              di_number_id:
+                formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
+                  ? Number(formData.siNo)
+                  : null,
+              header_pic_id:
+                formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
+                  ? Number(formData.pic)
+                  : null,
+              header_date: formData.date ?? "",
+              deadline_text: formData.deadline ?? "",
+              delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
+              siform_to_id:
+                formData.toId != null && Number.isFinite(Number(formData.toId))
+                  ? Number(formData.toId)
+                  : null,
+              location_text: toNullIfEmpty(formData.to),
+            }
+            : {
             si_shipped_by_id:
               formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
                 ? Number(formData.shippedById)
@@ -720,7 +814,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         lastSubmittedHeaderRef.current = {
           to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
-          to_text: isShippingAdvise ? (payload.destination_text ?? "") : (payload.to_text ?? ""),
+          to_text: isShippingAdvise
+            ? (payload.destination_text ?? "")
+            : isDeliveryForm
+              ? (payload.location_text ?? "")
+              : (payload.to_text ?? ""),
           deadline_text: isShippingAdvise ? (payload.eta_text ?? "") : (payload.deadline_text ?? ""),
         };
         const updated = await saveForm(payload);
@@ -739,6 +837,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     return () => clearTimeout(timeoutId);
   }, [
+    formData.deliveryToAt,
     formData.shippedBy,
     formData.shippedById,
     formData.from,
@@ -922,7 +1021,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const dateTag = new Date().toISOString().slice(0, 10);
     return isShippingAdvise
       ? `shipping-advise-${dateTag}.pdf`
-      : `shipping-instruction-${dateTag}.pdf`;
+      : isDeliveryConfirmation
+        ? `delivery-confirmation-${dateTag}.pdf`
+        : isDeliveryForm
+        ? `delivery-instruction-${dateTag}.pdf`
+        : `shipping-instruction-${dateTag}.pdf`;
   };
 
   /** Builds the same PDF used for preview, download, and print */
@@ -960,7 +1063,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     const docTitle = isShippingAdvise
       ? `Shipping Advise - ${formData.vessel || "-"}`
-      : `Shipping Instruction - ${formData.vessel || "-"}`;
+      : isDeliveryConfirmation
+        ? `Delivery Confirmation - ${formData.vessel || "-"}`
+      : isDeliveryForm
+        ? `Delivery Instruction - ${formData.vessel || "-"}`
+        : `Shipping Instruction - ${formData.vessel || "-"}`;
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
@@ -979,7 +1086,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     autoTable(doc, {
       startY: twoColStartY,
-      head: [[isShippingAdvise ? "SHIP TO" : "CONSIGN TO"]],
+      head: [[isShippingAdvise ? "SHIP TO" : isDeliveryLike ? "FOR DELIVERY TO / AT" : "CONSIGN TO"]],
       body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
       theme: "plain",
       styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
@@ -992,16 +1099,33 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     const summaryRows = isShippingAdvise
       ? [
-          ["SI NUMBER", siNoLabel || "-"],
-          ["SIC NUMBER", formData.jobNo || "-"],
-          ["AWB NUMBER", formData.shippedBy || "-"],
-          ["FROM", formData.from || "-"],
-          ["DESTINATION", formData.to || "-"],
-          ["ETA", formData.deadline || "-"],
-          ["TRANSPORT DETAILS", formData.transportDetails || "-"],
+        ["SI NUMBER", siNoLabel || "-"],
+        ["SIC NUMBER", formData.jobNo || "-"],
+        ["AWB NUMBER", formData.shippedBy || "-"],
+        ["FROM", formData.from || "-"],
+        ["DESTINATION", formData.to || "-"],
+        ["ETA", formData.deadline || "-"],
+        ["TRANSPORT DETAILS", formData.transportDetails || "-"],
+        ["DATE", formData.date || "-"],
+      ]
+      : isDeliveryConfirmation
+        ? [
+          ["JOB NO", formData.jobNo || "-"],
+          ["PIC", formData.pic || "-"],
           ["DATE", formData.date || "-"],
+          ["DELIVERY DATE", formData.deadline || "-"],
+          ["LOCATION", formData.to || "-"],
         ]
-      : [
+        : isDeliveryForm
+        ? [
+          ["JOB NO", formData.jobNo || "-"],
+          ["SO NO", siNoLabel || "-"],
+          ["PIC", formData.pic || "-"],
+          ["DATE", formData.date || "-"],
+          ["DEADLINE", formData.deadline || "-"],
+          ["LOCATION", formData.to || "-"],
+        ]
+        : [
           ["SI NO", siNoLabel || "-"],
           ["JOB NO", formData.jobNo || "-"],
           ["TO BE SHIPPED BY", formData.shippedBy || "-"],
@@ -1068,35 +1192,61 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         Number(totals.ww || 0).toFixed(2),
         "",
       ]);
-    } else {
-      cargoHead = ["ORIGIN", "WAREHOUSE ID", "SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH"];
+    } else if (isDeliveryConfirmation) {
+      cargoHead = ["STOKITEM ID", "WAREHOUSE ID", "AWB", "FROM", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
       cargoRows = (cargoItems || []).map((item) => [
+        item.stockItemId || "-",
+        item.warehouseId || "-",
+        item.awbNumber || formData.shippedBy || "-",
+        item.origin || "-",
+        item.supplier || "-",
+        item.poNumber || "-",
+        String(item.boxes ?? "-"),
+        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        item.lwh || "-",
+      ]);
+    } else if (isDeliveryForm) {
+      cargoHead = ["STOKITEM ID", "AWB", "FROM", "WAREHOUSE ID", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoRows = (cargoItems || []).map((item) => [
+        item.stockItemId || "-",
+        item.awbNumber || formData.shippedBy || "-",
         item.origin || "-",
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        item.lwh || "-",
+      ]);
+    } else {
+      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH", "ORIGIN", "WAREHOUSE ID"];
+      cargoRows = (cargoItems || []).map((item) => [
+        item.supplier || "-",
+        item.poNumber || "-",
+        String(item.boxes ?? "-"),
+        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
         item.lwh || "-",
+        item.origin || "-",
+        item.warehouseId || "-",
       ]);
       cargoRows.push([
         "CARGO TO BE SHIPPED",
         "",
-        "",
-        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
+        "",
+        "",
         "",
         "",
       ]);
       cargoRows.push([
         "PACKED AS",
         "",
-        "",
-        "",
         String(formData.totalPackedQuantity ?? ""),
         String(formData.totalPackedWeight ?? ""),
+        "",
+        "",
         "",
         "",
       ]);
@@ -1182,7 +1332,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               loadingText="Preparing…"
               onClick={handleOpenPdfPreview}
             >
-              Preview PDF
+              PDF
             </Button>
           </HStack>
         </Flex>
@@ -1190,7 +1340,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <Text fontSize="2xl" fontWeight="bold" mb={6}>
           {isShippingAdvise
             ? `SHIPPING ADVISE FOR ${formData.vessel}`
-            : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
+            : isDeliveryConfirmation
+              ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel}`
+            : isDeliveryForm
+              ? `POD FOR M/V ${formData.vessel}`
+              : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
         <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={4} mb={6}>
@@ -1198,7 +1352,31 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
               <Box>
                 <Text fontSize="sm" fontWeight="bold" mb={2}>
-                  {isShippingAdvise ? "SHIP TO:" : "CONSIGN TO:"}
+                  {isShippingAdvise ? "SHIP TO:" : isDeliveryLike ? "TO DELIVER TO AT:" : "CONSIGN TO:"}
+                </Text>
+                {isDeliveryLike && (
+                  <Input
+                    id="delivery-to-at"
+                    value={formData.deliveryToAt}
+                    onChange={(e) => {
+                      headerUserEditedRef.current = true;
+                      handleInputChange("deliveryToAt", e.target.value);
+                    }}
+                    size="sm"
+                    fontWeight="semibold"
+                    mb={2}
+                    variant="unstyled"
+                    bg="orange.400"
+                    color="white"
+                    px={3}
+                    py={1}
+                    borderRadius="sm"
+                    placeholder="Type delivery to at..."
+                    _placeholder={{ color: "whiteAlpha.800" }}
+                  />
+                )}
+                <Text fontSize="sm" fontWeight="bold" mb={2}>
+                  {isDeliveryLike ? "IN LIASON WITH :" : (isShippingAdvise ? "SHIP TO:" : "CONSIGN TO:")}
                 </Text>
                 <Textarea
                   value={formData.consignBlock || ""}
@@ -1225,167 +1403,240 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
               <Box bg="orange.400" p={3} borderRadius="md">
                 <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="siNo"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "SI NUMBER:" : "SI NO:"}
-                    </FormLabel>
-                    <SimpleSearchableSelect
-                      id="siNo"
-                      value={formData.siNo}
-                      onChange={async (val) => {
-                        const v = val ?? "";
-                        handleInputChange("siNo", v);
-                        const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
-                        setQSi(selectedName);
-                        setQCnee("");
+                  {!isShippingAdvise && !isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor={isDeliveryForm ? "jobNo-delivery" : "siNo"}
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        {isDeliveryForm ? "JOB NO :" : (isShippingAdvise ? "SI NUMBER:" : "SI NO:")}
+                      </FormLabel>
+                      {isDeliveryForm ? (
+                        <Input
+                          id="jobNo-delivery"
+                          value={formData.jobNo}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("jobNo", e.target.value);
+                          }}
+                          size="sm"
+                          fontWeight="semibold"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                        />
+                      ) : (
+                        <SimpleSearchableSelect
+                          id="siNo"
+                          value={formData.siNo}
+                          onChange={async (val) => {
+                            const v = val ?? "";
+                            handleInputChange("siNo", v);
+                            const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                            setQSi(selectedName);
+                            setQCnee("");
 
-                        // When an SI number is chosen: update SI form, then render returned form
-                        if (v === "") return;
-                        try {
-                          setIsSiFormLoading(true);
-                          if (!siFormId) {
-                            const latestBefore = await loadFormLatest({ latest_only: true });
-                            if (latestBefore?.id) setSiFormId(latestBefore.id);
-                          }
-                          const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
-                          if (!isShippingAdvise && !currentId) return;
-                          const updated = await saveForm(
-                            buildSavePayloadWithId(currentId, { si_number_id: Number(v) })
-                          );
-                          if (updated?.id != null) setSiFormId(updated.id);
-                          applySiFormResponse(updated, {
-                            lockedSiId: v,
-                            lockedAgentId: formData.selectAgent,
-                          });
-                        } catch (e) {
-                          console.error("Failed to load SI form by SI number:", e);
-                        } finally {
-                          setIsSiFormLoading(false);
-                        }
-                      }}
-                      onSearchChange={(txt) => {
-                        setQSi(txt ?? "");
-                        setQCnee("");
-                      }}
-                      prefillOnFocus={false}
-                      options={siOptions}
-                      displayKey="name"
-                      valueKey="id"
-                      size="sm"
-                      bg="transparent"
-                      borderColor="transparent"
-                      variant="unstyled"
-                      px={0}
-                      py={0}
-                      _focus={{ boxShadow: "none", outline: "none" }}
-                      _focusVisible={{ boxShadow: "none", outline: "none" }}
-                      isLoading={isOptionsLoading || isSiFormLoading}
-                      style={{
-                        color: "white",
-                      }}
-                      placeholder="Select SI number..."
-                      _placeholder={{ color: "whiteAlpha.800" }}
-                    />
-                  </FormControl>
+                            // When an SI number is chosen: update SI form, then render returned form
+                            if (v === "") return;
+                            try {
+                              setIsSiFormLoading(true);
+                              if (!siFormId) {
+                                const latestBefore = await loadFormLatest({ latest_only: true });
+                                if (latestBefore?.id) setSiFormId(latestBefore.id);
+                              }
+                              const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                              if (!isShippingAdvise && !currentId) return;
+                              const updated = await saveForm(
+                                buildSavePayloadWithId(
+                                  currentId,
+                                  isDeliveryForm
+                                    ? { di_number_id: Number(v) }
+                                    : { si_number_id: Number(v) }
+                                )
+                              );
+                              if (updated?.id != null) setSiFormId(updated.id);
+                              applySiFormResponse(updated, {
+                                lockedSiId: v,
+                                lockedAgentId: formData.selectAgent,
+                              });
+                            } catch (e) {
+                              console.error("Failed to load SI form by SI number:", e);
+                            } finally {
+                              setIsSiFormLoading(false);
+                            }
+                          }}
+                          onSearchChange={(txt) => {
+                            setQSi(txt ?? "");
+                            setQCnee("");
+                          }}
+                          prefillOnFocus={false}
+                          options={siOptions}
+                          displayKey="name"
+                          valueKey="id"
+                          size="sm"
+                          bg="transparent"
+                          borderColor="transparent"
+                          variant="unstyled"
+                          px={0}
+                          py={0}
+                          _focus={{ boxShadow: "none", outline: "none" }}
+                          _focusVisible={{ boxShadow: "none", outline: "none" }}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          style={{
+                            color: "white",
+                          }}
+                          placeholder="Select SI number..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                      )}
+                    </FormControl>
+                  )}
 
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="jobNo"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "SIC NUMBER:" : "JOB NO:"}
-                    </FormLabel>
-                    <Box bg="orange.200" px={2} py={1} borderRadius="sm">
+                  {!isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor={isDeliveryForm ? "siNo-delivery" : "jobNo"}
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        {isDeliveryForm ? "SO NO:" : (isShippingAdvise ? "SIC NUMBER:" : "JOB NO:")}
+                      </FormLabel>
+                      {isDeliveryForm ? (
+                        <SimpleSearchableSelect
+                          id="siNo-delivery"
+                          value={formData.siNo}
+                          onChange={async (val) => {
+                            const v = val ?? "";
+                            handleInputChange("siNo", v);
+                            const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                            setQSi(selectedName);
+                            if (v === "") return;
+                            try {
+                              setIsSiFormLoading(true);
+                              const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                              if (!currentId) return;
+                              const updated = await saveForm(
+                                buildSavePayloadWithId(currentId, { di_number_id: Number(v) })
+                              );
+                              if (updated?.id != null) setSiFormId(updated.id);
+                              applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
+                            } catch (e) {
+                              console.error("Failed to update SO number:", e);
+                            } finally {
+                              setIsSiFormLoading(false);
+                            }
+                          }}
+                          onSearchChange={(txt) => setQSi(txt ?? "")}
+                          prefillOnFocus={false}
+                          options={siOptions}
+                          displayKey="name"
+                          valueKey="id"
+                          size="sm"
+                          bg="transparent"
+                          borderColor="transparent"
+                          variant="unstyled"
+                          px={0}
+                          py={0}
+                          _focus={{ boxShadow: "none", outline: "none" }}
+                          _focusVisible={{ boxShadow: "none", outline: "none" }}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          style={{ color: "white" }}
+                          placeholder="Select SO number..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                      ) : (
+                        <Box bg="orange.200" px={2} py={1} borderRadius="sm">
+                          <Input
+                            id="jobNo"
+                            value={formData.jobNo}
+                            onChange={(e) => handleInputChange("jobNo", e.target.value)}
+                            size="sm"
+                            fontWeight="medium"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="gray.800"
+                          />
+                        </Box>
+                      )}
+                    </FormControl>
+                  )}
+
+                  {!isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="shippedBy"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        {isShippingAdvise ? "AWB NUMBER:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
+                      </FormLabel>
                       <Input
-                        id="jobNo"
-                        value={formData.jobNo}
-                        onChange={(e) => handleInputChange("jobNo", e.target.value)}
+                        id="shippedBy"
+                        list="si-shipped-by-options"
+                        value={formData.shippedBy}
+                        onChange={(e) => {
+                          const nextVal = e.target.value;
+                          headerUserEditedRef.current = true;
+                          handleInputChange("shippedBy", nextVal);
+                          handleInputChange("shippedById", getTextOptionIdByValue(shippedByOptions, nextVal));
+                          setQShipBy(nextVal);
+                        }}
                         size="sm"
                         fontWeight="medium"
                         variant="unstyled"
                         bg="transparent"
-                        color="gray.800"
-
+                        color="white"
+                        placeholder="Select or type shipped by..."
+                        _placeholder={{ color: "whiteAlpha.800" }}
                       />
-                    </Box>
-                  </FormControl>
+                      <datalist id="si-shipped-by-options">
+                        {shippedByOptions.map((opt) => (
+                          <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                        ))}
+                      </datalist>
+                    </FormControl>
+                  )}
 
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="shippedBy"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      {isShippingAdvise ? "AWB NUMBER:" : "TO BE SHIPPED BY:"}
-                    </FormLabel>
-                    <Input
-                      id="shippedBy"
-                      list="si-shipped-by-options"
-                      value={formData.shippedBy}
-                      onChange={(e) => {
-                        const nextVal = e.target.value;
-                        headerUserEditedRef.current = true;
-                        handleInputChange("shippedBy", nextVal);
-                        handleInputChange("shippedById", getTextOptionIdByValue(shippedByOptions, nextVal));
-                        setQShipBy(nextVal);
-                      }}
-                      size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
-                      bg="transparent"
-                      color="white"
-                      placeholder="Select or type shipped by..."
-                      _placeholder={{ color: "whiteAlpha.800" }}
-                    />
-                    <datalist id="si-shipped-by-options">
-                      {shippedByOptions.map((opt) => (
-                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
-                      ))}
-                    </datalist>
-                  </FormControl>
-
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="from"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      FROM:
-                    </FormLabel>
-                    <Input
-                      id="from"
-                      list="si-from-options"
-                      value={formData.from}
-                      onChange={(e) => {
-                        const nextVal = e.target.value;
-                        headerUserEditedRef.current = true;
-                        handleInputChange("from", nextVal);
-                        handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
-                        setQFrom(nextVal);
-                      }}
-                      size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
-                      bg="transparent"
-                      color="white"
-                      placeholder="Select or type origin..."
-                      _placeholder={{ color: "whiteAlpha.800" }}
-                    />
-                    <datalist id="si-from-options">
-                      {fromOptions.map((opt) => (
-                        <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
-                      ))}
-                    </datalist>
-                  </FormControl>
+                  {!isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="from"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        FROM:
+                      </FormLabel>
+                      <Input
+                        id="from"
+                        list="si-from-options"
+                        value={formData.from}
+                        onChange={(e) => {
+                          const nextVal = e.target.value;
+                          headerUserEditedRef.current = true;
+                          handleInputChange("from", nextVal);
+                          handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
+                          setQFrom(nextVal);
+                        }}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="white"
+                        placeholder="Select or type origin..."
+                        _placeholder={{ color: "whiteAlpha.800" }}
+                      />
+                      <datalist id="si-from-options">
+                        {fromOptions.map((opt) => (
+                          <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                        ))}
+                      </datalist>
+                    </FormControl>
+                  )}
 
                   {isShippingAdvise && (
                     <FormControl display="contents">
@@ -1415,6 +1666,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </FormControl>
                   )}
 
+                  {!isDeliveryLike && (
                   <FormControl display="contents">
                     <FormLabel
                       htmlFor="to"
@@ -1422,7 +1674,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       textTransform="uppercase"
                       m={0}
                     >
-                      {isShippingAdvise ? "DESTINATION:" : "TO:"}
+                      {isShippingAdvise ? "DESTINATION:" : isDeliveryForm ? "LOCATION:" : "TO:"}
                     </FormLabel>
                     <Input
                       id="to"
@@ -1449,7 +1701,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       ))}
                     </datalist>
                   </FormControl>
+                  )}
 
+                  {!isDeliveryLike && (
                   <FormControl display="contents">
                     <FormLabel
                       htmlFor="deadline-text"
@@ -1519,8 +1773,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       />
                     </Box>
                   </FormControl>
+                  )}
 
-                  {!isShippingAdvise && (
+                  {!isShippingAdvise && !isDeliveryLike && (
                     <FormControl display="contents">
                       <FormLabel
                         htmlFor="pic"
@@ -1557,37 +1812,256 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </FormControl>
                   )}
 
-                  <FormControl display="contents">
-                    <FormLabel
-                      htmlFor="date"
-                      fontWeight="bold"
-                      textTransform="uppercase"
-                      m={0}
-                    >
-                      DATE:
-                    </FormLabel>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => {
-                        headerUserEditedRef.current = true;
-                        handleInputChange("date", e.target.value);
-                      }}
-                      size="sm"
-                      fontWeight="medium"
-                      variant="unstyled"
-                      bg="transparent"
-                      color="white"
-                    />
-                  </FormControl>
+                  {!isDeliveryLike && (
+                    <FormControl display="contents">
+                      <FormLabel
+                        htmlFor="date"
+                        fontWeight="bold"
+                        textTransform="uppercase"
+                        m={0}
+                      >
+                        DATE:
+                      </FormLabel>
+                      <Input
+                        id="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={(e) => {
+                          headerUserEditedRef.current = true;
+                          handleInputChange("date", e.target.value);
+                        }}
+                        size="sm"
+                        fontWeight="medium"
+                        variant="unstyled"
+                        bg="transparent"
+                        color="white"
+                      />
+                    </FormControl>
+                  )}
+
+                  {isDeliveryLike && (
+                    <>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="job-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          JOB NO :
+                        </FormLabel>
+                        {isDeliveryForm ? (
+                          <SimpleSearchableSelect
+                            id="job-delivery"
+                            value={formData.siNo}
+                            onChange={async (val) => {
+                              const v = val ?? "";
+                              handleInputChange("siNo", v);
+                              const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                              setQSi(selectedName);
+                              if (v === "") return;
+                              try {
+                                setIsSiFormLoading(true);
+                                const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                                if (!currentId) return;
+                                const updated = await saveForm(
+                                  buildSavePayloadWithId(currentId, { di_number_id: Number(v) })
+                                );
+                                if (updated?.id != null) setSiFormId(updated.id);
+                                applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
+                              } catch (e) {
+                                console.error("Failed to update DI number:", e);
+                              } finally {
+                                setIsSiFormLoading(false);
+                              }
+                            }}
+                            onSearchChange={(txt) => setQSi(txt ?? "")}
+                            prefillOnFocus={false}
+                            options={siOptions}
+                            displayKey="name"
+                            valueKey="id"
+                            size="sm"
+                            bg="transparent"
+                            borderColor="transparent"
+                            variant="unstyled"
+                            px={0}
+                            py={0}
+                            _focus={{ boxShadow: "none", outline: "none" }}
+                            _focusVisible={{ boxShadow: "none", outline: "none" }}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            style={{ color: "white" }}
+                            placeholder="Select DI number..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                          />
+                        ) : (
+                          <Input
+                            id="job-delivery"
+                            value={formData.jobNo}
+                            onChange={(e) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("jobNo", e.target.value);
+                            }}
+                            size="sm"
+                            fontWeight="semibold"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                            placeholder="Type job number..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                          />
+                        )}
+                      </FormControl>
+                      {isDeliveryForm && (
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          SO NO:
+                        </FormLabel>
+                        <Input
+                          id="so-delivery"
+                          value={formData.jobNo}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("jobNo", e.target.value);
+                          }}
+                          size="sm"
+                          fontWeight="semibold"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="SO number"
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                      </FormControl>
+                      )}
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          PIC :
+                        </FormLabel>
+                        <SimpleSearchableSelect
+                          id="pic-delivery"
+                          value={formData.pic}
+                          onChange={(val) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("pic", val ?? "");
+                          }}
+                          options={picOptions}
+                          displayKey="name"
+                          valueKey="id"
+                          prefillOnFocus={false}
+                          size="sm"
+                          bg="transparent"
+                          borderColor="transparent"
+                          variant="unstyled"
+                          px={0}
+                          py={0}
+                          _focus={{ boxShadow: "none", outline: "none" }}
+                          _focusVisible={{ boxShadow: "none", outline: "none" }}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          color="white"
+                          placeholder="Select PIC..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                          style={{ color: "white" }}
+                        />
+                      </FormControl>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="deadline-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          {isDeliveryConfirmation ? "DELIVERY DATE :" : "DEADLINE :"}
+                        </FormLabel>
+                        <Box position="relative">
+                          <Input
+                            id="deadline-delivery"
+                            type="text"
+                            value={formData.deadline}
+                            onChange={(e) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("deadline", e.target.value);
+                            }}
+                            size="sm"
+                            fontWeight="semibold"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                            pr="28px"
+                            placeholder={isDeliveryConfirmation ? "Type delivery date or pick a date" : "Type deadline or pick a date"}
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                          />
+                          <Input
+                            ref={deadlinePickerRef}
+                            type="date"
+                            value={formData.deadline}
+                            onChange={(e) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("deadline", e.target.value);
+                            }}
+                            position="absolute"
+                            opacity={0}
+                            pointerEvents="none"
+                            h="1px"
+                            w="1px"
+                            p={0}
+                            border={0}
+                            overflow="hidden"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                          />
+                          <IconButton
+                            aria-label="Open delivery deadline calendar"
+                            icon={<Icon as={MdCalendarToday} />}
+                            size="xs"
+                            variant="ghost"
+                            color="whiteAlpha.900"
+                            position="absolute"
+                            right="0"
+                            top="50%"
+                            transform="translateY(-50%)"
+                            onClick={() => {
+                              const pickerEl = deadlinePickerRef.current;
+                              if (!pickerEl) return;
+                              if (typeof pickerEl.showPicker === "function") {
+                                pickerEl.showPicker();
+                              } else {
+                                pickerEl.focus();
+                                pickerEl.click();
+                              }
+                            }}
+                          />
+                        </Box>
+                      </FormControl>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="location-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          LOCATION :
+                        </FormLabel>
+                        <Input
+                          id="location-delivery"
+                          list="si-to-options"
+                          value={formData.to}
+                          onChange={(e) => {
+                            headerUserEditedRef.current = true;
+                            const nextVal = e.target.value;
+                            handleInputChange("to", nextVal);
+                            handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                            setQTo(nextVal);
+                          }}
+                          size="sm"
+                          fontWeight="semibold"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="Select or type location..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                        <datalist id="si-to-options">
+                          {toOptions.map((opt) => (
+                            <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
+                          ))}
+                        </datalist>
+                      </FormControl>
+                    </>
+                  )}
                 </Grid>
               </Box>
             </Grid>
 
             <Box>
               <Text fontSize="sm" fontWeight="bold" mb={2}>
-                CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:
+                {isDeliveryLike
+                  ? "CARGO TO BE DELIVERED TO THE VESSEL:"
+                  : "CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:"}
               </Text>
               <Box overflowX="auto">
                 <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
@@ -1596,21 +2070,34 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       {isShippingAdvise && (
                         <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
                       )}
+                      {isDeliveryForm && (
+                        <>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
+                        </>
+                      )}
+                      {isDeliveryConfirmation && (
+                        <>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
+                        </>
+                      )}
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">FROM</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                      {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>}
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{isDeliveryLike ? "SUPLIER" : "SUPPLIER"}</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                      {!isShippingAdvise && (
+                      {!isShippingAdvise && !isDeliveryLike && (
                         <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN NUMBER</Th>
                       )}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{isShippingAdvise ? "BOXES" : "PCS"}</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{(isShippingAdvise || isDeliveryLike) ? "BOXES" : "PCS"}</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
+                      {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
                       {isShippingAdvise && (
                         <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">VW</Th>
                       )}
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
-                      {!isShippingAdvise && (
+                      {!isShippingAdvise && !isDeliveryLike && (
                         <>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">WW</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
@@ -1624,23 +2111,36 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         {isShippingAdvise && (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
                         )}
+                        {isDeliveryForm && (
+                          <>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                          </>
+                        )}
+                        {isDeliveryConfirmation && (
+                          <>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                          </>
+                        )}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                        {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                           {item.warehouseId || ""}
-                        </Td>
+                        </Td>}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
-                        {!isShippingAdvise && (
+                        {!isShippingAdvise && !isDeliveryLike && (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.details || ""}</Td>
                         )}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
+                        {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
                         {isShippingAdvise ? (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.ww.toFixed(2)}</Td>
                         ) : null}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
-                        {!isShippingAdvise && (
+                        {!isShippingAdvise && !isDeliveryLike && (
                           <>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.ww.toFixed(2)}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
@@ -1649,19 +2149,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       </Tr>
                     ))}
                     <Tr bg="gray.100" fontWeight="bold">
-                      <Td colSpan={isShippingAdvise ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                      <Td colSpan={isShippingAdvise ? 6 : isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                         CARGO TO BE SHIPPED:
                       </Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                      {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      {!isShippingAdvise && (
+                      {!isShippingAdvise && !isDeliveryLike && (
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
                       )}
-                      <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
+                      {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
                     </Tr>
-                    {!isShippingAdvise && (
+                    {!isShippingAdvise && !isDeliveryLike && (
                       <Tr bg="gray.50">
                         <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
                           PACKED AS:
