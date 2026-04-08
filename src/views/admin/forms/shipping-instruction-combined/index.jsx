@@ -1,0 +1,7 @@
+import React from "react";
+import ShippingInstructionDetail from "../shipping-instructions/ShippingInstructionDetail";
+
+export default function ShippingInstructionCombined() {
+  return <ShippingInstructionDetail formType="sicCombined" />;
+}
+

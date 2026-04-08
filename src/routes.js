@@ -64,6 +64,7 @@ import DeliveryInstructions from "views/admin/forms/delivery-instructions";
 import DeliveryInstructionDetail from "views/admin/forms/delivery-instructions/DeliveryInstructionDetail";
 import DeliveryConfirmation from "views/admin/forms/delivery-confirmation";
 import ShippingAdvise from "views/admin/forms/shipping-confirmation";
+import ShippingInstructionCombined from "views/admin/forms/shipping-instruction-combined";
 
 
 // Configurations Imports
@@ -218,6 +219,19 @@ const routes = [
           />
         ),
         component: ShippingInstructions,
+      },
+      {
+        name: "(SIC) Shipping Instuction combined",
+        path: "/forms/sic-shipping-instruction-combined",
+        icon: (
+          <Icon
+            as={MdDirectionsBoat}
+            width="20px"
+            height="20px"
+            color="inherit"
+          />
+        ),
+        component: ShippingInstructionCombined,
       },
       {
         name: "Shipping Advise",
