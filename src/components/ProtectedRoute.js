@@ -3,7 +3,11 @@ import { Route, useHistory } from "react-router-dom";
 import { useUser } from "../redux/hooks/useUser";
 import { Spinner, Center } from "@chakra-ui/react";
 
-const ProtectedRoute = ({ component: Component, ...rest }) => {
+const ProtectedRoute = ({
+  component: Component,
+  redirectPath = "/auth/sign-in",
+  ...rest
+}) => {
   const history = useHistory();
   const { isAuthenticated, token, checkAuth } = useUser();
   const [isChecking, setIsChecking] = useState(true);
@@ -27,9 +31,9 @@ const ProtectedRoute = ({ component: Component, ...rest }) => {
     // If not authenticated and no token, redirect to login
     // Only run this after the initial check is complete
     if (!isChecking && !isAuthenticated && !token) {
-      history.push("/auth/sign-in");
+      history.push(redirectPath);
     }
-  }, [isAuthenticated, token, history, isChecking]);
+  }, [isAuthenticated, token, history, isChecking, redirectPath]);
 
   // Show loading spinner while checking authentication
   if (isChecking) {

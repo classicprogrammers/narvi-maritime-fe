@@ -157,6 +157,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     date: "",
     totalPackedQuantity: "",
     totalPackedWeight: "",
+    totalPackedVw: "",
     selectAgent: "", // stores selected agent id
     selectConsignee: "", // stores selected option id
     company: "",
@@ -188,7 +189,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       kg: 0,
       cbm: 0,
       lwh: "",
-      ww: 0,
+      vw: 0,
       stockItemId: "",
       awbNumber: "",
     },
@@ -203,7 +204,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       kg: 0,
       cbm: 0,
       lwh: "",
-      ww: 0,
+      vw: 0,
       stockItemId: "",
       awbNumber: "",
     },
@@ -214,7 +215,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     boxes: cargoItems.reduce((sum, item) => sum + item.boxes, 0),
     kg: cargoItems.reduce((sum, item) => sum + item.kg, 0),
     cbm: cargoItems.reduce((sum, item) => sum + item.cbm, 0),
-    ww: cargoItems.reduce((sum, item) => sum + item.ww, 0),
+    vw: cargoItems.reduce((sum, item) => sum + item.vw, 0),
   };
 
   const handleInputChange = (field, value) => {
@@ -272,7 +273,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       kg: 0,
       cbm: 0,
       lwh: "",
-      ww: 0,
+      vw: 0,
       stockItemId: "",
       awbNumber: "",
     },
@@ -287,7 +288,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       kg: 0,
       cbm: 0,
       lwh: "",
-      ww: 0,
+      vw: 0,
       stockItemId: "",
       awbNumber: "",
     },
@@ -361,6 +362,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
       weight: stockList.reduce((sum, it) => sum + Number(it?.kg || 0), 0),
+      vw: stockList.reduce((sum, it) => sum + Number(it?.vw ?? it?.ww ?? 0), 0),
     };
     const hasPackedQty =
       form.total_packed_quantity != null &&
@@ -370,7 +372,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       form.total_packed_weight != null &&
       form.total_packed_weight !== false &&
       form.total_packed_weight !== "";
-    packedTotalsUserEditedRef.current = Boolean(hasPackedQty || hasPackedWeight);
+    const hasPackedVw =
+      form.total_packed_vw != null &&
+      form.total_packed_vw !== false &&
+      form.total_packed_vw !== "";
+    packedTotalsUserEditedRef.current = Boolean(hasPackedQty || hasPackedWeight || hasPackedVw);
 
     const resolvedPicId = (() => {
       const fromHeaderPicIdObj =
@@ -508,6 +514,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
+      totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
       transportDetails:
         isShippingAdvise && form.transport_details && form.transport_details !== false
           ? String(form.transport_details)
@@ -620,7 +627,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         kg: Number(it.kg || 0),
         cbm: Number(it.cbm || 0),
         lwh: lwhVal,
-        ww: Number(it.vw ?? it.ww ?? 0),
+        vw: Number(it.vw ?? it.ww ?? 0),
         stockItemId,
       };
     });
@@ -1031,8 +1038,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ...prev,
       totalPackedQuantity: Number(totals.boxes || 0),
       totalPackedWeight: Number((totals.kg || 0).toFixed(2)),
+      totalPackedVw: Number((totals.vw || 0).toFixed(2)),
     }));
-  }, [totals.boxes, totals.kg]);
+  }, [totals.boxes, totals.kg, totals.vw]);
 
   // Autosave packed totals (debounced)
   useEffect(() => {
@@ -1050,6 +1058,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           buildSavePayloadWithId(currentId, {
             total_packed_quantity: Number(formData.totalPackedQuantity || 0),
             total_packed_weight: Number(formData.totalPackedWeight || 0),
+            total_packed_vw: Number(formData.totalPackedVw || 0),
             ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
             ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
           })
@@ -1068,7 +1077,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [formData.totalPackedQuantity, formData.totalPackedWeight]);
+  }, [formData.totalPackedQuantity, formData.totalPackedWeight, formData.totalPackedVw]);
 
 
   // Button handlers
@@ -1130,6 +1139,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           cnee_text: "",
           total_packed_quantity: 0,
           total_packed_weight: 0,
+          total_packed_vw: 0,
 
           agents_pic: null,
           warnings: "",
@@ -1333,7 +1343,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
-        item.ww != null && item.ww !== "" ? Number(item.ww).toFixed(2) : "-",
+        item.vw != null && item.vw !== "" ? Number(item.vw).toFixed(2) : "-",
         item.lwh || "-",
       ]);
       cargoRows.push([
@@ -1345,7 +1355,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         Number(totals.cbm || 0).toFixed(2),
-        Number(totals.ww || 0).toFixed(2),
+        Number(totals.vw || 0).toFixed(2),
         "",
       ]);
     } else if (isDeliveryConfirmation) {
@@ -1375,13 +1385,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.lwh || "-",
       ]);
     } else {
-      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH", "ORIGIN", "WAREHOUSE ID"];
+      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "WAREHOUSE ID"];
       cargoRows = (cargoItems || []).map((item) => [
         item.supplier || "-",
         item.poNumber || "-",
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
+        item.vw != null && item.vw !== "" ? Number(item.vw).toFixed(2) : "-",
         item.lwh || "-",
         item.origin || "-",
         item.warehouseId || "-",
@@ -1392,6 +1403,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         "",
+        Number(totals.vw || 0).toFixed(2),
         "",
         "",
         "",
@@ -1402,6 +1414,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(formData.totalPackedQuantity ?? ""),
         String(formData.totalPackedWeight ?? ""),
         "",
+        String(formData.totalPackedVw ?? ""),
         "",
         "",
         "",
@@ -2237,25 +2250,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       )}
                       {isDeliveryForm && (
                         <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                         </>
                       )}
                       {isDeliveryConfirmation && (
                         <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOKITEM ID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                         </>
                       )}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">FROM</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
+                        {isShippingAdvise || isDeliveryLike ? "FROM" : "ORIGIN"}
+                      </Th>
                       {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{isDeliveryLike ? "SUPLIER" : "SUPPLIER"}</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
                       {!isShippingAdvise && !isDeliveryLike && (
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN NUMBER</Th>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DETAILS</Th>
                       )}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">{(isShippingAdvise || isDeliveryLike) ? "BOXES" : "PCS"}</Th>
+                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
                       {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
                       {isShippingAdvise && (
@@ -2264,8 +2279,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
                       {!isShippingAdvise && !isDeliveryLike && (
                         <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">WW</Th>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockItemID</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
+                          {isSicCombined && (
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI Number</Th>
+                          )}
                         </>
                       )}
                     </Tr>
@@ -2302,13 +2320,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
                         {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
                         {isShippingAdvise ? (
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.ww.toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.vw.toFixed(2)}</Td>
                         ) : null}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
                         {!isShippingAdvise && !isDeliveryLike && (
                           <>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.ww.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                            {isSicCombined && (
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                                {selectedSiName || siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name || formData.siNo || ""}
+                              </Td>
+                            )}
                           </>
                         )}
                       </Tr>
@@ -2322,9 +2345,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                       <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                       {!isShippingAdvise && !isDeliveryLike && (
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{totals.vw.toFixed(2)}</Td>
                       )}
                       {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
+                      {isSicCombined && !isDeliveryLike && (
+                        <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>
+                      )}
                     </Tr>
                     {!isShippingAdvise && !isDeliveryLike && (
                       <Tr bg="gray.50">
@@ -2364,7 +2390,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100"></Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
+                          <Input
+                            id="totalPackedVw"
+                            type="number"
+                            step="0.01"
+                            value={formData.totalPackedVw}
+                            onChange={(e) => {
+                              packedTotalsUserEditedRef.current = true;
+                              handleInputChange("totalPackedVw", e.target.value);
+                            }}
+                            size="xs"
+                            variant="unstyled"
+                            bg="transparent"
+                            fontWeight="semibold"
+                          />
+                        </Td>
+                        {isSicCombined && (
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                        )}
                       </Tr>
                     )}
                   </Tbody>

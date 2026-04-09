@@ -6,6 +6,8 @@ import { Provider } from "react-redux";
 import store from "./redux/store";
 import AuthLayout from "layouts/auth";
 import AdminLayout from "layouts/admin";
+import ClientLayout from "layouts/client";
+import ClientLogin from "views/client/login";
 import { ChakraProvider } from "@chakra-ui/react";
 import theme from "theme/theme";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -33,6 +35,12 @@ root.render(
               <Route exact path="/" render={() => <Redirect to="/auth/sign-in" />} />
               <Route path={`/auth`} component={AuthLayout} />
               <ProtectedRoute path={`/admin`} component={AdminLayout} />
+              <Route exact path="/Client/login" component={ClientLogin} />
+              <ProtectedRoute
+                path={`/Client`}
+                component={ClientLayout}
+                redirectPath="/Client/login"
+              />
             </Switch>
           </AppWrapper>
         </BrowserRouter>
