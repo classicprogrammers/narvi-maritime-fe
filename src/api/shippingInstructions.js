@@ -40,14 +40,20 @@ export const getSiFormOptionsApi = async ({
   return response.data;
 };
 
-export const postSiFormApi = async ({ agent_cnee_id, si_number_id, latest_only } = {}) => {
+export const postSiFormApi = async ({
+  agent_cnee_id,
+  si_number_id,
+  sic_number_id,
+  latest_only,
+} = {}) => {
   const payload = {};
   if (latest_only === true) payload.latest_only = true;
   if (agent_cnee_id != null && agent_cnee_id !== "") payload.agent_cnee_id = Number(agent_cnee_id);
   if (si_number_id != null && si_number_id !== "") payload.si_number_id = Number(si_number_id);
+  if (sic_number_id != null && sic_number_id !== "") payload.sic_number_id = Number(sic_number_id);
 
   if (Object.keys(payload).length === 0) {
-    throw new Error("latest_only, agent_cnee_id or si_number_id is required");
+    throw new Error("latest_only, agent_cnee_id, si_number_id or sic_number_id is required");
   }
 
   const response = await api.post("/api/si/form", payload);
