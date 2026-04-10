@@ -19,6 +19,7 @@ import {
   Th,
   Td,
   Input,
+  Switch,
   FormControl,
   FormLabel,
   Select,
@@ -166,6 +167,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     cneeText: "",
     agentsPIC: "",
     warnings: "",
+    includeInLiasonWith: false,
   });
 
   // Cargo items
@@ -239,6 +241,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return text === "" ? null : value;
   };
   const getStickyConsigneeId = () => {
+    if (isDeliveryLike) return null;
     if (formData.selectConsignee != null && formData.selectConsignee !== "" && Number.isFinite(Number(formData.selectConsignee))) {
       return Number(formData.selectConsignee);
     }
@@ -248,6 +251,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return null;
   };
   const getStickyAgentId = () => {
+    if (isDeliveryLike) return null;
     if (formData.selectAgent != null && formData.selectAgent !== "" && Number.isFinite(Number(formData.selectAgent))) {
       return Number(formData.selectAgent);
     }
@@ -353,8 +357,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ? String(form.siform_to_id.name)
           : "";
 
-    const cneeTextOnly =
-      form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "";
+    const cneeTextOnly = isDeliveryLike
+      ? (form.in_liason_with && form.in_liason_with !== false ? String(form.in_liason_with) : "")
+      : (form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "");
+    const includeInLiasonWith = isDeliveryLike
+      ? Boolean(form.in_liason_with && String(form.in_liason_with).trim() !== "")
+      : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
@@ -560,6 +568,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cneeText: form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "",
       agentsPIC: form.agents_pic && form.agents_pic !== false ? String(form.agents_pic) : "",
       warnings: form.warnings && form.warnings !== false ? String(form.warnings) : "",
+      includeInLiasonWith,
     }));
 
     // Keep selected agent visible in the dropdown even before options list refreshes.
@@ -685,11 +694,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const optionsParams = {
           page: 1,
           page_size: 200,
-          q_cnee: qCnee,
-          q_agent: qAgent,
           q_to: qTo,
-          agent_id: formData.selectAgent || undefined,
         };
+        if (!isDeliveryLike) {
+          optionsParams.q_cnee = qCnee;
+          optionsParams.q_agent = qAgent;
+          optionsParams.agent_id = formData.selectAgent || undefined;
+        }
         if (isDeliveryLike) {
           optionsParams.q_di = qSi;
           optionsParams.q_pic = qShipBy;
@@ -1035,7 +1046,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const stickyConsigneeId = getStickyConsigneeId();
         const updated = await saveForm(
           buildSavePayloadWithId(currentId, {
-            cnee_text: formData.consignBlock ?? "",
+            ...(isDeliveryLike
+              ? {
+                in_liason_with:
+                  String(formData.consignBlock ?? "").trim() === ""
+                    ? false
+                    : formData.consignBlock,
+              }
+              : {
+                cnee_text: formData.consignBlock ?? "",
+              }),
             ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
             ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
           })
@@ -1170,6 +1190,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           cnee11: null,
           cnee12: null,
           cnee_text: "",
+          in_liason_with: false,
           total_packed_quantity: 0,
           total_packed_weight: 0,
           total_packed_vw: 0,
@@ -1192,6 +1213,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       if (updated?.id != null) setSiFormId(updated.id);
       setFormData((prev) => ({
         ...prev,
+        includeInLiasonWith: false,
         selectAgent: "",
         selectConsignee: "",
         siNo: "",
@@ -1303,21 +1325,30 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const twoColStartY = contentTop + 26;
     const leftColWidth = 250;
     const gapBetweenCols = 16;
-    const rightColLeft = contentLeft + leftColWidth + gapBetweenCols;
-    const rightColWidth = 260;
+    const rightColLeftDefault = contentLeft + leftColWidth + gapBetweenCols;
+    const rightColWidthDefault = 260;
 
-    autoTable(doc, {
-      startY: twoColStartY,
-      head: [[isShippingAdvise ? "SHIP TO" : isDeliveryLike ? "FOR DELIVERY TO / AT" : "CONSIGN TO"]],
-      body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
-      theme: "plain",
-      styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
-      headStyles: { fillColor: [28, 74, 149], textColor: 255 },
-      margin: { left: contentLeft, right: 24 },
-      tableWidth: leftColWidth,
-    });
+    const shouldShowInLiasonPdf = isDeliveryLike
+      ? Boolean(formData.includeInLiasonWith && consignLines.length)
+      : true;
+    const summaryLeft = shouldShowInLiasonPdf ? rightColLeftDefault : contentLeft;
+    const summaryWidth = shouldShowInLiasonPdf
+      ? rightColWidthDefault
+      : (leftColWidth + gapBetweenCols + rightColWidthDefault);
+    if (shouldShowInLiasonPdf) {
+      autoTable(doc, {
+        startY: twoColStartY,
+        head: [[isDeliveryLike ? "IN LIASON WITH" : (isShippingAdvise ? "SHIP TO" : "CONSIGN TO")]],
+        body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
+        theme: "plain",
+        styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
+        headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+        margin: { left: contentLeft, right: 24 },
+        tableWidth: leftColWidth,
+      });
+    }
     const consignTableTopY = twoColStartY;
-    const consignTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
+    const consignTableEndY = shouldShowInLiasonPdf ? (doc.lastAutoTable?.finalY || twoColStartY) : twoColStartY;
 
     const summaryRows = isShippingAdvise
       ? [
@@ -1361,16 +1392,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [28, 74, 149], textColor: 255 },
-      margin: { left: rightColLeft, right: 24 },
-      tableWidth: rightColWidth,
+      margin: { left: summaryLeft, right: 24 },
+      tableWidth: summaryWidth,
     });
     const siTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
     const twoColEndY = Math.max(consignTableEndY, siTableEndY);
     doc.setDrawColor(205, 215, 232);
     doc.setLineWidth(0.35);
     const sharedBoxHeight = Math.max(12, twoColEndY - consignTableTopY);
-    doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
-    doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
+    if (shouldShowInLiasonPdf) {
+      doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
+    }
+    doc.rect(summaryLeft, consignTableTopY, summaryWidth, sharedBoxHeight);
 
     let cargoHead;
     let cargoRows;
@@ -1492,6 +1525,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
       },
     });
+    const cargoTableEndY = doc.lastAutoTable?.finalY || (twoColEndY + 14);
+    const stampBoxWidth = 260;
+    const stampBoxX = pageWidth - 24 - stampBoxWidth;
+    const stampBoxY = cargoTableEndY + 12;
+    autoTable(doc, {
+      startY: stampBoxY,
+      head: [["DATE / SIGNATURE / VESSEL STAMP:"]],
+      body: [["\n\n\n\n\n"]],
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 4, valign: "top" },
+      headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
+      margin: { left: stampBoxX, right: 24, bottom: 24 },
+      tableWidth: stampBoxWidth,
+    });
 
     return doc;
   };
@@ -1578,7 +1625,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
-        <Grid templateColumns={{ base: "1fr", lg: "3fr 1fr" }} gap={4} mb={6}>
+        <Grid templateColumns="1fr" gap={4} mb={6}>
           <Box>
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
               <Box>
@@ -1606,30 +1653,51 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     _placeholder={{ color: "whiteAlpha.800" }}
                   />
                 )}
-                <Text fontSize="sm" fontWeight="bold" mb={2}>
-                  {isDeliveryLike && "IN LIASON WITH :"}
-                </Text>
-                <Textarea
-                  value={formData.consignBlock || ""}
-                  onChange={(e) => {
-                    consignBlockUserEditedRef.current = true;
-                    handleInputChange("consignBlock", e.target.value);
-                  }}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
-                  fontSize="sm"
-                  whiteSpace="pre-wrap"
-                  rows={8}
-                  placeholder="Consignee Text will show here after you select the consignee."
-                  style={{
-                    background: "#cdd0d3b5",
-                    borderRadius: "6px",
-                    padding: "15px",
-                    minHeight: "255px",
-                    lineHeight: "1.4rem",
-                  }}
-                />
+                {isDeliveryLike && (
+                  <Flex align="center" justify="space-between" mb={2}>
+                    <Text fontSize="sm" fontWeight="bold">
+                      IN LIASON WITH :
+                    </Text>
+                    <HStack spacing={2}>
+                      <Text fontSize="xs" color="gray.600">
+                        Do not show
+                      </Text>
+                      <Switch
+                        colorScheme="green"
+                        isChecked={Boolean(formData.includeInLiasonWith)}
+                        onChange={(e) => {
+                          handleInputChange("includeInLiasonWith", e.target.checked);
+                        }}
+                      />
+                      <Text fontSize="xs" color="gray.600">
+                        Show
+                      </Text>
+                    </HStack>
+                  </Flex>
+                )}
+                {(!isDeliveryLike || formData.includeInLiasonWith) && (
+                  <Textarea
+                    value={formData.consignBlock || ""}
+                    onChange={(e) => {
+                      consignBlockUserEditedRef.current = true;
+                      handleInputChange("consignBlock", e.target.value);
+                    }}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
+                    fontSize="sm"
+                    whiteSpace="pre-wrap"
+                    rows={8}
+                    placeholder="Write liaison details here..."
+                    style={{
+                      background: "#cdd0d3b5",
+                      borderRadius: "6px",
+                      padding: "15px",
+                      minHeight: "255px",
+                      lineHeight: "1.4rem",
+                    }}
+                  />
+                )}
               </Box>
 
               <Box bg="orange.400" p={3} borderRadius="md">
@@ -2520,6 +2588,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           </Box>
 
           {/* Right Section: Select Consignee */}
+          {!isDeliveryLike && (
           <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
             <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
               <FormControl display="contents">
@@ -2845,6 +2914,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               </FormControl>
             </Grid>
           </Box>
+          )}
         </Grid>
 
       </Box>
