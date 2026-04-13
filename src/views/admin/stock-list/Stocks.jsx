@@ -1659,6 +1659,7 @@ export default function Stocks() {
         if (clientViewFilterType === 'filter1') {
             htmlTable += '<th>SUPPLIER</th>';
             htmlTable += '<th>PO NUMBER</th>';
+            htmlTable += '<th>DG/UN NUMBER</th>';
             htmlTable += '<th>VIA HUB</th>';
             htmlTable += '<th>BOXES</th>';
             htmlTable += '<th>WEIGHT KGS</th>';
@@ -1667,6 +1668,7 @@ export default function Stocks() {
         } else if (clientViewFilterType === 'filter2') {
             htmlTable += '<th>SUPPLIER</th>';
             htmlTable += '<th>PO NUMBER</th>';
+            htmlTable += '<th>DG/UN NUMBER</th>';
             htmlTable += '<th>STOCK STATUS</th>';
             htmlTable += '<th>ORIGIN</th>';
             htmlTable += '<th>VIA HUB</th>';
@@ -1681,6 +1683,7 @@ export default function Stocks() {
             htmlTable += '<th>WAREHOUSE ID</th>';
             htmlTable += '<th>SUPPLIER</th>';
             htmlTable += '<th>PO#</th>';
+            htmlTable += '<th>DG/UN NUMBER</th>';
             htmlTable += '<th>BOXES</th>';
             htmlTable += '<th>WEIGHT</th>';
             htmlTable += '<th>TOTAL VOLUME CBN (THE EYE)</th>';
@@ -1692,6 +1695,8 @@ export default function Stocks() {
             htmlTable += '<th>STOCK STATUS</th>';
             htmlTable += '<th>DATE ON STOCK</th>';
             htmlTable += '<th>SO NUMBER</th>';
+            htmlTable += '<th>CURRENCY</th>';
+            htmlTable += '<th>VALUE</th>';
         }
 
         htmlTable += '</tr></thead><tbody>';
@@ -1704,6 +1709,7 @@ export default function Stocks() {
             if (clientViewFilterType === 'filter1') {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
+                const dgUn = item.dg_un || '-';
                 const viaHub = item.via_hub || '-';
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
@@ -1712,6 +1718,7 @@ export default function Stocks() {
 
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
+                htmlTable += `<td>${dgUn}</td>`;
                 htmlTable += `<td>${viaHub}</td>`;
                 htmlTable += `<td>${boxes}</td>`;
                 htmlTable += `<td>${weight}</td>`;
@@ -1720,6 +1727,7 @@ export default function Stocks() {
             } else if (clientViewFilterType === 'filter2') {
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
+                const dgUn = item.dg_un || '-';
                 const status = getStatusLabel(item.stock_status);
                 const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                 const viaHub = item.via_hub || '-';
@@ -1732,6 +1740,7 @@ export default function Stocks() {
 
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
+                htmlTable += `<td>${dgUn}</td>`;
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
                 htmlTable += `<td>${origin}</td>`;
                 htmlTable += `<td>${viaHub}</td>`;
@@ -1746,6 +1755,7 @@ export default function Stocks() {
                 const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
                 const supplier = getDisplayName(item.supplier_id || item.supplier);
                 const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
+                const dgUn = item.dg_un || '-';
                 const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                 const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                 const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
@@ -1757,11 +1767,14 @@ export default function Stocks() {
                 const status = getStatusLabel(item.stock_status);
                 const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
                 const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
+                const currency = getDisplayName(item.currency_id || item.currency) || '-';
+                const value = item.value || '-';
 
                 htmlTable += `<td>${vessel}</td>`;
                 htmlTable += `<td>${warehouseId}</td>`;
                 htmlTable += `<td>${supplier}</td>`;
                 htmlTable += `<td>${poNumber}</td>`;
+                htmlTable += `<td>${dgUn}</td>`;
                 htmlTable += `<td>${boxes}</td>`;
                 htmlTable += `<td>${weight}</td>`;
                 htmlTable += `<td>${totalVolume}</td>`;
@@ -1773,6 +1786,8 @@ export default function Stocks() {
                 htmlTable += `<td style="background-color: ${statusStyle.bgColor}; color: ${statusStyle.textColor}; padding: 4px 8px; border-radius: 12px; display: inline-block;">${status}</td>`;
                 htmlTable += `<td>${dateOnStock}</td>`;
                 htmlTable += `<td>${soNumber}</td>`;
+                htmlTable += `<td>${currency}</td>`;
+                htmlTable += `<td>${value}</td>`;
             }
 
             htmlTable += '</tr>';
@@ -1786,11 +1801,11 @@ export default function Stocks() {
 
             // Add header row
             if (clientViewFilterType === 'filter1') {
-                plainText += 'SUPPLIER\tPO NUMBER\tVIA HUB\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
+                plainText += 'SUPPLIER\tPO NUMBER\tDG/UN NUMBER\tVIA HUB\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
             } else if (clientViewFilterType === 'filter2') {
-                plainText += 'SUPPLIER\tPO NUMBER\tSTOCK STATUS\tORIGIN\tVIA HUB\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
+                plainText += 'SUPPLIER\tPO NUMBER\tDG/UN NUMBER\tSTOCK STATUS\tORIGIN\tVIA HUB\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
             } else {
-                plainText += 'VESSEL\tWAREHOUSE ID\tSUPPLIER\tPO#\tBOXES\tWEIGHT\tTOTAL VOLUME CBN\tORIGIN\tVIA HUB 1\tVIA HUB 2\tAP DESTINATION\tDESTINATION\tSTOCK STATUS\tDATE ON STOCK\tSO NUMBER\n';
+                plainText += 'VESSEL\tWAREHOUSE ID\tSUPPLIER\tPO#\tDG/UN NUMBER\tBOXES\tWEIGHT\tTOTAL VOLUME CBN\tORIGIN\tVIA HUB 1\tVIA HUB 2\tAP DESTINATION\tDESTINATION\tSTOCK STATUS\tDATE ON STOCK\tSO NUMBER\tCURRENCY\tVALUE\n';
             }
 
             // Add data rows
@@ -1798,16 +1813,18 @@ export default function Stocks() {
                 if (clientViewFilterType === 'filter1') {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
+                    const dgUn = item.dg_un || '-';
                     const viaHub = item.via_hub || '-';
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                     const status = getStatusLabel(item.stock_status);
                     const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
 
-                    plainText += `${supplier}\t${poNumber}\t${viaHub}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
+                    plainText += `${supplier}\t${poNumber}\t${dgUn}\t${viaHub}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
                 } else if (clientViewFilterType === 'filter2') {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
+                    const dgUn = item.dg_un || '-';
                     const status = getStatusLabel(item.stock_status);
                     const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
                     const viaHub = item.via_hub || '-';
@@ -1818,12 +1835,13 @@ export default function Stocks() {
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
 
-                    plainText += `${supplier}\t${poNumber}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
+                    plainText += `${supplier}\t${poNumber}\t${dgUn}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
                 } else {
                     const vessel = getDisplayName(item.vessel_id || item.vessel);
                     const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
+                    const dgUn = item.dg_un || '-';
                     const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
                     const weight = (item.weight_kg ?? item.weight_kgs) || '-';
                     const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
@@ -1835,7 +1853,9 @@ export default function Stocks() {
                     const status = getStatusLabel(item.stock_status);
                     const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
                     const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
-                    plainText += `${vessel}\t${warehouseId}\t${supplier}\t${poNumber}\t${boxes}\t${weight}\t${totalVolume}\t${origin}\t${viaHub1}\t${viaHub2}\t${apDestination}\t${destination}\t${status}\t${dateOnStock}\t${soNumber}\n`;
+                    const currency = getDisplayName(item.currency_id || item.currency) || '-';
+                    const value = item.value || '-';
+                    plainText += `${vessel}\t${warehouseId}\t${supplier}\t${poNumber}\t${dgUn}\t${boxes}\t${weight}\t${totalVolume}\t${origin}\t${viaHub1}\t${viaHub2}\t${apDestination}\t${destination}\t${status}\t${dateOnStock}\t${soNumber}\t${currency}\t${value}\n`;
                 }
             });
 
@@ -1903,11 +1923,12 @@ export default function Stocks() {
         }
 
         if (viewType === "filter1") {
-            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"];
+            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"];
             const rows = items.map((item) => [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.po_text || "-").replace(/\n/g, " "),
+                item.dg_un || "-",
                 item.via_hub || "-",
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
@@ -1918,11 +1939,12 @@ export default function Stocks() {
         }
 
         if (viewType === "filter2") {
-            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"];
+            const headers = ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"];
             const rows = items.map((item) => [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.po_text || "-").replace(/\n/g, " "),
+                item.dg_un || "-",
                 getStatusLabel(item.stock_status) || "-",
                 item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
                 item.via_hub || "-",
@@ -1987,6 +2009,8 @@ export default function Stocks() {
             item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-",
             item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
             item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
+            getDisplayName(item.currency_id || item.currency) || "-",
+            item.value || "-",
             formatDate(item.exp_ready_in_stock || item.ready_ex_supplier) || "-",
             formatDate(item.date_on_stock) || "-",
             item.days_on_stock || "-",
@@ -2109,11 +2133,11 @@ export default function Stocks() {
 
         let headerRow = "<tr>";
         if (viewType === "filter1") {
-            ["VESSEL", "SUPPLIER", "PO NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
+            ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else if (viewType === "filter2") {
-            ["VESSEL", "SUPPLIER", "PO NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
+            ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
                 headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
             });
         } else {
@@ -2148,6 +2172,7 @@ export default function Stocks() {
                 if (viewType === "filter1") {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const dgUn = item.dg_un || "-";
                     const viaHub = item.via_hub || "-";
                     const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
                     const weight = item.weight_kg ?? item.weight_kgs ?? "-";
@@ -2156,6 +2181,7 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
@@ -2164,6 +2190,7 @@ export default function Stocks() {
                 } else if (viewType === "filter2") {
                     const supplier = getDisplayName(item.supplier_id || item.supplier);
                     const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
+                    const dgUn = item.dg_un || "-";
                     const status = getStatusLabel(item.stock_status);
                     const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
                     const viaHub = item.via_hub || "-";
@@ -2176,6 +2203,7 @@ export default function Stocks() {
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
+                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
@@ -5517,6 +5545,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>VESSEL</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO NUMBER</Th>
+                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
                                                             <Th {...headerProps}>VIA HUB</Th>
                                                             <Th {...headerProps}>BOXES</Th>
                                                             <Th {...headerProps}>WEIGHT KGS</Th>
@@ -5530,6 +5559,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>VESSEL</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO NUMBER</Th>
+                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
                                                             <Th {...headerProps}>STOCK STATUS</Th>
                                                             <Th {...headerProps}>ORIGIN</Th>
                                                             <Th {...headerProps}>VIA HUB</Th>
@@ -5548,6 +5578,7 @@ export default function Stocks() {
                                                             <Th {...headerProps}>WAREHOUSE ID</Th>
                                                             <Th {...headerProps}>SUPPLIER</Th>
                                                             <Th {...headerProps}>PO#</Th>
+                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
                                                             <Th {...headerProps}>BOXES</Th>
                                                             <Th {...headerProps}>WEIGHT</Th>
                                                             <Th {...headerProps}>TOTAL VOLUME CBN (THE EYE)</Th>
@@ -5559,6 +5590,8 @@ export default function Stocks() {
                                                             <Th {...headerProps}>STOCK STATUS</Th>
                                                             <Th {...headerProps}>DATE ON STOCK</Th>
                                                             <Th {...headerProps}>SO NUMBER</Th>
+                                                            <Th {...headerProps}>CURRENCY</Th>
+                                                            <Th {...headerProps}>VALUE</Th>
                                                             <Th {...headerProps}>ACTION</Th>
                                                         </>
                                                     )}
@@ -5567,7 +5600,7 @@ export default function Stocks() {
                                             <Tbody>
                                                 {isLoading && stockList.length === 0 ? (
                                                     <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 11 : (clientViewFilterType === 'filter2' ? 15 : 18)} textAlign="center" py="40px">
+                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 12 : (clientViewFilterType === 'filter2' ? 16 : 21)} textAlign="center" py="40px">
                                                             <Box visibility="hidden" h="100px" />
                                                         </Td>
                                                     </Tr>
@@ -5595,6 +5628,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
@@ -5629,6 +5663,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <Badge
                                                                                 colorScheme={statusStyle.color}
@@ -5668,6 +5703,7 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-"}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.total_volume_cbm ?? item.cbm_total ?? item.cbm)}</Text></Td>
@@ -5691,6 +5727,8 @@ export default function Stocks() {
                                                                         </Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.date_on_stock || item.stock_date || item.create_date)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.so_number || item.so_no || item.sale_order_no || item.sale_order)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.value)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <IconButton
                                                                                 aria-label="Print row"

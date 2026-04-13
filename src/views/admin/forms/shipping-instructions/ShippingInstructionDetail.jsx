@@ -65,24 +65,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const loadFormLatest = isShippingAdvise
     ? postShippingAdviseFormApi
     : isDeliveryConfirmation
-        ? postDeliveryConfirmationFormApi
-        : isDeliveryForm
-          ? postDeliveryInstructionFormApi
-          : postSiFormApi;
+      ? postDeliveryConfirmationFormApi
+      : isDeliveryForm
+        ? postDeliveryInstructionFormApi
+        : postSiFormApi;
   const loadOptions = isShippingAdvise
     ? getShippingAdviseOptionsApi
     : isDeliveryConfirmation
-        ? getDeliveryConfirmationOptionsApi
-        : isDeliveryForm
-          ? getDeliveryInstructionOptionsApi
-          : getSiFormOptionsApi;
+      ? getDeliveryConfirmationOptionsApi
+      : isDeliveryForm
+        ? getDeliveryInstructionOptionsApi
+        : getSiFormOptionsApi;
   const saveForm = isShippingAdvise
     ? postShippingAdviseFormUpdateApi
     : isDeliveryConfirmation
-        ? postDeliveryConfirmationFormUpdateApi
-        : isDeliveryForm
-          ? postDeliveryInstructionFormUpdateApi
-          : postSiFormUpdateApi;
+      ? postDeliveryConfirmationFormUpdateApi
+      : isDeliveryForm
+        ? postDeliveryInstructionFormUpdateApi
+        : postSiFormUpdateApi;
   const history = useHistory();
   const { id } = useParams();
   const {
@@ -948,34 +948,34 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 location_text: toNullIfEmpty(formData.to),
               }
               : {
-                  si_number_id:
-                    formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                      ? Number(formData.siNo)
-                      : null,
-                  sic_number_id:
-                    formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
-                      ? Number(formData.sicNo)
-                      : null,
-                  si_shipped_by_id:
-                    formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-                      ? Number(formData.shippedById)
-                      : null,
-                  siform_from_id:
-                    formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                      ? Number(formData.fromId)
-                      : null,
-                  siform_to_id:
-                    formData.toId != null && Number.isFinite(Number(formData.toId))
-                      ? Number(formData.toId)
-                      : null,
-                  from_text: toNullIfEmpty(formData.from),
-                  to_text: toNullIfEmpty(formData.to),
-                  to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-                  deadline_text: formData.deadline ?? "",
-                  header_pic_id:
-                    formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-                  header_date: formData.date ?? "",
-                };
+                si_number_id:
+                  formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
+                    ? Number(formData.siNo)
+                    : null,
+                sic_number_id:
+                  formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
+                    ? Number(formData.sicNo)
+                    : null,
+                si_shipped_by_id:
+                  formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
+                    ? Number(formData.shippedById)
+                    : null,
+                siform_from_id:
+                  formData.fromId != null && Number.isFinite(Number(formData.fromId))
+                    ? Number(formData.fromId)
+                    : null,
+                siform_to_id:
+                  formData.toId != null && Number.isFinite(Number(formData.toId))
+                    ? Number(formData.toId)
+                    : null,
+                from_text: toNullIfEmpty(formData.from),
+                to_text: toNullIfEmpty(formData.to),
+                to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
+                deadline_text: formData.deadline ?? "",
+                header_pic_id:
+                  formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
+                header_date: formData.date ?? "",
+              };
         const stickyAgentId = getStickyAgentId();
         const stickyConsigneeId = getStickyConsigneeId();
         const payload = buildSavePayloadWithId(currentId, {
@@ -992,7 +992,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? (payload.location_text ?? "")
               : isDeliveryForm
                 ? (payload.location_text ?? "")
-                  : (payload.to_text ?? ""),
+                : (payload.to_text ?? ""),
           deadline_text: isShippingAdvise
             ? (payload.eta_text ?? "")
             : isDeliveryConfirmation
@@ -1526,19 +1526,29 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       },
     });
     const cargoTableEndY = doc.lastAutoTable?.finalY || (twoColEndY + 14);
-    const stampBoxWidth = 260;
-    const stampBoxX = pageWidth - 24 - stampBoxWidth;
-    const stampBoxY = cargoTableEndY + 12;
-    autoTable(doc, {
-      startY: stampBoxY,
-      head: [["DATE / SIGNATURE / VESSEL STAMP:"]],
-      body: [["\n\n\n\n\n"]],
-      theme: "grid",
-      styles: { fontSize: 8, cellPadding: 4, valign: "top" },
-      headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
-      margin: { left: stampBoxX, right: 24, bottom: 24 },
-      tableWidth: stampBoxWidth,
-    });
+    if (isDeliveryForm) {
+      const warningText =
+        "!! ALWAYS CHECK IF CARGO UPON DELIVERY IS IN GOOD CONDITION AND IF NOT - IF ANY IRREGULARITIES WE ARE TO BE INFORMED UPON DELIVERY COMPLETED";
+      const warningY = cargoTableEndY + 20;
+      doc.setFontSize(9);
+      doc.setTextColor(220, 38, 38);
+      doc.text(doc.splitTextToSize(warningText, pageWidth - (contentLeft + 24)), contentLeft, warningY);
+      doc.setTextColor(0, 0, 0);
+
+      const stampBoxWidth = 260;
+      const stampBoxX = pageWidth - 24 - stampBoxWidth;
+      const stampBoxY = warningY + 24;
+      autoTable(doc, {
+        startY: stampBoxY,
+        head: [["DATE / SIGNATURE / VESSEL STAMP:"]],
+        body: [["\n\n\n\n\n"]],
+        theme: "grid",
+        styles: { fontSize: 8, cellPadding: 4, valign: "top" },
+        headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
+        margin: { left: stampBoxX, right: 24, bottom: 24 },
+        tableWidth: stampBoxWidth,
+      });
+    }
 
     return doc;
   };
@@ -1625,7 +1635,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
-        <Grid templateColumns="1fr" gap={4} mb={6}>
+        <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6}>
           <Box>
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
               <Box>
@@ -2589,331 +2599,331 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
           {/* Right Section: Select Consignee */}
           {!isDeliveryLike && (
-          <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
-            <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
-              <FormControl display="contents">
-                <FormLabel htmlFor="selectAgent" fontWeight="bold" m={0}>
-                  Select Agent:
-                </FormLabel>
-                <SimpleSearchableSelect
-                  id="selectAgent"
-                  value={formData.selectAgent}
-                  onChange={async (val) => {
-                    const v = val ?? "";
-                    handleInputChange("selectAgent", v);
-                    handleInputChange("selectConsignee", "");
-                    setRequiredAgentCneeId(null);
-                    const selectedName = v !== "" ? getOptionNameById(agentOptions, v) : "";
-                    setQAgent(selectedName);
-                    setQCnee("");
+            <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
+              <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
+                <FormControl display="contents">
+                  <FormLabel htmlFor="selectAgent" fontWeight="bold" m={0}>
+                    Select Agent:
+                  </FormLabel>
+                  <SimpleSearchableSelect
+                    id="selectAgent"
+                    value={formData.selectAgent}
+                    onChange={async (val) => {
+                      const v = val ?? "";
+                      handleInputChange("selectAgent", v);
+                      handleInputChange("selectConsignee", "");
+                      setRequiredAgentCneeId(null);
+                      const selectedName = v !== "" ? getOptionNameById(agentOptions, v) : "";
+                      setQAgent(selectedName);
+                      setQCnee("");
 
-                    // Persist selected agent, and clear consignee selection for the new agent
-                    try {
-                      setIsSiFormLoading(true);
-                      let currentId = siFormId;
-                      if (!currentId) {
-                        const latestBefore = await loadFormLatest({ latest_only: true });
-                        currentId = latestBefore?.id ?? null;
-                        if (currentId) setSiFormId(currentId);
+                      // Persist selected agent, and clear consignee selection for the new agent
+                      try {
+                        setIsSiFormLoading(true);
+                        let currentId = siFormId;
+                        if (!currentId) {
+                          const latestBefore = await loadFormLatest({ latest_only: true });
+                          currentId = latestBefore?.id ?? null;
+                          if (currentId) setSiFormId(currentId);
+                        }
+                        if (!isShippingAdvise && !currentId) return;
+
+                        const updated = await saveForm(
+                          buildSavePayloadWithId(currentId, {
+                            agent_id: v !== "" ? Number(v) : null,
+                            agent_cnee_id: null,
+                          })
+                        );
+                        if (updated?.id != null) setSiFormId(updated.id);
+                        applySiFormResponse(updated, { lockedConsigneeId: "" });
+                      } catch (e) {
+                        console.error("Failed to update SI form by agent:", e);
+                      } finally {
+                        setIsSiFormLoading(false);
                       }
-                      if (!isShippingAdvise && !currentId) return;
+                    }}
+                    onSearchChange={(txt) => {
+                      setQAgent(txt ?? "");
+                      setQCnee("");
+                    }}
+                    prefillOnFocus={false}
+                    options={agentOptions}
+                    displayKey="name"
+                    valueKey="id"
+                    size="sm"
+                    bg="transparent"
+                    borderColor="transparent"
+                    variant="unstyled"
+                    px={0}
+                    py={0}
+                    _focus={{ boxShadow: "none", outline: "none" }}
+                    _focusVisible={{ boxShadow: "none", outline: "none" }}
+                    isLoading={isOptionsLoading || isSiFormLoading}
+                    placeholder="Select agent..."
+                  />
+                </FormControl>
 
-                      const updated = await saveForm(
-                        buildSavePayloadWithId(currentId, {
-                          agent_id: v !== "" ? Number(v) : null,
-                          agent_cnee_id: null,
-                        })
-                      );
-                      if (updated?.id != null) setSiFormId(updated.id);
-                      applySiFormResponse(updated, { lockedConsigneeId: "" });
-                    } catch (e) {
-                      console.error("Failed to update SI form by agent:", e);
-                    } finally {
-                      setIsSiFormLoading(false);
-                    }
-                  }}
-                  onSearchChange={(txt) => {
-                    setQAgent(txt ?? "");
-                    setQCnee("");
-                  }}
-                  prefillOnFocus={false}
-                  options={agentOptions}
-                  displayKey="name"
-                  valueKey="id"
-                  size="sm"
-                  bg="transparent"
-                  borderColor="transparent"
-                  variant="unstyled"
-                  px={0}
-                  py={0}
-                  _focus={{ boxShadow: "none", outline: "none" }}
-                  _focusVisible={{ boxShadow: "none", outline: "none" }}
-                  isLoading={isOptionsLoading || isSiFormLoading}
-                  placeholder="Select agent..."
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="selectConsignee" fontWeight="bold" m={0}>
+                    Select Consignee:
+                  </FormLabel>
+                  <SimpleSearchableSelect
+                    id="selectConsignee"
+                    value={formData.selectConsignee}
+                    onChange={async (val) => {
+                      const v = val ?? "";
+                      handleInputChange("selectConsignee", v);
+                      const selectedName = v !== "" ? getOptionNameById(consigneeOptions, v) : "";
+                      setQCnee(selectedName);
+                      setQSi("");
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="selectConsignee" fontWeight="bold" m={0}>
-                  Select Consignee:
-                </FormLabel>
-                <SimpleSearchableSelect
-                  id="selectConsignee"
-                  value={formData.selectConsignee}
-                  onChange={async (val) => {
-                    const v = val ?? "";
-                    handleInputChange("selectConsignee", v);
-                    const selectedName = v !== "" ? getOptionNameById(consigneeOptions, v) : "";
-                    setQCnee(selectedName);
-                    setQSi("");
+                      // When a consignee is chosen: update SI form, then render returned form
+                      if (v === "") return;
+                      try {
+                        setIsSiFormLoading(true);
+                        setRequiredAgentCneeId(Number(v));
 
-                    // When a consignee is chosen: update SI form, then render returned form
-                    if (v === "") return;
-                    try {
-                      setIsSiFormLoading(true);
-                      setRequiredAgentCneeId(Number(v));
+                        // Ensure we have a record id to update (latest record flow)
+                        let currentId = siFormId;
+                        if (!currentId) {
+                          const latestBefore = await loadFormLatest({ latest_only: true });
+                          currentId = latestBefore?.id ?? null;
+                          if (currentId) setSiFormId(currentId);
+                        }
+                        if (!isShippingAdvise && !currentId) return;
 
-                      // Ensure we have a record id to update (latest record flow)
-                      let currentId = siFormId;
-                      if (!currentId) {
-                        const latestBefore = await loadFormLatest({ latest_only: true });
-                        currentId = latestBefore?.id ?? null;
-                        if (currentId) setSiFormId(currentId);
+                        const updated = await saveForm(
+                          buildSavePayloadWithId(currentId, { agent_cnee_id: Number(v) })
+                        );
+                        if (updated?.id != null) setSiFormId(updated.id);
+                        applySiFormResponse(updated, {
+                          lockedConsigneeId: v,
+                          lockedAgentId: formData.selectAgent,
+                        });
+                      } catch (e) {
+                        console.error("Failed to load SI form by consignee:", e);
+                      } finally {
+                        setIsSiFormLoading(false);
                       }
-                      if (!isShippingAdvise && !currentId) return;
+                    }}
+                    onSearchChange={(txt) => {
+                      setQCnee(txt ?? "");
+                      setQSi("");
+                    }}
+                    prefillOnFocus={false}
+                    options={consigneeOptions}
+                    displayKey="name"
+                    valueKey="id"
+                    size="sm"
+                    bg="transparent"
+                    borderColor="transparent"
+                    variant="unstyled"
+                    px={0}
+                    py={0}
+                    _focus={{ boxShadow: "none", outline: "none" }}
+                    _focusVisible={{ boxShadow: "none", outline: "none" }}
+                    isLoading={isOptionsLoading || isSiFormLoading}
+                    isDisabled={!formData.selectAgent}
+                    placeholder="Select consignee..."
+                  />
+                </FormControl>
 
-                      const updated = await saveForm(
-                        buildSavePayloadWithId(currentId, { agent_cnee_id: Number(v) })
-                      );
-                      if (updated?.id != null) setSiFormId(updated.id);
-                      applySiFormResponse(updated, {
-                        lockedConsigneeId: v,
-                        lockedAgentId: formData.selectAgent,
-                      });
-                    } catch (e) {
-                      console.error("Failed to load SI form by consignee:", e);
-                    } finally {
-                      setIsSiFormLoading(false);
-                    }
-                  }}
-                  onSearchChange={(txt) => {
-                    setQCnee(txt ?? "");
-                    setQSi("");
-                  }}
-                  prefillOnFocus={false}
-                  options={consigneeOptions}
-                  displayKey="name"
-                  valueKey="id"
-                  size="sm"
-                  bg="transparent"
-                  borderColor="transparent"
-                  variant="unstyled"
-                  px={0}
-                  py={0}
-                  _focus={{ boxShadow: "none", outline: "none" }}
-                  _focusVisible={{ boxShadow: "none", outline: "none" }}
-                  isLoading={isOptionsLoading || isSiFormLoading}
-                  isDisabled={!formData.selectAgent}
-                  placeholder="Select consignee..."
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="company" fontWeight="bold" m={0} fontSize="sm">
+                    Company:
+                  </FormLabel>
+                  <Input
+                    id="company"
+                    value={formData.company}
+                    onChange={(e) => handleInputChange("company", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="company" fontWeight="bold" m={0} fontSize="sm">
-                  Company:
-                </FormLabel>
-                <Input
-                  id="company"
-                  value={formData.company}
-                  onChange={(e) => handleInputChange("company", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneeAddress1" fontWeight="bold" m={0} fontSize="sm">
+                    {isShippingAdvise ? "Address1:" : "Address 1:"}
+                  </FormLabel>
+                  <Input
+                    id="consigneeAddress1"
+                    value={formData.consigneeAddress1}
+                    onChange={(e) => handleInputChange("consigneeAddress1", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneeAddress1" fontWeight="bold" m={0} fontSize="sm">
-                  {isShippingAdvise ? "Address1:" : "Address 1:"}
-                </FormLabel>
-                <Input
-                  id="consigneeAddress1"
-                  value={formData.consigneeAddress1}
-                  onChange={(e) => handleInputChange("consigneeAddress1", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneeAddress2" fontWeight="bold" m={0} fontSize="sm">
+                    {isShippingAdvise ? "Address2:" : "Address 2:"}
+                  </FormLabel>
+                  <Input
+                    id="consigneeAddress2"
+                    value={formData.consigneeAddress2}
+                    onChange={(e) => handleInputChange("consigneeAddress2", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneeAddress2" fontWeight="bold" m={0} fontSize="sm">
-                  {isShippingAdvise ? "Address2:" : "Address 2:"}
-                </FormLabel>
-                <Input
-                  id="consigneeAddress2"
-                  value={formData.consigneeAddress2}
-                  onChange={(e) => handleInputChange("consigneeAddress2", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneePostcode" fontWeight="bold" m={0} fontSize="sm">
+                    Post code:
+                  </FormLabel>
+                  <Input
+                    id="consigneePostcode"
+                    value={formData.consigneePostcode}
+                    onChange={(e) => handleInputChange("consigneePostcode", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneePostcode" fontWeight="bold" m={0} fontSize="sm">
-                  Post code:
-                </FormLabel>
-                <Input
-                  id="consigneePostcode"
-                  value={formData.consigneePostcode}
-                  onChange={(e) => handleInputChange("consigneePostcode", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneeCity" fontWeight="bold" m={0} fontSize="sm">
+                    City:
+                  </FormLabel>
+                  <Input
+                    id="consigneeCity"
+                    value={formData.consigneeCity}
+                    onChange={(e) => handleInputChange("consigneeCity", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneeCity" fontWeight="bold" m={0} fontSize="sm">
-                  City:
-                </FormLabel>
-                <Input
-                  id="consigneeCity"
-                  value={formData.consigneeCity}
-                  onChange={(e) => handleInputChange("consigneeCity", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneeCountry" fontWeight="bold" m={0} fontSize="sm">
+                    Country:
+                  </FormLabel>
+                  <Input
+                    id="consigneeCountry"
+                    value={formData.consigneeCountry}
+                    onChange={(e) => handleInputChange("consigneeCountry", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneeCountry" fontWeight="bold" m={0} fontSize="sm">
-                  Country:
-                </FormLabel>
-                <Input
-                  id="consigneeCountry"
-                  value={formData.consigneeCountry}
-                  onChange={(e) => handleInputChange("consigneeCountry", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="regNo" fontWeight="bold" m={0} fontSize="sm">
+                    RegNo:
+                  </FormLabel>
+                  <Input
+                    id="regNo"
+                    value={formData.regNo}
+                    onChange={(e) => handleInputChange("regNo", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="regNo" fontWeight="bold" m={0} fontSize="sm">
-                  RegNo:
-                </FormLabel>
-                <Input
-                  id="regNo"
-                  value={formData.regNo}
-                  onChange={(e) => handleInputChange("regNo", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneeEmail" fontWeight="bold" m={0} fontSize="sm">
+                    E-mail 1:
+                  </FormLabel>
+                  <Input
+                    id="consigneeEmail"
+                    value={formData.consigneeEmail}
+                    onChange={(e) => handleInputChange("consigneeEmail", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneeEmail" fontWeight="bold" m={0} fontSize="sm">
-                  E-mail 1:
-                </FormLabel>
-                <Input
-                  id="consigneeEmail"
-                  value={formData.consigneeEmail}
-                  onChange={(e) => handleInputChange("consigneeEmail", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneePhone" fontWeight="bold" m={0} fontSize="sm">
+                    {isShippingAdvise ? "Phone1:" : "Phone 1:"}
+                  </FormLabel>
+                  <Input
+                    id="consigneePhone"
+                    value={formData.consigneePhone}
+                    onChange={(e) => handleInputChange("consigneePhone", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneePhone" fontWeight="bold" m={0} fontSize="sm">
-                  {isShippingAdvise ? "Phone1:" : "Phone 1:"}
-                </FormLabel>
-                <Input
-                  id="consigneePhone"
-                  value={formData.consigneePhone}
-                  onChange={(e) => handleInputChange("consigneePhone", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="consigneePhone2" fontWeight="bold" m={0} fontSize="sm">
+                    {isShippingAdvise ? "Phone2:" : "Phone 2:"}
+                  </FormLabel>
+                  <Input
+                    id="consigneePhone2"
+                    value={formData.consigneePhone2 || ""}
+                    onChange={(e) => handleInputChange("consigneePhone2", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="consigneePhone2" fontWeight="bold" m={0} fontSize="sm">
-                  {isShippingAdvise ? "Phone2:" : "Phone 2:"}
-                </FormLabel>
-                <Input
-                  id="consigneePhone2"
-                  value={formData.consigneePhone2 || ""}
-                  onChange={(e) => handleInputChange("consigneePhone2", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="web" fontWeight="bold" m={0} fontSize="sm">
+                    Web:
+                  </FormLabel>
+                  <Input
+                    id="web"
+                    value={formData.web}
+                    onChange={(e) => handleInputChange("web", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="web" fontWeight="bold" m={0} fontSize="sm">
-                  Web:
-                </FormLabel>
-                <Input
-                  id="web"
-                  value={formData.web}
-                  onChange={(e) => handleInputChange("web", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="agentsPIC" fontWeight="bold" m={0} fontSize="sm" >
+                    Agents PIC:
+                  </FormLabel>
+                  <Input
+                    id="agentsPIC"
+                    value={formData.agentsPIC}
+                    onChange={(e) => handleInputChange("agentsPIC", e.target.value)}
+                    size="sm"
+                    variant="unstyled"
+                    bg="transparent"
 
-              <FormControl display="contents">
-                <FormLabel htmlFor="agentsPIC" fontWeight="bold" m={0} fontSize="sm" >
-                  Agents PIC:
-                </FormLabel>
-                <Input
-                  id="agentsPIC"
-                  value={formData.agentsPIC}
-                  onChange={(e) => handleInputChange("agentsPIC", e.target.value)}
-                  size="sm"
-                  variant="unstyled"
-                  bg="transparent"
+                  />
+                </FormControl>
 
-                />
-              </FormControl>
-
-              <FormControl display="contents">
-                <FormLabel htmlFor="warnings" fontWeight="bold" m={0} fontSize="sm">
-                  Warnings:
-                </FormLabel>
-                <Textarea
-                  id="warnings"
-                  value={formData.warnings || ""}
-                  onChange={(e) => handleInputChange("warnings", e.target.value)}
-                  size="sm"
-                  rows={8}
-                  variant="unstyled"
-                  bg="transparent"
-                />
-              </FormControl>
-            </Grid>
-          </Box>
+                <FormControl display="contents">
+                  <FormLabel htmlFor="warnings" fontWeight="bold" m={0} fontSize="sm">
+                    Warnings:
+                  </FormLabel>
+                  <Textarea
+                    id="warnings"
+                    value={formData.warnings || ""}
+                    onChange={(e) => handleInputChange("warnings", e.target.value)}
+                    size="sm"
+                    rows={8}
+                    variant="unstyled"
+                    bg="transparent"
+                  />
+                </FormControl>
+              </Grid>
+            </Box>
           )}
         </Grid>
 
