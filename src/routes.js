@@ -60,6 +60,7 @@ import NewStockItem from "views/admin/stock-list/NewStockItem";
 // Forms Imports
 import ShippingInstructions from "views/admin/forms/shipping-instructions";
 import ShippingInstructionDetail from "views/admin/forms/shipping-instructions/ShippingInstructionDetail";
+import CiPl from "views/admin/forms/ci-pl";
 import DeliveryInstructions from "views/admin/forms/delivery-instructions";
 import DeliveryInstructionDetail from "views/admin/forms/delivery-instructions/DeliveryInstructionDetail";
 import DeliveryConfirmation from "views/admin/forms/delivery-confirmation";
@@ -218,6 +219,19 @@ const routes = [
           />
         ),
         component: ShippingInstructions,
+      },
+      {
+        name: "CI PL",
+        path: "/forms/ci-pl",
+        icon: (
+          <Icon
+            as={MdDescription}
+            width="20px"
+            height="20px"
+            color="inherit"
+          />
+        ),
+        component: CiPl,
       },
       {
         name: "Shipping Advise",
