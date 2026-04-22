@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Flex,
@@ -8,20 +8,14 @@ import {
   InputGroup,
   InputLeftElement,
   SimpleGrid,
+  Select,
+  Spinner,
   Text,
   useColorModeValue,
 } from "@chakra-ui/react";
 import { MdDirectionsBoat, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
-
-const vessels = [
-  { name: "ACHI", owner: "MARTIN NARVI" },
-  { name: "ADRE", owner: "MARTIN NARVI" },
-  { name: "ALIKI PERROTIS", owner: "TASOS IANNATAS" },
-  { name: "AMO", owner: "TASOS IANNATAS" },
-  { name: "AQUA", owner: "MARTIN NARVI" },
-  { name: "OCEAN STAR", owner: "MARTIN NARVI" },
-];
+import vesselsApi from "api/vessels";
 
 function ClientVessels() {
   const history = useHistory();
@@ -29,29 +23,90 @@ function ClientVessels() {
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
   const text = useColorModeValue("navy.700", "white");
+  const [isLoading, setIsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [vessels, setVessels] = useState([]);
+
+  const fetchClientVessels = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await vesselsApi.getClientVessels({
+        search: search.trim() || undefined,
+        status: status || undefined,
+      });
+      setVessels(Array.isArray(res?.vessels) ? res.vessels : []);
+      setClientName(res?.client?.name || "");
+    } catch (_error) {
+      setVessels([]);
+      setClientName("");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, status]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchClientVessels();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchClientVessels]);
+
+  const headingText = useMemo(() => {
+    if (!clientName) return "Vessels";
+    return `Vessels - ${clientName}`;
+  }, [clientName]);
 
   return (
     <Box>
       <Heading color={text} mb={4} fontSize="24px" lineHeight="32px">
-        Vessels
+        {headingText}
       </Heading>
 
-      <InputGroup maxW="340px" mb={6}>
-        <InputLeftElement pointerEvents="none">
-          <Icon as={MdSearch} color="gray.400" />
-        </InputLeftElement>
-        <Input
-          placeholder="Search vessels..."
+      <Flex gap={3} mb={6} direction={{ base: "column", md: "row" }}>
+        <InputGroup maxW={{ base: "100%", md: "340px" }}>
+          <InputLeftElement pointerEvents="none">
+            <Icon as={MdSearch} color="gray.400" />
+          </InputLeftElement>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search vessels..."
+            borderRadius="12px"
+            fontSize="sm"
+            fontWeight="500"
+          />
+        </InputGroup>
+        <Select
+          maxW={{ base: "100%", md: "220px" }}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
           borderRadius="12px"
           fontSize="sm"
           fontWeight="500"
-        />
-      </InputGroup>
+        >
+          <option value="">All status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="tbn">TBN</option>
+          <option value="new_building">New Building</option>
+        </Select>
+      </Flex>
 
       <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>
+        {isLoading && (
+          <Flex align="center" gap={2}>
+            <Spinner size="sm" />
+            <Text color={muted} fontSize="sm">Loading vessels...</Text>
+          </Flex>
+        )}
+        {!isLoading && vessels.length === 0 && (
+          <Text color={muted} fontSize="sm">No vessels found for your account.</Text>
+        )}
         {vessels.map((vessel) => (
           <Flex
-            key={vessel.name}
+            key={vessel.id || vessel.name}
             align="center"
             gap={3}
             p={4}
@@ -69,7 +124,7 @@ function ClientVessels() {
             onClick={() =>
               history.push({
                 pathname: "/Client/Stock",
-                state: { selectedVessel: vessel.name },
+                state: { selectedVessel: vessel.name, selectedVesselId: vessel.id },
               })
             }
           >
@@ -90,7 +145,7 @@ function ClientVessels() {
                 {vessel.name}
               </Text>
               <Text fontSize="xs" fontWeight="500" color={muted}>
-                {vessel.owner}
+                {vessel.client_id?.name || clientName || "-"}
               </Text>
             </Box>
           </Flex>

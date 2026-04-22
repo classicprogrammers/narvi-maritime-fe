@@ -76,6 +76,38 @@ export const getVessels = async (params = {}) => {
   }
 };
 
+export const getClientVessels = async (params = {}) => {
+  try {
+    const requestParams = {};
+    const search = params.search;
+    const status = params.status;
+
+    if (search != null && String(search).trim() !== "") {
+      requestParams.search = String(search).trim();
+    }
+    if (status != null && String(status).trim() !== "") {
+      requestParams.status = String(status).trim();
+    }
+
+    const response = await axios.get("/api/client/vessel", { params: requestParams });
+    const data = response.data || response;
+
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch client vessels");
+    }
+
+    const vesselsList = Array.isArray(data.vessels) ? data.vessels : [];
+    return {
+      status: data.status || "success",
+      count: data.count ?? vesselsList.length,
+      client: data.client || null,
+      vessels: vesselsList,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 /**
  * Get a single vessel by ID (GET /api/vessels/:id)
  * Use this for edit forms to load the current vessel instead of filtering from the list.
@@ -302,6 +334,7 @@ const vessels = {
   getVessels,
   getVessel,
   getVesselById,
+  getClientVessels,
   getVesselTypes,
   createVessel,
   updateVessel,
