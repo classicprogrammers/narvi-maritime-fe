@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -37,102 +37,15 @@ import {
   MdPictureAsPdf,
   MdTableChart,
 } from "react-icons/md";
-
-const stockRows = [
-  {
-    date: "09/04/2026",
-    days: 0,
-    vessel: "NORA",
-    status: "In Stock",
-    mode: "Ship",
-    transitId: "SFX-SF166477",
-    supplier: "HONGHAI MING ENGINEERING CO., LTD",
-    poNo: "HM-SS SFH20031",
-    cargoValue: "USD 294.30",
-    entries: "6 Pcs",
-    weight: "89.00",
-    location: "PVG",
-    stockId: "PV976667",
-    remarks: "-",
-    approval: "Approved",
-    t1: "All",
-    dg: "All",
-    size: "21x19x11",
-    whLocation: "-",
-    deleteMark: "-",
-  },
-  {
-    date: "09/04/2026",
-    days: 0,
-    vessel: "ADRE",
-    status: "In Stock",
-    mode: "Truck",
-    transitId: "SFX-SF165666",
-    supplier: "SHANGHAI MINGYU MARINE SERVICE CO., LTD",
-    poNo: "AABB-PO-S01-26017",
-    cargoValue: "USD 198.00",
-    entries: "1 Pcs",
-    weight: "2.00",
-    location: "PVG",
-    stockId: "PV976837",
-    remarks: "-",
-    approval: "Approved",
-    t1: "All",
-    dg: "All",
-    size: "21x19x11",
-    whLocation: "-",
-    deleteMark: "-",
-  },
-  {
-    date: "08/04/2026",
-    days: 1,
-    vessel: "ACHI",
-    status: "In Stock",
-    mode: "Ship",
-    transitId: "SFX-SF165127",
-    supplier: "DECKMARINE PTE LTD",
-    poNo: "AC-250-REN-260010",
-    cargoValue: "USD 1240.00",
-    entries: "3 Pcs",
-    weight: "225.00",
-    location: "PVG",
-    stockId: "PV977685",
-    remarks: "M/T",
-    approval: "Approved",
-    t1: "All",
-    dg: "All",
-    size: "37x30x24",
-    whLocation: "-",
-    deleteMark: "-",
-  },
-  {
-    date: "07/04/2026",
-    days: 2,
-    vessel: "CORAL",
-    status: "Low Stock",
-    mode: "Ship",
-    transitId: "SFX-SF165940",
-    supplier: "SUNDA TRADING",
-    poNo: "CVD/PO-S01-260034",
-    cargoValue: "USD 152.00",
-    entries: "1 Pcs",
-    weight: "2.00",
-    location: "PVG",
-    stockId: "PV976887",
-    remarks: "M/T",
-    approval: "Approved",
-    t1: "All",
-    dg: "All",
-    size: "20x12x9",
-    whLocation: "-",
-    deleteMark: "-",
-  },
-];
+import clientStockApi from "api/clientStock";
 
 function ClientStock() {
   const location = useLocation();
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [stockRows, setStockRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [clientName, setClientName] = useState("");
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -154,29 +67,74 @@ function ClientStock() {
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
   const headingColor = useColorModeValue("navy.700", "white");
 
+  const fetchStock = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await clientStockApi.getClientStock({
+        search: search.trim() || undefined,
+        stock_status: filters.status || undefined,
+      });
+      const normalizedRows = (res?.stock_list || []).map((item, idx) => ({
+        id: `${item.stock_item_id || "stock"}-${idx}`,
+        date: item.date_on_stock || "-",
+        days: item.days_on_stock ?? "-",
+        vessel: item.vessel?.name || "-",
+        vesselId: item.vessel?.id || "",
+        status: item.stock_status || "-",
+        mode: "-",
+        transitId: item.stock_item_id || "-",
+        supplier: item.supplier?.name || "-",
+        poNo: Array.isArray(item.po_number) ? item.po_number.join(", ") : (item.po_number || "-"),
+        cargoValue: "-",
+        entries: item.box != null ? String(item.box) : "-",
+        weight: item.weight != null ? String(item.weight) : "-",
+        location: item.origin || "-",
+        stockId: item.stock_item_id || "-",
+        remarks: item.remarks || "-",
+        approval: "-",
+        t1: "All",
+        dg: "All",
+        size: "-",
+        whLocation: "-",
+        deleteMark: "-",
+      }));
+      setStockRows(normalizedRows);
+      setClientName(res?.client?.name || "");
+    } catch (_e) {
+      setStockRows([]);
+      setClientName("");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters.status, search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchStock();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchStock]);
+
   const filteredRows = useMemo(() => {
     return stockRows
       .filter((row) => {
         if (filters.vessel && row.vessel !== filters.vessel) return false;
-        if (filters.status && row.status !== filters.status) return false;
         if (filters.location && row.location !== filters.location) return false;
         if (filters.t1 && row.t1 !== filters.t1) return false;
         if (filters.dg && row.dg !== filters.dg) return false;
-        if (filters.fromDate && row.date < filters.fromDate.split("-").reverse().join("/")) return false;
-        if (filters.toDate && row.date > filters.toDate.split("-").reverse().join("/")) return false;
-        if (!search) return true;
-        const haystack = `${row.vessel} ${row.transitId} ${row.supplier} ${row.poNo} ${row.stockId} ${row.remarks}`.toLowerCase();
-        return haystack.includes(search.toLowerCase());
+        if (filters.fromDate && row.date !== "-" && row.date < filters.fromDate) return false;
+        if (filters.toDate && row.date !== "-" && row.date > filters.toDate) return false;
+        return true;
       })
       .slice(0, Number(entries));
-  }, [entries, filters, search]);
+  }, [entries, filters, stockRows]);
 
   useEffect(() => {
     if (!filteredRows.length) {
       setExpandedRows(new Set());
       return;
     }
-    const firstRowId = `${filteredRows[0].transitId}-${filteredRows[0].stockId}`;
+    const firstRowId = filteredRows[0].id;
     setExpandedRows(new Set([firstRowId]));
   }, [filteredRows]);
 
@@ -208,6 +166,15 @@ function ClientStock() {
     setEntries("50");
   };
 
+  const vesselOptions = useMemo(
+    () => Array.from(new Set(stockRows.map((r) => r.vessel).filter(Boolean).filter((v) => v !== "-"))),
+    [stockRows]
+  );
+  const locationOptions = useMemo(
+    () => Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
+    [stockRows]
+  );
+
   const toggleRowSelection = (id) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
@@ -234,7 +201,7 @@ function ClientStock() {
             Stock Report
           </Heading>
           <Text mt={1} fontSize="sm" color={muted}>
-            Track inventory movement by vessel, location, and date range.
+            {clientName ? `Showing stock for ${clientName}.` : "Track inventory movement by vessel, location, and date range."}
           </Text>
         </Box>
       </Flex>
@@ -255,24 +222,26 @@ function ClientStock() {
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
             <Select size="sm" placeholder="All vessels" value={filters.vessel} onChange={(e) => handleFilterChange("vessel", e.target.value)}>
-              <option>NORA</option>
-              <option>ADRE</option>
-              <option>ACHI</option>
-              <option>CORAL</option>
+              {vesselOptions.map((vessel) => (
+                <option key={vessel} value={vessel}>{vessel}</option>
+              ))}
             </Select>
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
             <Select size="sm" placeholder="All statuses" value={filters.status} onChange={(e) => handleFilterChange("status", e.target.value)}>
-              <option>In Stock</option>
-              <option>Low Stock</option>
+              <option value="stock">Stock</option>
+              <option value="delivered">Delivered</option>
+              <option value="returned">Returned</option>
+              <option value="lost">Lost</option>
             </Select>
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Location</Text>
             <Select size="sm" placeholder="All locations" value={filters.location} onChange={(e) => handleFilterChange("location", e.target.value)}>
-              <option>PVG</option>
-              <option>SIN</option>
+              {locationOptions.map((loc) => (
+                <option key={loc} value={loc}>{loc}</option>
+              ))}
             </Select>
           </GridItem>
           <GridItem>
@@ -310,6 +279,17 @@ function ClientStock() {
             </Select>
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
+          <InputGroup maxW="340px">
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color="gray.400" />
+            </InputLeftElement>
+            <Input
+              placeholder="Search stock id, remarks, origin, vessel..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              size="sm"
+            />
+          </InputGroup>
           <Menu>
             <MenuButton
               as={Button}
@@ -333,6 +313,11 @@ function ClientStock() {
       </Box>
 
       <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" overflowX="auto">
+        {isLoading && (
+          <Text px={4} py={3} fontSize="sm" color={muted}>
+            Loading stock report...
+          </Text>
+        )}
         <Table
           size="sm"
           variant="simple"
@@ -376,7 +361,7 @@ function ClientStock() {
           </Thead>
           <Tbody>
             {filteredRows.map((row, index) => {
-              const rowId = `${row.transitId}-${row.stockId}`;
+              const rowId = row.id;
               const isSelected = selectedRows.has(rowId);
               const isExpanded = expandedRows.has(rowId);
               return (
@@ -408,7 +393,7 @@ function ClientStock() {
                     <Td>{row.vessel}</Td>
                     <Td>
                       <Badge
-                        colorScheme={row.status === "In Stock" ? "green" : "orange"}
+                        colorScheme={row.status === "stock" ? "green" : "orange"}
                         borderRadius="full"
                         px={2.5}
                         py={1}

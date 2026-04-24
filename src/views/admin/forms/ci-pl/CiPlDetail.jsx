@@ -40,7 +40,6 @@ import {
 import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
-import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
 import {
   getShippingAdviseOptionsApi,
   postShippingAdviseFormApi,
@@ -56,6 +55,16 @@ import {
   postDeliveryConfirmationFormApi,
   postDeliveryConfirmationFormUpdateApi,
 } from "../../../../api/deliveryConfirmation";
+import {
+  getCiplSimpleFormOptionsApi,
+  getCiplPerUnitFormOptionsApi,
+  postCiplSimpleFormApi,
+  postCiplSimpleFormCreateApi,
+  postCiplSimpleFormUpdateApi,
+  postCiplPerUnitFormApi,
+  postCiplPerUnitFormCreateApi,
+  postCiplPerUnitFormUpdateApi,
+} from "../../../../api/cipl";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -65,27 +74,50 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const isDeliveryConfirmation = formType === "deliveryConfirmation";
   const isDeliveryLike = isDeliveryForm || isDeliveryConfirmation;
   const todayIso = new Date().toISOString().slice(0, 10);
-  const loadFormLatest = isShippingAdvise
-    ? postShippingAdviseFormApi
-    : isDeliveryConfirmation
-      ? postDeliveryConfirmationFormApi
-      : isDeliveryForm
-        ? postDeliveryInstructionFormApi
-        : postSiFormApi;
-  const loadOptions = isShippingAdvise
-    ? getShippingAdviseOptionsApi
-    : isDeliveryConfirmation
-      ? getDeliveryConfirmationOptionsApi
-      : isDeliveryForm
-        ? getDeliveryInstructionOptionsApi
-        : getSiFormOptionsApi;
-  const saveForm = isShippingAdvise
-    ? postShippingAdviseFormUpdateApi
-    : isDeliveryConfirmation
-      ? postDeliveryConfirmationFormUpdateApi
-      : isDeliveryForm
-        ? postDeliveryInstructionFormUpdateApi
-        : postSiFormUpdateApi;
+  const resolveFormApis = () => {
+    if (isShippingAdvise) {
+      return {
+        loadFormLatest: postShippingAdviseFormApi,
+        loadOptions: getShippingAdviseOptionsApi,
+        saveForm: postShippingAdviseFormUpdateApi,
+        createForm: async () => null,
+      };
+    }
+    if (isDeliveryConfirmation) {
+      return {
+        loadFormLatest: postDeliveryConfirmationFormApi,
+        loadOptions: getDeliveryConfirmationOptionsApi,
+        saveForm: postDeliveryConfirmationFormUpdateApi,
+        createForm: async () => null,
+      };
+    }
+    if (isDeliveryForm) {
+      return {
+        loadFormLatest: postDeliveryInstructionFormApi,
+        loadOptions: getDeliveryInstructionOptionsApi,
+        saveForm: postDeliveryInstructionFormUpdateApi,
+        createForm: async () => null,
+      };
+    }
+    if (ciPlTabIndex === 1) {
+      return {
+        loadFormLatest: postCiplPerUnitFormApi,
+        loadOptions: getCiplPerUnitFormOptionsApi,
+        saveForm: postCiplPerUnitFormUpdateApi,
+        createForm: postCiplPerUnitFormCreateApi,
+      };
+    }
+    return {
+      loadFormLatest: postCiplSimpleFormApi,
+      loadOptions: getCiplSimpleFormOptionsApi,
+      saveForm: postCiplSimpleFormUpdateApi,
+      createForm: postCiplSimpleFormCreateApi,
+    };
+  };
+  const loadFormLatest = (...args) => resolveFormApis().loadFormLatest(...args);
+  const loadOptions = (...args) => resolveFormApis().loadOptions(...args);
+  const saveForm = (...args) => resolveFormApis().saveForm(...args);
+  const createForm = (...args) => resolveFormApis().createForm(...args);
   const history = useHistory();
   const { id } = useParams();
   const {
@@ -135,6 +167,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     to_text: "",
     deadline_text: "",
   });
+  const lastSubmittedCiplLinesRef = useRef("");
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -279,6 +312,26 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const text = value == null ? "" : String(value).trim();
     return text === "" ? null : value;
   };
+  const buildCiplStockLinePayload = (items, isPerUnit) =>
+    (Array.isArray(items) ? items : []).map((item) => ({
+      ...(item?.lineId != null && Number.isFinite(Number(item.lineId))
+        ? { id: Number(item.lineId) }
+        : {}),
+      ...(item?.stockListId != null && Number.isFinite(Number(item.stockListId))
+        ? { stock_list_id: Number(item.stockListId) }
+        : {}),
+      ...(item?.stockItemId != null && String(item.stockItemId).trim() !== ""
+        ? { stock_item_id: String(item.stockItemId) }
+        : {}),
+      description: toNullIfEmpty(item?.details),
+      value_in_usd: toNullIfEmpty(item?.valueUsd),
+      ...(isPerUnit
+        ? {
+          quantity_pcs: toNullIfEmpty(item?.quantity),
+          per_unit: toNullIfEmpty(item?.perUnit),
+        }
+        : {}),
+    }));
   const getStickyConsigneeId = () => {
     if (isDeliveryLike) return null;
     if (formData.selectConsignee != null && formData.selectConsignee !== "" && Number.isFinite(Number(formData.selectConsignee))) {
@@ -313,6 +366,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cbm: 0,
       lwh: "",
       vw: 0,
+      lineId: null,
+      stockListId: null,
       stockItemId: "",
       awbNumber: "",
     },
@@ -331,6 +386,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cbm: 0,
       lwh: "",
       vw: 0,
+      lineId: null,
+      stockListId: null,
       stockItemId: "",
       awbNumber: "",
     },
@@ -410,8 +467,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const stockTotals = {
-      quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
-      weight: stockList.reduce((sum, it) => sum + Number(it?.kg || 0), 0),
+      quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes ?? it?.box ?? 0), 0),
+      weight: stockList.reduce((sum, it) => sum + Number(it?.kg ?? it?.weight ?? 0), 0),
       vw: stockList.reduce((sum, it) => sum + Number(it?.vw ?? it?.ww ?? 0), 0),
     };
     const hasPackedQty =
@@ -581,7 +638,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
             ? String(form.header_date)
             : todayIso)
-          : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
+          : (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
+            ? String(form.header_date)
+            : form.date != null && form.date !== false && String(form.date).trim() !== ""
+              ? String(form.date)
+              : ""),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
@@ -687,8 +748,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       const stockIdRaw = it.stock_item_id;
       const stockItemId =
         stockIdRaw != null && stockIdRaw !== false ? String(stockIdRaw) : "";
+      const lineId =
+        it.id != null && it.id !== false && Number.isFinite(Number(it.id)) ? Number(it.id) : null;
+      const stockListId =
+        it.stock_list_id != null && it.stock_list_id !== false && Number.isFinite(Number(it.stock_list_id))
+          ? Number(it.stock_list_id)
+          : null;
       return {
-        id: it.id ?? idx + 1,
+        id: idx + 1,
         origin: originVal,
         warehouseId,
         supplier: supplierName,
@@ -700,8 +767,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               : it.awb != null && it.awb !== false
                 ? String(it.awb)
                 : "",
-        poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
-        details: it.details && it.details !== false ? String(it.details) : "",
+        poNumber:
+          it.po_number != null && it.po_number !== false
+            ? String(it.po_number)
+            : it.po != null && it.po !== false
+              ? String(it.po)
+              : "",
+        details:
+          it.description != null && it.description !== false
+            ? String(it.description)
+            : it.details != null && it.details !== false
+              ? String(it.details)
+              : "",
         valueUsd:
           it.value_in_usd != null && it.value_in_usd !== false
             ? String(it.value_in_usd)
@@ -709,23 +786,32 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? String(it.value_usd)
               : "",
         quantity:
-          it.quantity != null && it.quantity !== false
-            ? String(it.quantity)
-            : "",
+          it.quantity_pcs != null && it.quantity_pcs !== false
+            ? String(it.quantity_pcs)
+            : it.quantity != null && it.quantity !== false
+              ? String(it.quantity)
+              : "",
         perUnit:
           it.per_unit != null && it.per_unit !== false
             ? String(it.per_unit)
+            : it.perunit != null && it.perunit !== false
+              ? String(it.perunit)
             : "",
-        boxes: Number(it.boxes || 0),
-        kg: Number(it.kg || 0),
+        boxes: Number(it.boxes ?? it.box ?? 0),
+        kg: Number(it.kg ?? it.weight ?? 0),
         cbm: Number(it.cbm || 0),
         lwh: lwhVal,
         vw: Number(it.vw ?? it.ww ?? 0),
+        lineId,
+        stockListId,
         stockItemId,
       };
     });
 
     setCargoItems(mapped.length ? mapped : blankCargoRows());
+    lastSubmittedCiplLinesRef.current = JSON.stringify(
+      buildCiplStockLinePayload(mapped.length ? mapped : blankCargoRows(), isCiPlPerUnitTab)
+    );
     // allow autosave effects after this render flushes
     setTimeout(() => {
       isApplyingFormRef.current = false;
@@ -735,7 +821,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const ensureFormId = async () => {
     if (siFormId) return siFormId;
     const latest = await loadFormLatest({ latest_only: true });
-    const id = latest?.id ?? null;
+    let id = latest?.id ?? null;
+    if (!id && !isShippingAdvise && !isDeliveryLike) {
+      const created = await createForm({});
+      id = created?.id ?? null;
+      if (created) applySiFormResponse(created);
+    }
     if (id) setSiFormId(id);
     return id;
   };
@@ -917,7 +1008,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qDi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.diNo, selectedSiName, isShippingAdvise, isDeliveryLike]);
+  }, [qCnee, qSi, qSic, qDi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.diNo, selectedSiName, isShippingAdvise, isDeliveryLike, ciPlTabIndex]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -938,7 +1029,45 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return () => {
       cancelled = true;
     };
-  }, [isShippingAdvise, isDeliveryLike]);
+  }, [isShippingAdvise, isDeliveryLike, ciPlTabIndex]);
+
+  // Autosave CIPL editable stock notebook line fields.
+  useEffect(() => {
+    if (isResettingRef.current) return;
+    if (isApplyingFormRef.current) return;
+    if (isShippingAdvise || isDeliveryLike) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+        setIsSiFormLoading(true);
+        const stickyAgentId = getStickyAgentId();
+        const stickyConsigneeId = getStickyConsigneeId();
+        const stockListPayload = buildCiplStockLinePayload(cargoItems, isCiPlPerUnitTab);
+        const nextLinesSignature = JSON.stringify(stockListPayload);
+        if (nextLinesSignature === lastSubmittedCiplLinesRef.current) return;
+        const updated = await saveForm(
+          buildSavePayloadWithId(currentId, {
+            stock_list: stockListPayload,
+            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
+            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
+          })
+        );
+        lastSubmittedCiplLinesRef.current = nextLinesSignature;
+        if (updated?.id != null) setSiFormId(updated.id);
+        applySiFormResponse(updated, {
+          lockedConsigneeId: formData.selectConsignee,
+          lockedSiId: formData.siNo,
+          lockedAgentId: formData.selectAgent,
+        });
+      } catch (e) {
+        console.error("Failed to autosave CIPL stock notebook lines:", e);
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [cargoItems, isCiPlPerUnitTab, formData.selectConsignee, formData.siNo, formData.selectAgent]);
 
   useEffect(() => {
     return () => {
@@ -1074,7 +1203,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 deadline_text: formData.deadline ?? "",
                 header_pic_id:
                   formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-                header_date: formData.date ?? "",
+                date: formData.date ?? "",
               };
         const stickyAgentId = getStickyAgentId();
         const stickyConsigneeId = getStickyConsigneeId();
@@ -1263,7 +1392,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           deadline_text: null,
           delivery_date: null,
           header_pic_id: null,
-          header_date: null,
+          ...(isDeliveryLike ? { header_date: null } : { date: null }),
 
           company: "",
           address1: "",
@@ -1307,7 +1436,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           delivery_to_at: null,
           location_text: null,
 
-          stock_list: [],
+          stock_list:
+            !isShippingAdvise && !isDeliveryLike
+              ? buildCiplStockLinePayload(
+                cargoItems.map((item) => ({
+                  ...item,
+                  details: null,
+                  valueUsd: null,
+                  quantity: null,
+                  perUnit: null,
+                })),
+                isCiPlPerUnitTab
+              )
+              : [],
         })
       );
       if (updated?.id != null) setSiFormId(updated.id);
@@ -1374,11 +1515,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const sicNoLabel =
       sicOptions.find((o) => Number(o.id) === Number(formData.sicNo))?.name ||
       "";
+    const diNoLabel =
+      diOptions.find((o) => Number(o.id) === Number(formData.diNo))?.name ||
+      "";
     const selectedIdentifierLabel = formData.siNo
       ? ["SI NUMBER", siNoLabel || "-"]
       : formData.sicNo
         ? ["SIC NO", sicNoLabel || "-"]
-        : ["SI NUMBER", "-"];
+        : formData.diNo
+          ? ["DI NO", diNoLabel || "-"]
+          : ["SI / SIC / DI", "-"];
     const picLabel =
       picOptions.find((o) => Number(o.id) === Number(formData.pic))?.name || formData.pic || "";
     const doc = new jsPDF({
@@ -1408,12 +1554,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     const isCiPlPdf = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm;
     if (isCiPlPdf) {
-      const invoiceRefValue = [
+      const pdfDate =
+        formData.date != null && String(formData.date).trim() !== ""
+          ? String(formData.date)
+          : todayIso;
+      const invoiceRefLines = [
         selectedIdentifierLabel?.[1] ? `${selectedIdentifierLabel[0]}: ${selectedIdentifierLabel[1]}` : "",
         formData.jobNo ? `JOB NO: ${formData.jobNo}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
+      ].filter(Boolean);
 
       const ciPlRows = (cargoItems || []).map((item) => (
         isCiPlPerUnitTab
@@ -1444,32 +1592,43 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
       doc.setFontSize(9);
       doc.text("CONSIGNED TO:", 32, 204);
-      doc.rect(30, 212, 260, 56);
+      const consignTextLines = doc.splitTextToSize(
+        formData.consignBlock || "Select agent + Select consignee + Free text (copy / paste)",
+        245
+      );
+      const consignBoxTopY = 212;
+      const consignTextStartY = 224;
+      const consignLineHeight = 9;
+      const consignBoxHeight = Math.max(56, (consignTextLines.length * consignLineHeight) + 16);
+      doc.rect(30, consignBoxTopY, 260, consignBoxHeight);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.text(
-        doc.splitTextToSize(formData.consignBlock || "Select agent + Select consignee + Free text (copy / paste)", 245),
-        36,
-        234
-      );
+      doc.text(consignTextLines, 36, consignTextStartY);
       if (isCiPlPerUnitTab) {
+        const picRowY = consignBoxTopY + consignBoxHeight + 16;
+        const resolvedPicName = picLabel || "TAS";
         doc.setFont("helvetica", "bold");
-        doc.text("PIC :", 32, 284);
+        doc.text("PIC :", 32, picRowY);
         doc.setFont("helvetica", "normal");
-        doc.text(formData.pic || "TAS", 84, 284);
+        doc.text(resolvedPicName, 84, picRowY);
       }
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text("INVOICE REF / JOB NO SI, SIC, DI NUMBER", 365, 204);
-      doc.text("DATE :", 365, 238);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(doc.splitTextToSize(invoiceRefValue || "-", 170), 365, 218);
-      doc.text(formData.date || "-", 365, 252);
+      const refStartY = 218;
+      const refLineHeight = 12;
+      const resolvedRefLines = invoiceRefLines.length ? invoiceRefLines : ["-"];
+      resolvedRefLines.forEach((line, idx) => {
+        doc.text(String(line), 365, refStartY + (idx * refLineHeight));
+      });
+      const dateY = refStartY + (resolvedRefLines.length * refLineHeight) + 10;
+      doc.text(`DATE : ${pdfDate}`, 365, dateY);
+      const rightHeaderBottomY = dateY + 4;
+      const picHeaderBottomY = isCiPlPerUnitTab ? (consignBoxTopY + consignBoxHeight + 26) : 0;
+      const ciPlHeaderBottomY = Math.max(consignBoxTopY + consignBoxHeight, rightHeaderBottomY, picHeaderBottomY);
 
       autoTable(doc, {
-        startY: 324,
+        startY: ciPlHeaderBottomY + 20,
         head: [isCiPlPerUnitTab
           ? ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
           : ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"]],

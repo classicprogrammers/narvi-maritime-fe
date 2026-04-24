@@ -61,6 +61,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const isDeliveryForm = formType === "delivery";
   const isDeliveryConfirmation = formType === "deliveryConfirmation";
   const isDeliveryLike = isDeliveryForm || isDeliveryConfirmation;
+  const liaisonCheckboxStorageKey = `shipping-form-liaison-checked-${formType}`;
   const todayIso = new Date().toISOString().slice(0, 10);
   const loadFormLatest = isShippingAdvise
     ? postShippingAdviseFormApi
@@ -114,6 +115,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const isApplyingFormRef = useRef(false);
   const headerUserEditedRef = useRef(false);
   const consignBlockUserEditedRef = useRef(false);
+  const includeInLiasonWithUserControlledRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
   const deadlinePickerRef = useRef(null);
@@ -169,6 +171,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     warnings: "",
     includeInLiasonWith: false,
   });
+
+  useEffect(() => {
+    if (!isDeliveryLike) return;
+    try {
+      const stored = window.localStorage.getItem(liaisonCheckboxStorageKey);
+      if (stored === "true" || stored === "false") {
+        includeInLiasonWithUserControlledRef.current = true;
+        setFormData((prev) => ({
+          ...prev,
+          includeInLiasonWith: stored === "true",
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to restore liaison checkbox preference:", e);
+    }
+  }, [isDeliveryLike, liaisonCheckboxStorageKey]);
 
   // Cargo items
   const [cargoItems, setCargoItems] = useState([
@@ -357,11 +375,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           ? String(form.siform_to_id.name)
           : "";
 
+    const hasInLiasonWithField = Object.prototype.hasOwnProperty.call(form, "in_liason_with");
     const cneeTextOnly = isDeliveryLike
-      ? (form.in_liason_with && form.in_liason_with !== false ? String(form.in_liason_with) : "")
+      ? (hasInLiasonWithField && form.in_liason_with !== false ? String(form.in_liason_with ?? "") : "")
       : (form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "");
     const includeInLiasonWith = isDeliveryLike
-      ? Boolean(form.in_liason_with && String(form.in_liason_with).trim() !== "")
+      ? (hasInLiasonWithField ? form.in_liason_with !== false : false)
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const stockTotals = {
@@ -369,14 +388,30 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       weight: stockList.reduce((sum, it) => sum + Number(it?.kg || 0), 0),
       vw: stockList.reduce((sum, it) => sum + Number(it?.vw ?? it?.ww ?? 0), 0),
     };
-    const hasPackedQty =
+    const packedAs =
+      form.packed_as && typeof form.packed_as === "object"
+        ? form.packed_as
+        : null;
+    const packedQtyValue =
       form.total_packed_quantity != null &&
-      form.total_packed_quantity !== false &&
-      form.total_packed_quantity !== "";
-    const hasPackedWeight =
+        form.total_packed_quantity !== false &&
+        form.total_packed_quantity !== ""
+        ? form.total_packed_quantity
+        : packedAs?.boxes;
+    const packedWeightValue =
       form.total_packed_weight != null &&
-      form.total_packed_weight !== false &&
-      form.total_packed_weight !== "";
+        form.total_packed_weight !== false &&
+        form.total_packed_weight !== ""
+        ? form.total_packed_weight
+        : packedAs?.kg;
+    const hasPackedQty =
+      packedQtyValue != null &&
+      packedQtyValue !== false &&
+      packedQtyValue !== "";
+    const hasPackedWeight =
+      packedWeightValue != null &&
+      packedWeightValue !== false &&
+      packedWeightValue !== "";
     const hasPackedVw =
       form.total_packed_vw != null &&
       form.total_packed_vw !== false &&
@@ -531,8 +566,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(form.header_date)
             : todayIso)
           : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
-      totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
-      totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
+      totalPackedQuantity: hasPackedQty ? Number(packedQtyValue) : stockTotals.quantity,
+      totalPackedWeight: hasPackedWeight ? Number(packedWeightValue) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
       totalVw: hasTotalVw ? Number(form.total_vw) : stockTotals.vw,
       transportDetails:
@@ -541,7 +576,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : "",
 
       // consign block + consignee id
-      consignBlock: cneeTextOnly,
+      consignBlock:
+        isDeliveryLike && !hasInLiasonWithField
+          ? prev.consignBlock
+          : cneeTextOnly,
       selectAgent: (() => {
         const fromForm =
           agentId !== "" && agentId != null && agentId !== false ? String(agentId) : "";
@@ -568,7 +606,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cneeText: form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "",
       agentsPIC: form.agents_pic && form.agents_pic !== false ? String(form.agents_pic) : "",
       warnings: form.warnings && form.warnings !== false ? String(form.warnings) : "",
-      includeInLiasonWith,
+      includeInLiasonWith:
+        isDeliveryLike
+          ? (includeInLiasonWithUserControlledRef.current
+            ? prev.includeInLiasonWith
+            : (!hasInLiasonWithField ? prev.includeInLiasonWith : includeInLiasonWith))
+          : false,
     }));
 
     // Keep selected agent visible in the dropdown even before options list refreshes.
@@ -677,13 +720,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   /** Shipping Advise may omit id so backend updates latest record. */
   const buildSavePayloadWithId = (currentId, fields) => {
+    const normalizedFields = { ...(fields || {}) };
+    if (
+      isDeliveryLike &&
+      !Object.prototype.hasOwnProperty.call(normalizedFields, "in_liason_with")
+    ) {
+      normalizedFields.in_liason_with = String(formData.consignBlock ?? "");
+    }
     if (isShippingAdvise) {
       if (currentId != null && currentId !== "") {
-        return { id: Number(currentId), ...fields };
+        return { id: Number(currentId), ...normalizedFields };
       }
-      return { ...fields };
+      return { ...normalizedFields };
     }
-    return { id: Number(currentId), ...fields };
+    return { id: Number(currentId), ...normalizedFields };
   };
 
   useEffect(() => {
@@ -914,6 +964,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
                   ? Number(formData.siNo)
                   : null,
+              in_liason_with: String(formData.consignBlock ?? ""),
               header_pic_id:
                 formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
                   ? Number(formData.pic)
@@ -934,6 +985,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     ? Number(formData.siNo)
                     : null,
                 so_number: toNullIfEmpty(formData.soNo),
+                in_liason_with: String(formData.consignBlock ?? ""),
                 header_pic_id:
                   formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
                     ? Number(formData.pic)
@@ -1031,7 +1083,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     formData.transportDetails,
   ]);
 
-  // Autosave CONSIGN TO block into backend cnee_text (debounced)
+  // Autosave CONSIGN TO / IN LIASON WITH block (debounced)
   useEffect(() => {
     if (isResettingRef.current) return;
     if (isApplyingFormRef.current) return;
@@ -1048,10 +1100,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           buildSavePayloadWithId(currentId, {
             ...(isDeliveryLike
               ? {
-                in_liason_with:
-                  String(formData.consignBlock ?? "").trim() === ""
-                    ? false
-                    : formData.consignBlock,
+                in_liason_with: String(formData.consignBlock ?? ""),
               }
               : {
                 cnee_text: formData.consignBlock ?? "",
@@ -1106,6 +1155,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           buildSavePayloadWithId(currentId, {
             total_packed_quantity: Number(formData.totalPackedQuantity || 0),
             total_packed_weight: Number(formData.totalPackedWeight || 0),
+            packed_as: {
+              boxes: Number(formData.totalPackedQuantity || 0),
+              kg: Number(formData.totalPackedWeight || 0),
+            },
             total_packed_vw: Number(formData.totalPackedVw || 0),
             ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
             ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
@@ -1193,6 +1246,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           in_liason_with: false,
           total_packed_quantity: 0,
           total_packed_weight: 0,
+          packed_as: {
+            boxes: 0,
+            kg: 0,
+          },
           total_packed_vw: 0,
           total_vw: 0,
 
@@ -1230,6 +1287,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         deadline: "",
         totalVw: "",
       }));
+      try {
+        window.localStorage.setItem(liaisonCheckboxStorageKey, "false");
+      } catch (e) {
+        console.error("Failed to persist liaison checkbox preference:", e);
+      }
       setQAgent("");
       setQCnee("");
       setQSi("");
@@ -1308,9 +1370,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const docTitle = isShippingAdvise
       ? `Shipping Advise - ${formData.vessel || "-"}`
       : isDeliveryConfirmation
-        ? `Delivery Confirmation - ${formData.vessel || "-"}`
+        ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel || "-"}`
         : isDeliveryForm
-          ? `Delivery Instruction - ${formData.vessel || "-"}`
+          ? `POD FOR M/V ${formData.vessel || "-"}`
           : `Shipping Instruction - ${formData.vessel || "-"}`;
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
@@ -1322,7 +1384,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       .map((line) => line.trim())
       .filter((line) => line !== "");
 
-    const twoColStartY = contentTop + 26;
+    let twoColStartY = contentTop + 26;
+    if (isDeliveryLike) {
+      twoColStartY += 8; // add top breathing room before delivery heading
+      const deliveryToAtText = `TO DELIVER TO AT: ${formData.deliveryToAt || "-"}`;
+      doc.setFontSize(10);
+      doc.setTextColor(33, 51, 91);
+      doc.setFont(undefined, "bold");
+      doc.text(deliveryToAtText, contentLeft, twoColStartY);
+      doc.setFont(undefined, "normal");
+      doc.setTextColor(0, 0, 0);
+      twoColStartY += 16; // keep clearer gap before IN LIASON WITH block
+    }
     const leftColWidth = 250;
     const gapBetweenCols = 16;
     const rightColLeftDefault = contentLeft + leftColWidth + gapBetweenCols;
@@ -1470,6 +1543,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
       ]);
+      cargoRows.push([
+        "PACKED AS",
+        "",
+        "",
+        "",
+        "",
+        "",
+        String(formData.totalPackedQuantity ?? ""),
+        String(formData.totalPackedWeight ?? ""),
+        "",
+      ]);
     } else {
       cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "WAREHOUSE ID"];
       cargoRows = (cargoItems || []).map((item) => [
@@ -1516,7 +1600,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
       margin: { left: contentLeft, right: 24, bottom: 24 },
       didParseCell: (hookData) => {
-        if (!isShippingAdvise && !isDeliveryLike && hookData.section === "body") {
+        if ((!isShippingAdvise && !isDeliveryLike && hookData.section === "body") || (isDeliveryForm && hookData.section === "body")) {
           const packedAsRowIndex = cargoRows.length - 1;
           if (hookData.row.index === packedAsRowIndex) {
             hookData.cell.styles.fillColor = [255, 245, 204];
@@ -1663,7 +1747,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     _placeholder={{ color: "whiteAlpha.800" }}
                   />
                 )}
-                {isDeliveryLike && (
+                {isDeliveryConfirmation && (
                   <Flex align="center" justify="space-between" mb={2}>
                     <Text fontSize="sm" fontWeight="bold">
                       IN LIASON WITH :
@@ -1676,6 +1760,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         colorScheme="green"
                         isChecked={Boolean(formData.includeInLiasonWith)}
                         onChange={(e) => {
+                          includeInLiasonWithUserControlledRef.current = true;
+                          try {
+                            window.localStorage.setItem(
+                              liaisonCheckboxStorageKey,
+                              e.target.checked ? "true" : "false"
+                            );
+                          } catch (err) {
+                            console.error("Failed to persist liaison checkbox preference:", err);
+                          }
                           handleInputChange("includeInLiasonWith", e.target.checked);
                         }}
                       />
@@ -1685,7 +1778,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </HStack>
                   </Flex>
                 )}
-                {(!isDeliveryLike || formData.includeInLiasonWith) && (
+                {(!isDeliveryLike || isDeliveryForm || formData.includeInLiasonWith) && (
                   <Textarea
                     value={formData.consignBlock || ""}
                     onChange={(e) => {
@@ -2535,9 +2628,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       )}
                       {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
                     </Tr>
-                    {!isShippingAdvise && !isDeliveryLike && (
+                    {!isShippingAdvise && !isDeliveryConfirmation && (
                       <Tr bg="gray.50">
-                        <Td colSpan={5} borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                        <Td
+                          colSpan={isDeliveryForm ? 6 : 5}
+                          borderRight="1px"
+                          borderColor="gray.300"
+                          py={2}
+                          px={4}
+                          fontSize="xs"
+                          fontWeight="bold"
+                        >
                           PACKED AS:
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
@@ -2572,23 +2673,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           />
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
-                          <Input
-                            id="totalPackedVw"
-                            type="number"
-                            step="0.01"
-                            value={formData.totalPackedVw}
-                            onChange={(e) => {
-                              packedTotalsUserEditedRef.current = true;
-                              handleInputChange("totalPackedVw", e.target.value);
-                            }}
-                            size="xs"
-                            variant="unstyled"
-                            bg="transparent"
-                            fontWeight="semibold"
-                          />
-                        </Td>
+                        {!isDeliveryForm && (
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                        )}
+                        {!isDeliveryLike && (
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
+                            <Input
+                              id="totalPackedVw"
+                              type="number"
+                              step="0.01"
+                              value={formData.totalPackedVw}
+                              onChange={(e) => {
+                                packedTotalsUserEditedRef.current = true;
+                                handleInputChange("totalPackedVw", e.target.value);
+                              }}
+                              size="xs"
+                              variant="unstyled"
+                              bg="transparent"
+                              fontWeight="semibold"
+                            />
+                          </Td>
+                        )}
                       </Tr>
                     )}
                   </Tbody>
@@ -2938,7 +3043,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <ModalOverlay />
         <ModalContent m={4} maxH="calc(100vh - 2rem)">
           <ModalHeader>
-            {isShippingAdvise ? "Shipping Advise — preview" : "Shipping Instruction — preview"}
+            Preview
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>

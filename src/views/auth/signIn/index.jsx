@@ -303,7 +303,7 @@ function SignIn() {
                   </InputRightElement>
                 </InputGroup>
                 <Flex justifyContent='space-between' align='center' mb='24px'>
-                  <FormControl display='flex' alignItems='center'>
+                  {/* <FormControl display='flex' alignItems='center'>
                     <Checkbox
                       id='remember-login'
                       name="rememberMe"
@@ -320,7 +320,7 @@ function SignIn() {
                       fontSize='sm'>
                       Keep me logged in
                     </FormLabel>
-                  </FormControl>
+                  </FormControl> */}
                   {/* <NavLink to='/auth/forgot-password'>
                     <Text
                       color={textColorBrand}
