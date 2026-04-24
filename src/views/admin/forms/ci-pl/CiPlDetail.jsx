@@ -796,7 +796,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(it.per_unit)
             : it.perunit != null && it.perunit !== false
               ? String(it.perunit)
-            : "",
+              : "",
         boxes: Number(it.boxes ?? it.box ?? 0),
         kg: Number(it.kg ?? it.weight ?? 0),
         cbm: Number(it.cbm || 0),
