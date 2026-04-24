@@ -8,14 +8,13 @@ import {
   InputGroup,
   InputLeftElement,
   SimpleGrid,
-  Select,
   Spinner,
   Text,
   useColorModeValue,
 } from "@chakra-ui/react";
 import { MdDirectionsBoat, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
-import vesselsApi from "api/vessels";
+import clientVesselApi from "api/clientVessel";
 
 function ClientVessels() {
   const history = useHistory();
@@ -25,16 +24,14 @@ function ClientVessels() {
   const text = useColorModeValue("navy.700", "white");
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
   const [clientName, setClientName] = useState("");
   const [vessels, setVessels] = useState([]);
 
   const fetchClientVessels = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await vesselsApi.getClientVessels({
+      const res = await clientVesselApi.getClientVessels({
         search: search.trim() || undefined,
-        status: status || undefined,
       });
       setVessels(Array.isArray(res?.vessels) ? res.vessels : []);
       setClientName(res?.client?.name || "");
@@ -44,7 +41,7 @@ function ClientVessels() {
     } finally {
       setIsLoading(false);
     }
-  }, [search, status]);
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -78,20 +75,6 @@ function ClientVessels() {
             fontWeight="500"
           />
         </InputGroup>
-        <Select
-          maxW={{ base: "100%", md: "220px" }}
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          borderRadius="12px"
-          fontSize="sm"
-          fontWeight="500"
-        >
-          <option value="">All status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="tbn">TBN</option>
-          <option value="new_building">New Building</option>
-        </Select>
       </Flex>
 
       <SimpleGrid columns={{ base: 1, md: 2, xl: 4 }} spacing={4}>

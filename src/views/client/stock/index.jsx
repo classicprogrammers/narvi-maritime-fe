@@ -3,13 +3,11 @@ import {
   Badge,
   Box,
   Button,
-  Checkbox,
   Flex,
   Grid,
   GridItem,
   Heading,
   Icon,
-  IconButton,
   Input,
   InputGroup,
   InputLeftElement,
@@ -29,7 +27,6 @@ import {
 } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
 import {
-  MdChevronRight,
   MdFilterAlt,
   MdRefresh,
   MdFileDownload,
@@ -38,11 +35,11 @@ import {
   MdTableChart,
 } from "react-icons/md";
 import clientStockApi from "api/clientStock";
+import clientHubApi from "api/clientHub";
+import clientVesselApi from "api/clientVessel";
 
 function ClientStock() {
   const location = useLocation();
-  const [selectedRows, setSelectedRows] = useState(new Set());
-  const [expandedRows, setExpandedRows] = useState(new Set());
   const [stockRows, setStockRows] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [clientName, setClientName] = useState("");
@@ -57,6 +54,8 @@ function ClientStock() {
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
+  const [vesselFilterOptions, setVesselFilterOptions] = useState([]);
+  const [hubFilterOptions, setHubFilterOptions] = useState([]);
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -66,6 +65,20 @@ function ClientStock() {
   );
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
   const headingColor = useColorModeValue("navy.700", "white");
+  const tableHeaderBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+  const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
+  const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
+  const statusColorMap = {
+    pending: "orange",
+    stock: "blue",
+    available: "green",
+    delivered: "green",
+    in_transit: "purple",
+    transit: "purple",
+    cancelled: "red",
+    lost: "red",
+    hold: "yellow",
+  };
 
   const fetchStock = useCallback(async () => {
     setIsLoading(true);
@@ -76,27 +89,42 @@ function ClientStock() {
       });
       const normalizedRows = (res?.stock_list || []).map((item, idx) => ({
         id: `${item.stock_item_id || "stock"}-${idx}`,
-        date: item.date_on_stock || "-",
-        days: item.days_on_stock ?? "-",
-        vessel: item.vessel?.name || "-",
-        vesselId: item.vessel?.id || "",
-        status: item.stock_status || "-",
-        mode: "-",
-        transitId: item.stock_item_id || "-",
-        supplier: item.supplier?.name || "-",
-        poNo: Array.isArray(item.po_number) ? item.po_number.join(", ") : (item.po_number || "-"),
-        cargoValue: "-",
-        entries: item.box != null ? String(item.box) : "-",
+        client: item.client?.name || res?.client?.name || "-",
+        dateOnStock: item.date_on_stock || "-",
+        vessel: item.vessel?.name || item.vessel || "-",
+        warehouseId:
+          item.warehouse_id != null && item.warehouse_id !== false && item.warehouse_id !== ""
+            ? String(item.warehouse_id)
+            : "-",
+        supplier: item.supplier?.name || item.supplier || "-",
+        poNo: Array.isArray(item.po_number) ? item.po_number.join(", ") : (item.po_text || "-"),
+        dgUnNumber:
+          item.dg_un_number != null && item.dg_un_number !== false && item.dg_un_number !== ""
+            ? String(item.dg_un_number)
+            : "-",
+        boxes: item.boxes != null ? String(item.boxes) : item.box != null ? String(item.box) : "-",
         weight: item.weight != null ? String(item.weight) : "-",
-        location: item.origin || "-",
-        stockId: item.stock_item_id || "-",
-        remarks: item.remarks || "-",
-        approval: "-",
+        totalVolumeCbm: item.total_volume_cbm != null ? String(item.total_volume_cbm) : "-",
+        origin: item.origin || "-",
+        viaHub1: item.via_hub_1 || "-",
+        viaHub2: item.via_hub_2 || "-",
+        apDestination:
+          item.ap_destination != null && item.ap_destination !== false && item.ap_destination !== ""
+            ? String(item.ap_destination)
+            : "-",
+        destination: item.destination || "-",
+        stockStatus: item.stock_status || "-",
+        soNumber:
+          item.so_number != null && item.so_number !== false && item.so_number !== ""
+            ? String(item.so_number)
+            : "-",
+        currency:
+          item.currency != null && item.currency !== false && item.currency !== ""
+            ? String(item.currency)
+            : "-",
+        value: item.value != null ? String(item.value) : "-",
         t1: "All",
         dg: "All",
-        size: "-",
-        whLocation: "-",
-        deleteMark: "-",
       }));
       setStockRows(normalizedRows);
       setClientName(res?.client?.name || "");
@@ -108,12 +136,41 @@ function ClientStock() {
     }
   }, [filters.status, search]);
 
+  const fetchVesselFilterOptions = useCallback(async () => {
+    try {
+      const res = await clientVesselApi.getClientVessels({});
+      const options = (Array.isArray(res?.vessels) ? res.vessels : [])
+        .map((v) => (typeof v === "string" ? v : v?.name))
+        .filter((v) => typeof v === "string" && v.trim() !== "");
+      setVesselFilterOptions(Array.from(new Set(options)));
+    } catch (_error) {
+      setVesselFilterOptions([]);
+    }
+  }, []);
+
+  const fetchHubFilterOptions = useCallback(async () => {
+    try {
+      const res = await clientHubApi.getClientHubs({});
+      const options = (Array.isArray(res?.hubs) ? res.hubs : [])
+        .map((h) => h?.hub)
+        .filter((h) => typeof h === "string" && h.trim() !== "");
+      setHubFilterOptions(Array.from(new Set(options)));
+    } catch (_error) {
+      setHubFilterOptions([]);
+    }
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchStock();
     }, 300);
     return () => clearTimeout(timer);
   }, [fetchStock]);
+
+  useEffect(() => {
+    fetchVesselFilterOptions();
+    fetchHubFilterOptions();
+  }, [fetchHubFilterOptions, fetchVesselFilterOptions]);
 
   const filteredRows = useMemo(() => {
     return stockRows
@@ -128,15 +185,6 @@ function ClientStock() {
       })
       .slice(0, Number(entries));
   }, [entries, filters, stockRows]);
-
-  useEffect(() => {
-    if (!filteredRows.length) {
-      setExpandedRows(new Set());
-      return;
-    }
-    const firstRowId = filteredRows[0].id;
-    setExpandedRows(new Set([firstRowId]));
-  }, [filteredRows]);
 
   const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -165,33 +213,28 @@ function ClientStock() {
     setSearch("");
     setEntries("50");
   };
+  const formatStatus = (status) => {
+    const value = String(status || "").trim();
+    if (!value) return "-";
+    return value
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  };
 
   const vesselOptions = useMemo(
-    () => Array.from(new Set(stockRows.map((r) => r.vessel).filter(Boolean).filter((v) => v !== "-"))),
-    [stockRows]
+    () =>
+      vesselFilterOptions.length
+        ? vesselFilterOptions
+        : Array.from(new Set(stockRows.map((r) => r.vessel).filter(Boolean).filter((v) => v !== "-"))),
+    [stockRows, vesselFilterOptions]
   );
   const locationOptions = useMemo(
-    () => Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
-    [stockRows]
+    () =>
+      hubFilterOptions.length
+        ? hubFilterOptions
+        : Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
+    [stockRows, hubFilterOptions]
   );
-
-  const toggleRowSelection = (id) => {
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleRowExpanded = (id) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   return (
     <Box>
@@ -322,126 +365,90 @@ function ClientStock() {
           size="sm"
           variant="simple"
           sx={{
+            tableLayout: "auto",
             th: {
               borderColor: `${tableBorderColor} !important`,
               borderRight: `1px solid ${tableBorderColor} !important`,
               borderBottom: `1px solid ${tableBorderColor} !important`,
+              fontSize: "11px",
+              letterSpacing: "0.02em",
+              whiteSpace: "nowrap",
+              py: 3,
+              bg: tableHeaderBg,
             },
             td: {
               borderColor: `${tableBorderColor} !important`,
               borderRight: `1px solid ${tableBorderColor} !important`,
               borderBottom: `1px solid ${tableBorderColor} !important`,
+              fontSize: "12px",
+              py: 2.5,
+              verticalAlign: "middle",
             },
             "th:last-child, td:last-child": {
               borderRight: "none",
             },
           }}
         >
-          <Thead bg="secondaryGray.300">
+          <Thead>
             <Tr>
-              <Th w="40px" />
-              <Th w="40px" />
-              <Th>Date</Th>
-              <Th>Days</Th>
+              <Th>CLIENT</Th>
               <Th>Vessel</Th>
-              <Th>Status</Th>
-              <Th>Mode of Arrival</Th>
-              <Th>Transit ID</Th>
-              <Th>Supplier Name</Th>
-              <Th>PO No</Th>
-              <Th>Cargo Value</Th>
-              <Th w="30px" />
-              <Th>Cargo Entries</Th>
-              <Th>Weight (KGS)</Th>
-              <Th>Location</Th>
-              <Th>Stock ID</Th>
-              <Th>Cust. Remarks</Th>
-              <Th>Approval</Th>
+              <Th>WAREHOUSE ID</Th>
+              <Th>SUPPLIER</Th>
+              <Th>PO#</Th>
+              <Th>DG/UN NUMBER</Th>
+              <Th>BOXES</Th>
+              <Th>WEIGHT</Th>
+              <Th>TOTAL VOLUME CBM</Th>
+              <Th>ORIGIN</Th>
+              <Th>VIA HUB 1</Th>
+              <Th>VIA HUB 2</Th>
+              <Th>AP DESTINATION</Th>
+              <Th>DESTINATION</Th>
+              <Th>STOCK STATUS</Th>
+              <Th>DATE ON STOCK</Th>
+              <Th>SO NUMBER</Th>
+              <Th>CURRENCY</Th>
+              <Th>VALUE</Th>
             </Tr>
           </Thead>
           <Tbody>
-            {filteredRows.map((row, index) => {
-              const rowId = row.id;
-              const isSelected = selectedRows.has(rowId);
-              const isExpanded = expandedRows.has(rowId);
+            {filteredRows.map((row) => {
               return (
-                <React.Fragment key={rowId}>
-                  <Tr bg={index === 0 ? "#f7f8e2" : "transparent"}>
-                    <Td>
-                      <Checkbox
-                        isChecked={isSelected}
-                        onChange={() => toggleRowSelection(rowId)}
-                        colorScheme="brandScheme"
-                      />
-                    </Td>
-                    <Td>
-                      <IconButton
-                        aria-label="Expand row"
-                        icon={
-                          <Icon
-                            as={MdChevronRight}
-                            transform={isExpanded ? "rotate(90deg)" : "rotate(0deg)"}
-                          />
-                        }
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => toggleRowExpanded(rowId)}
-                      />
-                    </Td>
-                    <Td>{row.date}</Td>
-                    <Td>{row.days}</Td>
+                <Tr
+                  key={row.id}
+                  _hover={{ bg: tableRowHoverBg }}
+                  _even={{ bg: tableRowEvenBg }}
+                >
+                    <Td>{row.client}</Td>
                     <Td>{row.vessel}</Td>
+                    <Td>{row.warehouseId}</Td>
+                    <Td>{row.supplier}</Td>
+                    <Td>{row.poNo}</Td>
+                    <Td>{row.dgUnNumber}</Td>
+                    <Td>{row.boxes}</Td>
+                    <Td>{row.weight}</Td>
+                    <Td>{row.totalVolumeCbm}</Td>
+                    <Td>{row.origin}</Td>
+                    <Td>{row.viaHub1}</Td>
+                    <Td>{row.viaHub2}</Td>
+                    <Td>{row.apDestination}</Td>
+                    <Td>{row.destination}</Td>
                     <Td>
                       <Badge
-                        colorScheme={row.status === "stock" ? "green" : "orange"}
                         borderRadius="full"
                         px={2.5}
                         py={1}
+                        colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
                       >
-                        {row.status}
+                        {formatStatus(row.stockStatus)}
                       </Badge>
                     </Td>
-                    <Td>{row.mode}</Td>
-                    <Td>{row.transitId}</Td>
-                    <Td minW="220px">{row.supplier}</Td>
-                    <Td>{row.poNo}</Td>
-                    <Td>{row.cargoValue}</Td>
-                    <Td>
-                      <Text color="red.500" fontWeight="700">#</Text>
-                    </Td>
-                    <Td>{row.entries}</Td>
-                    <Td>{row.weight}</Td>
-                    <Td>{row.location}</Td>
-                    <Td>{row.stockId}</Td>
-                    <Td>{row.remarks}</Td>
-                    <Td>{row.approval}</Td>
-                  </Tr>
-                  {isExpanded ? (
-                    <Tr bg="secondaryGray.300">
-                      <Td colSpan={2} />
-                      <Td colSpan={4}>
-                        <Text fontSize="10px" color={muted} fontWeight="700">SUPPLIER NAME</Text>
-                        <Text fontSize="11px">{row.supplier}</Text>
-                      </Td>
-                      <Td colSpan={2}>
-                        <Text fontSize="10px" color={muted} fontWeight="700">SIZE</Text>
-                        <Text fontSize="11px">{row.size}</Text>
-                      </Td>
-                      <Td colSpan={3}>
-                        <Text fontSize="10px" color={muted} fontWeight="700">TRANSIT ID</Text>
-                        <Text fontSize="11px">{row.transitId}</Text>
-                      </Td>
-                      <Td colSpan={2}>
-                        <Text fontSize="10px" color={muted} fontWeight="700">WH LOCATION</Text>
-                        <Text fontSize="11px">{row.whLocation}</Text>
-                      </Td>
-                      <Td colSpan={2}>
-                        <Text fontSize="10px" color={muted} fontWeight="700">DELETE</Text>
-                        <Text fontSize="11px">{row.deleteMark}</Text>
-                      </Td>
-                    </Tr>
-                  ) : null}
-                </React.Fragment>
+                    <Td>{row.dateOnStock}</Td>
+                    <Td>{row.soNumber}</Td>
+                    <Td>{row.currency}</Td>
+                    <Td>{row.value}</Td>
+                </Tr>
               );
             })}
           </Tbody>

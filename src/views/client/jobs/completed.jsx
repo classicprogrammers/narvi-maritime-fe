@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -31,51 +31,8 @@ import {
   MdRefresh,
   MdSearch,
 } from "react-icons/md";
-
-const completedJobsData = [
-  {
-    vessel: "ROYAL AWARD",
-    jobId: "BOR0326206",
-    mode: "Ship",
-    transitInfo: "N/A",
-    etd: "11/03/2026",
-    eta: "14/03/2026",
-    origin: "PVG",
-    destination: "IXN",
-    combined: "Combined",
-    totalWeight: 2,
-    documents: 17,
-    incharge: 17,
-  },
-  {
-    vessel: "JIRAI",
-    jobId: "BOR0326573",
-    mode: "Air",
-    transitInfo: "N/A",
-    etd: "30/03/2026",
-    eta: "03/04/2026",
-    origin: "PVG",
-    destination: "RIX",
-    combined: "Combined",
-    totalWeight: 8,
-    documents: 85,
-    incharge: 85,
-  },
-  {
-    vessel: "JAY",
-    jobId: "BOR0326552",
-    mode: "Truck",
-    transitInfo: "N/A",
-    etd: "22/03/2026",
-    eta: "30/03/2026",
-    origin: "PVG",
-    destination: "FUK",
-    combined: "Combined",
-    totalWeight: 3,
-    documents: 7,
-    incharge: 7,
-  },
-];
+import clientJobsApi from "api/clientJobs";
+import clientVesselApi from "api/clientVessel";
 
 function ClientCompletedJobs() {
   const [filters, setFilters] = useState({
@@ -88,6 +45,11 @@ function ClientCompletedJobs() {
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
+  const [status, setStatus] = useState("delivered");
+  const [isLoading, setIsLoading] = useState(false);
+  const [rows, setRows] = useState([]);
+  const [clientName, setClientName] = useState("");
+  const [vesselOptions, setVesselOptions] = useState([]);
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -95,18 +57,81 @@ function ClientCompletedJobs() {
   const muted = useColorModeValue("secondaryGray.700", "secondaryGray.600");
   const softBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
 
-  const rows = useMemo(() => {
-    return completedJobsData
-      .filter((row) => {
-        if (filters.vessel && !row.vessel.toLowerCase().includes(filters.vessel.toLowerCase())) return false;
-        if (filters.origin && !row.origin.toLowerCase().includes(filters.origin.toLowerCase())) return false;
-        if (filters.destination && !row.destination.toLowerCase().includes(filters.destination.toLowerCase())) return false;
-        if (filters.poNumber && !row.jobId.toLowerCase().includes(filters.poNumber.toLowerCase())) return false;
-        if (!search) return true;
-        return `${row.vessel} ${row.jobId} ${row.origin} ${row.destination}`.toLowerCase().includes(search.toLowerCase());
-      })
-      .slice(0, Number(entries));
-  }, [entries, filters, search]);
+  const fetchVessels = useCallback(async () => {
+    try {
+      const res = await clientVesselApi.getClientVessels({});
+      const options = (Array.isArray(res?.vessels) ? res.vessels : [])
+        .map((v) => ({ id: v?.id, name: typeof v === "string" ? v : v?.name }))
+        .filter((v) => v.name);
+      setVesselOptions(options);
+    } catch (_e) {
+      setVesselOptions([]);
+    }
+  }, []);
+
+  const fetchCompletedJobs = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const selectedVessel = vesselOptions.find((v) => String(v.name) === String(filters.vessel));
+      const res = await clientJobsApi.getCompletedJobs({
+        search: search.trim() || undefined,
+        status,
+        vessel_id: selectedVessel?.id,
+        date_from: filters.fromDate || undefined,
+        date_to: filters.toDate || undefined,
+        origin: filters.origin || undefined,
+      });
+      const mapped = (res?.stock_list || []).map((item, idx) => ({
+        id: `${item.stock_item_id || "completed"}-${idx}`,
+        vessel: item.vessel?.name || "-",
+        jobId: item.stock_item_id || "-",
+        poText: item.po_text || (Array.isArray(item.po_number) ? item.po_number.join(", ") : "-"),
+        mode: item.warehouse_id || "-",
+        transitInfo: item.so_number || "-",
+        status: item.stock_status || "-",
+        etd: item.date_on_stock || "-",
+        eta: "-",
+        origin: item.origin || "-",
+        destination: item.destination || "-",
+        combined: item.ap_destination || "-",
+        totalWeight: item.weight ?? "-",
+        documents: item.po_text || "-",
+        incharge: item.supplier?.name || "-",
+      }));
+      setRows(mapped);
+      setClientName(res?.client?.name || "");
+    } catch (_e) {
+      setRows([]);
+      setClientName("");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters.fromDate, filters.origin, filters.toDate, filters.vessel, search, status, vesselOptions]);
+
+  useEffect(() => {
+    fetchVessels();
+  }, [fetchVessels]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCompletedJobs();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [fetchCompletedJobs]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      if (filters.destination && !String(row.destination || "").toLowerCase().includes(filters.destination.toLowerCase())) {
+        return false;
+      }
+      if (filters.poNumber && !String(row.poText || "").toLowerCase().includes(filters.poNumber.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
+  }, [filters.destination, filters.poNumber, rows]);
+
+  const pagedRows = useMemo(() => filteredRows.slice(0, Number(entries)), [entries, filteredRows]);
 
   const handleReset = () => {
     setFilters({
@@ -119,12 +144,13 @@ function ClientCompletedJobs() {
     });
     setSearch("");
     setEntries("50");
+    setStatus("delivered");
   };
 
   return (
     <Box>
       <Heading fontSize="24px" lineHeight="32px" color={headingColor} mb={4}>
-        Completed Jobs
+        Completed Jobs{clientName ? ` - ${clientName}` : ""}
       </Heading>
 
       <Box bg={cardBg} border="1px solid" borderColor={borderColor} borderRadius="16px" p={5} mb={5}>
@@ -141,7 +167,23 @@ function ClientCompletedJobs() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
-            <Input size="sm" value={filters.vessel} onChange={(e) => setFilters((prev) => ({ ...prev, vessel: e.target.value }))} />
+            <Select
+              size="sm"
+              placeholder="All vessels"
+              value={filters.vessel}
+              onChange={(e) => setFilters((prev) => ({ ...prev, vessel: e.target.value }))}
+            >
+              {vesselOptions.map((v) => (
+                <option key={`${v.id}-${v.name}`} value={v.name}>{v.name}</option>
+              ))}
+            </Select>
+          </GridItem>
+          <GridItem>
+            <Text fontSize="xs" mb={1} color={muted}>Status</Text>
+            <Select size="sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="delivered">Delivered</option>
+              <option value="shipped">Shipped</option>
+            </Select>
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Origin</Text>
@@ -221,14 +263,14 @@ function ClientCompletedJobs() {
             </Tr>
           </Thead>
           <Tbody>
-            {rows.map((row) => (
+            {pagedRows.map((row) => (
               <Tr key={`${row.jobId}-${row.vessel}`}>
                 <Td>{row.jobId}</Td>
                 <Td>{row.mode}</Td>
                 <Td>{row.transitInfo}</Td>
                 <Td>
                   <Badge colorScheme="green" borderRadius="full" px={2.5} py={1}>
-                    Delivered
+                    {String(row.status || "").replace(/_/g, " ")}
                   </Badge>
                 </Td>
                 <Td>{row.etd}</Td>
@@ -243,9 +285,19 @@ function ClientCompletedJobs() {
             ))}
           </Tbody>
         </Table>
+        {!isLoading && pagedRows.length === 0 && (
+          <Text px={4} py={3} fontSize="sm" color={muted}>
+            No completed jobs found for the selected filters.
+          </Text>
+        )}
       </Box>
+      {isLoading && (
+        <Text mt={2} fontSize="xs" color={muted}>
+          Loading completed jobs...
+        </Text>
+      )}
       <Text mt={2} fontSize="xs" color={muted}>
-        Showing {rows.length} of {completedJobsData.length} entries
+        Showing {pagedRows.length} of {filteredRows.length} entries
       </Text>
     </Box>
   );
