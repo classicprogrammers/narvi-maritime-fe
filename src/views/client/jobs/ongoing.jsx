@@ -305,7 +305,7 @@ function ClientOngoingJobs() {
           <Flex align="center" gap={3}>
             <Button
               size="sm"
-              style={{padding: "8px 25px"}}
+              style={{ padding: "8px 25px" }}
               variant="outline"
               borderColor={borderColor}
               leftIcon={<Icon as={MdFileDownload} color="green.500" />}
