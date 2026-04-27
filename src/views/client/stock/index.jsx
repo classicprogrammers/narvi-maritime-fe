@@ -36,7 +36,6 @@ import {
 } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
 import {
-  MdFilterAlt,
   MdRefresh,
   MdFileDownload,
   MdSearch,
@@ -49,6 +48,7 @@ import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 
 function ClientStock() {
@@ -67,6 +67,7 @@ function ClientStock() {
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
+  const [currentPage, setCurrentPage] = useState(1);
   const [vesselFilterOptions, setVesselFilterOptions] = useState([]);
   const [hubFilterOptions, setHubFilterOptions] = useState([]);
   const [selectedRowIds, setSelectedRowIds] = useState([]);
@@ -198,27 +199,56 @@ function ClientStock() {
     fetchHubFilterOptions();
   }, [fetchHubFilterOptions, fetchVesselFilterOptions]);
 
-  const filteredRows = useMemo(() => {
-    return stockRows
-      .filter((row) => {
+  const filteredRows = useMemo(
+    () =>
+      stockRows.filter((row) => {
         if (filters.vessel && row.vessel !== filters.vessel) return false;
         if (filters.location && row.location !== filters.location) return false;
         if (filters.destination && row.destination !== filters.destination) return false;
         if (filters.poNumber && row.poNo !== filters.poNumber) return false;
-        if (filters.fromDate && row.date !== "-" && row.date < filters.fromDate) return false;
-        if (filters.toDate && row.date !== "-" && row.date > filters.toDate) return false;
+        if (
+          filters.fromDate &&
+          row.dateOnStock &&
+          row.dateOnStock !== "-" &&
+          String(row.dateOnStock) < filters.fromDate
+        ) {
+          return false;
+        }
+        if (
+          filters.toDate &&
+          row.dateOnStock &&
+          row.dateOnStock !== "-" &&
+          String(row.dateOnStock) > filters.toDate
+        ) {
+          return false;
+        }
         return true;
-      })
-      .slice(0, Number(entries));
-  }, [entries, filters, stockRows]);
+      }),
+    [filters, stockRows]
+  );
+  const pagedRows = useMemo(
+    () => {
+      const pageSize = Number(entries);
+      const start = (currentPage - 1) * pageSize;
+      return filteredRows.slice(start, start + pageSize);
+    },
+    [currentPage, entries, filteredRows]
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / Number(entries)));
+  const pageStart = filteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
+  const pageEnd = Math.min(currentPage * Number(entries), filteredRows.length);
 
   const allVisibleSelected =
-    filteredRows.length > 0 && filteredRows.every((row) => selectedRowIds.includes(row.id));
+    pagedRows.length > 0 && pagedRows.every((row) => selectedRowIds.includes(row.id));
 
   useEffect(() => {
-    const currentIds = new Set(filteredRows.map((row) => row.id));
+    const currentIds = new Set(pagedRows.map((row) => row.id));
     setSelectedRowIds((prev) => prev.filter((id) => currentIds.has(id)));
-  }, [filteredRows]);
+  }, [pagedRows]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [entries, filters, search]);
 
   const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -246,6 +276,7 @@ function ClientStock() {
     });
     setSearch("");
     setEntries("50");
+    setCurrentPage(1);
     setSelectedRowIds([]);
   };
   const formatStatus = (status) => {
@@ -550,7 +581,7 @@ function ClientStock() {
   };
 
   const handleDownloadSelectedPdfs = async () => {
-    const selectedRows = filteredRows.filter((row) => selectedRowIds.includes(row.id));
+    const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
     setIsBulkPdfLoading(true);
     try {
       await handleOpenPdfPreview(selectedRows);
@@ -595,12 +626,62 @@ function ClientStock() {
   };
 
   const handleToggleSelectAllVisible = (checked) => {
-    const visibleIds = filteredRows.map((row) => row.id);
+    const visibleIds = pagedRows.map((row) => row.id);
     if (checked) {
       setSelectedRowIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
       return;
     }
     setSelectedRowIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+  };
+
+  const handleDownloadExcel = () => {
+    const headers = [
+      "Client",
+      "Vessel",
+      "Warehouse ID",
+      "Supplier",
+      "PO#",
+      "DG/UN Number",
+      "Boxes",
+      "Weight",
+      "Total Volume CBM",
+      "Origin",
+      "Via Hub 1",
+      "Via Hub 2",
+      "AP Destination",
+      "Destination",
+      "Stock Status",
+      "Date On Stock",
+      "SO Number",
+      "Currency",
+      "Value",
+    ];
+    const rowsForExport = filteredRows.map((row) => [
+      row.client || "-",
+      row.vessel || "-",
+      row.warehouseId || "-",
+      row.supplier || "-",
+      row.poNo || "-",
+      row.dgUnNumber || "-",
+      row.boxes || "-",
+      row.weight || "-",
+      row.totalVolumeCbm || "-",
+      row.origin || "-",
+      row.viaHub1 || "-",
+      row.viaHub2 || "-",
+      row.apDestination || "-",
+      row.destination || "-",
+      formatStatus(row.stockStatus),
+      row.dateOnStock || "-",
+      row.soNumber || "-",
+      row.currency || "-",
+      row.value || "-",
+    ]);
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Report");
+    const dateTag = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `stock-report-${dateTag}.xlsx`);
   };
 
   const handleOpenDimensionsModal = (row) => {
@@ -706,9 +787,6 @@ function ClientStock() {
         </Grid>
 
         <Flex mt={4} gap={3}>
-          <Button size="sm" variant="brand" leftIcon={<Icon as={MdFilterAlt} />}>
-            Apply Filters
-          </Button>
           <Button size="sm" variant="outline" borderColor={borderColor} leftIcon={<Icon as={MdRefresh} />} onClick={handleReset}>
             Reset
           </Button>
@@ -745,30 +823,20 @@ function ClientStock() {
               borderColor={borderColor}
               leftIcon={<Icon as={MdFileDownload} />}
             >
-              Download
+              Download As
             </MenuButton>
             <MenuList>
               <MenuItem
                 icon={<Icon as={MdPictureAsPdf} color="red.500" />}
                 onClick={handleDownloadSelectedPdfs}
               >
-                Preview PDF (Selected)
+                PDF (Selected Rows)
               </MenuItem>
-              <MenuItem icon={<Icon as={MdTableChart} color="green.500" />}>
-                Download Excel
+              <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
+                Excel (All Filtered Rows)
               </MenuItem>
             </MenuList>
           </Menu>
-          <Button
-            size="sm"
-            variant="brand"
-            leftIcon={<Icon as={MdPictureAsPdf} />}
-            onClick={handleDownloadSelectedPdfs}
-            isLoading={isBulkPdfLoading}
-            loadingText="Generating..."
-          >
-            Preview Selected PDFs
-          </Button>
         </Flex>
       </Box>
 
@@ -837,7 +905,7 @@ function ClientStock() {
             </Tr>
           </Thead>
           <Tbody>
-            {filteredRows.map((row) => {
+            {pagedRows.map((row) => {
               return (
                 <Tr
                   key={row.id}
@@ -903,6 +971,32 @@ function ClientStock() {
           </Tbody>
         </Table>
       </Box>
+      <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
+        <Text fontSize="xs" color={muted}>
+          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
+        </Text>
+        <Flex gap={2} align="center">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            isDisabled={currentPage <= 1}
+          >
+            Previous
+          </Button>
+          <Text fontSize="xs" color={muted}>
+            Page {currentPage} of {totalPages}
+          </Text>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            isDisabled={currentPage >= totalPages}
+          >
+            Next
+          </Button>
+        </Flex>
+      </Flex>
 
       <Modal isOpen={isDimensionsModalOpen} onClose={() => setIsDimensionsModalOpen(false)} size="3xl">
         <ModalOverlay />

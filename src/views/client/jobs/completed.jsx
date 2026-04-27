@@ -11,10 +11,6 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
   Select,
   Table,
   Tbody,
@@ -27,7 +23,6 @@ import {
 } from "@chakra-ui/react";
 import {
   MdFileDownload,
-  MdFilterAlt,
   MdRefresh,
   MdSearch,
 } from "react-icons/md";
@@ -47,6 +42,7 @@ function ClientCompletedJobs() {
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
+  const [currentPage, setCurrentPage] = useState(1);
   const [status, setStatus] = useState("delivered");
   const [isLoading, setIsLoading] = useState(false);
   const [rows, setRows] = useState([]);
@@ -133,7 +129,14 @@ function ClientCompletedJobs() {
     });
   }, [filters.destination, filters.poNumber, rows]);
 
-  const pagedRows = useMemo(() => filteredRows.slice(0, Number(entries)), [entries, filteredRows]);
+  const pagedRows = useMemo(() => {
+    const pageSize = Number(entries);
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [currentPage, entries, filteredRows]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / Number(entries)));
+  const pageStart = filteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
+  const pageEnd = Math.min(currentPage * Number(entries), filteredRows.length);
   const destinationOptions = useMemo(
     () =>
       Array.from(new Set(rows.map((row) => row.destination).filter((v) => v && v !== "-"))).map((v) => ({ id: v, name: v })),
@@ -165,8 +168,13 @@ function ClientCompletedJobs() {
     });
     setSearch("");
     setEntries("50");
+    setCurrentPage(1);
     setStatus("delivered");
   };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [entries, filters, search, status]);
 
   const handleDownloadExcel = () => {
     const headers = [
@@ -285,9 +293,6 @@ function ClientCompletedJobs() {
           </GridItem>
         </Grid>
         <Flex mt={4} gap={3}>
-          <Button size="sm" variant="brand" leftIcon={<Icon as={MdFilterAlt} />}>
-            Apply Filter
-          </Button>
           <Button size="sm" variant="outline" borderColor={borderColor} leftIcon={<Icon as={MdRefresh} />} onClick={handleReset}>
             Reset
           </Button>
@@ -306,21 +311,16 @@ function ClientCompletedJobs() {
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
           <Flex align="center" gap={3}>
-            <Menu>
-              <MenuButton
-                as={Button}
-                size="sm"
-                variant="outline"
-                borderColor={borderColor}
-                leftIcon={<Icon as={MdFileDownload} />}
-                onClick={handleDownloadExcel}
-              >
-                Download Excel
-              </MenuButton>
-              <MenuList>
-                <MenuItem onClick={handleDownloadExcel}>Download Excel</MenuItem>
-              </MenuList>
-            </Menu>
+            <Button
+              size="sm"
+              style={{padding: "8px 25px"}}
+              variant="outline"
+              borderColor={borderColor}
+              leftIcon={<Icon as={MdFileDownload} color="green.500" />}
+              onClick={handleDownloadExcel}
+            >
+              Download Excel
+            </Button>
             <InputGroup size="sm" maxW="220px">
               <InputLeftElement>
                 <Icon as={MdSearch} color={muted} />
@@ -383,9 +383,32 @@ function ClientCompletedJobs() {
           Loading completed jobs...
         </Text>
       )}
-      <Text mt={2} fontSize="xs" color={muted}>
-        Showing {pagedRows.length} of {filteredRows.length} entries
-      </Text>
+      <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
+        <Text fontSize="xs" color={muted}>
+          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
+        </Text>
+        <Flex gap={2} align="center">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            isDisabled={currentPage <= 1}
+          >
+            Previous
+          </Button>
+          <Text fontSize="xs" color={muted}>
+            Page {currentPage} of {totalPages}
+          </Text>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            isDisabled={currentPage >= totalPages}
+          >
+            Next
+          </Button>
+        </Flex>
+      </Flex>
     </Box>
   );
 }

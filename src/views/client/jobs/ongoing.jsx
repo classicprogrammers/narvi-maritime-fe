@@ -3,7 +3,6 @@ import {
   Badge,
   Box,
   Button,
-  Checkbox,
   Flex,
   Grid,
   GridItem,
@@ -12,17 +11,6 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalOverlay,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
   Select,
   Table,
   Tbody,
@@ -32,22 +20,12 @@ import {
   Thead,
   Tr,
   useColorModeValue,
-  useToast,
 } from "@chakra-ui/react";
-import {
-  MdFileDownload,
-  MdFilterAlt,
-  MdPictureAsPdf,
-  MdRefresh,
-  MdSearch,
-} from "react-icons/md";
+import { MdFileDownload, MdRefresh, MdSearch } from "react-icons/md";
 import clientJobsApi from "api/clientJobs";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 
 function ClientOngoingJobs() {
   const [filters, setFilters] = useState({
@@ -61,17 +39,11 @@ function ClientOngoingJobs() {
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [rows, setRows] = useState([]);
   const [clientName, setClientName] = useState("");
   const [vesselOptions, setVesselOptions] = useState([]);
-  const [selectedRowIds, setSelectedRowIds] = useState([]);
-  const [isBulkPdfLoading, setIsBulkPdfLoading] = useState(false);
-  const [pdfPreviewItems, setPdfPreviewItems] = useState([]);
-  const [activePreviewIndex, setActivePreviewIndex] = useState(0);
-  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
-  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
-  const toast = useToast();
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -152,7 +124,14 @@ function ClientOngoingJobs() {
     });
   }, [filters.destination, filters.poNumber, rows]);
 
-  const pagedRows = useMemo(() => filteredRows.slice(0, Number(entries)), [entries, filteredRows]);
+  const pagedRows = useMemo(() => {
+    const pageSize = Number(entries);
+    const start = (currentPage - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [currentPage, entries, filteredRows]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / Number(entries)));
+  const pageStart = filteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
+  const pageEnd = Math.min(currentPage * Number(entries), filteredRows.length);
   const destinationOptions = useMemo(
     () =>
       Array.from(new Set(rows.map((row) => row.destination).filter((v) => v && v !== "-"))).map((v) => ({ id: v, name: v })),
@@ -172,13 +151,9 @@ function ClientOngoingJobs() {
     () => vesselOptions.map((v) => ({ id: v.name, name: v.name })),
     [vesselOptions]
   );
-  const allVisibleSelected =
-    pagedRows.length > 0 && pagedRows.every((row) => selectedRowIds.includes(row.id));
-
   useEffect(() => {
-    const currentIds = new Set(pagedRows.map((row) => row.id));
-    setSelectedRowIds((prev) => prev.filter((id) => currentIds.has(id)));
-  }, [pagedRows]);
+    setCurrentPage(1);
+  }, [entries, filters, search]);
 
   const handleReset = () => {
     setFilters({
@@ -192,157 +167,7 @@ function ClientOngoingJobs() {
     });
     setSearch("");
     setEntries("50");
-    setSelectedRowIds([]);
-  };
-
-  const loadLetterheadOnPdf = async (doc) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
-        resolve();
-      };
-      img.onerror = reject;
-      img.src = narviLetterheadPrint;
-    });
-  };
-
-  const buildJobRowPdf = async (row) => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4", compress: true });
-    const left = 30;
-    const top = 150;
-    try {
-      await loadLetterheadOnPdf(doc);
-    } catch (_e) {
-      // ignore letterhead errors
-    }
-    doc.setFontSize(12);
-    doc.text(`Ongoing Job - ${row.jobId || "-"}`, left, top);
-    doc.setFontSize(9);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, left, top + 14);
-    autoTable(doc, {
-      startY: top + 30,
-      head: [["Field", "Value"]],
-      body: [
-        ["Vessel", row.vessel || "-"],
-        ["Job ID", row.jobId || "-"],
-        ["PO Number", row.poText || "-"],
-        ["Mode of Transport", row.mode || "-"],
-        ["Remarks", row.remarks || "-"],
-        ["Status", row.status || "-"],
-        ["ETD", row.etd || "-"],
-        ["ETA", row.eta || "-"],
-        ["Origin", row.origin || "-"],
-        ["Destination", row.destination || "-"],
-        ["Combined", row.combined || "-"],
-        ["Total Packages", row.totalPackages || "-"],
-        ["Total Weight", row.totalWeight || "-"],
-      ],
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
-      headStyles: { fillColor: [28, 74, 149], textColor: 255 },
-      margin: { left, right: 24, bottom: 24 },
-      columnStyles: { 0: { cellWidth: 170, fontStyle: "bold" } },
-    });
-    return doc;
-  };
-
-  const getJobPdfFilename = (row) =>
-    `ongoing-job-${String(row.jobId || "job").replace(/[^a-zA-Z0-9-_]+/g, "-")}.pdf`;
-
-  const triggerBrowserDownload = (blobUrl, filename) => {
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const clearPreviewUrls = useCallback((items = []) => {
-    items.forEach((item) => {
-      if (item?.blobUrl) URL.revokeObjectURL(item.blobUrl);
-    });
-  }, []);
-
-  const handleClosePdfPreview = useCallback(() => {
-    setIsPdfPreviewOpen(false);
-    setActivePreviewIndex(0);
-    setPdfPreviewItems((prev) => {
-      clearPreviewUrls(prev);
-      return [];
-    });
-  }, [clearPreviewUrls]);
-
-  useEffect(() => () => clearPreviewUrls(pdfPreviewItems), [clearPreviewUrls, pdfPreviewItems]);
-
-  const handleOpenPdfPreview = async (rowsToPreview) => {
-    if (!rowsToPreview.length) {
-      toast({
-        title: "No rows selected",
-        description: "Select at least one row to preview PDFs.",
-        status: "info",
-        duration: 2500,
-        isClosable: true,
-      });
-      return;
-    }
-    setIsPreparingPreview(true);
-    try {
-      const nextPreviewItems = [];
-      for (const rowItem of rowsToPreview) {
-        // eslint-disable-next-line no-await-in-loop
-        const doc = await buildJobRowPdf(rowItem);
-        const blobUrl = URL.createObjectURL(doc.output("blob"));
-        nextPreviewItems.push({ rowId: rowItem.id, filename: getJobPdfFilename(rowItem), blobUrl });
-      }
-      setPdfPreviewItems((prev) => {
-        clearPreviewUrls(prev);
-        return nextPreviewItems;
-      });
-      setActivePreviewIndex(0);
-      setIsPdfPreviewOpen(true);
-    } catch (_e) {
-      toast({ title: "Unable to prepare preview", status: "error", duration: 3000, isClosable: true });
-    } finally {
-      setIsPreparingPreview(false);
-    }
-  };
-
-  const handlePreviewSelectedPdfs = async () => {
-    setIsBulkPdfLoading(true);
-    try {
-      await handleOpenPdfPreview(pagedRows.filter((row) => selectedRowIds.includes(row.id)));
-    } finally {
-      setIsBulkPdfLoading(false);
-    }
-  };
-
-  const handleDownloadCurrentPreview = () => {
-    const active = pdfPreviewItems[activePreviewIndex];
-    if (!active) return;
-    triggerBrowserDownload(active.blobUrl, active.filename);
-  };
-
-  const handleDownloadAllFromPreview = () => {
-    pdfPreviewItems.forEach((item) => triggerBrowserDownload(item.blobUrl, item.filename));
-  };
-
-  const handleToggleRow = (rowId) => {
-    setSelectedRowIds((prev) =>
-      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
-    );
-  };
-
-  const handleToggleSelectAllVisible = (checked) => {
-    const visibleIds = pagedRows.map((row) => row.id);
-    if (checked) {
-      setSelectedRowIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
-      return;
-    }
-    setSelectedRowIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    setCurrentPage(1);
   };
 
   const handleDownloadExcel = () => {
@@ -460,9 +285,6 @@ function ClientOngoingJobs() {
           </GridItem>
         </Grid>
         <Flex mt={4} gap={3}>
-          <Button size="sm" variant="brand" leftIcon={<Icon as={MdFilterAlt} />}>
-            Apply Filter
-          </Button>
           <Button size="sm" variant="outline" borderColor={borderColor} leftIcon={<Icon as={MdRefresh} />} onClick={handleReset}>
             Reset
           </Button>
@@ -481,33 +303,15 @@ function ClientOngoingJobs() {
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
           <Flex align="center" gap={3}>
-            <Menu>
-              <MenuButton
-                as={Button}
-                size="sm"
-                variant="outline"
-                borderColor={borderColor}
-                leftIcon={<Icon as={MdFileDownload} />}
-                onClick={handleDownloadExcel}
-              >
-                Download
-              </MenuButton>
-              <MenuList>
-                <MenuItem icon={<Icon as={MdPictureAsPdf} color="red.500" />} onClick={handlePreviewSelectedPdfs}>
-                  Preview PDF (Selected)
-                </MenuItem>
-                <MenuItem onClick={handleDownloadExcel}>Download Excel</MenuItem>
-              </MenuList>
-            </Menu>
             <Button
               size="sm"
-              variant="brand"
-              leftIcon={<Icon as={MdPictureAsPdf} />}
-              onClick={handlePreviewSelectedPdfs}
-              isLoading={isBulkPdfLoading}
-              loadingText="Generating..."
+              style={{padding: "8px 25px"}}
+              variant="outline"
+              borderColor={borderColor}
+              leftIcon={<Icon as={MdFileDownload} color="green.500" />}
+              onClick={handleDownloadExcel}
             >
-              Preview Selected PDFs
+              Download Excel
             </Button>
             <InputGroup size="sm" maxW="220px">
               <InputLeftElement>
@@ -523,12 +327,6 @@ function ClientOngoingJobs() {
         <Table size="sm" variant="simple">
           <Thead bg={softBg}>
             <Tr>
-              <Th>
-                <Checkbox
-                  isChecked={allVisibleSelected}
-                  onChange={(e) => handleToggleSelectAllVisible(e.target.checked)}
-                />
-              </Th>
               <Th>Vessel Name</Th>
               <Th>Job ID</Th>
               <Th>Mode of Transport</Th>
@@ -546,12 +344,6 @@ function ClientOngoingJobs() {
           <Tbody>
             {pagedRows.map((row) => (
               <Tr key={`${row.jobId}-${row.vessel}`}>
-                <Td>
-                  <Checkbox
-                    isChecked={selectedRowIds.includes(row.id)}
-                    onChange={() => handleToggleRow(row.id)}
-                  />
-                </Td>
                 <Td>{row.vessel}</Td>
                 <Td>{row.jobId}</Td>
                 <Td>{row.mode}</Td>
@@ -583,78 +375,32 @@ function ClientOngoingJobs() {
           Loading ongoing jobs...
         </Text>
       )}
-      <Text mt={2} fontSize="xs" color={muted}>
-        Showing {pagedRows.length} of {filteredRows.length} entries
-      </Text>
-
-      <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="5xl">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            PDF Preview
-            {pdfPreviewItems.length > 1 ? ` (${activePreviewIndex + 1}/${pdfPreviewItems.length})` : ""}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={2}>
-            {isPreparingPreview ? (
-              <Text fontSize="sm" color={muted}>Preparing preview...</Text>
-            ) : pdfPreviewItems.length ? (
-              <Box border="1px solid" borderColor={borderColor} borderRadius="10px" overflow="hidden">
-                <iframe
-                  title="Jobs PDF Preview"
-                  src={pdfPreviewItems[activePreviewIndex]?.blobUrl}
-                  style={{ width: "100%", height: "70vh", border: "none" }}
-                />
-              </Box>
-            ) : (
-              <Text fontSize="sm" color={muted}>No preview available.</Text>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            <Flex w="100%" justify="space-between" align="center" gap={2} direction={{ base: "column", md: "row" }}>
-              <Flex gap={2}>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setActivePreviewIndex((i) => Math.max(0, i - 1))}
-                  isDisabled={activePreviewIndex === 0 || !pdfPreviewItems.length}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setActivePreviewIndex((i) => Math.min(pdfPreviewItems.length - 1, i + 1))}
-                  isDisabled={!pdfPreviewItems.length || activePreviewIndex >= pdfPreviewItems.length - 1}
-                >
-                  Next
-                </Button>
-              </Flex>
-              <Flex gap={2}>
-                <Button size="sm" variant="outline" onClick={handleClosePdfPreview}>Close</Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
-                  onClick={handleDownloadCurrentPreview}
-                  isDisabled={!pdfPreviewItems.length}
-                >
-                  Download This PDF
-                </Button>
-                <Button
-                  size="sm"
-                  variant="brand"
-                  leftIcon={<Icon as={MdFileDownload} />}
-                  onClick={handleDownloadAllFromPreview}
-                  isDisabled={!pdfPreviewItems.length}
-                >
-                  Download All
-                </Button>
-              </Flex>
-            </Flex>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
+        <Text fontSize="xs" color={muted}>
+          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
+        </Text>
+        <Flex gap={2} align="center">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            isDisabled={currentPage <= 1}
+          >
+            Previous
+          </Button>
+          <Text fontSize="xs" color={muted}>
+            Page {currentPage} of {totalPages}
+          </Text>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            isDisabled={currentPage >= totalPages}
+          >
+            Next
+          </Button>
+        </Flex>
+      </Flex>
     </Box>
   );
 }
