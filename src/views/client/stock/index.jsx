@@ -74,6 +74,8 @@ function ClientStock() {
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
+  const [selectedDimensions, setSelectedDimensions] = useState([]);
   const toast = useToast();
 
   const cardBg = useColorModeValue("white", "navy.800");
@@ -586,6 +588,23 @@ function ClientStock() {
     setSelectedRowIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
   };
 
+  const handleOpenDimensionsModal = (row) => {
+    const dimensions = Array.isArray(row?.pcsLines) ? row.pcsLines : [];
+    setSelectedDimensions(dimensions);
+    setIsDimensionsModalOpen(true);
+  };
+
+  const getDimensionTotal = (keys, decimals = 3) =>
+    selectedDimensions
+      .reduce((sum, dim) => {
+        const keyList = Array.isArray(keys) ? keys : [keys];
+        const value = keyList.reduce((acc, key) => (
+          acc != null && acc !== "" ? acc : dim?.[key]
+        ), null);
+        return sum + (parseFloat(value) || 0);
+      }, 0)
+      .toFixed(decimals);
+
   return (
     <Box>
       <Flex align="center" justify="space-between" mb={4}>
@@ -804,7 +823,16 @@ function ClientStock() {
                   <Td>{row.dgUnNumber}</Td>
                   <Td>{row.boxes}</Td>
                   <Td>{row.weight}</Td>
-                  <Td>{row.totalVolumeCbm}</Td>
+                  <Td>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      colorScheme="blue"
+                      onClick={() => handleOpenDimensionsModal(row)}
+                    >
+                      {row.totalVolumeCbm}
+                    </Button>
+                  </Td>
                   <Td>{row.origin}</Td>
                   <Td>{row.viaHub1}</Td>
                   <Td>{row.viaHub2}</Td>
@@ -840,6 +868,56 @@ function ClientStock() {
           </Tbody>
         </Table>
       </Box>
+
+      <Modal isOpen={isDimensionsModalOpen} onClose={() => setIsDimensionsModalOpen(false)} size="3xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Dimensions Details</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {selectedDimensions.length ? (
+              <Flex direction="column" gap={3}>
+                {selectedDimensions.map((dim, index) => {
+                  const pieceTitle =
+                    dim?.piece_name || `Piece ${dim?.piece_no != null ? dim.piece_no : index + 1}`;
+                  const lwhText = dim?.lwh
+                    || ((dim?.length_cm || dim?.width_cm || dim?.height_cm)
+                      ? `${dim?.length_cm || 0} x ${dim?.width_cm || 0} x ${dim?.height_cm || 0}`
+                      : "-");
+                  return (
+                    <Box key={dim?.id || index} border="1px solid" borderColor={borderColor} borderRadius="10px" p={3}>
+                      <Text fontWeight="700" mb={2}>{pieceTitle}</Text>
+                      <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)" }} gap={2}>
+                        <Text fontSize="sm"><b>Warehouse Ref:</b> {dim?.warehouse_ref || "-"}</Text>
+                        <Text fontSize="sm"><b>Method:</b> {dim?.calculation_method || "-"}</Text>
+                        <Text fontSize="sm"><b>L x W x H:</b> {lwhText}</Text>
+                        <Text fontSize="sm"><b>CBM:</b> {dim?.cbm ?? dim?.volume_cbm ?? dim?.volume_dim ?? "-"}</Text>
+                        <Text fontSize="sm"><b>VW:</b> {dim?.vw ?? dim?.cw_air_freight ?? "-"}</Text>
+                        <Text fontSize="sm"><b>Weight (kg):</b> {dim?.weight ?? dim?.weight_kg ?? "-"}</Text>
+                      </Grid>
+                    </Box>
+                  );
+                })}
+                {selectedDimensions.length > 1 ? (
+                  <Box border="1px solid" borderColor={borderColor} borderRadius="10px" p={3}>
+                    <Text fontWeight="700" mb={1}>Total Summary</Text>
+                    <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
+                      <Text fontSize="sm"><b>Total CBM:</b> {getDimensionTotal(["cbm", "volume_cbm", "volume_dim"])}</Text>
+                      <Text fontSize="sm"><b>Total VW:</b> {getDimensionTotal(["vw", "cw_air_freight"])}</Text>
+                      <Text fontSize="sm"><b>Total Weight (kg):</b> {getDimensionTotal(["weight_kg", "weight"], 2)}</Text>
+                    </Grid>
+                  </Box>
+                ) : null}
+              </Flex>
+            ) : (
+              <Text fontSize="sm" color={muted}>No dimensions available for this row.</Text>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button size="sm" onClick={() => setIsDimensionsModalOpen(false)}>Close</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="5xl">
         <ModalOverlay />
