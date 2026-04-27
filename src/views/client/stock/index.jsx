@@ -3,6 +3,7 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Flex,
   Grid,
   GridItem,
@@ -11,6 +12,13 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
   Menu,
   MenuButton,
   MenuItem,
@@ -24,6 +32,7 @@ import {
   Thead,
   Tr,
   useColorModeValue,
+  useToast,
 } from "@chakra-ui/react";
 import { useLocation } from "react-router-dom";
 import {
@@ -37,6 +46,9 @@ import {
 import clientStockApi from "api/clientStock";
 import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 
 function ClientStock() {
   const location = useLocation();
@@ -56,6 +68,13 @@ function ClientStock() {
   const [entries, setEntries] = useState("50");
   const [vesselFilterOptions, setVesselFilterOptions] = useState([]);
   const [hubFilterOptions, setHubFilterOptions] = useState([]);
+  const [selectedRowIds, setSelectedRowIds] = useState([]);
+  const [isBulkPdfLoading, setIsBulkPdfLoading] = useState(false);
+  const [pdfPreviewItems, setPdfPreviewItems] = useState([]);
+  const [activePreviewIndex, setActivePreviewIndex] = useState(0);
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  const toast = useToast();
 
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
@@ -87,42 +106,48 @@ function ClientStock() {
         search: search.trim() || undefined,
         stock_status: filters.status || undefined,
       });
+      const toDisplay = (value) =>
+        value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
+      const toNumberDisplay = (value) =>
+        value != null && value !== false && value !== "" && !Number.isNaN(Number(value))
+          ? String(value)
+          : "-";
+
       const normalizedRows = (res?.stock_list || []).map((item, idx) => ({
         id: `${item.stock_item_id || "stock"}-${idx}`,
-        client: item.client?.name || res?.client?.name || "-",
-        dateOnStock: item.date_on_stock || "-",
-        vessel: item.vessel?.name || item.vessel || "-",
-        warehouseId:
-          item.warehouse_id != null && item.warehouse_id !== false && item.warehouse_id !== ""
-            ? String(item.warehouse_id)
-            : "-",
-        supplier: item.supplier?.name || item.supplier || "-",
-        poNo: Array.isArray(item.po_number) ? item.po_number.join(", ") : (item.po_text || "-"),
-        dgUnNumber:
-          item.dg_un_number != null && item.dg_un_number !== false && item.dg_un_number !== ""
-            ? String(item.dg_un_number)
-            : "-",
-        boxes: item.boxes != null ? String(item.boxes) : item.box != null ? String(item.box) : "-",
-        weight: item.weight != null ? String(item.weight) : "-",
-        totalVolumeCbm: item.total_volume_cbm != null ? String(item.total_volume_cbm) : "-",
-        origin: item.origin || "-",
-        viaHub1: item.via_hub_1 || "-",
-        viaHub2: item.via_hub_2 || "-",
-        apDestination:
-          item.ap_destination != null && item.ap_destination !== false && item.ap_destination !== ""
-            ? String(item.ap_destination)
-            : "-",
-        destination: item.destination || "-",
-        stockStatus: item.stock_status || "-",
-        soNumber:
-          item.so_number != null && item.so_number !== false && item.so_number !== ""
-            ? String(item.so_number)
-            : "-",
-        currency:
-          item.currency != null && item.currency !== false && item.currency !== ""
-            ? String(item.currency)
-            : "-",
-        value: item.value != null ? String(item.value) : "-",
+        client: toDisplay(item.client?.name || res?.client?.name),
+        dateOnStock: toDisplay(item.date_on_stock || item.first_entry_date),
+        firstEntryDate: toDisplay(item.first_entry_date || item.date_on_stock),
+        vessel: toDisplay(item.vessel?.name || item.vessel),
+        warehouseId: toDisplay(item.warehouse_id || item.stock_item_id),
+        stockNumber: toDisplay(item.stock_number || item.stock_item_id),
+        supplier: toDisplay(item.supplier?.name || item.supplier),
+        poNo: Array.isArray(item.po_number) && item.po_number.length
+          ? item.po_number.map((x) => String(x)).join(", ")
+          : toDisplay(item.po_text),
+        dgUnNumber: toDisplay(item.dg_un_number),
+        boxes: toNumberDisplay(item.boxes ?? item.box ?? item.pieces ?? item.pcs?.count),
+        weight: toNumberDisplay(item.weight ?? item.weight_kg),
+        totalVolumeCbm: toNumberDisplay(item.total_volume_cbm),
+        origin: toDisplay(item.first_entry_location || item.origin),
+        firstEntryLocation: toDisplay(item.first_entry_location || item.origin),
+        viaHub1: toDisplay(item.via_hub_1),
+        viaHub2: toDisplay(item.via_hub_2),
+        apDestination: toDisplay(item.ap_destination),
+        destination: toDisplay(item.destination),
+        stockStatus: toDisplay(item.stock_status),
+        soNumber: toDisplay(item.so_number),
+        currency: toDisplay(item.currency),
+        value: toNumberDisplay(item.value),
+        deliveryIrregularities: toDisplay(item.delivery_irregularities),
+        poRemarks: toDisplay(item.po_remarks),
+        locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
+        pcsLines: Array.isArray(item.pcs?.lines)
+          ? item.pcs.lines
+          : Array.isArray(item.dimensions)
+            ? item.dimensions
+            : [],
+        pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
         t1: "All",
         dg: "All",
       }));
@@ -186,6 +211,14 @@ function ClientStock() {
       .slice(0, Number(entries));
   }, [entries, filters, stockRows]);
 
+  const allVisibleSelected =
+    filteredRows.length > 0 && filteredRows.every((row) => selectedRowIds.includes(row.id));
+
+  useEffect(() => {
+    const currentIds = new Set(filteredRows.map((row) => row.id));
+    setSelectedRowIds((prev) => prev.filter((id) => currentIds.has(id)));
+  }, [filteredRows]);
+
   const handleFilterChange = (key, value) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -212,6 +245,7 @@ function ClientStock() {
     });
     setSearch("");
     setEntries("50");
+    setSelectedRowIds([]);
   };
   const formatStatus = (status) => {
     const value = String(status || "").trim();
@@ -235,6 +269,322 @@ function ClientStock() {
         : Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
     [stockRows, hubFilterOptions]
   );
+
+  const loadLetterheadOnPdf = async (doc) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = narviLetterheadPrint;
+    });
+  };
+
+  const buildStockRowPdf = async (row) => {
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "pt",
+      format: "a4",
+      compress: true,
+    });
+    const contentLeft = 30;
+    const contentTop = 150;
+
+    try {
+      await loadLetterheadOnPdf(doc);
+    } catch (e) {
+      console.error("Failed to load letterhead image for stock PDF:", e);
+    }
+
+    doc.setFontSize(12);
+    doc.text(`Stock Report - ${row.vessel || "-"}`, contentLeft, contentTop);
+    doc.setFontSize(9);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, contentLeft, contentTop + 14);
+
+    const drawSectionHeader = (title, yPos) => {
+      autoTable(doc, {
+        startY: yPos,
+        head: [[title]],
+        body: [],
+        theme: "plain",
+        styles: { fontSize: 10, cellPadding: 5 },
+        headStyles: { fillColor: [236, 238, 241], textColor: [33, 33, 33], fontStyle: "bold" },
+        margin: { left: contentLeft, right: 24 },
+      });
+      return (doc.lastAutoTable?.finalY || yPos) + 2;
+    };
+
+    const clean = (value) =>
+      value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
+    const toFixedOrDash = (value, digits = 3) =>
+      value != null && value !== false && value !== "" && !Number.isNaN(Number(value))
+        ? Number(value).toFixed(digits)
+        : "-";
+
+    const stockDetailsRows = [
+      ["PO number", clean(row.poNo), "Stock number", clean(row.stockNumber)],
+      ["Supplier", clean(row.supplier), "Status", clean(formatStatus(row.stockStatus))],
+      ["First entry location", clean(row.firstEntryLocation), "First entry date", clean(row.firstEntryDate)],
+      ["Destination", clean(row.destination), "AP Destination", clean(row.apDestination)],
+      ["Weight", clean(row.weight), "CBM", clean(row.totalVolumeCbm)],
+      ["Pieces", clean(row.boxes), "Priority", "-"],
+      ["Delivery Irregularities", clean(row.deliveryIrregularities), "PO remarks", clean(row.poRemarks)],
+      ["SO Number", clean(row.soNumber), "Currency / Value", `${clean(row.currency)} ${clean(row.value)}`],
+      ["Vessel", clean(row.vessel), "Client", clean(row.client)],
+      ["DG/UN Number", clean(row.dgUnNumber), "Via Hub 1 / 2", `${clean(row.viaHub1)} / ${clean(row.viaHub2)}`],
+    ];
+
+    let cursorY = drawSectionHeader("Stock details", contentTop + 24);
+    autoTable(doc, {
+      startY: cursorY,
+      body: stockDetailsRows,
+      theme: "plain",
+      styles: { fontSize: 8.7, cellPadding: { top: 3, right: 5, bottom: 3, left: 5 } },
+      margin: { left: contentLeft, right: 24 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 110 },
+        1: { cellWidth: 150 },
+        2: { fontStyle: "bold", cellWidth: 110 },
+        3: { cellWidth: 150 },
+      },
+    });
+
+    cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
+    cursorY = drawSectionHeader("Location history", cursorY);
+    const locationHistoryRows = Array.isArray(row.locationHistory) && row.locationHistory.length
+      ? row.locationHistory.map((entry) => [
+        "Location",
+        clean(entry?.location),
+        "Delivery date",
+        clean(entry?.delivery_date),
+      ])
+      : [["Location", clean(row.firstEntryLocation || row.origin), "Delivery date", clean(row.firstEntryDate || row.dateOnStock)]];
+    autoTable(doc, {
+      startY: cursorY,
+      body: locationHistoryRows,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 5 },
+      margin: { left: contentLeft, right: 24 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 110 },
+        1: { cellWidth: 150 },
+        2: { fontStyle: "bold", cellWidth: 110 },
+        3: { cellWidth: 150 },
+      },
+    });
+
+    cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
+    const pcsLines = Array.isArray(row.pcsLines) ? row.pcsLines : [];
+    cursorY = drawSectionHeader(`Pcs (${clean(row.pcsCount || row.boxes || pcsLines.length || 0)})`, cursorY);
+    const pcsRows = pcsLines.length
+      ? pcsLines.flatMap((line, lineIndex) => ([
+        [
+          clean(line?.piece_name || `Piece ${line?.piece_no ?? lineIndex + 1}`),
+          clean(line?.warehouse_ref),
+          "Warehouse ref",
+          clean(line?.warehouse_ref),
+        ],
+        [
+          "L x W x H",
+          clean(line?.lwh || (
+            line?.length_cm || line?.width_cm || line?.height_cm
+              ? `${clean(line?.length_cm)} x ${clean(line?.width_cm)} x ${clean(line?.height_cm)}`
+              : "-"
+          )),
+          "CBM",
+          clean(toFixedOrDash(line?.cbm, 3)),
+        ],
+        [
+          "VW",
+          clean(toFixedOrDash(line?.vw, 2)),
+          "Weight",
+          clean(toFixedOrDash(line?.weight ?? line?.weight_kg, 2)),
+        ],
+      ]))
+      : [[
+        "Piece 1",
+        `${clean(row.client)} - ${clean(row.warehouseId)}`,
+        "Warehouse ref",
+        clean(row.warehouseId),
+      ], [
+        "L x W x H",
+        "-",
+        "CBM",
+        clean(row.totalVolumeCbm),
+      ], [
+        "VW",
+        "-",
+        "Weight",
+        clean(row.weight),
+      ]];
+    autoTable(doc, {
+      startY: cursorY,
+      body: pcsRows,
+      theme: "plain",
+      styles: { fontSize: 9, cellPadding: 5 },
+      margin: { left: contentLeft, right: 24, bottom: 24 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 110 },
+        1: { cellWidth: 150 },
+        2: { fontStyle: "bold", cellWidth: 110 },
+        3: { cellWidth: 150 },
+      },
+    });
+
+    return doc;
+  };
+
+  const getStockPdfFilename = (row) => {
+    const vesselSlug = String(row.vessel || "vessel")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const warehouseSlug = String(row.warehouseId || "warehouse")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return `stock-${vesselSlug || "vessel"}-${warehouseSlug || "warehouse"}.pdf`;
+  };
+
+  const handleDownloadSinglePdf = async (row) => {
+    await handleOpenPdfPreview([row]);
+  };
+
+  const triggerBrowserDownload = (blobUrl, filename) => {
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const clearPreviewUrls = useCallback((items = []) => {
+    items.forEach((item) => {
+      if (item?.blobUrl) URL.revokeObjectURL(item.blobUrl);
+    });
+  }, []);
+
+  const handleClosePdfPreview = useCallback(() => {
+    setIsPdfPreviewOpen(false);
+    setActivePreviewIndex(0);
+    setPdfPreviewItems((prev) => {
+      clearPreviewUrls(prev);
+      return [];
+    });
+  }, [clearPreviewUrls]);
+
+  useEffect(() => {
+    return () => {
+      clearPreviewUrls(pdfPreviewItems);
+    };
+  }, [clearPreviewUrls, pdfPreviewItems]);
+
+  const handleOpenPdfPreview = async (rows) => {
+    if (!rows.length) {
+      toast({
+        title: "No rows selected",
+        description: "Select at least one row to preview PDFs.",
+        status: "info",
+        duration: 2500,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsPreparingPreview(true);
+    try {
+      const nextPreviewItems = [];
+      for (const rowItem of rows) {
+        // Build preview blobs sequentially to keep browser responsive.
+        // eslint-disable-next-line no-await-in-loop
+        const doc = await buildStockRowPdf(rowItem);
+        const blob = doc.output("blob");
+        const blobUrl = URL.createObjectURL(blob);
+        nextPreviewItems.push({
+          rowId: rowItem.id,
+          filename: getStockPdfFilename(rowItem),
+          blobUrl,
+        });
+      }
+
+      setPdfPreviewItems((prev) => {
+        clearPreviewUrls(prev);
+        return nextPreviewItems;
+      });
+      setActivePreviewIndex(0);
+      setIsPdfPreviewOpen(true);
+    } catch (e) {
+      console.error("Failed to build stock PDF preview:", e);
+      toast({
+        title: "Unable to prepare preview",
+        description: "Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsPreparingPreview(false);
+    }
+  };
+
+  const handleDownloadSelectedPdfs = async () => {
+    const selectedRows = filteredRows.filter((row) => selectedRowIds.includes(row.id));
+    setIsBulkPdfLoading(true);
+    try {
+      await handleOpenPdfPreview(selectedRows);
+    } catch (e) {
+      console.error("Failed to open selected stock PDF previews:", e);
+      toast({
+        title: "Preview preparation failed",
+        description: "Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsBulkPdfLoading(false);
+    }
+  };
+
+  const handleDownloadCurrentPreview = () => {
+    const active = pdfPreviewItems[activePreviewIndex];
+    if (!active) return;
+    triggerBrowserDownload(active.blobUrl, active.filename);
+  };
+
+  const handleDownloadAllFromPreview = () => {
+    if (!pdfPreviewItems.length) return;
+    pdfPreviewItems.forEach((item) => {
+      triggerBrowserDownload(item.blobUrl, item.filename);
+    });
+    toast({
+      title: "PDF download started",
+      description: `${pdfPreviewItems.length} PDF(s) queued for download.`,
+      status: "success",
+      duration: 2500,
+      isClosable: true,
+    });
+  };
+
+  const handleToggleRow = (rowId) => {
+    setSelectedRowIds((prev) =>
+      prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]
+    );
+  };
+
+  const handleToggleSelectAllVisible = (checked) => {
+    const visibleIds = filteredRows.map((row) => row.id);
+    if (checked) {
+      setSelectedRowIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+      return;
+    }
+    setSelectedRowIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+  };
 
   return (
     <Box>
@@ -344,14 +694,27 @@ function ClientStock() {
               Download
             </MenuButton>
             <MenuList>
-              <MenuItem icon={<Icon as={MdPictureAsPdf} color="red.500" />}>
-                Download PDF
+              <MenuItem
+                icon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                onClick={handleDownloadSelectedPdfs}
+              >
+                Preview PDF (Selected)
               </MenuItem>
               <MenuItem icon={<Icon as={MdTableChart} color="green.500" />}>
                 Download Excel
               </MenuItem>
             </MenuList>
           </Menu>
+          <Button
+            size="sm"
+            variant="brand"
+            leftIcon={<Icon as={MdPictureAsPdf} />}
+            onClick={handleDownloadSelectedPdfs}
+            isLoading={isBulkPdfLoading}
+            loadingText="Generating..."
+          >
+            Preview Selected PDFs
+          </Button>
         </Flex>
       </Box>
 
@@ -391,6 +754,12 @@ function ClientStock() {
         >
           <Thead>
             <Tr>
+              <Th>
+                <Checkbox
+                  isChecked={allVisibleSelected}
+                  onChange={(e) => handleToggleSelectAllVisible(e.target.checked)}
+                />
+              </Th>
               <Th>CLIENT</Th>
               <Th>Vessel</Th>
               <Th>WAREHOUSE ID</Th>
@@ -410,6 +779,7 @@ function ClientStock() {
               <Th>SO NUMBER</Th>
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
+              <Th>PDF</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -420,6 +790,12 @@ function ClientStock() {
                   _hover={{ bg: tableRowHoverBg }}
                   _even={{ bg: tableRowEvenBg }}
                 >
+                    <Td>
+                      <Checkbox
+                        isChecked={selectedRowIds.includes(row.id)}
+                        onChange={() => handleToggleRow(row.id)}
+                      />
+                    </Td>
                     <Td>{row.client}</Td>
                     <Td>{row.vessel}</Td>
                     <Td>{row.warehouseId}</Td>
@@ -448,12 +824,99 @@ function ClientStock() {
                     <Td>{row.soNumber}</Td>
                     <Td>{row.currency}</Td>
                     <Td>{row.value}</Td>
+                    <Td>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                        onClick={() => handleDownloadSinglePdf(row)}
+                      >
+                        Preview
+                      </Button>
+                    </Td>
                 </Tr>
               );
             })}
           </Tbody>
         </Table>
       </Box>
+
+      <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="5xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            PDF Preview
+            {pdfPreviewItems.length > 1
+              ? ` (${activePreviewIndex + 1}/${pdfPreviewItems.length})`
+              : ""}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={2}>
+            {isPreparingPreview ? (
+              <Text fontSize="sm" color={muted}>Preparing preview...</Text>
+            ) : pdfPreviewItems.length ? (
+              <Box border="1px solid" borderColor={borderColor} borderRadius="10px" overflow="hidden">
+                <iframe
+                  title="Stock PDF Preview"
+                  src={pdfPreviewItems[activePreviewIndex]?.blobUrl}
+                  style={{ width: "100%", height: "70vh", border: "none" }}
+                />
+              </Box>
+            ) : (
+              <Text fontSize="sm" color={muted}>No preview available.</Text>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Flex w="100%" justify="space-between" align="center" gap={2} direction={{ base: "column", md: "row" }}>
+              <Flex gap={2}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setActivePreviewIndex((i) => Math.max(0, i - 1))}
+                  isDisabled={activePreviewIndex === 0 || !pdfPreviewItems.length}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setActivePreviewIndex((i) => Math.min(pdfPreviewItems.length - 1, i + 1))
+                  }
+                  isDisabled={
+                    !pdfPreviewItems.length || activePreviewIndex >= pdfPreviewItems.length - 1
+                  }
+                >
+                  Next
+                </Button>
+              </Flex>
+              <Flex gap={2}>
+                <Button size="sm" variant="outline" onClick={handleClosePdfPreview}>
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                  onClick={handleDownloadCurrentPreview}
+                  isDisabled={!pdfPreviewItems.length}
+                >
+                  Download This PDF
+                </Button>
+                <Button
+                  size="sm"
+                  variant="brand"
+                  leftIcon={<Icon as={MdFileDownload} />}
+                  onClick={handleDownloadAllFromPreview}
+                  isDisabled={!pdfPreviewItems.length}
+                >
+                  Download All
+                </Button>
+              </Flex>
+            </Flex>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }
