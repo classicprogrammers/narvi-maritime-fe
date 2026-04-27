@@ -400,6 +400,7 @@ export default function StockDBMainEdit() {
                     volume_dim: dim.volume_dim !== null && dim.volume_dim !== undefined ? dim.volume_dim : "",
                     volume_cbm: dim.volume_cbm !== null && dim.volume_cbm !== undefined ? dim.volume_cbm : "",
                     cw_air_freight: dim.cw_air_freight !== null && dim.cw_air_freight !== undefined ? dim.cw_air_freight : "",
+                    weight_kg: dim.weight_kg !== null && dim.weight_kg !== undefined ? dim.weight_kg : "",
                 }))
                 : [],
         };
@@ -442,6 +443,7 @@ export default function StockDBMainEdit() {
                         height_cm: dim.height_cm,
                         volume_cbm: dim.volume_cbm,
                         cw_air_freight: dim.cw_air_freight,
+                        weight_kg: dim.weight_kg,
                     }));
                 }
                 return normalized;
@@ -993,7 +995,7 @@ export default function StockDBMainEdit() {
                         const v1 = item[key];
                         const v2 = item2[key];
                         // Handle numeric comparison for dimension fields
-                        if (key.includes('_cm') || key === 'volume_cbm' || key === 'cw_air_freight') {
+                        if (key.includes('_cm') || key === 'volume_cbm' || key === 'cw_air_freight' || key === 'volume_dim' || key === 'weight_kg') {
                             return Number(v1) === Number(v2);
                         }
                         return v1 === v2;
@@ -1143,6 +1145,7 @@ export default function StockDBMainEdit() {
                                 volume_dim: false,
                                 volume_cbm: normalizeDimValue(dim.volume_cbm),
                                 cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                weight_kg: normalizeDimValue(dim.weight_kg),
                             });
                         }
                     } else {
@@ -1158,6 +1161,7 @@ export default function StockDBMainEdit() {
                                 volume_dim: volumeDim,
                                 volume_cbm: normalizeDimValue(dim.volume_cbm),
                                 cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                weight_kg: normalizeDimValue(dim.weight_kg),
                             });
                         }
                     }
@@ -1183,6 +1187,7 @@ export default function StockDBMainEdit() {
                                     volume_dim: false,
                                     volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                    weight_kg: normalizeDimValue(dim.weight_kg),
                                 });
                             }
                         } else {
@@ -1198,6 +1203,7 @@ export default function StockDBMainEdit() {
                                     volume_dim: volumeDim,
                                     volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                    weight_kg: normalizeDimValue(dim.weight_kg),
                                 });
                             }
                         }
@@ -1220,12 +1226,15 @@ export default function StockDBMainEdit() {
                             const originalLength = normalizeDimValue(originalDim.length_cm);
                             const originalWidth = normalizeDimValue(originalDim.width_cm);
                             const originalHeight = normalizeDimValue(originalDim.height_cm);
+                            const currentWeightKg = normalizeDimValue(dim.weight_kg);
+                            const originalWeightKg = normalizeDimValue(originalDim.weight_kg);
 
                             hasChanged =
                                 method !== originalMethod ||
                                 currentLength !== originalLength ||
                                 currentWidth !== originalWidth ||
-                                currentHeight !== originalHeight;
+                                currentHeight !== originalHeight ||
+                                currentWeightKg !== originalWeightKg;
 
                             if (hasChanged) {
                                 updatePayload = {
@@ -1236,16 +1245,20 @@ export default function StockDBMainEdit() {
                                     volume_dim: false,
                                     volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                    weight_kg: currentWeightKg,
                                 };
                             }
                         } else {
                             // method === "volume"
                             const currentVolumeDim = normalizeDimValue(dim.volume_dim);
                             const originalVolumeDim = normalizeDimValue(originalDim.volume_dim);
+                            const currentWeightKg = normalizeDimValue(dim.weight_kg);
+                            const originalWeightKg = normalizeDimValue(originalDim.weight_kg);
 
                             hasChanged =
                                 method !== originalMethod ||
-                                currentVolumeDim !== originalVolumeDim;
+                                currentVolumeDim !== originalVolumeDim ||
+                                currentWeightKg !== originalWeightKg;
 
                             if (hasChanged) {
                                 updatePayload = {
@@ -1256,6 +1269,7 @@ export default function StockDBMainEdit() {
                                     volume_dim: currentVolumeDim,
                                     volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
+                                    weight_kg: currentWeightKg,
                                 };
                             }
                         }
@@ -3004,6 +3018,25 @@ export default function StockDBMainEdit() {
                                                     <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                                 </NumberInput>
                                             </FormControl>
+                                            <FormControl flex="1" minW="150px">
+                                                <FormLabel fontSize="sm">Weight (kg)</FormLabel>
+                                                <NumberInput
+                                                    value={dim.weight_kg || ""}
+                                                    onChange={(value) => {
+                                                        const updated = [...dimensionsList];
+                                                        updated[index] = {
+                                                            ...updated[index],
+                                                            weight_kg: value,
+                                                        };
+                                                        setDimensionsList(updated);
+                                                    }}
+                                                    min={0}
+                                                    precision={2}
+                                                    size="sm"
+                                                >
+                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                                </NumberInput>
+                                            </FormControl>
                                         </Flex>
                                     </Box>
                                 ))
@@ -3020,6 +3053,7 @@ export default function StockDBMainEdit() {
                                         volume_dim: "",
                                         volume_cbm: 0.0,
                                         cw_air_freight: 0.0,
+                                        weight_kg: 0.0,
                                     }]);
                                 }}
                                 colorScheme="blue"

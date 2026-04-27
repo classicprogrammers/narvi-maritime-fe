@@ -790,50 +790,50 @@ function ClientStock() {
                   _hover={{ bg: tableRowHoverBg }}
                   _even={{ bg: tableRowEvenBg }}
                 >
-                    <Td>
-                      <Checkbox
-                        isChecked={selectedRowIds.includes(row.id)}
-                        onChange={() => handleToggleRow(row.id)}
-                      />
-                    </Td>
-                    <Td>{row.client}</Td>
-                    <Td>{row.vessel}</Td>
-                    <Td>{row.warehouseId}</Td>
-                    <Td>{row.supplier}</Td>
-                    <Td>{row.poNo}</Td>
-                    <Td>{row.dgUnNumber}</Td>
-                    <Td>{row.boxes}</Td>
-                    <Td>{row.weight}</Td>
-                    <Td>{row.totalVolumeCbm}</Td>
-                    <Td>{row.origin}</Td>
-                    <Td>{row.viaHub1}</Td>
-                    <Td>{row.viaHub2}</Td>
-                    <Td>{row.apDestination}</Td>
-                    <Td>{row.destination}</Td>
-                    <Td>
-                      <Badge
-                        borderRadius="full"
-                        px={2.5}
-                        py={1}
-                        colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
-                      >
-                        {formatStatus(row.stockStatus)}
-                      </Badge>
-                    </Td>
-                    <Td>{row.dateOnStock}</Td>
-                    <Td>{row.soNumber}</Td>
-                    <Td>{row.currency}</Td>
-                    <Td>{row.value}</Td>
-                    <Td>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
-                        onClick={() => handleDownloadSinglePdf(row)}
-                      >
-                        Preview
-                      </Button>
-                    </Td>
+                  <Td>
+                    <Checkbox
+                      isChecked={selectedRowIds.includes(row.id)}
+                      onChange={() => handleToggleRow(row.id)}
+                    />
+                  </Td>
+                  <Td>{row.client}</Td>
+                  <Td>{row.vessel}</Td>
+                  <Td>{row.warehouseId}</Td>
+                  <Td>{row.supplier}</Td>
+                  <Td>{row.poNo}</Td>
+                  <Td>{row.dgUnNumber}</Td>
+                  <Td>{row.boxes}</Td>
+                  <Td>{row.weight}</Td>
+                  <Td>{row.totalVolumeCbm}</Td>
+                  <Td>{row.origin}</Td>
+                  <Td>{row.viaHub1}</Td>
+                  <Td>{row.viaHub2}</Td>
+                  <Td>{row.apDestination}</Td>
+                  <Td>{row.destination}</Td>
+                  <Td>
+                    <Badge
+                      borderRadius="full"
+                      px={2.5}
+                      py={1}
+                      colorScheme={statusColorMap[String(row.stockStatus || "").toLowerCase()] || "gray"}
+                    >
+                      {formatStatus(row.stockStatus)}
+                    </Badge>
+                  </Td>
+                  <Td>{row.dateOnStock}</Td>
+                  <Td>{row.soNumber}</Td>
+                  <Td>{row.currency}</Td>
+                  <Td>{row.value}</Td>
+                  <Td>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                      onClick={() => handleDownloadSinglePdf(row)}
+                    >
+                      Preview
+                    </Button>
+                  </Td>
                 </Tr>
               );
             })}

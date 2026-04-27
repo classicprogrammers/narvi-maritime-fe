@@ -641,8 +641,10 @@ export default function StockForm() {
                 length_cm: dim.length_cm || "",
                 width_cm: dim.width_cm || "",
                 height_cm: dim.height_cm || "",
+                volume_dim: dim.volume_dim || "",
                 volume_cbm: dim.volume_cbm || "",
                 cw_air_freight: dim.cw_air_freight || "",
+                weight_kg: dim.weight_kg || "",
             })) : [],
         };
 
@@ -939,13 +941,17 @@ export default function StockForm() {
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
             dimensions: Array.isArray(rowData.dimensions) && rowData.dimensions.length > 0
                 ? rowData.dimensions.map(dim => {
-                    // For new records, all dimensions are "create" operations
-                    // volume_cbm and cw_air_freight are calculated by backend, so don't send them
+                    // For new records, all dimensions are "create" operations.
                     return {
                         op: "create",
+                        calculation_method: dim.calculation_method || "lwh",
                         length_cm: toNumber(dim.length_cm) || 0,
                         width_cm: toNumber(dim.width_cm) || 0,
                         height_cm: toNumber(dim.height_cm) || 0,
+                        volume_dim: (dim.calculation_method || "lwh") === "volume"
+                            ? (toNumber(dim.volume_dim) || 0)
+                            : false,
+                        weight_kg: toNumber(dim.weight_kg) || 0,
                     };
                 })
                 : undefined,
@@ -2421,6 +2427,25 @@ export default function StockForm() {
                                                 <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
                                             </NumberInput>
                                         </FormControl>
+                                        <FormControl flex="1" minW="150px">
+                                            <FormLabel fontSize="sm">Weight (kg)</FormLabel>
+                                            <NumberInput
+                                                value={dim.weight_kg || ""}
+                                                onChange={(value) => {
+                                                    const updated = [...dimensionsList];
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        weight_kg: value,
+                                                    };
+                                                    setDimensionsList(updated);
+                                                }}
+                                                min={0}
+                                                precision={2}
+                                                size="sm"
+                                            >
+                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
+                                            </NumberInput>
+                                        </FormControl>
                                     </Flex>
                                 </Box>
                             ))}
@@ -2436,6 +2461,7 @@ export default function StockForm() {
                                         volume_dim: "",
                                         volume_cbm: 0.0,
                                         cw_air_freight: 0.0,
+                                        weight_kg: 0.0,
                                     }]);
                                 }}
                                 colorScheme="blue"

@@ -6306,7 +6306,7 @@ export default function Stocks() {
                                                     Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="blue.500">
-                                                    {renderText(dim.volume_cbm) || "-"}
+                                                    {renderText(dim.volume_cbm ?? dim.volume_dim ?? "-") || "-"}
                                                 </Text>
                                             </Box>
                                             <Box>
@@ -6315,6 +6315,14 @@ export default function Stocks() {
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="green.500">
                                                     {renderText(dim.cw_air_freight) || "-"}
+                                                </Text>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Weight (kg)
+                                                </Text>
+                                                <Text fontSize="md" fontWeight="semibold" color="orange.500">
+                                                    {renderText(dim.weight_kg) || "-"}
                                                 </Text>
                                             </Box>
                                         </Grid>
@@ -6334,13 +6342,13 @@ export default function Stocks() {
                                             <Text fontSize="sm" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")} mb={3}>
                                                 Total Summary
                                             </Text>
-                                            <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                                            <Grid templateColumns="repeat(3, 1fr)" gap={4}>
                                                 <Box>
                                                     <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
                                                         Total Volume (CBM)
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
-                                                        {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.volume_cbm) || 0), 0).toFixed(3)}
+                                                        {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.volume_cbm ?? dim.volume_dim) || 0), 0).toFixed(3)}
                                                     </Text>
                                                 </Box>
                                                 <Box>
@@ -6349,6 +6357,14 @@ export default function Stocks() {
                                                     </Text>
                                                     <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
                                                         {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.cw_air_freight) || 0), 0).toFixed(1)}
+                                                    </Text>
+                                                </Box>
+                                                <Box>
+                                                    <Text fontSize="xs" color={useColorModeValue("blue.600", "blue.300")} mb={1}>
+                                                        Total Weight (kg)
+                                                    </Text>
+                                                    <Text fontSize="lg" fontWeight="bold" color={useColorModeValue("blue.700", "blue.200")}>
+                                                        {selectedDimensions.reduce((sum, dim) => sum + (parseFloat(dim.weight_kg) || 0), 0).toFixed(2)}
                                                     </Text>
                                                 </Box>
                                             </Grid>
