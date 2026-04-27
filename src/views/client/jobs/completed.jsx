@@ -33,6 +33,8 @@ import {
 } from "react-icons/md";
 import clientJobsApi from "api/clientJobs";
 import clientVesselApi from "api/clientVessel";
+import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import * as XLSX from "xlsx";
 
 function ClientCompletedJobs() {
   const [filters, setFilters] = useState({
@@ -132,6 +134,25 @@ function ClientCompletedJobs() {
   }, [filters.destination, filters.poNumber, rows]);
 
   const pagedRows = useMemo(() => filteredRows.slice(0, Number(entries)), [entries, filteredRows]);
+  const destinationOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((row) => row.destination).filter((v) => v && v !== "-"))).map((v) => ({ id: v, name: v })),
+    [rows]
+  );
+  const poOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((row) => row.poText).filter((v) => v && v !== "-"))).map((v) => ({ id: v, name: v })),
+    [rows]
+  );
+  const originOptions = useMemo(
+    () =>
+      Array.from(new Set(rows.map((row) => row.origin).filter((v) => v && v !== "-"))).map((v) => ({ id: v, name: v })),
+    [rows]
+  );
+  const vesselFilterOptions = useMemo(
+    () => vesselOptions.map((v) => ({ id: v.name, name: v.name })),
+    [vesselOptions]
+  );
 
   const handleReset = () => {
     setFilters({
@@ -145,6 +166,48 @@ function ClientCompletedJobs() {
     setSearch("");
     setEntries("50");
     setStatus("delivered");
+  };
+
+  const handleDownloadExcel = () => {
+    const headers = [
+      "Job ID",
+      "Vessel Name",
+      "PO Number",
+      "Mode of Transport",
+      "Transit Info",
+      "Status",
+      "ETD",
+      "ETA",
+      "Origin",
+      "Destination",
+      "Combined",
+      "Total Weight (KGS)",
+      "Documents",
+      "Incharge",
+    ];
+
+    const rowsForExport = filteredRows.map((row) => [
+      row.jobId || "-",
+      row.vessel || "-",
+      row.poText || "-",
+      row.mode || "-",
+      row.transitInfo || "-",
+      row.status || "-",
+      row.etd || "-",
+      row.eta || "-",
+      row.origin || "-",
+      row.destination || "-",
+      row.combined || "-",
+      row.totalWeight || "-",
+      row.documents || "-",
+      row.incharge || "-",
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rowsForExport]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Completed Jobs");
+    const dateTag = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `completed-jobs-${dateTag}.xlsx`);
   };
 
   return (
@@ -167,16 +230,15 @@ function ClientCompletedJobs() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
-            <Select
+            <SimpleSearchableSelect
               size="sm"
-              placeholder="All vessels"
               value={filters.vessel}
-              onChange={(e) => setFilters((prev) => ({ ...prev, vessel: e.target.value }))}
-            >
-              {vesselOptions.map((v) => (
-                <option key={`${v.id}-${v.name}`} value={v.name}>{v.name}</option>
-              ))}
-            </Select>
+              onChange={(value) => setFilters((prev) => ({ ...prev, vessel: value || "" }))}
+              options={vesselFilterOptions}
+              placeholder="All vessels"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
@@ -187,15 +249,39 @@ function ClientCompletedJobs() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Origin</Text>
-            <Input size="sm" placeholder="Type 2 letters to search" value={filters.origin} onChange={(e) => setFilters((prev) => ({ ...prev, origin: e.target.value }))} />
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.origin}
+              onChange={(value) => setFilters((prev) => ({ ...prev, origin: value || "" }))}
+              options={originOptions}
+              placeholder="All origins"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Destination</Text>
-            <Input size="sm" placeholder="Type 2 letters to search" value={filters.destination} onChange={(e) => setFilters((prev) => ({ ...prev, destination: e.target.value }))} />
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.destination}
+              onChange={(value) => setFilters((prev) => ({ ...prev, destination: value || "" }))}
+              options={destinationOptions}
+              placeholder="All destinations"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>PO Number</Text>
-            <Input size="sm" value={filters.poNumber} onChange={(e) => setFilters((prev) => ({ ...prev, poNumber: e.target.value }))} />
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.poNumber}
+              onChange={(value) => setFilters((prev) => ({ ...prev, poNumber: value || "" }))}
+              options={poOptions}
+              placeholder="All PO numbers"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
         </Grid>
         <Flex mt={4} gap={3}>
@@ -227,11 +313,12 @@ function ClientCompletedJobs() {
                 variant="outline"
                 borderColor={borderColor}
                 leftIcon={<Icon as={MdFileDownload} />}
+                onClick={handleDownloadExcel}
               >
                 Download Excel
               </MenuButton>
               <MenuList>
-                <MenuItem>Download Excel</MenuItem>
+                <MenuItem onClick={handleDownloadExcel}>Download Excel</MenuItem>
               </MenuList>
             </Menu>
             <InputGroup size="sm" maxW="220px">

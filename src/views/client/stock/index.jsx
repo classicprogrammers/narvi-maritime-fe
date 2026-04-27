@@ -46,6 +46,7 @@ import {
 import clientStockApi from "api/clientStock";
 import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
+import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
@@ -61,8 +62,8 @@ function ClientStock() {
     vessel: "",
     status: "",
     location: "",
-    t1: "",
-    dg: "",
+    destination: "",
+    poNumber: "",
   });
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
@@ -150,8 +151,6 @@ function ClientStock() {
             ? item.dimensions
             : [],
         pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
-        t1: "All",
-        dg: "All",
       }));
       setStockRows(normalizedRows);
       setClientName(res?.client?.name || "");
@@ -204,8 +203,8 @@ function ClientStock() {
       .filter((row) => {
         if (filters.vessel && row.vessel !== filters.vessel) return false;
         if (filters.location && row.location !== filters.location) return false;
-        if (filters.t1 && row.t1 !== filters.t1) return false;
-        if (filters.dg && row.dg !== filters.dg) return false;
+        if (filters.destination && row.destination !== filters.destination) return false;
+        if (filters.poNumber && row.poNo !== filters.poNumber) return false;
         if (filters.fromDate && row.date !== "-" && row.date < filters.fromDate) return false;
         if (filters.toDate && row.date !== "-" && row.date > filters.toDate) return false;
         return true;
@@ -242,8 +241,8 @@ function ClientStock() {
       vessel: "",
       status: "",
       location: "",
-      t1: "",
-      dg: "",
+      destination: "",
+      poNumber: "",
     });
     setSearch("");
     setEntries("50");
@@ -271,6 +270,22 @@ function ClientStock() {
         : Array.from(new Set(stockRows.map((r) => r.location).filter(Boolean).filter((v) => v !== "-"))),
     [stockRows, hubFilterOptions]
   );
+  const destinationOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(stockRows.map((r) => r.destination).filter((v) => v && v !== "-"))
+      ),
+    [stockRows]
+  );
+  const poOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(stockRows.map((r) => r.poNo).filter((v) => v && v !== "-"))
+      ),
+    [stockRows]
+  );
+  const toSelectOptions = (values) =>
+    values.map((value) => ({ id: value, name: value }));
 
   const loadLetterheadOnPdf = async (doc) => {
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -633,11 +648,15 @@ function ClientStock() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
-            <Select size="sm" placeholder="All vessels" value={filters.vessel} onChange={(e) => handleFilterChange("vessel", e.target.value)}>
-              {vesselOptions.map((vessel) => (
-                <option key={vessel} value={vessel}>{vessel}</option>
-              ))}
-            </Select>
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.vessel}
+              onChange={(value) => handleFilterChange("vessel", value || "")}
+              options={toSelectOptions(vesselOptions)}
+              placeholder="All vessels"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
@@ -650,23 +669,39 @@ function ClientStock() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Location</Text>
-            <Select size="sm" placeholder="All locations" value={filters.location} onChange={(e) => handleFilterChange("location", e.target.value)}>
-              {locationOptions.map((loc) => (
-                <option key={loc} value={loc}>{loc}</option>
-              ))}
-            </Select>
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.location}
+              onChange={(value) => handleFilterChange("location", value || "")}
+              options={toSelectOptions(locationOptions)}
+              placeholder="All locations"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
-            <Text fontSize="xs" mb={1} color={muted}>T1</Text>
-            <Select size="sm" placeholder="All" value={filters.t1} onChange={(e) => handleFilterChange("t1", e.target.value)}>
-              <option>All</option>
-            </Select>
+            <Text fontSize="xs" mb={1} color={muted}>Destination</Text>
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.destination}
+              onChange={(value) => handleFilterChange("destination", value || "")}
+              options={toSelectOptions(destinationOptions)}
+              placeholder="All destinations"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
           <GridItem>
-            <Text fontSize="xs" mb={1} color={muted}>DG</Text>
-            <Select size="sm" placeholder="All" value={filters.dg} onChange={(e) => handleFilterChange("dg", e.target.value)}>
-              <option>All</option>
-            </Select>
+            <Text fontSize="xs" mb={1} color={muted}>PO Number</Text>
+            <SimpleSearchableSelect
+              size="sm"
+              value={filters.poNumber}
+              onChange={(value) => handleFilterChange("poNumber", value || "")}
+              options={toSelectOptions(poOptions)}
+              placeholder="All PO numbers"
+              valueKey="id"
+              displayKey="name"
+            />
           </GridItem>
         </Grid>
 

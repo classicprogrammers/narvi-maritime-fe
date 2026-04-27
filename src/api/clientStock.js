@@ -1,14 +1,9 @@
 import api from "./axios";
+import { buildCommonStockJobFilters } from "./commonFilterBuilder";
 
 export const getClientStock = async (params = {}) => {
   try {
-    const requestParams = {};
-    if (params.search != null && String(params.search).trim() !== "") {
-      requestParams.search = String(params.search).trim();
-    }
-    if (params.stock_status != null && String(params.stock_status).trim() !== "") {
-      requestParams.stock_status = String(params.stock_status).trim();
-    }
+    const requestParams = buildCommonStockJobFilters(params, "stock");
 
     const response = await api.get("/api/client/stock", { params: requestParams });
     const data = response.data || response;
