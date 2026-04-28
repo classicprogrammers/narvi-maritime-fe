@@ -64,17 +64,13 @@ const VesselDetail = () => {
 
       try {
         setIsLoading(true);
-        
-        // First, try to get from location state
+
+        // Show quick data from route state first, but still fetch full record from API.
         if (location.state?.vessel) {
           setVessel(location.state.vessel);
-          setIsLoading(false);
-          // Still fetch attachments separately if vessel came from state
-          loadVesselAttachments(id);
-          return;
         }
 
-        // Fetch from API
+        // Fetch full vessel payload from API
         const vesselData = await vesselsAPI.getVessel(id);
         const vesselInfo = vesselData.vessel || vesselData.result?.vessel || vesselData;
         setVessel(vesselInfo);
@@ -246,6 +242,16 @@ const VesselDetail = () => {
     vessel?.client_id && typeof vessel.client_id === "object"
       ? (vessel.client_id.name || "-")
       : (vessel?.client_id != null && vessel.client_id !== "" ? String(vessel.client_id) : "-");
+  const procurementPersonName =
+    vessel?.procurement_person && typeof vessel.procurement_person === "object"
+      ? (vessel.procurement_person.name || "-")
+      : prettyValue(vessel?.procurement_person || vessel?.procurement_person_id);
+  const procurementEmail =
+    vessel?.procurement_person && typeof vessel.procurement_person === "object"
+      ? (vessel.procurement_person.email && vessel.procurement_person.email !== false
+        ? String(vessel.procurement_person.email)
+        : (vessel?.procurement_email && vessel.procurement_email !== false ? String(vessel.procurement_email) : "no email found"))
+      : (vessel?.procurement_email && vessel.procurement_email !== false ? String(vessel.procurement_email) : "no email found");
 
   const attachments = vessel?.attachments || [];
 
@@ -333,6 +339,61 @@ const VesselDetail = () => {
                   px={4}
                   py={2}
                   borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
+                  borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
+                  display="flex"
+                  justifyContent="flex-start"
+                  alignItems="center"
+                >
+                  <Text fontSize="sm" color={valueColor} fontWeight="500">
+                    {procurementPersonName}
+                  </Text>
+                </GridItem>
+                <GridItem
+                  px={4}
+                  py={2}
+                  borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
+                  display="flex"
+                  justifyContent="flex-start"
+                  alignItems="center"
+                >
+                  <Text fontSize="sm" color={valueColor} fontWeight="500">
+                    {procurementEmail}
+                  </Text>
+                </GridItem>
+                <GridItem
+                  px={4}
+                  py={2}
+                  borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
+                  borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
+                  display="flex"
+                  justifyContent="flex-start"
+                  alignItems="center"
+                >
+                  <Text fontSize="sm" color={valueColor} fontWeight="500">
+                    {prettyValue(vessel.vessel_email)}
+                  </Text>
+                </GridItem>
+                <GridItem
+                  px={4}
+                  py={2}
+                  borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
+                  display="flex"
+                  justifyContent="flex-start"
+                  alignItems="center"
+                >
+                  <Text fontSize="sm" color={valueColor} fontWeight="500">
+                    {prettyValue(vessel.team)}
+                  </Text>
+                </GridItem>
+                <GridItem
+                  px={4}
+                  py={2}
+                  borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
                   borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
                   display="flex"
                   justifyContent="flex-start"
@@ -346,6 +407,7 @@ const VesselDetail = () => {
                   px={4}
                   py={2}
                   borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
                   display="flex"
                   justifyContent="flex-start"
                   alignItems="center"
@@ -358,6 +420,7 @@ const VesselDetail = () => {
                   px={4}
                   py={2}
                   borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
                   borderRight={{ base: "none", md: `1px solid ${borderColor}` }}
                   display="flex"
                   justifyContent="flex-start"
@@ -380,6 +443,7 @@ const VesselDetail = () => {
                   px={4}
                   py={2}
                   borderColor={borderColor}
+                  borderTop={`1px solid ${borderColor}`}
                   display="flex"
                   justifyContent="flex-start"
                   alignItems="center"

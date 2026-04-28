@@ -187,6 +187,16 @@ export const createVessel = async (vesselData) => {
       vessel_type: vesselData.vessel_type || "",
       // Ensure status is always sent; default to "active" if missing
       status: vesselData.status || "active",
+      procurement_person_id:
+        vesselData.procurement_person_id != null && vesselData.procurement_person_id !== ""
+          ? Number(vesselData.procurement_person_id)
+          : undefined,
+      procurement_email:
+        vesselData.procurement_email && vesselData.procurement_email !== false
+          ? String(vesselData.procurement_email)
+          : "",
+      vessel_email: vesselData.vessel_email || "",
+      team: vesselData.team || "",
     };
 
     // Add attachments if provided
@@ -276,6 +286,24 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       if (hasChanged(vesselData.status, originalVesselData.status)) {
         payload.status = vesselData.status || "active";
       }
+      if (hasChanged(vesselData.procurement_person_id, originalVesselData.procurement_person_id)) {
+        payload.procurement_person_id =
+          vesselData.procurement_person_id != null && vesselData.procurement_person_id !== ""
+            ? Number(vesselData.procurement_person_id)
+            : false;
+      }
+      if (hasChanged(vesselData.procurement_email, originalVesselData.procurement_email)) {
+        payload.procurement_email =
+          vesselData.procurement_email && vesselData.procurement_email !== false
+            ? String(vesselData.procurement_email)
+            : "";
+      }
+      if (hasChanged(vesselData.vessel_email, originalVesselData.vessel_email)) {
+        payload.vessel_email = vesselData.vessel_email || "";
+      }
+      if (hasChanged(vesselData.team, originalVesselData.team)) {
+        payload.team = vesselData.team || "";
+      }
 
       // Check if attachments have changed (new files added)
       if (attachmentsChanged(vesselData.attachments, originalVesselData.attachments)) {
@@ -292,6 +320,16 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       payload.imo = vesselData.imo || "";
       payload.vessel_type = vesselData.vessel_type || "";
       payload.status = vesselData.status || "active";
+      payload.procurement_person_id =
+        vesselData.procurement_person_id != null && vesselData.procurement_person_id !== ""
+          ? Number(vesselData.procurement_person_id)
+          : false;
+      payload.procurement_email =
+        vesselData.procurement_email && vesselData.procurement_email !== false
+          ? String(vesselData.procurement_email)
+          : "";
+      payload.vessel_email = vesselData.vessel_email || "";
+      payload.team = vesselData.team || "";
 
       // Add attachments if provided
       if (vesselData.attachments && vesselData.attachments.length > 0) {

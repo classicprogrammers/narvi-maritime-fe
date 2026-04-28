@@ -79,6 +79,25 @@ export default function Vessels() {
   const [deleteVesselId, setDeleteVesselId] = useState(null);
 
   const { clients } = useMasterData();
+  const clientOptions = useMemo(() => {
+    const source = Array.isArray(clients) ? clients : [];
+    return source.filter((client) => {
+      const hasCompanyMarker =
+        client?.is_company !== undefined ||
+        client?.company_type !== undefined ||
+        client?.partner_type !== undefined;
+      const isCompany =
+        client?.is_company === true ||
+        client?.company_type === "company" ||
+        client?.partner_type === "company";
+      const isTopLevel =
+        client?.parent_id == null ||
+        client?.parent_id === false ||
+        client?.parent_id === 0 ||
+        client?.parent_id === "";
+      return hasCompanyMarker ? (isCompany && isTopLevel) : true;
+    });
+  }, [clients]);
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
@@ -113,10 +132,21 @@ export default function Vessels() {
     status: "active",
     imo: "",
     vessel_type: "",
+    procurement_person_id: "",
+    procurement_email: "",
+    vessel_email: "",
+    team: "",
     attachments: [],
     // For updates: IDs of existing attachments the user removed
     attachment_to_delete: [],
   });
+  const [procurementPeopleOptions, setProcurementPeopleOptions] = useState([]);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const autoSaveTimerRef = useRef(null);
+  const lastSavedSignatureRef = useRef("");
+  const createdVesselIdRef = useRef(null);
+  const createInFlightRef = useRef(false);
+  const clientChangeUserControlledRef = useRef(false);
 
   const [previewFile, setPreviewFile] = useState(null);
 
@@ -231,6 +261,28 @@ export default function Vessels() {
   };
 
   const handleInputChange = (field, value) => {
+    if (field === "client_id") {
+      clientChangeUserControlledRef.current = true;
+      const nextClientId = value || "";
+      setFormData(prev => ({
+        ...prev,
+        client_id: nextClientId,
+        procurement_person_id: "",
+        procurement_email: "",
+      }));
+      return;
+    }
+
+    if (field === "procurement_person_id") {
+      const selected = procurementPeopleOptions.find((p) => String(p.id) === String(value));
+      setFormData(prev => ({
+        ...prev,
+        procurement_person_id: value || "",
+        procurement_email: selected?.email && selected.email !== false ? String(selected.email) : "",
+      }));
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -244,11 +296,20 @@ export default function Vessels() {
       status: "active",
       imo: "",
       vessel_type: "",
+      procurement_person_id: "",
+      procurement_email: "",
+      vessel_email: "",
+      team: "",
       attachments: [],
       attachment_to_delete: [],
     });
     setEditingVessel(null);
     setPreviewFile(null);
+    setProcurementPeopleOptions([]);
+    clientChangeUserControlledRef.current = false;
+    lastSavedSignatureRef.current = "";
+    createdVesselIdRef.current = null;
+    createInFlightRef.current = false;
   };
 
 
@@ -272,10 +333,45 @@ export default function Vessels() {
         status: vesselInfo.status || "active",
         imo: vesselInfo.imo || "",
         vessel_type: vesselInfo.vessel_type || "",
+        procurement_person_id:
+          vesselInfo.procurement_person && typeof vesselInfo.procurement_person === "object"
+            ? String(vesselInfo.procurement_person.id || "")
+            : String(vesselInfo.procurement_person_id || ""),
+        procurement_email:
+          vesselInfo.procurement_person && typeof vesselInfo.procurement_person === "object"
+            ? (
+              vesselInfo.procurement_person.email && vesselInfo.procurement_person.email !== false
+                ? String(vesselInfo.procurement_person.email)
+                : (
+                  vesselInfo.procurement_email && vesselInfo.procurement_email !== false
+                    ? String(vesselInfo.procurement_email)
+                    : ""
+                )
+            )
+            : (
+              vesselInfo.procurement_email && vesselInfo.procurement_email !== false
+                ? String(vesselInfo.procurement_email)
+                : ""
+            ),
+        vessel_email: vesselInfo.vessel_email || "",
+        team: vesselInfo.team || "",
         attachments: vesselInfo.attachments || [],
         attachment_to_delete: [],
       });
+      const people = Array.isArray(vesselInfo.procurement_people) ? vesselInfo.procurement_people : [];
+      const options = people
+        .map((person) => ({
+          id: person?.id,
+          name: person?.name || `Person ${person?.id}`,
+          email: person?.email && person.email !== false ? String(person.email) : "",
+        }))
+        .filter((person) => person.id);
+      setProcurementPeopleOptions(options);
       setEditingVessel({ ...vessel, ...vesselInfo });
+      clientChangeUserControlledRef.current = false;
+      lastSavedSignatureRef.current = "";
+      createdVesselIdRef.current = vesselInfo?.id || vessel?.id || null;
+      createInFlightRef.current = false;
 
     } catch (error) {
       toast({
@@ -289,6 +385,167 @@ export default function Vessels() {
       setIsLoading(false);
     }
   };
+
+  const getSavePayload = useCallback(() => ({
+    name: formData.name?.trim() || "",
+    client_id: formData.client_id || "",
+    status: formData.status || "active",
+    imo: formData.imo || "",
+    vessel_type: formData.vessel_type || "",
+    procurement_person_id: formData.procurement_person_id || "",
+    procurement_email: formData.procurement_email || "",
+    vessel_email: formData.vessel_email || "",
+    team: formData.team || "",
+    attachments: formData.attachments || [],
+    attachment_to_delete: formData.attachment_to_delete || [],
+  }), [formData]);
+
+  const fetchProcurementPeopleByClient = useCallback(async (clientId) => {
+    if (!clientId) {
+      setProcurementPeopleOptions([]);
+      return;
+    }
+    try {
+      const response = await vesselsAPI.getVessels({
+        page: 1,
+        page_size: 80,
+        client_id: clientId,
+      });
+      const vesselsList = Array.isArray(response?.vessels) ? response.vessels : [];
+      const peopleMap = new Map();
+      vesselsList.forEach((vesselItem) => {
+        const people = Array.isArray(vesselItem?.procurement_people) ? vesselItem.procurement_people : [];
+        people.forEach((person) => {
+          if (person?.id && !peopleMap.has(String(person.id))) {
+            peopleMap.set(String(person.id), {
+              id: person.id,
+              name: person.name || `Person ${person.id}`,
+              email: person.email || "",
+            });
+          }
+        });
+      });
+      setProcurementPeopleOptions(Array.from(peopleMap.values()));
+    } catch (_error) {
+      setProcurementPeopleOptions([]);
+    }
+  }, []);
+
+  const resolveCreatedVesselId = useCallback(async (savePayload, createResponse) => {
+    const responseCandidates = [
+      createResponse?.result?.vessel?.id,
+      createResponse?.result?.data?.id,
+      createResponse?.result?.result?.vessel?.id,
+      createResponse?.result?.result?.data?.id,
+      createResponse?.result?.id,
+      createResponse?.result?.vessel_id,
+      createResponse?.result?.result?.vessel_id,
+      createResponse?.result?.data?.vessel_id,
+      createResponse?.result?.result?.data?.vessel_id,
+    ];
+    const responseId = responseCandidates.find((candidate) => candidate != null && candidate !== "");
+    if (responseId) return String(responseId);
+
+    try {
+      // Fallback: query list and find exact matching vessel.
+      const lookup = await vesselsAPI.getVessels({
+        page: 1,
+        page_size: 80,
+        search: savePayload.name,
+        client_id: savePayload.client_id,
+        sort_by: "id",
+        sort_order: "desc",
+      });
+      const candidates = Array.isArray(lookup?.vessels) ? lookup.vessels : [];
+      const normalizedName = (savePayload.name || "").trim().toLowerCase();
+      const matched = candidates.find((item) => {
+        const itemName = (item?.name || "").trim().toLowerCase();
+        const itemClientId =
+          item?.client_id && typeof item.client_id === "object"
+            ? String(item.client_id.id || "")
+            : String(item?.client_id || "");
+        return itemName === normalizedName && itemClientId === String(savePayload.client_id);
+      });
+      return matched?.id ? String(matched.id) : "";
+    } catch (_error) {
+      return "";
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    if (!clientChangeUserControlledRef.current) return;
+    fetchProcurementPeopleByClient(formData.client_id);
+  }, [fetchProcurementPeopleByClient, formData.client_id, isModalOpen]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const savePayload = getSavePayload();
+    // Create/update starts after the required create fields exist.
+    if (!savePayload.name || !savePayload.client_id) return;
+    const vesselId = editingVessel?.id || createdVesselIdRef.current || "";
+
+    const signature = JSON.stringify({
+      ...savePayload,
+      attachments: (savePayload.attachments || []).map((a) => a.id || a.filename || a.name || ""),
+      attachment_to_delete: savePayload.attachment_to_delete || [],
+      vessel_id: vesselId,
+    });
+    if (signature === lastSavedSignatureRef.current) return;
+
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      try {
+        if (!vesselId && createInFlightRef.current) return;
+        setIsAutoSaving(true);
+        if (vesselId) {
+          await vesselsAPI.updateVessel({
+            vessel_id: vesselId,
+            ...savePayload,
+          });
+        } else {
+          createInFlightRef.current = true;
+          const response = await vesselsAPI.createVessel(savePayload);
+          const created =
+            response?.result?.vessel ||
+            response?.result?.data ||
+            response?.result?.result?.vessel ||
+            response?.result?.result?.data ||
+            response?.result ||
+            null;
+          const createdId = await resolveCreatedVesselId(savePayload, response);
+          if (createdId) {
+            createdVesselIdRef.current = createdId;
+            setEditingVessel((prev) => ({ ...(prev || {}), id: createdId, ...(created || {}) }));
+          } else {
+            // Prevent duplicate create spam if backend doesn't return id deterministically.
+            lastSavedSignatureRef.current = signature;
+          }
+        }
+        lastSavedSignatureRef.current = signature;
+      } catch (error) {
+        toast({
+          title: "Autosave failed",
+          description: error?.response?.data?.message || error?.message || "Could not save vessel changes",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        createInFlightRef.current = false;
+        setIsAutoSaving(false);
+      }
+    }, 500);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [editingVessel, formData, getSavePayload, isModalOpen, resolveCreatedVesselId, toast]);
 
   const handleSubmit = async () => {
     try {
@@ -500,7 +757,7 @@ export default function Vessels() {
               <SearchableSelect
                 value={clientFilter}
                 onChange={(value) => setClientFilter(value || "")}
-                options={clients}
+                options={clientOptions}
                 placeholder="Filter by client..."
                 displayKey="name"
                 valueKey="id"
@@ -789,12 +1046,71 @@ export default function Vessels() {
                 <SearchableSelect
                   value={formData.client_id}
                   onChange={(value) => handleInputChange("client_id", value)}
-                  options={clients}
-                  placeholder={clients.length === 0 ? "No customers found" : "Select customer"}
+                  options={clientOptions}
+                  placeholder={clientOptions.length === 0 ? "No company clients found" : "Select customer"}
                   displayKey="name"
                   valueKey="id"
                   formatOption={(customer) => `${customer.name || customer.company_name || `Customer ${customer.id}`} (ID: ${customer.id})`}
                   isRequired
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Procurement Person
+                </FormLabel>
+                <Select
+                  size="md"
+                  value={formData.procurement_person_id}
+                  onChange={(e) => handleInputChange("procurement_person_id", e.target.value)}
+                  borderRadius="md"
+                  placeholder={formData.client_id ? "Select procurement person" : "Select client first"}
+                  isDisabled={!formData.client_id}
+                >
+                  {procurementPeopleOptions.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}{person.email ? ` (${person.email})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Procurement Email
+                </FormLabel>
+                <Input
+                  size="md"
+                  value={formData.procurement_email || "no email found"}
+                  isReadOnly
+                  placeholder="Auto-filled from procurement person"
+                  borderRadius="md"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Vessel Email
+                </FormLabel>
+                <Input
+                  size="md"
+                  value={formData.vessel_email}
+                  onChange={(e) => handleInputChange("vessel_email", e.target.value)}
+                  placeholder="Enter vessel email"
+                  borderRadius="md"
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Team
+                </FormLabel>
+                <Input
+                  size="md"
+                  value={formData.team}
+                  onChange={(e) => handleInputChange("team", e.target.value)}
+                  placeholder="Enter team"
+                  borderRadius="md"
                 />
               </FormControl>
 
@@ -937,12 +1253,8 @@ export default function Vessels() {
             <Button variant="outline" mr={3} onClick={onModalClose}>
               Cancel
             </Button>
-            <Button
-              colorScheme="blue"
-              onClick={handleSubmit}
-              isLoading={isLoading}
-            >
-              {editingVessel ? "Update Vessel" : "Create Vessel"}
+            <Button colorScheme="blue" isLoading={isAutoSaving} isDisabled>
+              {isAutoSaving ? "Saving..." : "Auto Saved"}
             </Button>
           </ModalFooter>
         </ModalContent >
