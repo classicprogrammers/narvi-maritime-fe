@@ -92,6 +92,14 @@ export const globalStyles = {
       html: {
         fontFamily: "DM Sans",
       },
+      // Strong keyboard-focus indicator across the app.
+      // Keeps tab navigation visible on inputs, selects, buttons, links, etc.
+      "a:focus-visible, button:focus-visible, [role='button']:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible": {
+        outline: "2px solid #174693 !important",
+        outlineOffset: "2px !important",
+        boxShadow: "0 0 0 3px rgba(23, 70, 147, 0.25) !important",
+        borderColor: "#174693 !important",
+      },
     }),
   },
 };
