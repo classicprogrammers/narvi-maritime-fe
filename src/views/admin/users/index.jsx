@@ -30,6 +30,7 @@ import {
   FormLabel,
   Switch,
   Select,
+  Textarea,
   AlertDialog,
   AlertDialogBody,
   AlertDialogFooter,
@@ -88,6 +89,8 @@ export default function Users() {
   const [isClientSubmitting, setIsClientSubmitting] = useState(false);
   const [editingClientLogin, setEditingClientLogin] = useState(null);
   const [clientLoginToDelete, setClientLoginToDelete] = useState(null);
+  const [viewingClientLogin, setViewingClientLogin] = useState(null);
+  const [isClientViewLoading, setIsClientViewLoading] = useState(false);
   const [showClientPassword, setShowClientPassword] = useState(false);
   const [clientFormData, setClientFormData] = useState({
     client_id: "",
@@ -116,6 +119,11 @@ export default function Users() {
     isOpen: isClientDeleteOpen,
     onOpen: openClientDelete,
     onClose: closeClientDelete,
+  } = useDisclosure();
+  const {
+    isOpen: isClientViewOpen,
+    onOpen: openClientView,
+    onClose: closeClientView,
   } = useDisclosure();
 
   const [formData, setFormData] = useState({
@@ -354,6 +362,33 @@ export default function Users() {
   const handleClientFormChange = (field, value) => {
     setClientFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const openViewClientLogin = async (item) => {
+    setIsClientViewLoading(true);
+    try {
+      const res = await getClientLoginApi(item.id);
+      const fetched = res?.data || res?.result?.data || item;
+      setViewingClientLogin({
+        ...item,
+        ...fetched,
+      });
+      openClientView();
+    } catch (_e) {
+      // handled in API layer
+    } finally {
+      setIsClientViewLoading(false);
+    }
+  };
+
+  const clientAccessDetailsText = useMemo(() => {
+    if (!viewingClientLogin) return "";
+    return [
+      `Name: ${viewingClientLogin?.client_name || "-"}`,
+      `Email: ${viewingClientLogin?.email || "-"}`,
+      `Password: ${viewingClientLogin?.password || "-"}`,
+      "Login Link: https://narvi-maritime-fe.vercel.app/client/login",
+    ].join("\n");
+  }, [viewingClientLogin]);
 
   const submitClientLogin = async () => {
     const hasPassword = Boolean(clientFormData.password || clientFormData.confirm_password);
@@ -606,6 +641,15 @@ export default function Users() {
                         <Td borderColor={borderColor}>{item.write_date || "-"}</Td>
                         <Td borderColor={borderColor}>
                           <Flex justify="flex-end" gap="8px">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              leftIcon={<MdVisibility />}
+                              onClick={() => openViewClientLogin(item)}
+                              isLoading={isClientViewLoading && viewingClientLogin?.id === item.id}
+                            >
+                              View
+                            </Button>
                             <IconButton
                               aria-label="Edit client access"
                               icon={<MdEdit />}
@@ -801,6 +845,69 @@ export default function Users() {
             </Button>
             <Button colorScheme="blue" onClick={submitClientLogin} isLoading={isClientSubmitting}>
               {editingClientLogin ? "Update" : "Create"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        isOpen={isClientViewOpen}
+        onClose={() => {
+          closeClientView();
+          setViewingClientLogin(null);
+        }}
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Client Access Details</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {isClientViewLoading ? (
+              <Text>Loading details...</Text>
+            ) : (
+              <>
+                <FormControl>
+                  <FormLabel>Client Access Details</FormLabel>
+                  <Textarea value={clientAccessDetailsText} isReadOnly minH="180px" resize="vertical" />
+                </FormControl>
+                <Button
+                  mt="12px"
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(clientAccessDetailsText);
+                      toast({
+                        title: "Copied",
+                        description: "Client details copied to clipboard.",
+                        status: "success",
+                        duration: 2000,
+                        isClosable: true,
+                      });
+                    } catch (_e) {
+                      toast({
+                        title: "Copy failed",
+                        description: "Could not copy details. Please copy manually.",
+                        status: "error",
+                        duration: 2500,
+                        isClosable: true,
+                      });
+                    }
+                  }}
+                >
+                  Copy All
+                </Button>
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              onClick={() => {
+                closeClientView();
+                setViewingClientLogin(null);
+              }}
+            >
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -36,6 +36,7 @@ function ClientCompletedJobs() {
     fromDate: "",
     toDate: "",
     vessel: "",
+    status: "delivered",
     origin: "",
     destination: "",
     poNumber: "",
@@ -43,7 +44,6 @@ function ClientCompletedJobs() {
   const [search, setSearch] = useState("");
   const [entries, setEntries] = useState("50");
   const [currentPage, setCurrentPage] = useState(1);
-  const [status, setStatus] = useState("delivered");
   const [isLoading, setIsLoading] = useState(false);
   const [rows, setRows] = useState([]);
   const [clientName, setClientName] = useState("");
@@ -73,7 +73,7 @@ function ClientCompletedJobs() {
       const selectedVessel = vesselOptions.find((v) => String(v.name) === String(filters.vessel));
       const res = await clientJobsApi.getCompletedJobs({
         search: search.trim() || undefined,
-        status,
+        status: filters.status,
         vessel_id: selectedVessel?.id,
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
@@ -104,7 +104,7 @@ function ClientCompletedJobs() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters.fromDate, filters.origin, filters.toDate, filters.vessel, search, status, vesselOptions]);
+  }, [filters.fromDate, filters.origin, filters.status, filters.toDate, filters.vessel, search, vesselOptions]);
 
   useEffect(() => {
     fetchVessels();
@@ -162,6 +162,7 @@ function ClientCompletedJobs() {
       fromDate: "",
       toDate: "",
       vessel: "",
+      status: "delivered",
       origin: "",
       destination: "",
       poNumber: "",
@@ -169,12 +170,11 @@ function ClientCompletedJobs() {
     setSearch("");
     setEntries("50");
     setCurrentPage(1);
-    setStatus("delivered");
   };
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [entries, filters, search, status]);
+  }, [entries, filters, search]);
 
   const handleDownloadExcel = () => {
     const headers = [
@@ -228,12 +228,12 @@ function ClientCompletedJobs() {
         <Text fontSize="sm" fontWeight="700" color={headingColor} mb={4}>
           Filters
         </Text>
-        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(5, 1fr)" }} gap={3}>
+        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }} gap={3}>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
             <Flex gap={2}>
-              <Input size="sm" type="date" value={filters.fromDate} onChange={(e) => setFilters((prev) => ({ ...prev, fromDate: e.target.value }))} />
-              <Input size="sm" type="date" value={filters.toDate} onChange={(e) => setFilters((prev) => ({ ...prev, toDate: e.target.value }))} />
+              <Input size="sm" type="date" p="20px 12px" value={filters.fromDate} onChange={(e) => setFilters((prev) => ({ ...prev, fromDate: e.target.value }))} />
+              <Input size="sm" type="date" p="20px 12px" value={filters.toDate} onChange={(e) => setFilters((prev) => ({ ...prev, toDate: e.target.value }))} />
             </Flex>
           </GridItem>
           <GridItem>
@@ -250,7 +250,11 @@ function ClientCompletedJobs() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
-            <Select size="sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <Select
+              size="sm"
+              value={filters.status}
+              onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+            >
               <option value="delivered">Delivered</option>
               <option value="shipped">Shipped</option>
             </Select>

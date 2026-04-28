@@ -13,9 +13,11 @@ import {
   useColorModeValue,
 } from "@chakra-ui/react";
 import { MdLocationOn, MdSearch } from "react-icons/md";
+import { useHistory } from "react-router-dom";
 import clientHubApi from "api/clientHub";
 
 function ClientHubLocations() {
+  const history = useHistory();
   const cardBg = useColorModeValue("white", "navy.800");
   const borderColor = useColorModeValue("secondaryGray.200", "whiteAlpha.200");
   const headingColor = useColorModeValue("navy.700", "white");
@@ -94,6 +96,15 @@ function ClientHubLocations() {
             borderColor={borderColor}
             borderRadius="16px"
             p={4}
+            cursor="pointer"
+            _hover={{ transform: "translateY(-2px)", boxShadow: "0 20px 36px rgba(112, 144, 176, 0.16)" }}
+            transition="all 0.2s ease"
+            onClick={() =>
+              history.push({
+                pathname: "/Client/Stock",
+                state: { selectedHubLocation: hub.hub },
+              })
+            }
           >
             <Flex align="center" gap={2} mb={2}>
               <Icon as={MdLocationOn} color="brand.500" />

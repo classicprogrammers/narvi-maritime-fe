@@ -22,7 +22,7 @@ const normalizeStatusList = (value) => {
 };
 
 const endpointAllowedStatuses = {
-  active: ["stock", "in_transit"],
+  active: ["pending", "stock", "in_transit"],
   completed: ["shipped", "delivered"],
 };
 
@@ -64,6 +64,8 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("so_number", params.so_number);
   assign("stock_item_id", params.stock_item_id);
   assign("remarks", params.remarks);
+  assign("sort_by", params.sort_by);
+  assign("sort_order", params.sort_order);
 
   const statusCsv = normalizeStatusForEndpoint(
     params.status ?? params.stock_status,

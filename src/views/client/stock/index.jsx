@@ -78,6 +78,7 @@ function ClientStock() {
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
   const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState([]);
+  const [clientSortOption, setClientSortOption] = useState("none");
   const toast = useToast();
 
   const cardBg = useColorModeValue("white", "navy.800");
@@ -106,9 +107,29 @@ function ClientStock() {
   const fetchStock = useCallback(async () => {
     setIsLoading(true);
     try {
+      let sort_by;
+      let sort_order;
+      if (clientSortOption === "via_hub") {
+        sort_by = "via_hub";
+        sort_order = "asc";
+      } else if (clientSortOption === "via_vessel") {
+        sort_by = "vessel_name";
+        sort_order = "asc";
+      } else if (clientSortOption === "status") {
+        sort_by = "stock_status";
+        sort_order = "asc";
+      } else if (clientSortOption === "via_hub_status") {
+        sort_by = "via_hub_status";
+        sort_order = "asc";
+      } else if (clientSortOption === "via_vessel_status") {
+        sort_by = "vessel_status";
+        sort_order = "asc";
+      }
       const res = await clientStockApi.getClientStock({
         search: search.trim() || undefined,
         stock_status: filters.status || undefined,
+        sort_by,
+        sort_order,
       });
       const toDisplay = (value) =>
         value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
@@ -134,6 +155,7 @@ function ClientStock() {
         weight: toNumberDisplay(item.weight ?? item.weight_kg),
         totalVolumeCbm: toNumberDisplay(item.total_volume_cbm),
         origin: toDisplay(item.first_entry_location || item.origin),
+        location: toDisplay(item.first_entry_location || item.origin),
         firstEntryLocation: toDisplay(item.first_entry_location || item.origin),
         viaHub1: toDisplay(item.via_hub_1),
         viaHub2: toDisplay(item.via_hub_2),
@@ -145,6 +167,8 @@ function ClientStock() {
         value: toNumberDisplay(item.value),
         deliveryIrregularities: toDisplay(item.delivery_irregularities),
         poRemarks: toDisplay(item.po_remarks),
+        createDate: toDisplay(item.create_date),
+        writeDate: toDisplay(item.write_date),
         locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
         pcsLines: Array.isArray(item.pcs?.lines)
           ? item.pcs.lines
@@ -161,7 +185,7 @@ function ClientStock() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters.status, search]);
+  }, [clientSortOption, filters.status, search]);
 
   const fetchVesselFilterOptions = useCallback(async () => {
     try {
@@ -226,17 +250,61 @@ function ClientStock() {
       }),
     [filters, stockRows]
   );
+  const sortedFilteredRows = useMemo(() => {
+    const rows = [...filteredRows];
+    const getViaHub = (row) => String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : row.viaHub1 || "").toLowerCase().trim();
+    const getVessel = (row) => String(row.vessel || "").toLowerCase().trim();
+    const statusOrder = { pending: 1, stock: 2, in_transit: 3 };
+    const compareStatus = (a, b) => {
+      const aStatus = String(a.stockStatus || "").toLowerCase().trim();
+      const bStatus = String(b.stockStatus || "").toLowerCase().trim();
+      const aRank = statusOrder[aStatus] ?? 999;
+      const bRank = statusOrder[bStatus] ?? 999;
+      if (aRank !== bRank) return aRank - bRank;
+      return aStatus.localeCompare(bStatus);
+    };
+
+    if (clientSortOption === "via_hub") {
+      rows.sort((a, b) => getViaHub(a).localeCompare(getViaHub(b)));
+      return rows;
+    }
+    if (clientSortOption === "via_vessel") {
+      rows.sort((a, b) => getVessel(a).localeCompare(getVessel(b)));
+      return rows;
+    }
+    if (clientSortOption === "status") {
+      rows.sort(compareStatus);
+      return rows;
+    }
+    if (clientSortOption === "via_hub_status") {
+      rows.sort((a, b) => {
+        const hubCmp = getViaHub(a).localeCompare(getViaHub(b));
+        if (hubCmp !== 0) return hubCmp;
+        return compareStatus(a, b);
+      });
+      return rows;
+    }
+    if (clientSortOption === "via_vessel_status") {
+      rows.sort((a, b) => {
+        const vesselCmp = getVessel(a).localeCompare(getVessel(b));
+        if (vesselCmp !== 0) return vesselCmp;
+        return compareStatus(a, b);
+      });
+      return rows;
+    }
+    return rows;
+  }, [clientSortOption, filteredRows]);
   const pagedRows = useMemo(
     () => {
       const pageSize = Number(entries);
       const start = (currentPage - 1) * pageSize;
-      return filteredRows.slice(start, start + pageSize);
+      return sortedFilteredRows.slice(start, start + pageSize);
     },
-    [currentPage, entries, filteredRows]
+    [currentPage, entries, sortedFilteredRows]
   );
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / Number(entries)));
-  const pageStart = filteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
-  const pageEnd = Math.min(currentPage * Number(entries), filteredRows.length);
+  const totalPages = Math.max(1, Math.ceil(sortedFilteredRows.length / Number(entries)));
+  const pageStart = sortedFilteredRows.length ? (currentPage - 1) * Number(entries) + 1 : 0;
+  const pageEnd = Math.min(currentPage * Number(entries), sortedFilteredRows.length);
 
   const allVisibleSelected =
     pagedRows.length > 0 && pagedRows.every((row) => selectedRowIds.includes(row.id));
@@ -255,8 +323,13 @@ function ClientStock() {
 
   useEffect(() => {
     const selectedVessel = location?.state?.selectedVessel;
-    if (selectedVessel) {
-      setFilters((prev) => ({ ...prev, vessel: selectedVessel }));
+    const selectedHubLocation = location?.state?.selectedHubLocation;
+    if (selectedVessel || selectedHubLocation) {
+      setFilters((prev) => ({
+        ...prev,
+        vessel: selectedVessel || "",
+        location: selectedHubLocation || "",
+      }));
       // Clear route state after applying, so refresh/back won't re-apply unexpectedly
       if (window.history?.replaceState) {
         window.history.replaceState({}, document.title);
@@ -656,7 +729,7 @@ function ClientStock() {
       "Currency",
       "Value",
     ];
-    const rowsForExport = filteredRows.map((row) => [
+    const rowsForExport = sortedFilteredRows.map((row) => [
       row.client || "-",
       row.vessel || "-",
       row.warehouseId || "-",
@@ -718,14 +791,13 @@ function ClientStock() {
         <Text fontSize="sm" fontWeight="700" color={headingColor} mb={4}>
           Filters
         </Text>
-        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" }} gap={3}>
+        <Grid templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", xl: "repeat(3, 1fr)" }} gap={3}>
           <GridItem>
-            <Text fontSize="xs" mb={1} color={muted}>From Date</Text>
-            <Input size="sm" type="date" value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
-          </GridItem>
-          <GridItem>
-            <Text fontSize="xs" mb={1} color={muted}>To Date</Text>
-            <Input size="sm" type="date" value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
+            <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
+            <Flex gap={2}>
+              <Input size="sm" type="date" p="20px 12px" value={filters.fromDate} onChange={(e) => handleFilterChange("fromDate", e.target.value)} />
+              <Input size="sm" type="date" p="20px 12px" value={filters.toDate} onChange={(e) => handleFilterChange("toDate", e.target.value)} />
+            </Flex>
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Vessel</Text>
@@ -804,17 +876,51 @@ function ClientStock() {
             </Select>
             <Text fontSize="sm" color={muted}>entries</Text>
           </Flex>
-          <InputGroup maxW="340px">
-            <InputLeftElement pointerEvents="none">
-              <Icon as={MdSearch} color="gray.400" />
-            </InputLeftElement>
-            <Input
-              placeholder="Search stock id, remarks, origin, vessel..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              size="sm"
-            />
-          </InputGroup>
+          <Flex align="center" gap={2} wrap="wrap">
+            <InputGroup maxW="340px">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={MdSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Search stock id, remarks, origin, vessel..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                size="sm"
+              />
+            </InputGroup>
+            <Menu>
+              <MenuButton as={Button} size="sm" colorScheme="blue" variant="solid">
+                {({
+                  via_hub: "Sorting: VIA HUB (Alphabetically)",
+                  via_vessel: "Sorting: VIA VESSEL (Alphabetically)",
+                  status: "Sorting: Stock Status",
+                  via_hub_status: "Sorting: VIA HUB + Status",
+                  via_vessel_status: "Sorting: VIA VESSEL + Status",
+                  none: "Sorting: No Sort",
+                }[clientSortOption] || "Sorting: No Sort")}
+              </MenuButton>
+              <MenuList>
+                <MenuItem onClick={() => setClientSortOption("via_hub")}>
+                  Sort by VIA HUB (Alphabetically)
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("via_vessel")}>
+                  Sort by VIA VESSEL (Alphabetically)
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("status")}>
+                  Sort by Stock Status
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("via_hub_status")}>
+                  Sort by VIA HUB + Status
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("via_vessel_status")}>
+                  Sort by VIA VESSEL + Status
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("none")}>
+                  No Sort
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </Flex>
           <Menu>
             <MenuButton
               as={Button}
@@ -973,7 +1079,7 @@ function ClientStock() {
       </Box>
       <Flex mt={2} justify="space-between" align="center" direction={{ base: "column", md: "row" }} gap={2}>
         <Text fontSize="xs" color={muted}>
-          Showing {pageStart}-{pageEnd} of {filteredRows.length} entries
+          Showing {pageStart}-{pageEnd} of {sortedFilteredRows.length} entries
         </Text>
         <Flex gap={2} align="center">
           <Button

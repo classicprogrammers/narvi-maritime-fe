@@ -1747,7 +1747,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     _placeholder={{ color: "whiteAlpha.800" }}
                   />
                 )}
-                {isDeliveryConfirmation && (
+                {isDeliveryLike && (
                   <Flex align="center" justify="space-between" mb={2}>
                     <Text fontSize="sm" fontWeight="bold">
                       IN LIASON WITH :
@@ -1778,7 +1778,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </HStack>
                   </Flex>
                 )}
-                {(!isDeliveryLike || isDeliveryForm || formData.includeInLiasonWith) && (
+                {(!isDeliveryLike || formData.includeInLiasonWith) && (
                   <Textarea
                     value={formData.consignBlock || ""}
                     onChange={(e) => {

@@ -32,7 +32,7 @@ function ClientOngoingJobs() {
     fromDate: "",
     toDate: "",
     vessel: "",
-    status: "In Transit",
+    status: "All",
     origin: "",
     destination: "",
     poNumber: "",
@@ -67,9 +67,16 @@ function ClientOngoingJobs() {
     setIsLoading(true);
     try {
       const selectedVessel = vesselOptions.find((v) => String(v.name) === String(filters.vessel));
+      const statusMap = {
+        All: undefined,
+        Pending: undefined,
+        "In Stock": "stock",
+        "In Transit": "in_transit",
+      };
       const res = await clientJobsApi.getActiveJobs({
         search: search.trim() || undefined,
-        status: filters.status === "In Transit" ? "in_transit" : "stock",
+        status: statusMap[filters.status],
+        stock_status: filters.status === "Pending" ? "pending" : undefined,
         vessel_id: selectedVessel?.id,
         date_from: filters.fromDate || undefined,
         date_to: filters.toDate || undefined,
@@ -160,7 +167,7 @@ function ClientOngoingJobs() {
       fromDate: "",
       toDate: "",
       vessel: "",
-      status: "In Transit",
+      status: "All",
       origin: "",
       destination: "",
       poNumber: "",
@@ -224,8 +231,8 @@ function ClientOngoingJobs() {
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Date Range</Text>
             <Flex gap={2}>
-              <Input size="sm" type="date" value={filters.fromDate} onChange={(e) => setFilters((prev) => ({ ...prev, fromDate: e.target.value }))} />
-              <Input size="sm" type="date" value={filters.toDate} onChange={(e) => setFilters((prev) => ({ ...prev, toDate: e.target.value }))} />
+              <Input size="sm" type="date" p="20px 12px" value={filters.fromDate} onChange={(e) => setFilters((prev) => ({ ...prev, fromDate: e.target.value }))} />
+              <Input size="sm" type="date" p="20px 12px" value={filters.toDate} onChange={(e) => setFilters((prev) => ({ ...prev, toDate: e.target.value }))} />
             </Flex>
           </GridItem>
           <GridItem>
@@ -242,7 +249,9 @@ function ClientOngoingJobs() {
           </GridItem>
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
-            <Select size="sm" value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}>
+            <Select size="sm" h="40px" value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}>
+              <option>All</option>
+              <option>Pending</option>
               <option>In Transit</option>
               <option>In Stock</option>
             </Select>
