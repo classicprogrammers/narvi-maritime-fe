@@ -188,12 +188,32 @@ export default function Quotations() {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(10);
+    const [itemsPerPage] = useState(200);
 
     // Reset pagination when filters change
     useEffect(() => {
         setCurrentPage(1);
     }, [clientFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter, idFilter]);
+
+    const getFilteredQuotations = useCallback(() => {
+        return quotations.filter((q) => {
+            const matchClient = clientFilter ? q.partner_id === clientFilter : true;
+            const matchId = idFilter ? String(q.id) === String(idFilter) : true;
+            const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
+            const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
+            const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
+            const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
+            return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
+        });
+    }, [quotations, clientFilter, idFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter]);
+
+    // Keep current page within valid bounds when data/filtering changes.
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(getFilteredQuotations().length / itemsPerPage));
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, getFilteredQuotations, itemsPerPage]);
 
     // Modal states
     const { isOpen: isNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
@@ -257,6 +277,10 @@ export default function Quotations() {
     });
 
     const textColor = useColorModeValue("gray.700", "white");
+    const tableBorderColor = useColorModeValue("rgba(226, 232, 240, 0.85)", "rgba(255, 255, 255, 0.14)");
+    const tableHeaderBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+    const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
+    const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
 
     // Fetch quotations
     const fetchQuotations = useCallback(async () => {
@@ -798,37 +822,81 @@ export default function Quotations() {
                                 </Button>
                             </Box>
                         </Grid>
-                        <Box overflowX="auto" borderRadius="lg" border="1px" borderColor="gray.200">
-                            <Table variant="simple" size="sm" minW="1200px" w="100%">
-                                <Thead bg="linear-gradient(135deg, #667eea 0%, #764ba2 100%)">
+                        <Box
+                            maxH="600px"
+                            overflowY="auto"
+                            overflowX="auto"
+                            borderRadius="16px"
+                            border="1px"
+                            borderColor={tableBorderColor}
+                            sx={{
+                                "&::-webkit-scrollbar": {
+                                    width: "8px",
+                                    height: "8px",
+                                },
+                                "&::-webkit-scrollbar-track": {
+                                    background: "gray.100",
+                                    borderRadius: "4px",
+                                },
+                                "&::-webkit-scrollbar-thumb": {
+                                    background: "gray.300",
+                                    borderRadius: "4px",
+                                    "&:hover": {
+                                        background: "gray.400",
+                                    },
+                                },
+                            }}
+                        >
+                            <Table
+                                variant="simple"
+                                size="sm"
+                                minW="1200px"
+                                w="100%"
+                                sx={{
+                                    th: {
+                                        borderColor: `${tableBorderColor} !important`,
+                                        borderRight: `1px solid ${tableBorderColor} !important`,
+                                        borderBottom: `1px solid ${tableBorderColor} !important`,
+                                        fontSize: "11px",
+                                        letterSpacing: "0.02em",
+                                        whiteSpace: "nowrap",
+                                        py: 3,
+                                        bg: tableHeaderBg,
+                                        color: textColor,
+                                    },
+                                    td: {
+                                        borderColor: `${tableBorderColor} !important`,
+                                        borderRight: `1px solid ${tableBorderColor} !important`,
+                                        borderBottom: `1px solid ${tableBorderColor} !important`,
+                                        fontSize: "12px",
+                                        py: 2.5,
+                                    },
+                                    "th:last-child, td:last-child": {
+                                        borderRight: "none",
+                                    },
+                                }}
+                            >
+                                <Thead position="sticky" top="0" zIndex={1}>
                                     <Tr>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">QT Number</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Client</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Vessel</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">SO ID</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Job Description</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Validity Date</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px">Currency</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>USD ROE</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>General MU</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>CAF</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" isNumeric>Line Items</Th>
-                                        <Th py="16px" px="12px" fontSize="11px" fontWeight="700" color="white" textTransform="uppercase" letterSpacing="0.5px" minW="100px" w="100px">
+                                        <Th px="12px">QT Number</Th>
+                                        <Th px="12px">Client</Th>
+                                        <Th px="12px">Vessel</Th>
+                                        <Th px="12px">SO ID</Th>
+                                        <Th px="12px">Job Description</Th>
+                                        <Th px="12px">Validity Date</Th>
+                                        <Th px="12px">Currency</Th>
+                                        <Th px="12px" isNumeric>USD ROE</Th>
+                                        <Th px="12px" isNumeric>General MU</Th>
+                                        <Th px="12px" isNumeric>CAF</Th>
+                                        <Th px="12px" isNumeric>Line Items</Th>
+                                        <Th px="12px" minW="100px" w="100px">
                                             Actions
                                         </Th>
                                     </Tr>
                                 </Thead>
                                 <Tbody>
                                     {(() => {
-                                        const filteredQuotations = quotations.filter((q) => {
-                                            const matchClient = clientFilter ? q.partner_id === clientFilter : true;
-                                            const matchId = idFilter ? String(q.id) === String(idFilter) : true;
-                                            const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
-                                            const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
-                                            const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
-                                            const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
-                                            return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
-                                        });
+                                        const filteredQuotations = getFilteredQuotations();
 
                                         const startIndex = (currentPage - 1) * itemsPerPage;
                                         const endIndex = startIndex + itemsPerPage;
@@ -838,16 +906,8 @@ export default function Quotations() {
                                             paginatedQuotations.map((quotation, index) => (
                                                 <Tr
                                                     key={quotation.id}
-                                                    bg={index % 2 === 0 ? "white" : "gray.50"}
-                                                    _hover={{
-                                                        bg: "linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)",
-                                                        transform: "translateY(-1px)",
-                                                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                                                        transition: "all 0.2s ease"
-                                                    }}
-                                                    borderBottom="1px"
-                                                    borderColor="gray.200"
-                                                    transition="all 0.2s ease"
+                                                    _even={{ bg: tableRowEvenBg }}
+                                                    _hover={{ bg: tableRowHoverBg }}
                                                 >
                                                     {(() => {
                                                         const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
@@ -926,19 +986,10 @@ export default function Quotations() {
 
                         {/* Pagination */}
                         {(() => {
-                            const filteredQuotations = quotations.filter((q) => {
-                                const matchClient = clientFilter ? q.partner_id === clientFilter : true;
-                                const matchId = idFilter ? String(q.id) === String(idFilter) : true;
-                                const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
-                                const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
-                                const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
-                                const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
-                                return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
-                            });
+                            const filteredQuotations = getFilteredQuotations();
+                            const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / itemsPerPage));
 
-                            const totalPages = Math.ceil(filteredQuotations.length / itemsPerPage);
-
-                            if (totalPages <= 1) return null;
+                            if (filteredQuotations.length === 0 || totalPages <= 1) return null;
 
                             return (
                                 <Flex justify="center" align="center" mt={6} gap={2}>

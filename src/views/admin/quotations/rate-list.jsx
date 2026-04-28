@@ -177,7 +177,7 @@ const SearchableSelect = ({
 export default function RateList() {
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage, setItemsPerPage] = useState(200);
 
     const [searchValue, setSearchValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -243,6 +243,10 @@ export default function RateList() {
     const inputBg = useColorModeValue("white", "gray.700");
     const inputText = useColorModeValue("gray.700", "white");
     const borderColor = useColorModeValue("gray.200", "gray.600");
+    const tableBorderColor = useColorModeValue("rgba(226, 232, 240, 0.85)", "rgba(255, 255, 255, 0.14)");
+    const tableHeaderBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
+    const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
+    const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
 
     // Fetch master data
     const fetchMasterData = async () => {
@@ -745,7 +749,14 @@ export default function RateList() {
     }, [filteredData, startIndex, endIndex]);
 
     // Calculate total pages
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
+
+    // Keep current page within valid bounds when data/filtering changes.
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     return (
         <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -900,7 +911,7 @@ export default function RateList() {
                         overflowY="auto"
                         overflowX="auto"
                         border="1px"
-                        borderColor="gray.200"
+                        borderColor={tableBorderColor}
                         borderRadius="8px"
                         sx={{
                             '&::-webkit-scrollbar': {
@@ -920,8 +931,35 @@ export default function RateList() {
                             },
                         }}
                     >
-                        <Table variant="unstyled" size="sm" minW="2000px">
-                            <Thead bg="gray.100" position="sticky" top="0" zIndex="1">
+                        <Table
+                            variant="simple"
+                            size="sm"
+                            minW="2000px"
+                            sx={{
+                                th: {
+                                    borderColor: `${tableBorderColor} !important`,
+                                    borderRight: `1px solid ${tableBorderColor} !important`,
+                                    borderBottom: `1px solid ${tableBorderColor} !important`,
+                                    fontSize: "11px",
+                                    letterSpacing: "0.02em",
+                                    whiteSpace: "nowrap",
+                                    py: 3,
+                                    bg: tableHeaderBg,
+                                    color: textColor,
+                                },
+                                td: {
+                                    borderColor: `${tableBorderColor} !important`,
+                                    borderRight: `1px solid ${tableBorderColor} !important`,
+                                    borderBottom: `1px solid ${tableBorderColor} !important`,
+                                    fontSize: "12px",
+                                    py: 2.5,
+                                },
+                                "th:last-child, td:last-child": {
+                                    borderRight: "none",
+                                },
+                            }}
+                        >
+                            <Thead position="sticky" top="0" zIndex="1">
                                 <Tr>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                         <Checkbox
@@ -932,22 +970,22 @@ export default function RateList() {
                                     </Th>
 
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Name</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Vendor</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="220px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Name</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="260px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Vendor</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Client Specific</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate Text</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="320px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate Text</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Valid Until</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Inc In Tariff</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Group ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="180px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Group ID</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Sort Order</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Rate</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Fixed Rate</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Remarks</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="280px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Remarks</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Type</Th>
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">UOM ID</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Default Code</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Stock Inventory</Th>
-                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency Rate ID</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="180px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Default Code</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="180px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Stock Inventory</Th>
+                                    <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" minW="220px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Currency Rate ID</Th>
 
                                     <Th borderRight="1px" borderColor="gray.200" py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase">Actions</Th>
                                 </Tr>
@@ -956,10 +994,8 @@ export default function RateList() {
                                 {paginatedData.map((item, index) => (
                                     <Tr
                                         key={item.id}
-                                        bg={index % 2 === 0 ? "white" : "gray.50"}
-                                        _hover={{ bg: hoverBg }}
-                                        borderBottom="1px"
-                                        borderColor="gray.200">
+                                        _even={{ bg: tableRowEvenBg }}
+                                        _hover={{ bg: tableRowHoverBg }}>
                                         <Td borderRight="1px" borderColor="gray.200" py="12px" px="16px">
                                             <Checkbox
                                                 isChecked={selectedItems.includes(item.id)}
@@ -1137,9 +1173,11 @@ export default function RateList() {
                             <option value={10}>10</option>
                             <option value={20}>20</option>
                             <option value={50}>50</option>
+                            <option value={80}>80</option>
+                            <option value={200}>200</option>
                         </Select>
                         <Text fontSize='sm' color='gray.500'>
-                            Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
+                            Showing {filteredData.length === 0 ? 0 : startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} results
                         </Text>
                     </HStack>
 
@@ -1149,7 +1187,7 @@ export default function RateList() {
                             size="sm"
                             variant="outline"
                             onClick={() => setCurrentPage(1)}
-                            isDisabled={currentPage === 1}
+                            isDisabled={currentPage === 1 || filteredData.length === 0}
                         >
                             First
                         </Button>
@@ -1157,7 +1195,7 @@ export default function RateList() {
                             size="sm"
                             variant="outline"
                             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                            isDisabled={currentPage === 1}
+                            isDisabled={currentPage === 1 || filteredData.length === 0}
                         >
                             Previous
                         </Button>
@@ -1194,7 +1232,7 @@ export default function RateList() {
                             size="sm"
                             variant="outline"
                             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                            isDisabled={currentPage === totalPages}
+                            isDisabled={currentPage === totalPages || filteredData.length === 0}
                         >
                             Next
                         </Button>
@@ -1202,7 +1240,7 @@ export default function RateList() {
                             size="sm"
                             variant="outline"
                             onClick={() => setCurrentPage(totalPages)}
-                            isDisabled={currentPage === totalPages}
+                            isDisabled={currentPage === totalPages || filteredData.length === 0}
                         >
                             Last
                         </Button>
