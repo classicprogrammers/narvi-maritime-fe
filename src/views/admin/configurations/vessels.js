@@ -821,6 +821,18 @@ export default function Vessels() {
                     IMO
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                    Procurement Person
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                    Procurement Email
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                    Vessel Email
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                    Team
+                  </Th>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Status
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
@@ -831,7 +843,7 @@ export default function Vessels() {
               <Tbody>
                 {isLoading ? (
                   <Tr>
-                    <Td colSpan={6} py="40px" textAlign="center">
+                    <Td colSpan={10} py="40px" textAlign="center">
                       <Spinner size="lg" />
                     </Td>
                   </Tr>
@@ -841,6 +853,8 @@ export default function Vessels() {
                       key={vessel.id}
                       bg={index % 2 === 0 ? "white" : "gray.50"}
                       _hover={{ bg: hoverBg }}
+                      cursor="pointer"
+                      onClick={() => handleEditVessel(vessel)}
                       borderBottom="1px"
                       borderColor="gray.200"
                     >
@@ -870,6 +884,32 @@ export default function Vessels() {
                         </Text>
                       </Td>
                       <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.procurement_person && typeof vessel.procurement_person === "object"
+                            ? (vessel.procurement_person.name || "-")
+                            : (vessel.procurement_person || vessel.procurement_person_id || "-")}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.procurement_person && typeof vessel.procurement_person === "object"
+                            ? (vessel.procurement_person.email && vessel.procurement_person.email !== false
+                              ? vessel.procurement_person.email
+                              : (vessel.procurement_email && vessel.procurement_email !== false ? vessel.procurement_email : "no email found"))
+                            : (vessel.procurement_email && vessel.procurement_email !== false ? vessel.procurement_email : "no email found")}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.vessel_email || "-"}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                          {vessel.team || "-"}
+                        </Text>
+                      </Td>
+                      <Td py="12px" px="16px" {...tableCellProps}>
                         <Badge
                           colorScheme={
                             vessel.status === "active" ? "green" :
@@ -892,7 +932,10 @@ export default function Vessels() {
                               colorScheme="green"
                               variant="ghost"
                               aria-label="View vessel details"
-                              onClick={() => history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel })}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                history.push(`/admin/configurations/vessels/${vessel.id}`, { vessel });
+                              }}
                             />
                           </Tooltip>
                           <Tooltip label="Edit Vessel">
@@ -902,7 +945,10 @@ export default function Vessels() {
                               colorScheme="blue"
                               variant="ghost"
                               aria-label="Edit vessel"
-                              onClick={() => handleEditVessel(vessel)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditVessel(vessel);
+                              }}
                             />
                           </Tooltip>
                           <Tooltip label="Delete Vessel">
@@ -912,7 +958,10 @@ export default function Vessels() {
                               colorScheme="red"
                               variant="ghost"
                               aria-label="Delete vessel"
-                              onClick={() => handleDeleteVessel(vessel)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteVessel(vessel);
+                              }}
                             />
                           </Tooltip>
                         </HStack>
@@ -921,7 +970,7 @@ export default function Vessels() {
                   ))
                 ) : (
                   <Tr>
-                    <Td colSpan={8} py="40px" textAlign="center">
+                    <Td colSpan={10} py="40px" textAlign="center">
                       <VStack spacing={3}>
                         <Icon as={MdDirectionsBoat} color="gray.400" boxSize={12} />
                         <Text color="gray.500" fontSize="md" fontWeight="500">
@@ -1069,7 +1118,7 @@ export default function Vessels() {
                 >
                   {procurementPeopleOptions.map((person) => (
                     <option key={person.id} value={person.id}>
-                      {person.name}{person.email ? ` (${person.email})` : ""}
+                      {person.name}
                     </option>
                   ))}
                 </Select>
