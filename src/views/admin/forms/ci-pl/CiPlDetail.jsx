@@ -225,6 +225,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       supplier: "",
       poNumber: "",
       details: "",
+      dg_un: "",
       valueUsd: "",
       quantity: "",
       perUnit: "",
@@ -243,6 +244,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       supplier: "",
       poNumber: "",
       details: "",
+      dg_un: "",
       valueUsd: "",
       quantity: "",
       perUnit: "",
@@ -325,6 +327,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : {}),
       warehouse_new: toNullIfEmpty(item?.warehouseId),
       description: toNullIfEmpty(item?.details),
+      dg_un: toNullIfEmpty(item?.dg_un),
       value_in_usd: toNullIfEmpty(item?.valueUsd),
       ...(isPerUnit
         ? {
@@ -359,6 +362,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       supplier: "",
       poNumber: "",
       details: "",
+      dg_un: "",
       valueUsd: "",
       quantity: "",
       perUnit: "",
@@ -379,6 +383,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       supplier: "",
       poNumber: "",
       details: "",
+      dg_un: "",
       valueUsd: "",
       quantity: "",
       perUnit: "",
@@ -784,6 +789,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : it.details != null && it.details !== false
               ? String(it.details)
               : "",
+        dg_un:
+          it.dg_un != null && it.dg_un !== false
+            ? String(it.dg_un)
+            : "",
         valueUsd:
           it.value_in_usd != null && it.value_in_usd !== false
             ? String(it.value_in_usd)
@@ -1449,6 +1458,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 cargoItems.map((item) => ({
                   ...item,
                   details: null,
+                  dg_un: null,
                   valueUsd: null,
                   quantity: null,
                   perUnit: null,
@@ -1560,6 +1570,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       console.error("Failed to load letterhead image for PDF:", e);
     }
 
+    const dgUnPdf = (item) => {
+      const v = item?.dg_un ?? item?.dgUn;
+      if (v != null && v !== false && String(v).trim() !== "") return String(v);
+      return "-";
+    };
+
     const isCiPlPdf = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm;
     if (isCiPlPdf) {
       const pdfDate =
@@ -1577,6 +1593,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             item.poNumber || "via system",
             String(item.boxes ?? "via system"),
             item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
+            dgUnPdf(item),
             item.details || "Free text, line shifts",
             item.quantity || "Free text",
             item.perUnit || "Free text",
@@ -1586,6 +1603,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             item.poNumber || "via system",
             String(item.boxes ?? "via system"),
             item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
+            dgUnPdf(item),
             item.details || "Free text, line shifts",
             item.valueUsd || "Free text",
           ]
@@ -1638,13 +1656,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       autoTable(doc, {
         startY: ciPlHeaderBottomY + 20,
         head: [isCiPlPerUnitTab
-          ? ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
-          : ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"]],
+          ? ["PO#", "BOX", "WEIGHT", "DG/UN", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
+          : ["PO#", "BOX", "WEIGHT", "DG/UN", "DESCRIPTION", "VALUE IN USD"]],
         body: ciPlRows.length
           ? ciPlRows
           : [isCiPlPerUnitTab
-            ? ["via system", "via system", "via system", "Free text, line shifts", "Free text", "Free text", "Free text"]
-            : ["via system", "via system", "via system", "Free text, line shifts", "Free text"]],
+            ? ["via system", "via system", "via system", "-", "Free text, line shifts", "Free text", "Free text", "Free text"]
+            : ["via system", "via system", "via system", "-", "Free text, line shifts", "Free text"]],
         theme: "grid",
         styles: {
           fontSize: 8,
@@ -1661,13 +1679,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           fontStyle: "bold",
         },
         columnStyles: {
-          0: { cellWidth: 90 },
-          1: { cellWidth: 60 },
-          2: { cellWidth: 70 },
-          3: { cellWidth: isCiPlPerUnitTab ? 170 : 210 },
-          4: { cellWidth: isCiPlPerUnitTab ? 90 : 110 },
-          5: { cellWidth: isCiPlPerUnitTab ? 90 : 0 },
-          6: { cellWidth: isCiPlPerUnitTab ? 100 : 0 },
+          0: { cellWidth: 82 },
+          1: { cellWidth: 54 },
+          2: { cellWidth: 64 },
+          3: { cellWidth: 48 },
+          4: { cellWidth: isCiPlPerUnitTab ? 148 : 182 },
+          5: { cellWidth: isCiPlPerUnitTab ? 82 : 102 },
+          6: { cellWidth: isCiPlPerUnitTab ? 82 : 0 },
+          7: { cellWidth: isCiPlPerUnitTab ? 92 : 0 },
         },
         margin: { left: 30, right: 40 },
       });
@@ -1789,6 +1808,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "Warehouse",
         "SUPPLIER",
         "PO",
+        "DG/UN",
         "BOXES",
         "KG",
         "CBM",
@@ -1801,6 +1821,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
@@ -1813,6 +1834,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
+        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         Number(totals.cbm || 0).toFixed(2),
@@ -1820,7 +1842,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
       ]);
     } else if (isDeliveryConfirmation) {
-      cargoHead = ["STOKITEM ID", "Warehouse", "AWB", "FROM", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = [
+        "STOKITEM ID",
+        "Warehouse",
+        "AWB",
+        "FROM",
+        "SUPLIER",
+        "PO NUMBER",
+        "DG/UN",
+        "BOXES",
+        "KG",
+        "LWH",
+      ];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.warehouseId || "-",
@@ -1828,12 +1861,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.origin || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
       ]);
     } else if (isDeliveryForm) {
-      cargoHead = ["STOKITEM ID", "AWB", "FROM", "Warehouse", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = [
+        "STOKITEM ID",
+        "AWB",
+        "FROM",
+        "Warehouse",
+        "SUPLIER",
+        "PO NUMBER",
+        "DG/UN",
+        "BOXES",
+        "KG",
+        "LWH",
+      ];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.awbNumber || formData.shippedBy || "-",
@@ -1841,16 +1886,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
       ]);
     } else {
-      cargoHead = ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"];
+      cargoHead = ["PO#", "BOX", "WEIGHT", "DG/UN", "DESCRIPTION", "VALUE IN USD"];
       cargoRows = (cargoItems || []).map((item) => [
         item.poNumber || "-",
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        dgUnPdf(item),
         item.details || "-",
         item.valueUsd || "-",
       ]);

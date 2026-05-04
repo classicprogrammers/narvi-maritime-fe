@@ -1379,6 +1379,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       console.error("Failed to load letterhead image for PDF:", e);
     }
 
+    const dgUnPdf = (item) => {
+      const v = item?.dg_un ?? item?.dgUn;
+      if (v != null && v !== false && String(v).trim() !== "") return String(v);
+      return "-";
+    };
+
     const docTitle = isShippingAdvise
       ? `Shipping Advise - ${formData.vessel || "-"}`
       : isDeliveryConfirmation
@@ -1499,6 +1505,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "Warehouse",
         "SUPPLIER",
         "PO",
+        "DG/UN",
         "BOXES",
         "KG",
         "CBM",
@@ -1511,6 +1518,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
@@ -1519,6 +1527,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ]);
       cargoRows.push([
         "CARGO TO BE SHIPPED",
+        "",
         "",
         "",
         "",
@@ -1530,7 +1539,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
       ]);
     } else if (isDeliveryConfirmation) {
-      cargoHead = ["STOKITEM ID", "Warehouse", "AWB", "FROM", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = [
+        "STOKITEM ID",
+        "Warehouse",
+        "AWB",
+        "FROM",
+        "SUPLIER",
+        "PO NUMBER",
+        "DG/UN",
+        "BOXES",
+        "KG",
+        "LWH",
+      ];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.warehouseId || "-",
@@ -1538,12 +1558,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.origin || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
       ]);
     } else if (isDeliveryForm) {
-      cargoHead = ["STOKITEM ID", "AWB", "FROM", "Warehouse", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = [
+        "STOKITEM ID",
+        "AWB",
+        "FROM",
+        "Warehouse",
+        "SUPLIER",
+        "PO NUMBER",
+        "DG/UN",
+        "BOXES",
+        "KG",
+        "LWH",
+      ];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.awbNumber || formData.shippedBy || "-",
@@ -1551,6 +1583,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
@@ -1562,15 +1595,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
+        "",
         String(formData.totalPackedQuantity ?? ""),
         String(formData.totalPackedWeight ?? ""),
         "",
       ]);
     } else {
-      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "Warehouse"];
+      cargoHead = ["SUPPLIER", "PO NUMBER", "DG/UN", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "Warehouse"];
       cargoRows = (cargoItems || []).map((item) => [
         item.supplier || "-",
         item.poNumber || "-",
+        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
@@ -1582,6 +1617,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoRows.push([
         "CARGO TO BE SHIPPED",
         "",
+        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         "",
@@ -1592,6 +1628,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ]);
       cargoRows.push([
         "PACKED AS",
+        "",
         "",
         String(formData.totalPackedQuantity ?? ""),
         String(formData.totalPackedWeight ?? ""),
