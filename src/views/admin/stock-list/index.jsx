@@ -50,7 +50,6 @@ import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
-
 const STOCK_MAIN_DB_STORAGE_KEY = "narvi_stock_main_db_state";
 
 function readPersistedStockMainDbState() {

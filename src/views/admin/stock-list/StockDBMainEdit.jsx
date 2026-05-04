@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useHistory, useLocation } from "react-router-dom";
 import {
     Box,
@@ -64,6 +64,7 @@ import {
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
+import { useUser } from "../../../redux/hooks/useUser";
 import vesselsAPI from "../../../api/vessels";
 import api from "../../../api/axios";
 import locationsAPI from "../../../api/locations";
@@ -71,11 +72,17 @@ import { useMasterData, getMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import {
+    buildStockReportPdfAttachmentForItem,
+    createStockPdfRowHelpers,
+    mapMainDbEditRowToAdminItem,
+} from "../../../utils/stockReportPdf";
 
 export default function StockDBMainEdit() {
     const history = useHistory();
     const location = useLocation();
     const toast = useToast();
+    const { user } = useUser();
     const { getStockList, updateLoading } = useStock();
     const { clients, suppliers, countries, pics, destinations, currencies } = useMasterData();
     // Initialize vessels from cache once at mount; setVessels used to add vessel-by-id when missing
@@ -309,12 +316,68 @@ export default function StockDBMainEdit() {
         vesselDestination: "",
         itemId: "",
         item: "",
+        stockStatusChangedBy: "",
+        stockStatusPreviousForPayload: "",
     });
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     // Store original data for comparison
     const [originalRows, setOriginalRows] = useState([]);
+    const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
+    /** React Strict Mode runs functional setState twice in dev; avoids duplicate PDF scheduling. */
+    const statusPdfScheduleDedupeRef = useRef(null);
+
+    const stockReportPdfHelpers = useMemo(
+        () =>
+            createStockPdfRowHelpers({
+                clients,
+                vessels,
+                suppliers,
+                currencies,
+                shippingOrders,
+            }),
+        [clients, vessels, suppliers, currencies, shippingOrders]
+    );
+
+    const statusChangeActorName = useMemo(
+        () =>
+            (user?.name && String(user.name).trim()) ||
+            (user?.email && String(user.email).trim()) ||
+            "",
+        [user?.name, user?.email]
+    );
+
+    const appendStockReportPdfOnStatusChange = useCallback(
+        async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
+            setStockReportPdfLoadingRowIndex(rowIndex);
+            try {
+                const adminItem = mapMainDbEditRowToAdminItem(rowSnapshot);
+                const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
+                    changedByName: statusChangeActorName || "Unknown user",
+                    previousStatus,
+                    newStatus,
+                });
+                setFormRows((prev) =>
+                    prev.map((r, i) =>
+                        i === rowIndex ? { ...r, attachments: [...(r.attachments || []), att] } : r
+                    )
+                );
+            } catch (err) {
+                console.error("Stock report PDF:", err);
+                toast({
+                    title: "Could not generate status report PDF",
+                    description: err?.message || "Please try again.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            } finally {
+                setStockReportPdfLoadingRowIndex(null);
+            }
+        },
+        [stockReportPdfHelpers, statusChangeActorName, toast]
+    );
 
     // Load form data from stock item
     const loadFormDataFromStock = useCallback((stock, returnData = false) => {
@@ -389,6 +452,8 @@ export default function StockDBMainEdit() {
             itemId: normalizeId(stock.item_id) || "",
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
+            stockStatusChangedBy: "",
+            stockStatusPreviousForPayload: "",
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API
             dimensions: Array.isArray(stock.dimensions) && stock.dimensions.length > 0
                 ? stock.dimensions.map(dim => ({
@@ -897,6 +962,7 @@ export default function StockDBMainEdit() {
     const handleInputChange = (rowIndex, field, value) => {
         setFormRows(prev => {
             const newRows = [...prev];
+            const oldStatus = prev[rowIndex]?.stockStatus ?? "";
             let processedValue = value;
 
             // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
@@ -945,6 +1011,27 @@ export default function StockDBMainEdit() {
                 ...newRows[rowIndex],
                 [field]: processedValue
             };
+
+            if (field === "stockStatus") {
+                const newStatus = processedValue ?? "";
+                if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
+                    newRows[rowIndex] = {
+                        ...newRows[rowIndex],
+                        stockStatusChangedBy: statusChangeActorName,
+                        stockStatusPreviousForPayload: oldStatus,
+                    };
+                    const snapshot = { ...newRows[rowIndex] };
+                    const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
+                    if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
+                        statusPdfScheduleDedupeRef.current = dedupeKey;
+                        queueMicrotask(() => {
+                            statusPdfScheduleDedupeRef.current = null;
+                            appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
+                        });
+                    }
+                }
+            }
+
             return newRows;
         });
     };
@@ -1321,6 +1408,11 @@ export default function StockDBMainEdit() {
                 }
             }
         });
+
+        if (Object.prototype.hasOwnProperty.call(payload, "stock_status")) {
+            payload.stock_status_changed_by = rowData.stockStatusChangedBy || "";
+            payload.stock_status_previous = rowData.stockStatusPreviousForPayload ?? "";
+        }
 
         // volume_dim now comes from dimensions only (no standalone Volume no dim field)
         const dims = Array.isArray(rowData.dimensions) ? rowData.dimensions : [];
@@ -2598,6 +2690,12 @@ export default function StockDBMainEdit() {
                                                     Upload Files
                                                 </Button>
                                             </label>
+
+                                            {stockReportPdfLoadingRowIndex === rowIndex && (
+                                                <Text fontSize="xs" color="gray.500" textAlign="center">
+                                                    Generating stock report PDF…
+                                                </Text>
+                                            )}
 
                                             {/* Display existing attachments */}
                                             {(row.existingAttachments || []).map((att, attIdx) => (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useHistory, useParams, useLocation } from "react-router-dom";
 import {
     Box,
@@ -41,9 +41,15 @@ import {
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
 import { useStock } from "../../../redux/hooks/useStock";
+import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import {
+    buildStockReportPdfAttachmentForItem,
+    createStockPdfRowHelpers,
+    mapStandardFormRowToAdminItem,
+} from "../../../utils/stockReportPdf";
 
 export default function StockForm() {
     const history = useHistory();
@@ -54,8 +60,9 @@ export default function StockForm() {
     const isBulkEdit = !!bulkIds;
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
+    const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
-    const { clients, vessels, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
+    const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
@@ -117,10 +124,65 @@ export default function StockForm() {
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)
         existingAttachments: [], // Array of existing attachments from API { id, filename, mimetype }
+        stockStatusChangedBy: "",
+        stockStatusPreviousForPayload: "",
     });
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
+    const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
+    const statusPdfScheduleDedupeRef = useRef(null);
+
+    const stockReportPdfHelpers = useMemo(
+        () =>
+            createStockPdfRowHelpers({
+                clients,
+                vessels,
+                suppliers,
+                currencies,
+                shippingOrders: [],
+            }),
+        [clients, vessels, suppliers, currencies]
+    );
+
+    const statusChangeActorName = useMemo(
+        () =>
+            (user?.name && String(user.name).trim()) ||
+            (user?.email && String(user.email).trim()) ||
+            "",
+        [user?.name, user?.email]
+    );
+
+    const appendStockReportPdfOnStatusChange = useCallback(
+        async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
+            setStockReportPdfLoadingRowIndex(rowIndex);
+            try {
+                const adminItem = mapStandardFormRowToAdminItem(rowSnapshot);
+                const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
+                    changedByName: statusChangeActorName || "Unknown user",
+                    previousStatus,
+                    newStatus,
+                });
+                setFormRows((prev) =>
+                    prev.map((r, i) =>
+                        i === rowIndex ? { ...r, attachments: [...(r.attachments || []), att] } : r
+                    )
+                );
+            } catch (err) {
+                console.error("Stock report PDF:", err);
+                toast({
+                    title: "Could not generate status report PDF",
+                    description: err?.message || "Please try again.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            } finally {
+                setStockReportPdfLoadingRowIndex(null);
+            }
+        },
+        [stockReportPdfHelpers, statusChangeActorName, toast]
+    );
 
     // Load stock items for bulk edit or single edit
     const ensureStockData = useCallback(async () => {
@@ -429,6 +491,8 @@ export default function StockForm() {
             attachments: [], // New uploads will be added here
             attachmentsToDelete: [], // IDs of attachments to delete
             existingAttachments: Array.isArray(stock.attachments) ? stock.attachments : [], // Existing attachments from API // Free text field
+            stockStatusChangedBy: "",
+            stockStatusPreviousForPayload: "",
             viaHub2: getFieldValue(stock.via_hub2, ""), // Free text field
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             remarks: getFieldValue(stock.remarks),
@@ -513,6 +577,7 @@ export default function StockForm() {
     const handleInputChange = (rowIndex, field, value) => {
         setFormRows(prev => {
             const newRows = [...prev];
+            const oldStatus = prev[rowIndex]?.stockStatus ?? "";
             const updatedRow = {
                 ...newRows[rowIndex],
                 [field]: value
@@ -573,6 +638,23 @@ export default function StockForm() {
                 }
             }
 
+            if (field === "stockStatus") {
+                const newStatus = value ?? "";
+                if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
+                    updatedRow.stockStatusChangedBy = statusChangeActorName;
+                    updatedRow.stockStatusPreviousForPayload = oldStatus;
+                    const snapshot = { ...updatedRow };
+                    const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
+                    if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
+                        statusPdfScheduleDedupeRef.current = dedupeKey;
+                        queueMicrotask(() => {
+                            statusPdfScheduleDedupeRef.current = null;
+                            appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
+                        });
+                    }
+                }
+            }
+
             newRows[rowIndex] = updatedRow;
             return newRows;
         });
@@ -625,6 +707,8 @@ export default function StockForm() {
         // Payload matching the API structure exactly
         const payload = {
             stock_status: rowData.stockStatus || "",
+            stock_status_changed_by: rowData.stockStatusChangedBy || "",
+            stock_status_previous: rowData.stockStatusPreviousForPayload ?? "",
             client_id: rowData.client ? String(rowData.client) : "",
             supplier_id: rowData.supplier ? String(rowData.supplier) : "",
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
@@ -1605,6 +1689,12 @@ export default function StockForm() {
                                                     Upload Files
                                                 </Button>
                                             </label>
+
+                                            {stockReportPdfLoadingRowIndex === rowIndex && (
+                                                <Text fontSize="xs" color="gray.500" textAlign="center">
+                                                    Generating stock report PDF…
+                                                </Text>
+                                            )}
 
                                             {/* Display existing attachments */}
                                             {(row.existingAttachments || []).map((att, attIdx) => (

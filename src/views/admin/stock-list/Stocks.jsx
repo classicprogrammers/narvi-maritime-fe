@@ -70,7 +70,6 @@ import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpe
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
 const STATUS_CONFIG = {
@@ -5170,7 +5169,7 @@ export default function Stocks() {
                                                                                         cursor="pointer"
                                                                                         color="blue.500"
                                                                                         _hover={{ textDecoration: "underline" }}
-                                                                                        onClick={() => handleViewFile(att)}
+                                                                                        onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
                                                                                     >
                                                                                         {att.filename || att.name || `File ${idx + 1}`}
                                                                                     </Text>

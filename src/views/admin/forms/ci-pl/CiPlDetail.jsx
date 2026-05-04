@@ -323,6 +323,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ...(item?.stockItemId != null && String(item.stockItemId).trim() !== ""
         ? { stock_item_id: String(item.stockItemId) }
         : {}),
+      warehouse_new: toNullIfEmpty(item?.warehouseId),
       description: toNullIfEmpty(item?.details),
       value_in_usd: toNullIfEmpty(item?.valueUsd),
       ...(isPerUnit
@@ -741,7 +742,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : it.from_si_advise != null && it.from_si_advise !== false
             ? String(it.from_si_advise)
             : (it.origin != null && it.origin !== false ? String(it.origin) : "");
-      const whRaw = it.warehouse_id;
+      const whRaw =
+        it.warehouse_new != null && it.warehouse_new !== false
+          ? it.warehouse_new
+          : it.warehouse_id;
       const warehouseId =
         whRaw != null && whRaw !== false ? String(whRaw) : "";
       const lwhVal = it.lwh != null && it.lwh !== false ? String(it.lwh) : "";
@@ -1778,7 +1782,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoHead = [
         "STOKITEM ID",
         "FROM",
-        "WH ID",
+        "Warehouse",
         "SUPPLIER",
         "PO",
         "BOXES",
@@ -1812,7 +1816,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
       ]);
     } else if (isDeliveryConfirmation) {
-      cargoHead = ["STOKITEM ID", "WAREHOUSE ID", "AWB", "FROM", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = ["STOKITEM ID", "Warehouse", "AWB", "FROM", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.warehouseId || "-",
@@ -1825,7 +1829,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.lwh || "-",
       ]);
     } else if (isDeliveryForm) {
-      cargoHead = ["STOKITEM ID", "AWB", "FROM", "WAREHOUSE ID", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
+      cargoHead = ["STOKITEM ID", "AWB", "FROM", "Warehouse", "SUPLIER", "PO NUMBER", "BOXES", "KG", "LWH"];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.awbNumber || formData.shippedBy || "-",
@@ -2689,7 +2693,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         {isDeliveryConfirmation && (
                           <>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                           </>
                         )}
@@ -2698,7 +2702,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
                               FROM
                             </Th>
-                            {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>}
+                            {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
