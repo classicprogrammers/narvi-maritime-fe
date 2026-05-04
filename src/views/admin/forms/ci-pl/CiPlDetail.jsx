@@ -533,10 +533,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     setFormData((prev) => ({
       ...prev,
-      vessel:
-        form.vessel_name && form.vessel_name !== false
+      vessel: Object.prototype.hasOwnProperty.call(form, "vessel_name")
+        ? form.vessel_name != null && form.vessel_name !== false
           ? String(form.vessel_name)
-          : prev.vessel,
+          : ""
+        : prev.vessel,
       // header card mapping by form type
       deliveryToAt:
         isDeliveryLike && form.delivery_to_at != null && form.delivery_to_at !== false
@@ -1382,6 +1383,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       // Full reset: send explicit empty/null keys (as requested)
       const updated = await saveForm(
         buildSavePayloadWithId(currentId, {
+          vessel_id: null,
+          vessel_name: "",
           agent_id: null,
           agent_cnee_id: null,
           agent_contact_id: null,
@@ -1458,6 +1461,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       if (updated?.id != null) setSiFormId(updated.id);
       setFormData((prev) => ({
         ...prev,
+        vessel: "",
         includeInLiasonWith: false,
         selectAgent: "",
         selectConsignee: "",
