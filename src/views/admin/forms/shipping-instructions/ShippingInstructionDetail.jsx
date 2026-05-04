@@ -196,7 +196,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       warehouseId: "",
       supplier: "",
       poNumber: "",
-      details: "",
+      dg_un: "",
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -211,7 +211,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       warehouseId: "",
       supplier: "",
       poNumber: "",
-      details: "",
+      dg_un: "",
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -283,7 +283,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       warehouseId: "",
       supplier: "",
       poNumber: "",
-      details: "",
+      dg_un: "",
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -298,7 +298,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       warehouseId: "",
       supplier: "",
       poNumber: "",
-      details: "",
+      dg_un: "",
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -696,7 +696,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 ? String(it.awb)
                 : "",
         poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
-        details: it.details && it.details !== false ? String(it.details) : "",
+        dg_un:
+          it.dg_un != null && it.dg_un !== false
+            ? String(it.dg_un)
+            : it.details != null && it.details !== false
+              ? String(it.details)
+              : "",
         boxes: Number(it.boxes || 0),
         kg: Number(it.kg || 0),
         cbm: Number(it.cbm || 0),
@@ -2567,7 +2572,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
                       {!isDeliveryLike && (
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DETAILS</Th>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
                       )}
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
                       <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
@@ -2604,7 +2609,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
                         {!isDeliveryLike && (
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.details || ""}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
                         )}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
