@@ -506,6 +506,13 @@ export default function Vessels() {
             vessel_id: vesselId,
             ...savePayload,
           });
+          toast({
+            title: "Vessel updated",
+            description: "Your vessel data updated successfully.",
+            status: "success",
+            duration: 2000,
+            isClosable: true,
+          });
         } else {
           createInFlightRef.current = true;
           const response = await vesselsAPI.createVessel(savePayload);
@@ -524,6 +531,13 @@ export default function Vessels() {
             // Prevent duplicate create spam if backend doesn't return id deterministically.
             lastSavedSignatureRef.current = signature;
           }
+          toast({
+            title: "Vessel created",
+            description: "Your vessel data created successfully.",
+            status: "success",
+            duration: 2000,
+            isClosable: true,
+          });
         }
         lastSavedSignatureRef.current = signature;
       } catch (error) {
@@ -1302,9 +1316,9 @@ export default function Vessels() {
             <Button variant="outline" mr={3} onClick={onModalClose}>
               Cancel
             </Button>
-            <Button colorScheme="blue" isLoading={isAutoSaving} isDisabled>
-              {isAutoSaving ? "Saving..." : "Auto Saved"}
-            </Button>
+            <Text color={isAutoSaving ? "blue.600" : "green.600"} fontSize="sm" fontWeight="medium">
+              {isAutoSaving ? "Saving..." : "Your data saved"}
+            </Text>
           </ModalFooter>
         </ModalContent >
       </Modal >

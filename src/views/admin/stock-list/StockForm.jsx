@@ -40,6 +40,7 @@ import {
     MdClose as MdRemove,
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
+import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -64,6 +65,8 @@ export default function StockForm() {
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const [isLoading, setIsLoading] = useState(isEditing);
+    const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
+    const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const hasFetchedCurrenciesRef = React.useRef(false);
@@ -151,6 +154,37 @@ export default function StockForm() {
             (user?.email && String(user.email).trim()) ||
             "",
         [user?.name, user?.email]
+    );
+
+    const getVesselOptionsForClient = useCallback(
+        (clientId) => {
+            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
+            if (!normalizedClientId) return vessels;
+            const cachedClientVessels = vesselOptionsByClientId[normalizedClientId];
+            if (Array.isArray(cachedClientVessels)) return cachedClientVessels;
+            return vessels.filter((vessel) => String(vessel.client_id ?? vessel.client ?? "") === normalizedClientId);
+        },
+        [vesselOptionsByClientId, vessels]
+    );
+
+    const fetchVesselsForClient = useCallback(
+        async (clientId) => {
+            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
+            if (!normalizedClientId) return;
+            if (Array.isArray(vesselOptionsByClientId[normalizedClientId])) return;
+            try {
+                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: true }));
+                const response = await vesselsAPI.getVessels({ client_id: normalizedClientId, page_size: 200 });
+                const clientVessels = Array.isArray(response?.vessels) ? response.vessels : [];
+                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: clientVessels }));
+            } catch (error) {
+                console.error("Failed to fetch vessels for client", normalizedClientId, error);
+                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: [] }));
+            } finally {
+                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: false }));
+            }
+        },
+        [vesselOptionsByClientId]
     );
 
     const appendStockReportPdfOnStatusChange = useCallback(
@@ -324,6 +358,13 @@ export default function StockForm() {
             })
         );
     }, [formRows]);
+
+    useEffect(() => {
+        const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
+        uniqueClientIds.forEach((clientId) => {
+            fetchVesselsForClient(clientId);
+        });
+    }, [formRows, fetchVesselsForClient]);
 
     useEffect(() => {
         if (!formRows.length) return;
@@ -575,17 +616,34 @@ export default function StockForm() {
     };
 
     const handleInputChange = (rowIndex, field, value) => {
+        if (field === "client" && value) {
+            fetchVesselsForClient(value);
+        }
         setFormRows(prev => {
             const newRows = [...prev];
             const oldStatus = prev[rowIndex]?.stockStatus ?? "";
+            const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
             const updatedRow = {
                 ...newRows[rowIndex],
                 [field]: value
             };
 
+            if (field === "client") {
+                const nextClient = value == null ? "" : String(value);
+                if (previousClient !== nextClient) {
+                    updatedRow.vessel = "";
+                    updatedRow.destination = "";
+                    updatedRow.vesselDestination = "";
+                    updatedRow.vesselEta = "";
+                    updatedRow.apDestination = "";
+                }
+            }
+
             // Auto-fill vessel-related fields when vessel is selected
             if (field === "vessel" && value) {
-                const selectedVessel = vessels.find(v => String(v.id) === String(value));
+                const selectedVessel =
+                    getVesselOptionsForClient(updatedRow.client).find((v) => String(v.id) === String(value)) ||
+                    vessels.find((v) => String(v.id) === String(value));
                 if (selectedVessel) {
                     // Auto-fill destination and vessel_destination from vessel
                     const vesselDestinationId = selectedVessel.destination_id || selectedVessel.destination;
@@ -1145,12 +1203,12 @@ export default function StockForm() {
                                         <SimpleSearchableSelect
                                             value={row.vessel}
                                             onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                            options={vessels}
+                                            options={getVesselOptionsForClient(row.client)}
                                             placeholder="Select Vessel"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || String(option.id ?? "")}
-                                            isLoading={false}
+                                            isLoading={Boolean(row.client && isLoadingVesselByClient[String(row.client)])}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

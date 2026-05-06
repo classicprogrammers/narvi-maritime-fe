@@ -87,6 +87,8 @@ export default function StockDBMainEdit() {
     const { clients, suppliers, countries, pics, destinations, currencies } = useMasterData();
     // Initialize vessels from cache once at mount; setVessels used to add vessel-by-id when missing
     const [vessels, setVessels] = useState(() => getMasterData(MASTER_KEYS.VESSELS));
+    const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
+    const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const vesselsRef = useRef(vessels);
     vesselsRef.current = vessels;
 
@@ -175,6 +177,46 @@ export default function StockDBMainEdit() {
         const desired = Math.max(maxLineLen, placeholderLen) + padding;
         return Math.min(max, Math.max(min, desired));
     };
+
+    const getVesselOptionsForClient = useCallback(
+        (clientId) => {
+            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
+            if (!normalizedClientId) return vessels;
+            const cachedClientVessels = vesselOptionsByClientId[normalizedClientId];
+            if (Array.isArray(cachedClientVessels)) return cachedClientVessels;
+            return vessels.filter((vessel) => String(vessel.client_id ?? vessel.client ?? "") === normalizedClientId);
+        },
+        [vesselOptionsByClientId, vessels]
+    );
+
+    const fetchVesselsForClient = useCallback(
+        async (clientId) => {
+            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
+            if (!normalizedClientId) return;
+            if (Array.isArray(vesselOptionsByClientId[normalizedClientId])) return;
+            try {
+                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: true }));
+                const response = await vesselsAPI.getVessels({ client_id: normalizedClientId, page_size: 200 });
+                const clientVessels = Array.isArray(response?.vessels) ? response.vessels : [];
+                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: clientVessels }));
+                setVessels((prev) => {
+                    const next = [...prev];
+                    clientVessels.forEach((vessel) => {
+                        if (!next.some((existing) => String(existing.id) === String(vessel.id))) {
+                            next.push(vessel);
+                        }
+                    });
+                    return next;
+                });
+            } catch (error) {
+                console.error("Failed to fetch vessels for client", normalizedClientId, error);
+                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: [] }));
+            } finally {
+                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: false }));
+            }
+        },
+        [vesselOptionsByClientId]
+    );
 
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
     // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
@@ -592,6 +634,13 @@ export default function StockDBMainEdit() {
         );
     }, [formRows]);
 
+    useEffect(() => {
+        const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
+        uniqueClientIds.forEach((clientId) => {
+            fetchVesselsForClient(clientId);
+        });
+    }, [formRows, fetchVesselsForClient]);
+
     // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list.
     // Use vesselsRef so we only depend on formRows – avoids re-running when setVessels updates state.
     useEffect(() => {
@@ -960,9 +1009,13 @@ export default function StockDBMainEdit() {
 
     // Handle input change
     const handleInputChange = (rowIndex, field, value) => {
+        if (field === "client" && value) {
+            fetchVesselsForClient(value);
+        }
         setFormRows(prev => {
             const newRows = [...prev];
             const oldStatus = prev[rowIndex]?.stockStatus ?? "";
+            const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
             let processedValue = value;
 
             // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
@@ -1011,6 +1064,18 @@ export default function StockDBMainEdit() {
                 ...newRows[rowIndex],
                 [field]: processedValue
             };
+
+            if (field === "client") {
+                const nextClient = processedValue == null ? "" : String(processedValue);
+                if (previousClient !== nextClient) {
+                    newRows[rowIndex] = {
+                        ...newRows[rowIndex],
+                        vessel: "",
+                        vesselDestination: "",
+                        destination: "",
+                    };
+                }
+            }
 
             if (field === "stockStatus") {
                 const newStatus = processedValue ?? "";
@@ -1829,12 +1894,12 @@ export default function StockDBMainEdit() {
                                         <SimpleSearchableSelect
                                             value={row.vessel}
                                             onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                            options={vessels}
+                                            options={getVesselOptionsForClient(row.client)}
                                             placeholder="Select Vessel"
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => option.name || String(option.id ?? "")}
-                                            isLoading={false}
+                                            isLoading={Boolean(row.client && isLoadingVesselByClient[String(row.client)])}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}
