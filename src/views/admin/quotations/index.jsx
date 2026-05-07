@@ -118,11 +118,21 @@ const SearchableSelect = ({
                     fontSize="sm"
                     h="32px"
                 >
-                    {selectedOption ? formatOption(selectedOption) : placeholder}
+                    <Box
+                        flex="1"
+                        textAlign="left"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        whiteSpace="nowrap"
+                        pr={2}
+                        title={selectedOption ? formatOption(selectedOption) : placeholder}
+                    >
+                        {selectedOption ? formatOption(selectedOption) : placeholder}
+                    </Box>
                     <Icon as={MdKeyboardArrowDown} />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
+            <PopoverContent w="100%" minW="100%" maxW="520px" maxH="200px" overflowY="auto" borderRadius="md">
                 <PopoverBody p={0}>
                     <Input
                         placeholder="Search..."
@@ -149,6 +159,10 @@ const SearchableSelect = ({
                                 borderBottom="1px"
                                 borderColor="gray.100"
                                 fontSize="sm"
+                            overflow="hidden"
+                            textOverflow="ellipsis"
+                            whiteSpace="nowrap"
+                            title={formatOption(option)}
                             >
                                 {formatOption(option)}
                             </ListItem>
@@ -188,7 +202,9 @@ export default function Quotations() {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(200);
+    const [itemsPerPage] = useState(100);
+    const [apiTotalPages, setApiTotalPages] = useState(1);
+    const [apiTotalCount, setApiTotalCount] = useState(0);
 
     // Reset pagination when filters change
     useEffect(() => {
@@ -207,23 +223,59 @@ export default function Quotations() {
         });
     }, [quotations, clientFilter, idFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter]);
 
-    // Keep current page within valid bounds when data/filtering changes.
-    useEffect(() => {
-        const totalPages = Math.max(1, Math.ceil(getFilteredQuotations().length / itemsPerPage));
-        if (currentPage > totalPages) {
-            setCurrentPage(totalPages);
-        }
-    }, [currentPage, getFilteredQuotations, itemsPerPage]);
-
     // Modal states
     const { isOpen: isNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const [deleteQuotationId, setDeleteQuotationId] = useState(null);
 
     const toast = useToast();
-    const handleEditClick = (id) => {
-        const selected = quotations.find((q) => q.id === id);
-        history.push({ pathname: `/admin/quotations/edit/${id}`, state: { quotation: selected || null } });
+    const fetchQuotationDetail = useCallback(async (id) => {
+        const response = await quotationsAPI.getQuotationById(id);
+        return response?.quotations?.[0] || response?.quotation || null;
+    }, []);
+
+    const handleEditClick = async (id) => {
+        try {
+            const fullQuotation = await fetchQuotationDetail(id);
+            history.push({
+                pathname: `/admin/quotations/edit/${id}`,
+                state: { quotation: fullQuotation || null },
+            });
+        } catch (error) {
+            const apiMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.result?.message ||
+                error?.message;
+            toast({
+                title: "Error",
+                description: apiMessage || "Failed to load quotation details.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        }
+    };
+
+    const handleViewClick = async (id) => {
+        try {
+            const fullQuotation = await fetchQuotationDetail(id);
+            history.push({
+                pathname: `/admin/quotations/detail/${id}`,
+                state: { quotation: fullQuotation || null },
+            });
+        } catch (error) {
+            const apiMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.result?.message ||
+                error?.message;
+            toast({
+                title: "Error",
+                description: apiMessage || "Failed to load quotation details.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        }
     };
 
     // Function to get only changed fields between two objects
@@ -286,15 +338,24 @@ export default function Quotations() {
     const fetchQuotations = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await quotationsAPI.getQuotations();
+            const response = await quotationsAPI.getQuotations({
+                page: currentPage,
+                page_size: itemsPerPage,
+            });
             if (response.status === "success" && response.quotations) {
                 setQuotations(response.quotations);
+                setApiTotalPages(Math.max(1, response.total_pages || 1));
+                setApiTotalCount(response.total_count || response.count || response.quotations.length || 0);
             } else {
                 setQuotations([]);
+                setApiTotalPages(1);
+                setApiTotalCount(0);
             }
         } catch (error) {
             console.error("Failed to fetch quotations:", error);
             setQuotations([]);
+            setApiTotalPages(1);
+            setApiTotalCount(0);
 
             const apiMessage =
                 error?.response?.data?.message ||
@@ -311,7 +372,7 @@ export default function Quotations() {
         } finally {
             setIsLoading(false);
         }
-    }, [toast]);
+    }, [toast, currentPage, itemsPerPage]);
 
     // Fetch rate items (products)
     const fetchRateItems = useCallback(async () => {
@@ -367,9 +428,12 @@ export default function Quotations() {
     // Fetch data on component mount
     useEffect(() => {
         fetchQuotations();
+    }, [fetchQuotations]);
+
+    useEffect(() => {
         fetchRateItems();
         fetchMasterData();
-    }, [fetchQuotations, fetchRateItems, fetchMasterData]);
+    }, [fetchRateItems, fetchMasterData]);
 
     // Handler functions
 
@@ -452,9 +516,8 @@ export default function Quotations() {
                 if (changedFields.quotation_lines) {
                     changedFields.quotation_lines = changedFields.quotation_lines.map(line => ({
                         ...line,
-                        // Ensure only vendor_id is sent, remove any vendor_name if it exists
                         vendor_id: line.vendor_id || null,
-                        // Remove vendor_name if it exists
+                        location: line.location || line.location_id || null,
                         vendor_name: undefined
                     }));
                 }
@@ -469,6 +532,10 @@ export default function Quotations() {
                     updateData.destination = updateData.destination_id;
                     delete updateData.destination_id;
                 }
+                if (updateData.eta_date !== undefined) {
+                    updateData.validity_date = updateData.eta_date;
+                    delete updateData.eta_date;
+                }
 
                 response = await quotationsAPI.updateQuotation(updateData);
             } else {
@@ -482,9 +549,8 @@ export default function Quotations() {
                     done: newQuotation.done || "active",
                     quotation_lines: (newQuotation.quotation_lines || []).map(line => ({
                         ...line,
-                        // Ensure only vendor_id is sent, remove any vendor_name if it exists
                         vendor_id: line.vendor_id || null,
-                        // Remove vendor_name if it exists
+                        location: line.location || line.location_id || null,
                         vendor_name: undefined
                     }))
                 };
@@ -493,7 +559,7 @@ export default function Quotations() {
                 if (newQuotation.est_to_usd) quotationData.est_to_usd = newQuotation.est_to_usd;
                 if (newQuotation.est_profit_usd) quotationData.est_profit_usd = newQuotation.est_profit_usd;
                 if (newQuotation.eta) quotationData.eta = newQuotation.eta;
-                if (newQuotation.eta_date) quotationData.eta_date = newQuotation.eta_date;
+                if (newQuotation.eta_date) quotationData.validity_date = newQuotation.eta_date;
                 if (newQuotation.deadline_date) quotationData.deadline_date = newQuotation.deadline_date;
                 if (newQuotation.deadline_info) quotationData.deadline_info = newQuotation.deadline_info;
                 if (newQuotation.estimated_to) quotationData.estimated_to = newQuotation.estimated_to;
@@ -516,15 +582,10 @@ export default function Quotations() {
             let message = editingQuotation ? "Quotation updated successfully" : "Quotation created successfully";
             let status = "success";
 
-            if (response && response.result) {
-                if (response.result && response.result.message) {
-                    message = response.result.message;
-                    status = response.result.status;
-                } else if (response.result.message) {
-                    message = response.result.message;
-                    status = response.result.status;
-                }
-            }
+            if (response?.message) message = response.message;
+            if (response?.status) status = response.status;
+            if (response?.result?.message) message = response.result.message;
+            if (response?.result?.status) status = response.result.status;
 
             // Check if the response indicates an error
             if (status === "error") {
@@ -556,12 +617,12 @@ export default function Quotations() {
             // Extract error message from API response
             let errorMessage = `Failed to ${editingQuotation ? 'update' : 'create'} quotation`;
 
-            if (error.response && error.response.data) {
-                if (error.response.data.result && error.response.data.result.message) {
-                    errorMessage = error.response.data.result.message;
-                } else if (error.response.data.message) {
-                    errorMessage = error.response.data.message;
-                }
+                if (error.response && error.response.data) {
+                    if (error.response.data.message) {
+                        errorMessage = error.response.data.message;
+                    } else if (error.response.data.result && error.response.data.result.message) {
+                        errorMessage = error.response.data.result.message;
+                    }
             } else if (error.message) {
                 errorMessage = error.message;
             }
@@ -594,15 +655,10 @@ export default function Quotations() {
             let successMessage = "Quotation deleted successfully";
             let status = "success";
 
-            if (response && response.result) {
-                if (response.result && response.result.message) {
-                    successMessage = response.result.message;
-                    status = response.result.status;
-                } else if (response.result.message) {
-                    successMessage = response.result.message;
-                    status = response.result.status;
-                }
-            }
+            if (response?.message) successMessage = response.message;
+            if (response?.status) status = response.status;
+            if (response?.result?.message) successMessage = response.result.message;
+            if (response?.result?.status) status = response.result.status;
 
             toast({
                 title: status,
@@ -621,12 +677,12 @@ export default function Quotations() {
             let status = "error";
 
             if (error.response && error.response.data) {
-                if (error.response.data.result && error.response.data.result.message) {
-                    errorMessage = error.response.data.result.message;
-                    status = error.response.data.result.status;
-                } else if (error.response.data.message) {
+                if (error.response.data.message) {
                     errorMessage = error.response.data.message;
-                    status = error.response.data.result.status;
+                    status = error.response.data.status || "error";
+                } else if (error.response.data.result && error.response.data.result.message) {
+                    errorMessage = error.response.data.result.message;
+                    status = error.response.data.result.status || "error";
                 }
             } else if (error.message) {
                 errorMessage = error.message;
@@ -898,9 +954,7 @@ export default function Quotations() {
                                     {(() => {
                                         const filteredQuotations = getFilteredQuotations();
 
-                                        const startIndex = (currentPage - 1) * itemsPerPage;
-                                        const endIndex = startIndex + itemsPerPage;
-                                        const paginatedQuotations = filteredQuotations.slice(startIndex, endIndex);
+                                        const paginatedQuotations = filteredQuotations;
 
                                         return filteredQuotations.length > 0 ? (
                                             paginatedQuotations.map((quotation, index) => (
@@ -913,7 +967,7 @@ export default function Quotations() {
                                                         const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
                                                         const vesselName = vessels.find(v => v.id === quotation.vessel_id)?.name || '-';
                                                         const currencyName = currenciesList.find(c => c.id === quotation.sale_currency)?.name || '-';
-                                                        const lineItemsCount = (quotation.quotation_line_ids || quotation.quotation_lines || []).length;
+                                                        const lineItemsCount = quotation.quotation_line_count ?? (quotation.quotation_line_ids || quotation.quotation_lines || []).length;
                                                         return (
                                                             <>
                                                                 <Td py="14px" px="12px"><Text fontSize="sm" fontWeight="bold">{quotation.id}</Text></Td>
@@ -937,7 +991,7 @@ export default function Quotations() {
                                                     <Td py="14px" px="12px" minW="100px" w="100px">
                                                         <HStack spacing={1} justify="center">
                                                             <IconButton icon={<Icon as={MdEdit} />} size="sm" colorScheme="blue" variant="ghost" aria-label="Edit quotation" onClick={() => handleEditClick(quotation.id)} _hover={{ bg: "blue.100", transform: "scale(1.1)" }} transition="all 0.2s ease" />
-                                                            <Button size="xs" variant="outline" onClick={() => history.push({ pathname: `/admin/quotations/detail/${quotation.id}`, state: { quotation } })}>View</Button>
+                                                            <Button size="xs" variant="outline" onClick={() => handleViewClick(quotation.id)}>View</Button>
                                                             <IconButton
                                                                 icon={<Icon as={MdDelete} />}
                                                                 size="sm"
@@ -987,12 +1041,33 @@ export default function Quotations() {
                         {/* Pagination */}
                         {(() => {
                             const filteredQuotations = getFilteredQuotations();
-                            const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / itemsPerPage));
+                            const totalPages = apiTotalPages;
+                            const pageWindow = 2;
 
                             if (filteredQuotations.length === 0 || totalPages <= 1) return null;
 
+                            const getVisiblePages = () => {
+                                const pages = [];
+                                const start = Math.max(1, currentPage - pageWindow);
+                                const end = Math.min(totalPages, currentPage + pageWindow);
+
+                                pages.push(1);
+                                if (start > 2) pages.push("ellipsis-start");
+
+                                for (let page = start; page <= end; page += 1) {
+                                    if (page !== 1 && page !== totalPages) {
+                                        pages.push(page);
+                                    }
+                                }
+
+                                if (end < totalPages - 1) pages.push("ellipsis-end");
+                                if (totalPages > 1) pages.push(totalPages);
+
+                                return pages;
+                            };
+
                             return (
-                                <Flex justify="center" align="center" mt={6} gap={2}>
+                                <Flex justify="flex-end" align="center" mt={6} gap={2} wrap="wrap">
                                     <Button
                                         size="sm"
                                         variant="outline"
@@ -1003,17 +1078,23 @@ export default function Quotations() {
                                     </Button>
 
                                     <HStack spacing={1}>
-                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                            <Button
-                                                key={page}
-                                                size="sm"
-                                                variant={currentPage === page ? "solid" : "outline"}
-                                                colorScheme={currentPage === page ? "blue" : "gray"}
-                                                onClick={() => setCurrentPage(page)}
-                                                minW="40px"
-                                            >
-                                                {page}
-                                            </Button>
+                                        {getVisiblePages().map((page) => (
+                                            typeof page === "number" ? (
+                                                <Button
+                                                    key={page}
+                                                    size="sm"
+                                                    variant={currentPage === page ? "solid" : "outline"}
+                                                    colorScheme={currentPage === page ? "blue" : "gray"}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    minW="40px"
+                                                >
+                                                    {page}
+                                                </Button>
+                                            ) : (
+                                                <Text key={page} px={2} color="gray.500" fontSize="sm">
+                                                    ...
+                                                </Text>
+                                            )
                                         ))}
                                     </HStack>
 
@@ -1026,8 +1107,8 @@ export default function Quotations() {
                                         Next
                                     </Button>
 
-                                    <Text fontSize="sm" color="gray.600" ml={4}>
-                                        Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredQuotations.length)} of {filteredQuotations.length} quotations
+                                    <Text fontSize="sm" color="gray.600" ml={2}>
+                                        Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, apiTotalCount)} of {apiTotalCount} quotations
                                     </Text>
                                 </Flex>
                             );

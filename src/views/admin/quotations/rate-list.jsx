@@ -353,7 +353,7 @@ export default function RateList() {
           </Button>
         </HStack>
 
-        <Box borderWidth="1px" borderRadius="8px" overflow="auto">
+        <Box borderWidth="1px" borderRadius="8px" maxH="65vh" overflowY="auto" overflowX="auto">
           {loading ? (
             <Flex py={12} justify="center">
               <Spinner />
@@ -457,13 +457,51 @@ export default function RateList() {
               <option value={200}>200</option>
             </Select>
           </HStack>
-          <HStack>
+          <HStack justify="flex-end" wrap="wrap">
             <Button size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} isDisabled={page <= 1}>
               Previous
             </Button>
-            <Text fontSize="sm">
-              Page {page} of {totalPages}
-            </Text>
+            {(() => {
+              const pageWindow = 2;
+              const pages = [];
+              const start = Math.max(1, page - pageWindow);
+              const end = Math.min(totalPages, page + pageWindow);
+
+              pages.push(1);
+              if (start > 2) pages.push("ellipsis-start");
+
+              for (let current = start; current <= end; current += 1) {
+                if (current !== 1 && current !== totalPages) {
+                  pages.push(current);
+                }
+              }
+
+              if (end < totalPages - 1) pages.push("ellipsis-end");
+              if (totalPages > 1) pages.push(totalPages);
+
+              return (
+                <HStack spacing={1}>
+                  {pages.map((pageItem) =>
+                    typeof pageItem === "number" ? (
+                      <Button
+                        key={pageItem}
+                        size="sm"
+                        variant={page === pageItem ? "solid" : "outline"}
+                        colorScheme={page === pageItem ? "blue" : "gray"}
+                        onClick={() => setPage(pageItem)}
+                        minW="40px"
+                      >
+                        {pageItem}
+                      </Button>
+                    ) : (
+                      <Text key={pageItem} px={2} color="gray.500" fontSize="sm">
+                        ...
+                      </Text>
+                    )
+                  )}
+                </HStack>
+              );
+            })()}
             <Button
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -471,6 +509,9 @@ export default function RateList() {
             >
               Next
             </Button>
+            <Text fontSize="sm" color="gray.600" ml={2}>
+              Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, totalCount)} of {totalCount} rates
+            </Text>
           </HStack>
         </Flex>
       </VStack>

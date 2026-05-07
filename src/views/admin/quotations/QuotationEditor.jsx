@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, useHistory } from "react-router-dom";
+import { useParams, useHistory, useLocation } from "react-router-dom";
 import {
     Box, Flex, Grid, VStack, HStack, Text, Button, ButtonGroup, Input, Icon, Badge,
     NumberInput, NumberInputField,
@@ -13,12 +13,15 @@ import quotationsAPI from "../../../api/quotations";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
 
+const RATE_LIST_CACHE_KEY = "quotation_rate_list_cache_v1";
+
 
 export default function QuotationEditor() {
     const { id } = useParams();
     const isEdit = Boolean(id);
     const toast = useToast();
     const history = useHistory();
+    const location = useLocation();
 
     const { clients: customers, vessels, countries, agents } = useMasterData();
     const [currencies, setCurrencies] = useState([]);
@@ -212,6 +215,72 @@ export default function QuotationEditor() {
         qt_rate: "",
     }), []);
 
+    const normalizeLineFromApi = useCallback((line) => ({
+        ...createEmptyLine(),
+        id: line?.id,
+        is_client_specific: Boolean(line?.is_client_specific),
+        name: line?.name || "",
+        location: line?.location_id || line?.location || "",
+        vendor_id: line?.vendor_id || "",
+        vendor_rate: line?.vendor_rate ?? "",
+        item_name: line?.item_name || "",
+        rate: line?.rate ?? "",
+        rate_remark: line?.rate_remark || "",
+        free_text: line?.free_text || "",
+        remark: line?.remark || "",
+        pre_text: line?.pre_text ?? false,
+        currency_override: line?.currency_override || "",
+        quantity: line?.quantity ?? 1,
+        buy_rate_calculation: line?.buy_rate_calculation ?? "",
+        uom_id: line?.uom || "",
+        cost_actual: line?.cost_actual ?? "",
+        fixed: Boolean(line?.fixed),
+        sale_currency: line?.sale_currency || "",
+        cost_sum: line?.cost_sum ?? "",
+        roe: line?.roe ?? "",
+        cost_usd: line?.cost_usd ?? "",
+        mu_percent: line?.mu_percent ?? "",
+        mu_amount: line?.mu_amount ?? "",
+        qt_rate: line?.qt_rate ?? "",
+        amended_rate: line?.amended_rate ?? "",
+        rate_to_client: line?.rate_to_client ?? "",
+        group_free_text: line?.group_free_text || "",
+        status: line?.status || "current",
+    }), [createEmptyLine]);
+
+    const normalizeQuotationFromApi = useCallback((quotation) => {
+        const lines = Array.isArray(quotation?.quotation_line_ids) && quotation.quotation_line_ids.length > 0
+            ? quotation.quotation_line_ids.map(normalizeLineFromApi)
+            : [createEmptyLine()];
+
+        return {
+            partner_id: quotation?.partner_id || "",
+            vessel_id: quotation?.vessel_id || "",
+            oc_number: quotation?.oc_number || "",
+            client_remark: quotation?.client_remark || "",
+            sale_currency: quotation?.sale_currency || quotation?.currency || "USD",
+            usd_roe: quotation?.usd_roe ?? "1.00",
+            general_mu: quotation?.general_mu ?? "25.00",
+            caf: quotation?.caf ?? "5.00",
+            eta_date: quotation?.validity_date || quotation?.eta_date || "",
+            internal_remark: quotation?.internal_remark || "",
+            delivery_note: quotation?.delivery_note || "",
+            eta: quotation?.eta || "",
+            validity_date: quotation?.validity_date || "",
+            deadline_date: quotation?.deadline_date || "",
+            deadline_info: quotation?.deadline_info || "",
+            estimated_to: quotation?.estimated_to ?? "",
+            estimated_profit: quotation?.estimated_profit ?? "",
+            est_to_usd: quotation?.est_to_usd ?? "",
+            est_profit_usd: quotation?.est_profit_usd ?? "",
+            destination_id: quotation?.destination_id || "",
+            name: quotation?.name || "",
+            done: quotation?.done || "active",
+            round_up_rate_to_client: Boolean(quotation?.round_up_rate || quotation?.round_up_rate_to_client),
+            quotation_lines: lines,
+        };
+    }, [createEmptyLine, normalizeLineFromApi]);
+
     const isLineComplete = useCallback((line) => {
         const hasLocation = Boolean(line.location);
         const hasVendor = Boolean(line.vendor_id);
@@ -257,9 +326,41 @@ export default function QuotationEditor() {
         }
 
         try {
-            const productData = await api.get('/api/products');
-            const rateItems = productData.data.products || [];
-            setRateItems(rateItems);
+            const cachedRateItems = localStorage.getItem(RATE_LIST_CACHE_KEY);
+            if (cachedRateItems) {
+                const parsedRateItems = JSON.parse(cachedRateItems);
+                if (Array.isArray(parsedRateItems) && parsedRateItems.length > 0) {
+                    setRateItems(parsedRateItems);
+                }
+            }
+        } catch (error) {
+            // Ignore cache parse/storage errors and continue with API fetch.
+        }
+
+        try {
+            const rateRes = await api.get('/api/rate/list', {
+                params: {
+                    page: 1,
+                    page_size: 500,
+                },
+            });
+            const rawRateItems = rateRes?.data?.data || [];
+            const normalizedRateItems = rawRateItems.map((item) => ({
+                id: item.id,
+                rate_id: item.rate_id,
+                name: item.rate_name || item.name || `Rate ${item.id}`,
+                rate_name: item.rate_name || item.name || "",
+                rate: item.rate_float ?? item.rate ?? "",
+                rate_float: item.rate_float ?? item.rate ?? "",
+                rate_text: item.rate_text || "",
+                remarks: item.remarks || "",
+                uom_id: item.uom_id || "",
+                default_code: item.rate_id || "",
+                seller_ids: item.vendor_id ? [{ id: item.vendor_id }] : [],
+                vendor_id: item.vendor_id || "",
+            }));
+            setRateItems(normalizedRateItems);
+            localStorage.setItem(RATE_LIST_CACHE_KEY, JSON.stringify(normalizedRateItems));
         } catch (error) {
             setRateItems([]);
         } finally {
@@ -271,6 +372,40 @@ export default function QuotationEditor() {
     useEffect(() => {
         loadMaster();
     }, [loadMaster]);
+
+    useEffect(() => {
+        if (!isEdit || !id) return;
+
+        const stateQuotation = location?.state?.quotation;
+        const hasFullStateLines = Array.isArray(stateQuotation?.quotation_line_ids) && stateQuotation.quotation_line_ids.length > 0;
+        if (stateQuotation) {
+            setForm(normalizeQuotationFromApi(stateQuotation));
+        }
+
+        if (hasFullStateLines) return;
+
+        (async () => {
+            try {
+                const response = await quotationsAPI.getQuotationById(id);
+                const fullQuotation = response?.quotations?.[0] || response?.quotation;
+                if (fullQuotation) {
+                    setForm(normalizeQuotationFromApi(fullQuotation));
+                }
+            } catch (error) {
+                const apiMessage =
+                    error?.response?.data?.message ||
+                    error?.response?.data?.result?.message ||
+                    error?.message;
+                toast({
+                    title: "Error",
+                    description: apiMessage || "Failed to load quotation detail.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        })();
+    }, [id, isEdit, location, normalizeQuotationFromApi, toast]);
 
     const save = async () => {
         try {
@@ -344,7 +479,7 @@ export default function QuotationEditor() {
                 if (line.rate_to_client !== undefined && line.rate_to_client !== "") linePayload.rate_to_client = parseFloat(line.rate_to_client) || 0;
                 if (line.group_free_text) linePayload.group_free_text = line.group_free_text;
                 if (line.status) linePayload.status = line.status;
-                if (line.location) linePayload.location_id = parseInt(line.location) || null;
+                if (line.location) linePayload.location = parseInt(line.location) || null;
 
                 // Include id if editing existing line
                 if (line.id) linePayload.id = line.id;
@@ -366,7 +501,7 @@ export default function QuotationEditor() {
             if (form.est_to_usd) payload.est_to_usd = form.est_to_usd;
             if (form.est_profit_usd) payload.est_profit_usd = form.est_profit_usd;
             if (form.eta) payload.eta = form.eta;
-            if (form.eta_date) payload.eta_date = form.eta_date;
+            if (form.eta_date) payload.validity_date = form.eta_date;
             if (form.deadline_date) payload.deadline_date = form.deadline_date;
             if (form.deadline_info) payload.deadline_info = form.deadline_info;
             if (form.estimated_to) payload.estimated_to = form.estimated_to;
@@ -393,15 +528,10 @@ export default function QuotationEditor() {
             let message = isEdit ? "Quotation updated successfully" : "Quotation created successfully";
             let status = "success";
 
-            if (response && response.result) {
-                if (response.result && response.result.message) {
-                    message = response.result.message;
-                    status = response.result.status;
-                } else if (response.result.message) {
-                    message = response.result.message;
-                    status = response.result.status;
-                }
-            }
+            if (response?.message) message = response.message;
+            if (response?.status) status = response.status;
+            if (response?.result?.message) message = response.result.message;
+            if (response?.result?.status) status = response.result.status;
 
             // Check if the response indicates an error
             if (status === "error") {
@@ -433,10 +563,10 @@ export default function QuotationEditor() {
             let errorMessage = `Failed to ${isEdit ? 'update' : 'create'} quotation`;
 
             if (error.response && error.response.data) {
-                if (error.response.data.result && error.response.data.result.message) {
-                    errorMessage = error.response.data.result.message;
-                } else if (error.response.data.message) {
+                if (error.response.data.message) {
                     errorMessage = error.response.data.message;
+                } else if (error.response.data.result && error.response.data.result.message) {
+                    errorMessage = error.response.data.result.message;
                 }
             } else if (error.message) {
                 errorMessage = error.message;
@@ -466,33 +596,21 @@ export default function QuotationEditor() {
         return countryId;
     }, [vessels, form.vessel_id]);
 
-    const getFilteredVendorsForLine = useCallback((line) => {
-        const selectedCountryId = line.location || vesselCountryId;
-
-        if (!selectedCountryId) {
-            return agents;
-        }
-
-        const filteredVendors = agents.filter(a => {
-            const vendorCountryId = a?.country_id;
-            return vendorCountryId === selectedCountryId;
-        });
-
-        return filteredVendors;
-    }, [agents, vesselCountryId]);
+    const getFilteredVendorsForLine = useCallback(() => {
+        // Vendor field should always show the full agents list.
+        return agents;
+    }, [agents]);
 
     // Filter rate items based on selected vendor's seller_ids for each quotation line
     const getRateItemOptionsForLine = useCallback((line) => {
-        // Hide rate items until Client Specific checkbox is selected
-        if (!line.is_client_specific) {
-            return [];
-        }
-
         if (!line.vendor_id || !rateItems.length) {
             return rateItems;
         }
 
         const filteredRateItems = rateItems.filter(item => {
+            if (item.vendor_id) {
+                return item.vendor_id === line.vendor_id;
+            }
             if (item.seller_ids && Array.isArray(item.seller_ids)) {
                 return item.seller_ids.some(seller =>
                     seller.id === line.vendor_id || seller === line.vendor_id
@@ -760,10 +878,7 @@ export default function QuotationEditor() {
 
                 {viewMode === 'form' && (
                     <HStack style={{ justifyContent: 'end' }}>
-                        {!canAddNewLine() && (
-                            <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Quantity and Buy Rate to add a new line</Text>
-                        )}
-                        <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                        <Button size="sm" colorScheme="blue" onClick={addNewLine}>
                             Add another line
                         </Button>
                     </HStack>
@@ -833,8 +948,10 @@ export default function QuotationEditor() {
                                                     onChange={(v) => updateLine(idx, 'item_name', v)}
                                                     options={getRateItemOptionsForLine(line)}
                                                     isLoading={rateItemsLoading}
-                                                    placeholder={!line.vendor_id ? "Please select the vendor first" : (line.is_client_specific ? "Rate item" : "Select Client Specific first")}
-                                                    isDisabled={!line.is_client_specific || !line.vendor_id}
+                                                    placeholder="Rate item"
+                                                    formatOption={(option) =>
+                                                        `${option.rate_name || option.name || "Unnamed rate"}`
+                                                    }
                                                 />
                                             </FormControl>
                                         </Grid>
@@ -952,10 +1069,7 @@ export default function QuotationEditor() {
 
                 {viewMode === 'table' && (
                     <HStack style={{ justifyContent: 'end' }}>
-                        {!canAddNewLine() && (
-                            <Text fontSize="sm" color="gray.500">Fill Location, Vendor, Quantity and Buy Rate to add a new line</Text>
-                        )}
-                        <Button size="sm" colorScheme="blue" onClick={addNewLine} isDisabled={!canAddNewLine()}>
+                        <Button size="sm" colorScheme="blue" onClick={addNewLine}>
                             Add another line
                         </Button>
                     </HStack>
@@ -970,7 +1084,15 @@ export default function QuotationEditor() {
                             tableLayout="fixed"
                             minW="2500px"
                             sx={{
-                                'th, td': { minW: '120px', px: 2, py: 2 },
+                                'th, td': {
+                                    minW: '120px',
+                                    maxW: '220px',
+                                    px: 2,
+                                    py: 2,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                },
                                 thead: {
                                     'tr': {
                                         'th': {
@@ -1048,8 +1170,10 @@ export default function QuotationEditor() {
                                                 value={line.item_name}
                                                 onChange={(v) => updateLine(idx, 'item_name', v)}
                                                 options={getRateItemOptionsForLine(line)}
-                                                placeholder={!line.vendor_id ? "Please select the vendor first" : (line.is_client_specific ? "Rate item" : "Select Client Specific first")}
-                                                isDisabled={!line.is_client_specific || !line.vendor_id}
+                                                placeholder="Rate item"
+                                                formatOption={(option) =>
+                                                    `${option.rate_name || option.name || "Unnamed rate"}`
+                                                }
                                             />
                                         </Td>
                                         <Td><Input size="sm" w="100%" value={line.rate_remark} onChange={(e) => updateLine(idx, 'rate_remark', e.target.value)} placeholder="Remark" /></Td>

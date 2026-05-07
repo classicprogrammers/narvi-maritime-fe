@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  Box,
   Button,
   Input,
   Popover,
@@ -169,7 +170,17 @@ const SearchableSelect = ({
           h="32px"
           {...props}
         >
-          {selectedOption ? formatOption(selectedOption) : placeholder}
+          <Box
+            flex="1"
+            textAlign="left"
+            overflow="hidden"
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+            pr={2}
+            title={selectedOption ? formatOption(selectedOption) : placeholder}
+          >
+            {selectedOption ? formatOption(selectedOption) : placeholder}
+          </Box>
           {isLoading ? (
             <Spinner size="xs" />
           ) : (
@@ -177,7 +188,15 @@ const SearchableSelect = ({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent ref={listContainerRef} w="100%" maxH="200px" overflowY="auto" borderRadius="md" minW="100%">
+      <PopoverContent
+        ref={listContainerRef}
+        w="100%"
+        minW="100%"
+        maxW="520px"
+        maxH="200px"
+        overflowY="auto"
+        borderRadius="md"
+      >
         <PopoverBody p={0}>
           <Input
             ref={inputRef}
@@ -208,6 +227,10 @@ const SearchableSelect = ({
                 borderBottom="1px"
                 borderColor="gray.100"
                 fontSize="sm"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+                title={formatOption(option)}
               >
                 {formatOption(option)}
               </ListItem>

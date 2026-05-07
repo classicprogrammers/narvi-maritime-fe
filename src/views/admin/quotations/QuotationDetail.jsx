@@ -26,11 +26,22 @@ export default function QuotationDetail() {
         (async () => {
             setIsLoading(true);
             const stateQ = location && location.state && location.state.quotation;
-            if (stateQ) setQuotation(stateQ);
-            else {
+            const hasFullStateLines = Array.isArray(stateQ?.quotation_line_ids) && stateQ.quotation_line_ids.length > 0;
+
+            if (stateQ) {
+                setQuotation(stateQ);
+            }
+
+            if (!hasFullStateLines) {
                 try {
                     const data = await quotationsAPI.getQuotationById(id);
-                    setQuotation(data.quotation || data);
+                    const fullQuotation =
+                        data?.quotations?.[0] ||
+                        data?.quotation ||
+                        data;
+                    if (fullQuotation) {
+                        setQuotation(fullQuotation);
+                    }
                 } catch (e) {
                 }
             }
