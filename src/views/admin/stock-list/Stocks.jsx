@@ -70,12 +70,22 @@ import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpe
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+    ARCHIVE_STOCK_STATUSES,
+    getStatusOptionsForActiveFilter,
+    isArchiveStockStatus,
+    normalizeStockStatusKey,
+    resolveStockListActiveParam,
+} from "../../../constants/stockStatus";
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
 const STATUS_CONFIG = {
-    //blank
-    blank: {
-        label: "Blank",
+    released: {
+        label: "Released",
+        color: "cyan",
+        bgColor: "#cfe2f3",
+        textColor: "blue.900",
+        lightBg: "#cfe2f3",
     },
     // Pending = #c9daf7
     pending: {
@@ -168,6 +178,7 @@ const STATUS_VARIATIONS = {
     "irregularities": "irregular",
     "shipping_instr": "on_shipping",
     "delivery_instr": "on_delivery",
+    "blank": "released",
 };
 
 const STOCK_VIEW_EDIT_STORAGE_KEY = "narvi_stock_view_edit_state";
@@ -183,9 +194,10 @@ function readPersistedStockViewEditState() {
             clientViewPage: typeof p.clientViewPage === "number" ? p.clientViewPage : 1,
             vesselViewClient: p.vesselViewClient != null ? p.vesselViewClient : null,
             vesselViewVessel: p.vesselViewVessel != null ? p.vesselViewVessel : null,
-            vesselViewStatuses: Array.isArray(p.vesselViewStatuses) ? p.vesselViewStatuses : [],
             clientViewClient: p.clientViewClient != null ? p.clientViewClient : null,
-            clientViewStatuses: Array.isArray(p.clientViewStatuses) ? p.clientViewStatuses : [],
+            clientViewStatuses: Array.isArray(p.clientViewStatuses)
+                ? p.clientViewStatuses.map((s) => (s === "blank" ? "released" : s))
+                : [],
             clientViewFilterType:
                 p.clientViewFilterType === "filter1" || p.clientViewFilterType === "filter2" || p.clientViewFilterType === "filter3"
                     ? p.clientViewFilterType
@@ -195,7 +207,12 @@ function readPersistedStockViewEditState() {
             clientViewVesselFilter: p.clientViewVesselFilter != null ? p.clientViewVesselFilter : null,
             stockViewClient: p.stockViewClient != null ? p.stockViewClient : null,
             stockViewVessel: p.stockViewVessel != null ? p.stockViewVessel : null,
-            stockViewStatus: typeof p.stockViewStatus === "string" ? p.stockViewStatus : "",
+            stockViewStatus: typeof p.stockViewStatus === "string"
+                ? (p.stockViewStatus === "blank" ? "released" : p.stockViewStatus)
+                : "",
+            vesselViewStatuses: Array.isArray(p.vesselViewStatuses)
+                ? p.vesselViewStatuses.map((s) => (s === "blank" ? "released" : s))
+                : [],
             stockViewStockItemId: typeof p.stockViewStockItemId === "string" ? p.stockViewStockItemId : "",
             stockViewDateOnStock: typeof p.stockViewDateOnStock === "string" ? p.stockViewDateOnStock : "",
             stockViewDaysOnStock: typeof p.stockViewDaysOnStock === "string" ? p.stockViewDaysOnStock : "",
@@ -284,6 +301,7 @@ export default function Stocks() {
 
     const {
         stockList,
+        stockStatusOptions,
         isLoading,
         error,
         updateLoading,
@@ -332,6 +350,10 @@ export default function Stocks() {
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
     const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
+    const stockViewStatusFilterOptions = useMemo(
+        () => getStatusOptionsForActiveFilter(stockStatusOptions, stockViewActiveFilter),
+        [stockStatusOptions, stockViewActiveFilter]
+    );
     const [sortOption, setSortOption] = useState(savedState.sortOption);
     const [clientSortOption, setClientSortOption] = useState(savedState.clientSortOption || "none");
 
@@ -573,7 +595,7 @@ export default function Stocks() {
                 client_id: clientId ?? undefined,
                 vessel_id: vesselId ?? undefined,
                 stock_status: statusParam,
-                active: f.stockViewActiveFilter || undefined,
+                active: resolveStockListActiveParam(f.stockViewActiveFilter),
                 search: f.stockViewSearchFilter?.trim() || undefined,
                 // SO Number filter: pass numeric so_id (e.g. "SO-123" -> "123")
                 so_id: normalizeSoNumber(f.stockViewFilterSO) || undefined,
@@ -882,12 +904,9 @@ export default function Stocks() {
 
     // Helper function to normalize status
     const normalizeStatus = (status) => {
-        if (!status) return "";
-        let normalized = status.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
-        if (STATUS_VARIATIONS[normalized]) {
-            normalized = STATUS_VARIATIONS[normalized];
-        }
-        return normalized;
+        const key = normalizeStockStatusKey(status);
+        if (!key) return "";
+        return STATUS_VARIATIONS[key] || key;
     };
 
     // Helper function to check if status matches selected statuses
@@ -4512,16 +4531,11 @@ export default function Stocks() {
                                                                         borderColor={borderColor}
                                                                     >
                                                                         <option value="">All Statuses</option>
-                                                                        <option value="pending">Pending</option>
-                                                                        <option value="stock">Stock</option>
-                                                                        <option value="on_shipping">On Shipping Instr</option>
-                                                                        <option value="on_delivery">On Delivery Instr</option>
-                                                                        <option value="in_transit">In Transit</option>
-                                                                        <option value="arrived">Arrived Dest</option>
-                                                                        <option value="shipped">Shipped</option>
-                                                                        <option value="delivered">Delivered</option>
-                                                                        <option value="irregular">Irregularities</option>
-                                                                        <option value="cancelled">Cancelled</option>
+                                                                        {stockViewStatusFilterOptions.map((opt) => (
+                                                                            <option key={opt.value} value={opt.value}>
+                                                                                {opt.label}
+                                                                            </option>
+                                                                        ))}
                                                                     </Select>
                                                                 </Box>
                                                                 {stockViewStatus && (
@@ -4788,11 +4802,10 @@ export default function Stocks() {
                                     <Flex flexWrap="wrap" gap="3" pb="2">
                                         {Object.entries(STATUS_CONFIG)
                                             .filter(([statusKey]) => {
-                                                const inactiveOnly = ["shipped", "delivered", "cancelled"];
                                                 if (stockViewActiveFilter === "false") {
-                                                    return inactiveOnly.includes(statusKey);
+                                                    return ARCHIVE_STOCK_STATUSES.includes(statusKey);
                                                 }
-                                                return !inactiveOnly.includes(statusKey);
+                                                return !ARCHIVE_STOCK_STATUSES.includes(statusKey);
                                             })
                                             .map(([statusKey, config]) => (
                                                 <Box
@@ -4843,10 +4856,18 @@ export default function Stocks() {
                                             size="md"
                                             colorScheme="green"
                                             isChecked={stockViewActiveFilter !== "false"}
-                                            onChange={(e) => setStockViewActiveFilter(e.target.checked ? "true" : "false")}
+                                            onChange={(e) => {
+                                                const next = e.target.checked ? "true" : "false";
+                                                setStockViewActiveFilter(next);
+                                                if (stockViewStatus && isArchiveStockStatus(stockViewStatus) !== (next === "false")) {
+                                                    setStockViewStatus("");
+                                                }
+                                            }}
                                         />
                                         <Text fontSize="xs" color={tableTextColorSecondary}>
-                                            {stockViewActiveFilter === "false" ? "Showing inactive items" : "Showing active items"}
+                                            {stockViewActiveFilter === "false"
+                                                ? "Showing released / shipped / delivered / cancelled"
+                                                : "Showing active items"}
                                         </Text>
                                     </HStack>
                                     {allFilteredItems.length > 0 && (

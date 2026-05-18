@@ -2,6 +2,7 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   stockList: [],
+  stockStatusOptions: [],
   isLoading: false,
   error: null,
   updateLoading: false,
@@ -27,6 +28,9 @@ const stockSlice = createSlice({
     getStockListSuccess: (state, action) => {
       state.isLoading = false;
       state.stockList = action.payload.stock_list || action.payload.stockList || [];
+      if (Array.isArray(action.payload.stock_status_options)) {
+        state.stockStatusOptions = action.payload.stock_status_options;
+      }
       state.count = action.payload.count || 0;
       state.total_count = action.payload.total_count || 0;
       state.page = action.payload.page || 1;

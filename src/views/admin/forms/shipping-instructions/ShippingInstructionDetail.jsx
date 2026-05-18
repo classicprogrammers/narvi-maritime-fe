@@ -55,6 +55,50 @@ import {
 } from "../../../../api/deliveryConfirmation";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { snapshotValue, pickChangedFields, toIdOrNull } from "../../../../utils/shippingFormAutosave";
+
+const INITIAL_FORM_DATA = {
+  vessel: "",
+  deliveryToAt: "",
+  consignBlock: "",
+  siNo: "",
+  sicNo: "",
+  jobNo: "",
+  soNo: "",
+  shippedBy: "",
+  shippedById: null,
+  from: "",
+  fromId: null,
+  to: "",
+  toId: null,
+  deadline: "",
+  pic: "",
+  transportDetails: "",
+  date: "",
+  totalPackedQuantity: "",
+  totalPackedWeight: "",
+  totalPackedVw: "",
+  totalVw: "",
+  selectAgent: "",
+  selectConsignee: "",
+  company: "",
+  consigneeAddress1: "",
+  consigneeAddress2: "",
+  consigneePostcode: "",
+  consigneeCity: "",
+  consigneeCountry: "",
+  regNo: "",
+  consigneeEmail: "",
+  consigneePhone: "",
+  consigneePhone2: "",
+  web: "",
+  cneeText: "",
+  agentsPIC: "",
+  warnings: "",
+  includeInLiasonWith: false,
+};
+
+const getInitialFormData = () => ({ ...INITIAL_FORM_DATA });
 
 export default function ShippingInstructionDetail({ formType = "instruction" }) {
   const isShippingAdvise = formType === "advise";
@@ -125,52 +169,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     to_text: "",
     deadline_text: "",
   });
+  const lastSavedAutosaveRef = useRef({
+    header: {},
+    cneeText: null,
+    packed: {},
+  });
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
   const bgColor = useColorModeValue("white", "gray.800");
 
   // Form state
-  const [formData, setFormData] = useState({
-    vessel: "",
-    deliveryToAt: "",
-    consignBlock: "",
-    siNo: "", // stores selected option id
-    sicNo: "", // stores selected SIC option id
-    jobNo: "",
-    soNo: "",
-    shippedBy: "",
-    shippedById: null,
-    from: "",
-    fromId: null,
-    to: "", // display name (used for print)
-    toId: null,
-    deadline: "",
-    pic: "", // stores selected PIC id
-    transportDetails: "",
-    date: "",
-    totalPackedQuantity: "",
-    totalPackedWeight: "",
-    totalPackedVw: "",
-    totalVw: "",
-    selectAgent: "", // stores selected agent id
-    selectConsignee: "", // stores selected option id
-    company: "",
-    consigneeAddress1: "",
-    consigneeAddress2: "",
-    consigneePostcode: "",
-    consigneeCity: "",
-    consigneeCountry: "",
-    regNo: "",
-    consigneeEmail: "",
-    consigneePhone: "",
-    consigneePhone2: "",
-    web: "",
-    cneeText: "",
-    agentsPIC: "",
-    warnings: "",
-    includeInLiasonWith: false,
-  });
+  const [formData, setFormData] = useState(getInitialFormData);
 
   useEffect(() => {
     if (!isDeliveryLike) return;
@@ -257,6 +267,186 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const toNullIfEmpty = (value) => {
     const text = value == null ? "" : String(value).trim();
     return text === "" ? null : value;
+  };
+  const buildHeaderSaveCandidate = (data) => {
+    if (isShippingAdvise) {
+      return {
+        si_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        sic_number_id:
+          data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
+            ? Number(data.sicNo)
+            : null,
+        siform_from_id:
+          data.fromId != null && Number.isFinite(Number(data.fromId))
+            ? Number(data.fromId)
+            : null,
+        siform_to_id:
+          data.toId != null && Number.isFinite(Number(data.toId))
+            ? Number(data.toId)
+            : null,
+        from_text: toNullIfEmpty(data.from),
+        destination_text: toNullIfEmpty(data.to),
+        awb_number: toNullIfEmpty(data.shippedBy),
+        eta_text: data.deadline ?? "",
+        date: data.date ?? "",
+        job_no: toNullIfEmpty(data.jobNo),
+        transport_details: toNullIfEmpty(data.transportDetails),
+      };
+    }
+    if (isDeliveryConfirmation) {
+      return {
+        di_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        in_liason_with: String(data.consignBlock ?? ""),
+        header_pic_id:
+          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+            ? Number(data.pic)
+            : null,
+        header_date: data.date ?? "",
+        delivery_date: data.deadline ?? "",
+        delivery_to_at: toNullIfEmpty(data.deliveryToAt),
+        siform_to_id:
+          data.toId != null && Number.isFinite(Number(data.toId))
+            ? Number(data.toId)
+            : null,
+        location_text: toNullIfEmpty(data.to),
+      };
+    }
+    if (isDeliveryForm) {
+      return {
+        di_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        so_number: toNullIfEmpty(data.soNo),
+        in_liason_with: String(data.consignBlock ?? ""),
+        header_pic_id:
+          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+            ? Number(data.pic)
+            : null,
+        header_date: data.date ?? "",
+        deadline_text: data.deadline ?? "",
+        delivery_to_at: toNullIfEmpty(data.deliveryToAt),
+        siform_to_id:
+          data.toId != null && Number.isFinite(Number(data.toId))
+            ? Number(data.toId)
+            : null,
+        location_text: toNullIfEmpty(data.to),
+      };
+    }
+    return {
+      si_number_id:
+        data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+          ? Number(data.siNo)
+          : null,
+      sic_number_id:
+        data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
+          ? Number(data.sicNo)
+          : null,
+      si_shipped_by_id:
+        data.shippedById != null && Number.isFinite(Number(data.shippedById))
+          ? Number(data.shippedById)
+          : null,
+      siform_from_id:
+        data.fromId != null && Number.isFinite(Number(data.fromId))
+          ? Number(data.fromId)
+          : null,
+      siform_to_id:
+        data.toId != null && Number.isFinite(Number(data.toId))
+          ? Number(data.toId)
+          : null,
+      from_text: toNullIfEmpty(data.from),
+      to_text: toNullIfEmpty(data.to),
+      to_be_shipped_by: toNullIfEmpty(data.shippedBy),
+      deadline_text: data.deadline ?? "",
+      header_pic_id:
+        data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+          ? Number(data.pic)
+          : null,
+      header_date: data.date ?? "",
+    };
+  };
+  const buildHeaderSnapshotFromApi = (form) => {
+    if (!form) return {};
+    if (isShippingAdvise) {
+      return {
+        si_number_id: toIdOrNull(form.si_number_id),
+        sic_number_id: toIdOrNull(form.sic_number_id),
+        siform_from_id: toIdOrNull(form.siform_from_id),
+        siform_to_id: toIdOrNull(form.siform_to_id),
+        from_text: toNullIfEmpty(form.from_text),
+        destination_text: toNullIfEmpty(form.destination_text),
+        awb_number: toNullIfEmpty(form.awb_number),
+        eta_text: form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "",
+        date: form.date != null && form.date !== false ? String(form.date) : "",
+        job_no: toNullIfEmpty(form.job_no),
+        transport_details: toNullIfEmpty(form.transport_details),
+      };
+    }
+    if (isDeliveryConfirmation) {
+      return {
+        di_number_id: toIdOrNull(form.di_number_id),
+        in_liason_with:
+          Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
+            ? String(form.in_liason_with ?? "")
+            : "",
+        header_pic_id: toIdOrNull(form.header_pic_id),
+        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+        delivery_date: form.delivery_date != null && form.delivery_date !== false ? String(form.delivery_date) : "",
+        delivery_to_at: toNullIfEmpty(form.delivery_to_at),
+        siform_to_id: toIdOrNull(form.siform_to_id),
+        location_text: toNullIfEmpty(form.location_text),
+      };
+    }
+    if (isDeliveryForm) {
+      return {
+        di_number_id: toIdOrNull(form.di_number_id),
+        so_number: toNullIfEmpty(form.so_number),
+        in_liason_with:
+          Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
+            ? String(form.in_liason_with ?? "")
+            : "",
+        header_pic_id: toIdOrNull(form.header_pic_id),
+        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+        deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+        delivery_to_at: toNullIfEmpty(form.delivery_to_at),
+        siform_to_id: toIdOrNull(form.siform_to_id),
+        location_text: toNullIfEmpty(form.location_text),
+      };
+    }
+    return {
+      si_number_id: toIdOrNull(form.si_number_id),
+      sic_number_id: toIdOrNull(form.sic_number_id),
+      si_shipped_by_id: toIdOrNull(form.si_shipped_by_id),
+      siform_from_id: toIdOrNull(form.siform_from_id),
+      siform_to_id: toIdOrNull(form.siform_to_id),
+      from_text: toNullIfEmpty(form.from_text),
+      to_text: toNullIfEmpty(form.to_text),
+      to_be_shipped_by: toNullIfEmpty(form.to_be_shipped_by),
+      deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+      header_pic_id: toIdOrNull(form.header_pic_id),
+      header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+    };
+  };
+  const syncAutosaveSnapshotsFromApi = (form) => {
+    if (!form) return;
+    lastSavedAutosaveRef.current.header = buildHeaderSnapshotFromApi(form);
+    const cneeRaw = isDeliveryLike
+      ? (Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
+        ? form.in_liason_with
+        : "")
+      : form.cnee_text;
+    lastSavedAutosaveRef.current.cneeText = snapshotValue(cneeRaw);
+    lastSavedAutosaveRef.current.packed = {
+      total_packed_quantity: Number(form.total_packed_quantity || 0),
+      total_packed_weight: Number(form.total_packed_weight || 0),
+      total_packed_vw: Number(form.total_packed_vw || 0),
+    };
   };
   const getStickyConsigneeId = () => {
     if (isDeliveryLike) return null;
@@ -561,11 +751,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       date: isShippingAdvise
         ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
           ? String(form.date)
-          : todayIso)
+          : "")
         : isDeliveryLike
           ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
             ? String(form.header_date)
-            : todayIso)
+            : "")
           : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
       totalPackedQuantity: hasPackedQty ? Number(packedQtyValue) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(packedWeightValue) : stockTotals.weight,
@@ -713,6 +903,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     });
 
     setCargoItems(mapped.length ? mapped : blankCargoRows());
+    syncAutosaveSnapshotsFromApi(form);
+    consignBlockUserEditedRef.current = false;
     // allow autosave effects after this render flushes
     setTimeout(() => {
       isApplyingFormRef.current = false;
@@ -941,109 +1133,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         if (!isShippingAdvise && !currentId) return;
 
         setIsSiFormLoading(true);
-        const fields = isShippingAdvise
-          ? {
-            si_number_id:
-              formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                ? Number(formData.siNo)
-                : null,
-            sic_number_id:
-              formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
-                ? Number(formData.sicNo)
-                : null,
-            siform_from_id:
-              formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                ? Number(formData.fromId)
-                : null,
-            siform_to_id:
-              formData.toId != null && Number.isFinite(Number(formData.toId))
-                ? Number(formData.toId)
-                : null,
-            from_text: toNullIfEmpty(formData.from),
-            destination_text: toNullIfEmpty(formData.to),
-            awb_number: toNullIfEmpty(formData.shippedBy),
-            eta_text: formData.deadline ?? "",
-            date: formData.date ?? "",
-            job_no: toNullIfEmpty(formData.jobNo),
-            transport_details: toNullIfEmpty(formData.transportDetails),
-          }
-          : isDeliveryConfirmation
-            ? {
-              di_number_id:
-                formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                  ? Number(formData.siNo)
-                  : null,
-              in_liason_with: String(formData.consignBlock ?? ""),
-              header_pic_id:
-                formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
-                  ? Number(formData.pic)
-                  : null,
-              header_date: formData.date ?? "",
-              delivery_date: formData.deadline ?? "",
-              delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
-              siform_to_id:
-                formData.toId != null && Number.isFinite(Number(formData.toId))
-                  ? Number(formData.toId)
-                  : null,
-              location_text: toNullIfEmpty(formData.to),
-            }
-            : isDeliveryForm
-              ? {
-                di_number_id:
-                  formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                    ? Number(formData.siNo)
-                    : null,
-                so_number: toNullIfEmpty(formData.soNo),
-                in_liason_with: String(formData.consignBlock ?? ""),
-                header_pic_id:
-                  formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
-                    ? Number(formData.pic)
-                    : null,
-                header_date: formData.date ?? "",
-                deadline_text: formData.deadline ?? "",
-                delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
-                siform_to_id:
-                  formData.toId != null && Number.isFinite(Number(formData.toId))
-                    ? Number(formData.toId)
-                    : null,
-                location_text: toNullIfEmpty(formData.to),
-              }
-              : {
-                si_number_id:
-                  formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                    ? Number(formData.siNo)
-                    : null,
-                sic_number_id:
-                  formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
-                    ? Number(formData.sicNo)
-                    : null,
-                si_shipped_by_id:
-                  formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-                    ? Number(formData.shippedById)
-                    : null,
-                siform_from_id:
-                  formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                    ? Number(formData.fromId)
-                    : null,
-                siform_to_id:
-                  formData.toId != null && Number.isFinite(Number(formData.toId))
-                    ? Number(formData.toId)
-                    : null,
-                from_text: toNullIfEmpty(formData.from),
-                to_text: toNullIfEmpty(formData.to),
-                to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-                deadline_text: formData.deadline ?? "",
-                header_pic_id:
-                  formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-                header_date: formData.date ?? "",
-              };
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
-        const payload = buildSavePayloadWithId(currentId, {
-          ...fields,
-          ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-          ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
-        });
+        const candidate = buildHeaderSaveCandidate(formData);
+        const changed = pickChangedFields(candidate, lastSavedAutosaveRef.current.header);
+        if (Object.keys(changed).length === 0) {
+          return;
+        }
+        const payload = buildSavePayloadWithId(currentId, changed);
         lastSubmittedHeaderRef.current = {
           to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
@@ -1062,11 +1157,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         };
         const updated = await saveForm(payload);
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.header = {
+          ...lastSavedAutosaveRef.current.header,
+          ...changed,
+        };
+        if (updated) {
+          syncAutosaveSnapshotsFromApi(updated);
+        }
       } catch (e) {
         console.error("Failed to autosave SI header fields:", e);
       } finally {
@@ -1102,28 +1199,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const currentId = await ensureFormId();
         if (!isShippingAdvise && !currentId) return;
 
+        const nextCneeValue = isDeliveryLike
+          ? String(formData.consignBlock ?? "")
+          : (formData.consignBlock ?? "");
+        if (snapshotValue(nextCneeValue) === snapshotValue(lastSavedAutosaveRef.current.cneeText)) {
+          return;
+        }
+
         setIsSiFormLoading(true);
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
-        const updated = await saveForm(
-          buildSavePayloadWithId(currentId, {
-            ...(isDeliveryLike
-              ? {
-                in_liason_with: String(formData.consignBlock ?? ""),
-              }
-              : {
-                cnee_text: formData.consignBlock ?? "",
-              }),
-            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
-          })
-        );
+        const cneePayload = isDeliveryLike
+          ? { in_liason_with: nextCneeValue }
+          : { cnee_text: nextCneeValue };
+        const updated = await saveForm(buildSavePayloadWithId(currentId, cneePayload));
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.cneeText = snapshotValue(nextCneeValue);
+        consignBlockUserEditedRef.current = false;
+        if (updated) {
+          syncAutosaveSnapshotsFromApi(updated);
+        }
       } catch (e) {
         console.error("Failed to autosave cnee_text:", e);
       } finally {
@@ -1157,28 +1250,36 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const currentId = await ensureFormId();
         if (!isShippingAdvise && !currentId) return;
 
+        const packedCandidate = {
+          total_packed_quantity: Number(formData.totalPackedQuantity || 0),
+          total_packed_weight: Number(formData.totalPackedWeight || 0),
+          total_packed_vw: Number(formData.totalPackedVw || 0),
+        };
+        const packedChanged = pickChangedFields(packedCandidate, lastSavedAutosaveRef.current.packed);
+        if (Object.keys(packedChanged).length === 0) {
+          return;
+        }
+
         setIsSiFormLoading(true);
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
         const updated = await saveForm(
           buildSavePayloadWithId(currentId, {
-            total_packed_quantity: Number(formData.totalPackedQuantity || 0),
-            total_packed_weight: Number(formData.totalPackedWeight || 0),
-            packed_as: {
-              boxes: Number(formData.totalPackedQuantity || 0),
-              kg: Number(formData.totalPackedWeight || 0),
-            },
-            total_packed_vw: Number(formData.totalPackedVw || 0),
-            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
+            ...packedChanged,
+            ...(Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_quantity") ||
+            Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
+              ? {
+                packed_as: {
+                  boxes: Number(formData.totalPackedQuantity || 0),
+                  kg: Number(formData.totalPackedWeight || 0),
+                },
+              }
+              : {}),
           })
         );
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.packed = {
+          ...lastSavedAutosaveRef.current.packed,
+          ...packedChanged,
+        };
       } catch (e) {
         console.error("Failed to autosave packed totals:", e);
       } finally {
@@ -1229,6 +1330,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           header_pic_id: null,
           header_date: null,
 
+          // Shipping Advise header fields (autosave uses these keys, not deadline_text/header_date)
+          eta_text: null,
+          date: null,
+          transport_details: null,
+          destination_text: null,
+          awb_number: null,
+
           company: "",
           address1: "",
           address2: "",
@@ -1254,7 +1362,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           cnee11: null,
           cnee12: null,
           cnee_text: "",
-          in_liason_with: false,
+          in_liason_with: "",
           total_packed_quantity: 0,
           total_packed_weight: 0,
           packed_as: {
@@ -1279,26 +1387,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         })
       );
       if (updated?.id != null) setSiFormId(updated.id);
-      setFormData((prev) => ({
-        ...prev,
-        vessel: "",
-        includeInLiasonWith: false,
-        selectAgent: "",
-        selectConsignee: "",
-        siNo: "",
-        sicNo: "",
-        jobNo: "",
-        soNo: "",
-        deliveryToAt: "",
-        shippedBy: "",
-        shippedById: null,
-        from: "",
-        fromId: null,
-        to: "",
-        toId: null,
-        deadline: "",
-        totalVw: "",
-      }));
+      setFormData(getInitialFormData());
+      setCargoItems(blankCargoRows());
+      setSelectedSiName("");
+      lastSubmittedHeaderRef.current = {
+        to_be_shipped_by: "",
+        from_text: "",
+        to_text: "",
+        deadline_text: "",
+      };
+      lastSavedAutosaveRef.current = { header: {}, cneeText: null, packed: {} };
+      includeInLiasonWithUserControlledRef.current = false;
       try {
         window.localStorage.setItem(liaisonCheckboxStorageKey, "false");
       } catch (e) {
@@ -1311,7 +1410,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setQShipBy("");
       setQFrom("");
       setQTo("");
-      applySiFormResponse(updated);
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;

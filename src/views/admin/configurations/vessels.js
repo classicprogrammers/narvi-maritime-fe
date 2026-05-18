@@ -312,6 +312,22 @@ export default function Vessels() {
     createInFlightRef.current = false;
   };
 
+  const handleModalClose = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const shouldRefreshList =
+      Boolean(editingVessel) ||
+      Boolean(lastSavedSignatureRef.current) ||
+      Boolean(createdVesselIdRef.current);
+    onModalClose();
+    resetForm();
+    if (shouldRefreshList) {
+      fetchVessels();
+      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
+    }
+  }, [editingVessel, fetchVessels, onModalClose]);
 
   const handleNewVessel = () => {
     resetForm();
@@ -634,10 +650,7 @@ export default function Vessels() {
         });
       }
 
-      onModalClose();
-      resetForm();
-      fetchVessels();
-      refreshMasterData(MASTER_KEYS.VESSELS).catch(() => { });
+      handleModalClose();
     } catch (error) {
       let errorMessage = `Failed to ${editingVessel ? 'update' : 'create'} vessel`;
       let status = "error";
@@ -1077,7 +1090,7 @@ export default function Vessels() {
       </VStack>
 
       {/* Create/Edit Modal */}
-      <Modal isOpen={isModalOpen} onClose={onModalClose} size="6xl">
+      <Modal isOpen={isModalOpen} onClose={handleModalClose} size="6xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader bg="blue.600" color="white" borderRadius="md">
@@ -1313,7 +1326,7 @@ export default function Vessels() {
 
           </ModalBody >
           <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
-            <Button variant="outline" mr={3} onClick={onModalClose}>
+            <Button variant="outline" mr={3} onClick={handleModalClose}>
               Cancel
             </Button>
             <Text color={isAutoSaving ? "blue.600" : "green.600"} fontSize="sm" fontWeight="medium">

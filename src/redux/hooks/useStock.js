@@ -11,6 +11,7 @@ export const useStock = () => {
   const dispatch = useDispatch();
   const {
     stockList,
+    stockStatusOptions,
     isLoading,
     error,
     updateLoading,
@@ -43,6 +44,7 @@ export const useStock = () => {
   return {
     // State
     stockList,
+    stockStatusOptions,
     isLoading,
     error,
     updateLoading,

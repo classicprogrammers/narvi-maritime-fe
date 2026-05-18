@@ -63,6 +63,7 @@ import {
     MdDownload,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
+import { normalizeStockStatusKey } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import vesselsAPI from "../../../api/vessels";
@@ -449,7 +450,7 @@ export default function StockDBMainEdit() {
             siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
-            stockStatus: getFieldValue(stock.stock_status),
+            stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || "",
             origin_text: (() => {
@@ -1197,7 +1198,7 @@ export default function StockDBMainEdit() {
 
         // Field mappings: [frontendField, backendField, transformFunction]
         const fieldMappings = [
-            ["stockStatus", "stock_status", (v) => v || ""],
+            ["stockStatus", "stock_status", (v) => normalizeStockStatusKey(v) || ""],
             ["client", "client_id", (v) => v ? String(v) : ""],
             ["supplier", "supplier_id", (v) => v ? String(v) : ""],
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
@@ -2068,6 +2069,7 @@ export default function StockDBMainEdit() {
                                             borderColor={borderColor}
                                         >
                                             <option value="">Select</option>
+                                            <option value="released">Released</option>
                                             <option value="pending">Pending</option>
                                             <option value="stock">Stock</option>
                                             <option value="on_shipping">On Shipping Instr</option>

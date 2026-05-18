@@ -67,6 +67,12 @@ import {
 } from "../../../../api/cipl";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  snapshotValue,
+  pickChangedFields,
+  toIdOrNull,
+  buildCiPlExclusiveNumberFields,
+} from "../../../../utils/shippingFormAutosave";
 
 export default function ShippingInstructionDetail({ formType = "instruction" }) {
   const isShippingAdvise = formType === "advise";
@@ -168,6 +174,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     deadline_text: "",
   });
   const lastSubmittedCiplLinesRef = useRef("");
+  const lastSavedAutosaveRef = useRef({
+    header: {},
+    cneeText: null,
+    packed: {},
+    stockLines: "",
+  });
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -313,6 +325,171 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const toNullIfEmpty = (value) => {
     const text = value == null ? "" : String(value).trim();
     return text === "" ? null : value;
+  };
+  const buildHeaderSaveCandidate = (data) => {
+    if (isShippingAdvise) {
+      return {
+        si_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        sic_number_id:
+          data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
+            ? Number(data.sicNo)
+            : null,
+        siform_from_id:
+          data.fromId != null && Number.isFinite(Number(data.fromId))
+            ? Number(data.fromId)
+            : null,
+        siform_to_id:
+          data.toId != null && Number.isFinite(Number(data.toId))
+            ? Number(data.toId)
+            : null,
+        from_text: toNullIfEmpty(data.from),
+        destination_text: toNullIfEmpty(data.to),
+        awb_number: toNullIfEmpty(data.shippedBy),
+        eta_text: data.deadline ?? "",
+        date: data.date ?? "",
+        job_no: toNullIfEmpty(data.jobNo),
+        transport_details: toNullIfEmpty(data.transportDetails),
+      };
+    }
+    if (isDeliveryConfirmation) {
+      return {
+        di_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        header_pic_id:
+          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+            ? Number(data.pic)
+            : null,
+        header_date: data.date ?? "",
+        delivery_date: data.deadline ?? "",
+        location_text: toNullIfEmpty(data.to),
+      };
+    }
+    if (isDeliveryForm) {
+      return {
+        di_number_id:
+          data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
+            ? Number(data.siNo)
+            : null,
+        so_number: toNullIfEmpty(data.soNo),
+        header_pic_id:
+          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+            ? Number(data.pic)
+            : null,
+        header_date: data.date ?? "",
+        deadline_text: data.deadline ?? "",
+        delivery_to_at: toNullIfEmpty(data.deliveryToAt),
+        siform_to_id:
+          data.toId != null && Number.isFinite(Number(data.toId))
+            ? Number(data.toId)
+            : null,
+        location_text: toNullIfEmpty(data.to),
+      };
+    }
+    return {
+      ...buildCiPlExclusiveNumberFields(data),
+      si_shipped_by_id:
+        data.shippedById != null && Number.isFinite(Number(data.shippedById))
+          ? Number(data.shippedById)
+          : null,
+      siform_from_id:
+        data.fromId != null && Number.isFinite(Number(data.fromId))
+          ? Number(data.fromId)
+          : null,
+      siform_to_id:
+        data.toId != null && Number.isFinite(Number(data.toId))
+          ? Number(data.toId)
+          : null,
+      from_text: toNullIfEmpty(data.from),
+      to_text: toNullIfEmpty(data.to),
+      to_be_shipped_by: toNullIfEmpty(data.shippedBy),
+      deadline_text: data.deadline ?? "",
+      header_pic_id:
+        data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+          ? Number(data.pic)
+          : null,
+      date: data.date ?? "",
+    };
+  };
+  const buildHeaderSnapshotFromApi = (form) => {
+    if (!form) return {};
+    if (isShippingAdvise) {
+      return {
+        si_number_id: toIdOrNull(form.si_number_id),
+        sic_number_id: toIdOrNull(form.sic_number_id),
+        siform_from_id: toIdOrNull(form.siform_from_id),
+        siform_to_id: toIdOrNull(form.siform_to_id),
+        from_text: toNullIfEmpty(form.from_text),
+        destination_text: toNullIfEmpty(form.destination_text),
+        awb_number: toNullIfEmpty(form.awb_number),
+        eta_text: form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "",
+        date: form.date != null && form.date !== false ? String(form.date) : "",
+        job_no: toNullIfEmpty(form.job_no),
+        transport_details: toNullIfEmpty(form.transport_details),
+      };
+    }
+    if (isDeliveryConfirmation) {
+      return {
+        di_number_id: toIdOrNull(form.di_number_id),
+        header_pic_id: toIdOrNull(form.header_pic_id),
+        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+        delivery_date: form.delivery_date != null && form.delivery_date !== false ? String(form.delivery_date) : "",
+        location_text: toNullIfEmpty(form.location_text),
+      };
+    }
+    if (isDeliveryForm) {
+      return {
+        di_number_id: toIdOrNull(form.di_number_id),
+        so_number: toNullIfEmpty(form.so_number),
+        header_pic_id: toIdOrNull(form.header_pic_id),
+        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+        deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+        delivery_to_at: toNullIfEmpty(form.delivery_to_at),
+        siform_to_id: toIdOrNull(form.siform_to_id),
+        location_text: toNullIfEmpty(form.location_text),
+      };
+    }
+    return {
+      si_number_id: toIdOrNull(form.si_number_id),
+      sic_number_id: toIdOrNull(form.sic_number_id),
+      di_number_id: toIdOrNull(form.di_number_id),
+      si_shipped_by_id: toIdOrNull(form.si_shipped_by_id),
+      siform_from_id: toIdOrNull(form.siform_from_id),
+      siform_to_id: toIdOrNull(form.siform_to_id),
+      from_text: toNullIfEmpty(form.from_text),
+      to_text: toNullIfEmpty(form.to_text),
+      to_be_shipped_by: toNullIfEmpty(form.to_be_shipped_by),
+      deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+      header_pic_id: toIdOrNull(form.header_pic_id),
+      date:
+        form.date != null && form.date !== false
+          ? String(form.date)
+          : form.header_date != null && form.header_date !== false
+            ? String(form.header_date)
+            : "",
+    };
+  };
+  const syncAutosaveSnapshotsFromApi = (form, { stockLinesSignature } = {}) => {
+    if (!form) return;
+    lastSavedAutosaveRef.current.header = buildHeaderSnapshotFromApi(form);
+    const cneeRaw = isDeliveryLike
+      ? (Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
+        ? form.in_liason_with
+        : "")
+      : form.cnee_text;
+    lastSavedAutosaveRef.current.cneeText = snapshotValue(cneeRaw);
+    lastSavedAutosaveRef.current.packed = {
+      total_packed_quantity: Number(form.total_packed_quantity || 0),
+      total_packed_weight: Number(form.total_packed_weight || 0),
+      total_packed_vw: Number(form.total_packed_vw || 0),
+    };
+    if (stockLinesSignature != null) {
+      lastSavedAutosaveRef.current.stockLines = stockLinesSignature;
+    }
   };
   const buildCiplStockLinePayload = (items, isPerUnit) =>
     (Array.isArray(items) ? items : []).map((item) => ({
@@ -822,10 +999,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       };
     });
 
-    setCargoItems(mapped.length ? mapped : blankCargoRows());
-    lastSubmittedCiplLinesRef.current = JSON.stringify(
-      buildCiplStockLinePayload(mapped.length ? mapped : blankCargoRows(), isCiPlPerUnitTab)
+    const stockLines = mapped.length ? mapped : blankCargoRows();
+    setCargoItems(stockLines);
+    const stockLinesSignature = JSON.stringify(
+      buildCiplStockLinePayload(stockLines, isCiPlPerUnitTab)
     );
+    lastSubmittedCiplLinesRef.current = stockLinesSignature;
+    syncAutosaveSnapshotsFromApi(form, { stockLinesSignature });
+    consignBlockUserEditedRef.current = false;
     // allow autosave effects after this render flushes
     setTimeout(() => {
       isApplyingFormRef.current = false;
@@ -1054,26 +1235,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       try {
         const currentId = await ensureFormId();
         if (!currentId) return;
-        setIsSiFormLoading(true);
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
         const stockListPayload = buildCiplStockLinePayload(cargoItems, isCiPlPerUnitTab);
         const nextLinesSignature = JSON.stringify(stockListPayload);
-        if (nextLinesSignature === lastSubmittedCiplLinesRef.current) return;
+        if (
+          nextLinesSignature === lastSubmittedCiplLinesRef.current ||
+          nextLinesSignature === lastSavedAutosaveRef.current.stockLines
+        ) {
+          return;
+        }
+        setIsSiFormLoading(true);
         const updated = await saveForm(
-          buildSavePayloadWithId(currentId, {
-            stock_list: stockListPayload,
-            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
-          })
+          buildSavePayloadWithId(currentId, { stock_list: stockListPayload })
         );
         lastSubmittedCiplLinesRef.current = nextLinesSignature;
+        lastSavedAutosaveRef.current.stockLines = nextLinesSignature;
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
       } catch (e) {
         console.error("Failed to autosave CIPL stock notebook lines:", e);
       } finally {
@@ -1081,7 +1257,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       }
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [cargoItems, isCiPlPerUnitTab, formData.selectConsignee, formData.siNo, formData.selectAgent]);
+  }, [cargoItems, isCiPlPerUnitTab]);
 
   useEffect(() => {
     return () => {
@@ -1106,126 +1282,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         if (!isShippingAdvise && !currentId) return;
 
         setIsSiFormLoading(true);
-        const ciPlSelectedNumberFields = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm
-          ? {
-            si_number_id:
-              formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                ? Number(formData.siNo)
-                : null,
-            sic_number_id:
-              formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
-                ? Number(formData.sicNo)
-                : null,
-            di_number_id:
-              formData.diNo != null && formData.diNo !== "" && Number.isFinite(Number(formData.diNo))
-                ? Number(formData.diNo)
-                : null,
-          }
-          : {};
-        const activeNumberKey =
-          ciPlSelectedNumberFields.si_number_id != null
-            ? "si_number_id"
-            : ciPlSelectedNumberFields.sic_number_id != null
-              ? "sic_number_id"
-              : ciPlSelectedNumberFields.di_number_id != null
-                ? "di_number_id"
-                : null;
-        const ciPlExclusiveNumberFields = activeNumberKey
-          ? {
-            si_number_id: activeNumberKey === "si_number_id" ? ciPlSelectedNumberFields.si_number_id : null,
-            sic_number_id: activeNumberKey === "sic_number_id" ? ciPlSelectedNumberFields.sic_number_id : null,
-            di_number_id: activeNumberKey === "di_number_id" ? ciPlSelectedNumberFields.di_number_id : null,
-          }
-          : {};
-        const fields = isShippingAdvise
-          ? {
-            si_number_id:
-              formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                ? Number(formData.siNo)
-                : null,
-            sic_number_id:
-              formData.sicNo != null && formData.sicNo !== "" && Number.isFinite(Number(formData.sicNo))
-                ? Number(formData.sicNo)
-                : null,
-            siform_from_id:
-              formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                ? Number(formData.fromId)
-                : null,
-            siform_to_id:
-              formData.toId != null && Number.isFinite(Number(formData.toId))
-                ? Number(formData.toId)
-                : null,
-            from_text: toNullIfEmpty(formData.from),
-            destination_text: toNullIfEmpty(formData.to),
-            awb_number: toNullIfEmpty(formData.shippedBy),
-            eta_text: formData.deadline ?? "",
-            date: formData.date ?? "",
-            job_no: toNullIfEmpty(formData.jobNo),
-            transport_details: toNullIfEmpty(formData.transportDetails),
-          }
-          : isDeliveryConfirmation
-            ? {
-              di_number_id:
-                formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                  ? Number(formData.siNo)
-                  : null,
-              header_pic_id:
-                formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
-                  ? Number(formData.pic)
-                  : null,
-              header_date: formData.date ?? "",
-              delivery_date: formData.deadline ?? "",
-              location_text: toNullIfEmpty(formData.to),
-            }
-            : isDeliveryForm
-              ? {
-                di_number_id:
-                  formData.siNo != null && formData.siNo !== "" && Number.isFinite(Number(formData.siNo))
-                    ? Number(formData.siNo)
-                    : null,
-                so_number: toNullIfEmpty(formData.soNo),
-                header_pic_id:
-                  formData.pic != null && formData.pic !== "" && Number.isFinite(Number(formData.pic))
-                    ? Number(formData.pic)
-                    : null,
-                header_date: formData.date ?? "",
-                deadline_text: formData.deadline ?? "",
-                delivery_to_at: toNullIfEmpty(formData.deliveryToAt),
-                siform_to_id:
-                  formData.toId != null && Number.isFinite(Number(formData.toId))
-                    ? Number(formData.toId)
-                    : null,
-                location_text: toNullIfEmpty(formData.to),
-              }
-              : {
-                ...ciPlExclusiveNumberFields,
-                si_shipped_by_id:
-                  formData.shippedById != null && Number.isFinite(Number(formData.shippedById))
-                    ? Number(formData.shippedById)
-                    : null,
-                siform_from_id:
-                  formData.fromId != null && Number.isFinite(Number(formData.fromId))
-                    ? Number(formData.fromId)
-                    : null,
-                siform_to_id:
-                  formData.toId != null && Number.isFinite(Number(formData.toId))
-                    ? Number(formData.toId)
-                    : null,
-                from_text: toNullIfEmpty(formData.from),
-                to_text: toNullIfEmpty(formData.to),
-                to_be_shipped_by: toNullIfEmpty(formData.shippedBy),
-                deadline_text: formData.deadline ?? "",
-                header_pic_id:
-                  formData.pic != null && formData.pic !== "" ? Number(formData.pic) : null,
-                date: formData.date ?? "",
-              };
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
-        const payload = buildSavePayloadWithId(currentId, {
-          ...fields,
-          ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-          ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
-        });
+        const candidate = buildHeaderSaveCandidate(formData);
+        const changed = pickChangedFields(candidate, lastSavedAutosaveRef.current.header);
+        if (Object.keys(changed).length === 0) {
+          return;
+        }
+        const payload = buildSavePayloadWithId(currentId, changed);
         lastSubmittedHeaderRef.current = {
           to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
@@ -1244,11 +1306,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         };
         const updated = await saveForm(payload);
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.header = {
+          ...lastSavedAutosaveRef.current.header,
+          ...changed,
+        };
+        if (updated) {
+          syncAutosaveSnapshotsFromApi(updated);
+        }
       } catch (e) {
         console.error("Failed to autosave SI header fields:", e);
       } finally {
@@ -1260,6 +1324,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   }, [
     formData.siNo,
     formData.sicNo,
+    formData.diNo,
     formData.jobNo,
     formData.deliveryToAt,
     formData.shippedBy,
@@ -1274,7 +1339,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     formData.transportDetails,
   ]);
 
-  // Autosave CONSIGN TO block into backend cnee_text (debounced)
+  // Autosave CONSIGN TO / IN LIASON WITH block (debounced)
   useEffect(() => {
     if (isResettingRef.current) return;
     if (isApplyingFormRef.current) return;
@@ -1284,31 +1349,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const currentId = await ensureFormId();
         if (!isShippingAdvise && !currentId) return;
 
+        const nextCneeValue = isDeliveryLike
+          ? String(formData.consignBlock ?? "")
+          : (formData.consignBlock ?? "");
+        if (snapshotValue(nextCneeValue) === snapshotValue(lastSavedAutosaveRef.current.cneeText)) {
+          return;
+        }
+
         setIsSiFormLoading(true);
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
-        const updated = await saveForm(
-          buildSavePayloadWithId(currentId, {
-            ...(isDeliveryLike
-              ? {
-                in_liason_with:
-                  String(formData.consignBlock ?? "").trim() === ""
-                    ? false
-                    : formData.consignBlock,
-              }
-              : {
-                cnee_text: formData.consignBlock ?? "",
-              }),
-            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
-          })
-        );
+        const cneePayload = isDeliveryLike
+          ? { in_liason_with: nextCneeValue }
+          : { cnee_text: nextCneeValue };
+        const updated = await saveForm(buildSavePayloadWithId(currentId, cneePayload));
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.cneeText = snapshotValue(nextCneeValue);
+        consignBlockUserEditedRef.current = false;
+        if (updated) {
+          syncAutosaveSnapshotsFromApi(updated);
+        }
       } catch (e) {
         console.error("Failed to autosave cnee_text:", e);
       } finally {
@@ -1342,24 +1400,36 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         const currentId = await ensureFormId();
         if (!isShippingAdvise && !currentId) return;
 
+        const packedCandidate = {
+          total_packed_quantity: Number(formData.totalPackedQuantity || 0),
+          total_packed_weight: Number(formData.totalPackedWeight || 0),
+          total_packed_vw: Number(formData.totalPackedVw || 0),
+        };
+        const packedChanged = pickChangedFields(packedCandidate, lastSavedAutosaveRef.current.packed);
+        if (Object.keys(packedChanged).length === 0) {
+          return;
+        }
+
         setIsSiFormLoading(true);
-        const stickyAgentId = getStickyAgentId();
-        const stickyConsigneeId = getStickyConsigneeId();
         const updated = await saveForm(
           buildSavePayloadWithId(currentId, {
-            total_packed_quantity: Number(formData.totalPackedQuantity || 0),
-            total_packed_weight: Number(formData.totalPackedWeight || 0),
-            total_packed_vw: Number(formData.totalPackedVw || 0),
-            ...(stickyAgentId != null ? { agent_id: stickyAgentId } : {}),
-            ...(stickyConsigneeId != null ? { agent_cnee_id: stickyConsigneeId } : {}),
+            ...packedChanged,
+            ...(Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_quantity") ||
+              Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
+              ? {
+                packed_as: {
+                  boxes: Number(formData.totalPackedQuantity || 0),
+                  kg: Number(formData.totalPackedWeight || 0),
+                },
+              }
+              : {}),
           })
         );
         if (updated?.id != null) setSiFormId(updated.id);
-        applySiFormResponse(updated, {
-          lockedConsigneeId: formData.selectConsignee,
-          lockedSiId: formData.siNo,
-          lockedAgentId: formData.selectAgent,
-        });
+        lastSavedAutosaveRef.current.packed = {
+          ...lastSavedAutosaveRef.current.packed,
+          ...packedChanged,
+        };
       } catch (e) {
         console.error("Failed to autosave packed totals:", e);
       } finally {
@@ -1497,6 +1567,26 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setQShipBy("");
       setQFrom("");
       setQTo("");
+      const resetStockLinesSignature = JSON.stringify(
+        buildCiplStockLinePayload(
+          cargoItems.map((item) => ({
+            ...item,
+            details: null,
+            dg_un: null,
+            valueUsd: null,
+            quantity: null,
+            perUnit: null,
+          })),
+          isCiPlPerUnitTab
+        )
+      );
+      lastSubmittedCiplLinesRef.current = resetStockLinesSignature;
+      lastSavedAutosaveRef.current = {
+        header: {},
+        cneeText: null,
+        packed: {},
+        stockLines: resetStockLinesSignature,
+      };
       applySiFormResponse(updated);
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
@@ -1593,7 +1683,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             item.poNumber || "via system",
             String(item.boxes ?? "via system"),
             item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
-            dgUnPdf(item),
             item.details || "Free text, line shifts",
             item.quantity || "Free text",
             item.perUnit || "Free text",
@@ -1603,7 +1692,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             item.poNumber || "via system",
             String(item.boxes ?? "via system"),
             item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
-            dgUnPdf(item),
             item.details || "Free text, line shifts",
             item.valueUsd || "Free text",
           ]
@@ -1656,13 +1744,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       autoTable(doc, {
         startY: ciPlHeaderBottomY + 20,
         head: [isCiPlPerUnitTab
-          ? ["PO#", "BOX", "WEIGHT", "DG/UN", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
-          : ["PO#", "BOX", "WEIGHT", "DG/UN", "DESCRIPTION", "VALUE IN USD"]],
+          ? ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
+          : ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"]],
         body: ciPlRows.length
           ? ciPlRows
           : [isCiPlPerUnitTab
-            ? ["via system", "via system", "via system", "-", "Free text, line shifts", "Free text", "Free text", "Free text"]
-            : ["via system", "via system", "via system", "-", "Free text, line shifts", "Free text"]],
+            ? ["via system", "via system", "via system", "Free text, line shifts", "Free text", "Free text", "Free text"]
+            : ["via system", "via system", "via system", "Free text, line shifts", "Free text"]],
         theme: "grid",
         styles: {
           fontSize: 8,
@@ -1682,11 +1770,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           0: { cellWidth: 82 },
           1: { cellWidth: 54 },
           2: { cellWidth: 64 },
-          3: { cellWidth: 48 },
-          4: { cellWidth: isCiPlPerUnitTab ? 148 : 182 },
-          5: { cellWidth: isCiPlPerUnitTab ? 82 : 102 },
-          6: { cellWidth: isCiPlPerUnitTab ? 82 : 0 },
-          7: { cellWidth: isCiPlPerUnitTab ? 92 : 0 },
+          3: { cellWidth: isCiPlPerUnitTab ? 196 : 230 },
+          4: { cellWidth: isCiPlPerUnitTab ? 82 : 102 },
+          5: { cellWidth: isCiPlPerUnitTab ? 82 : 0 },
+          6: { cellWidth: isCiPlPerUnitTab ? 92 : 0 },
         },
         margin: { left: 30, right: 40 },
       });
@@ -2732,7 +2819,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     : "CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:"}
                 </Text>
                 <Box overflowX="auto">
-                  <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
+                  <Table
+                    variant="simple"
+                    size="sm"
+                    border="1px"
+                    borderColor="gray.300"
+                    tableLayout={!isDeliveryLike ? "fixed" : undefined}
+                    w="100%"
+                    minW={!isDeliveryLike ? (isCiPlPerUnitTab ? "960px" : "820px") : undefined}
+                  >
                     <Thead bg="gray.100">
                       <Tr>
                         {isDeliveryForm && (
@@ -2762,17 +2857,28 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           </>
                         ) : (
                           <>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO#</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOX</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WEIGHT</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DESCRIPTION</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">PO#</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="64px">BOX</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">WEIGHT</Th>
+                            <Th
+                              borderRight="1px"
+                              borderColor="gray.300"
+                              py={2}
+                              px={2}
+                              fontSize="xs"
+                              fontWeight="bold"
+                              minW="320px"
+                              w={isCiPlPerUnitTab ? "34%" : "48%"}
+                            >
+                              DESCRIPTION
+                            </Th>
                             {isCiPlPerUnitTab && (
                               <>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">QUANTITY / PCS</Th>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PER UNIT</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px">QUANTITY / PCS</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px">PER UNIT</Th>
                               </>
                             )}
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">VALUE IN USD</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="10%" minW="96px">VALUE IN USD</Th>
                           </>
                         )}
                       </Tr>
@@ -2810,11 +2916,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                              <Td
+                                borderRight="1px"
+                                borderColor="gray.300"
+                                py={1}
+                                px={2}
+                                fontSize="xs"
+                                bg="#f1f3f5"
+                                minW="320px"
+                                w={isCiPlPerUnitTab ? "34%" : "48%"}
+                              >
                                 <Box
+                                  w="100%"
                                   minH="32px"
                                   cursor="pointer"
                                   whiteSpace="pre-wrap"
+                                  wordBreak="break-word"
                                   px={2}
                                   py={2}
                                   borderRadius="sm"
@@ -3293,7 +3410,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <ModalOverlay />
         <ModalContent m={4} maxH="calc(100vh - 2rem)">
           <ModalHeader>
-            {isShippingAdvise ? "Shipping Advise — preview" : "Shipping Instruction — preview"}
+            Preview
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>

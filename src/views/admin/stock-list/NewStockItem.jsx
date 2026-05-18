@@ -54,6 +54,7 @@ import {
     MdMoreVert,
 } from "react-icons/md";
 import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
+import { normalizeStockStatusKey } from "../../../constants/stockStatus";
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
@@ -687,7 +688,7 @@ export default function StockForm() {
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
             pic: normalizeId(stock.pic_new) || normalizeId(stock.pic_id) || normalizeId(stock.pic) || null, // PIC ID
-            stockStatus: getFieldValue(stock.stock_status),
+            stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
@@ -1036,7 +1037,7 @@ export default function StockForm() {
 
         // Payload matching the API structure exactly - match the lines array format
         const payload = {
-            stock_status: rowData.stockStatus || "",
+            stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
             stock_status_changed_by: rowData.stockStatusChangedBy || "",
             stock_status_previous: rowData.stockStatusPreviousForPayload ?? "",
             client_id: rowData.client ? String(rowData.client) : "",
@@ -1574,7 +1575,7 @@ export default function StockForm() {
                                                 borderColor={borderColor}
                                             >
                                                 <option value="">Select</option>
-                                                <option value="blank">Blank</option>
+                                                <option value="released">Released</option>
                                                 <option value="pending">Pending</option>
                                                 <option value="stock">Stock</option>
                                                 <option value="on_shipping">On Shipping Instr</option>

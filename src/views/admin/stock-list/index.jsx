@@ -50,6 +50,13 @@ import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
+import {
+    formatStockStatusLabel,
+    getStatusOptionsForActiveFilter,
+    isArchiveStockStatus,
+    normalizeStockStatusKey,
+    resolveStockListActiveParam,
+} from "../../../constants/stockStatus";
 const STOCK_MAIN_DB_STORAGE_KEY = "narvi_stock_main_db_state";
 
 function readPersistedStockMainDbState() {
@@ -64,7 +71,9 @@ function readPersistedStockMainDbState() {
             selectedClient: p.selectedClient != null ? p.selectedClient : null,
             selectedVessel: p.selectedVessel != null ? p.selectedVessel : null,
             selectedSupplier: p.selectedSupplier != null ? p.selectedSupplier : null,
-            selectedStatus: typeof p.selectedStatus === "string" ? p.selectedStatus : "",
+            selectedStatus: typeof p.selectedStatus === "string"
+                ? (p.selectedStatus === "blank" ? "released" : p.selectedStatus)
+                : "",
             selectedWarehouse: p.selectedWarehouse != null ? p.selectedWarehouse : null,
             selectedCurrency: p.selectedCurrency != null ? p.selectedCurrency : null,
             selectedHub: p.selectedHub != null ? p.selectedHub : null,
@@ -129,6 +138,7 @@ export default function StockList() {
 
     const {
         stockList,
+        stockStatusOptions,
         isLoading,
         error,
         updateLoading,
@@ -366,9 +376,14 @@ export default function StockList() {
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
-            active: activeFilter || "true",
+            active: resolveStockListActiveParam(activeFilter),
         });
     }, [getStockList, page, pageSize, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+
+    const statusFilterOptions = useMemo(
+        () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
+        [stockStatusOptions, activeFilter]
+    );
 
     // Debounce filter changes then reset page and trigger fetch
     const filterDebounceRef = useRef(null);
@@ -1295,10 +1310,15 @@ export default function StockList() {
                 return "red";       // Irregularities = Red
             case "cancelled":
                 return "purple";    // Cancelled = Light Purple
+            case "released":
+                return "cyan";
             default:
                 return "gray";
         }
     };
+
+    const renderStockStatus = (status) =>
+        formatStockStatusLabel(status, stockStatusOptions);
 
     // Note: Loading state is now shown inside the table instead of blocking the entire page
 
@@ -1414,10 +1434,18 @@ export default function StockList() {
                                                             size="sm"
                                                             colorScheme="green"
                                                             isChecked={activeFilter !== "false"}
-                                                            onChange={(e) => setActiveFilter(e.target.checked ? "true" : "false")}
+                                                            onChange={(e) => {
+                                                                const next = e.target.checked ? "true" : "false";
+                                                                setActiveFilter(next);
+                                                                if (selectedStatus && isArchiveStockStatus(selectedStatus) !== (next === "false")) {
+                                                                    setSelectedStatus("");
+                                                                }
+                                                            }}
                                                         />
                                                         <Text fontSize="xs" color={tableTextColorSecondary}>
-                                                            {activeFilter === "false" ? "Showing shipped / delivered / cancelled" : "Showing active statuses"}
+                                                            {activeFilter === "false"
+                                                                ? "Showing released / shipped / delivered / cancelled"
+                                                                : "Showing active statuses"}
                                                         </Text>
                                                     </HStack>
                                                 </HStack>
@@ -1609,23 +1637,11 @@ export default function StockList() {
                                                             borderColor={borderColor}
                                                         >
                                                             <option value="">All Statuses</option>
-                                                            {activeFilter === "false" ? (
-                                                                <>
-                                                                    <option value="shipped">Shipped</option>
-                                                                    <option value="delivered">Delivered</option>
-                                                                    <option value="cancelled">Cancelled</option>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <option value="pending">Pending</option>
-                                                                    <option value="stock">Stock</option>
-                                                                    <option value="on_shipping">On Shipping Instr</option>
-                                                                    <option value="on_delivery">On Delivery Instr</option>
-                                                                    <option value="in_transit">In Transit</option>
-                                                                    <option value="arrived">Arrived Dest</option>
-                                                                    <option value="irregular">Irregularities</option>
-                                                                </>
-                                                            )}
+                                                            {statusFilterOptions.map((opt) => (
+                                                                <option key={opt.value} value={opt.value}>
+                                                                    {opt.label}
+                                                                </option>
+                                                            ))}
                                                         </Select>
                                                     </Box>
                                                     {selectedStatus && (
@@ -2203,8 +2219,8 @@ export default function StockList() {
                                                 return renderText(item.di_no) || "-";
                                             })()}</Text></Td>
                                             <Td {...cellProps}>
-                                                <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px="3" py="1">
-                                                    {renderText(item.stock_status)}
+                                                <Badge colorScheme={getStatusColor(normalizeStockStatusKey(item.stock_status))} size="sm" borderRadius="full" px="3" py="1">
+                                                    {renderStockStatus(item.stock_status)}
                                                 </Badge>
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
@@ -2460,8 +2476,8 @@ export default function StockList() {
                                                 )}
                                             </HStack>
                                             {item.stock_status && (
-                                                <Badge colorScheme={getStatusColor(item.stock_status)} size="sm" borderRadius="full" px={3} py={1}>
-                                                    {renderText(item.stock_status)}
+                                                <Badge colorScheme={getStatusColor(normalizeStockStatusKey(item.stock_status))} size="sm" borderRadius="full" px={3} py={1}>
+                                                    {renderStockStatus(item.stock_status)}
                                                 </Badge>
                                             )}
                                         </HStack>

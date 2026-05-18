@@ -16,10 +16,12 @@ async function loadLetterheadOnPdf(doc) {
     });
 }
 
+import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
+
 export function formatStatusForPdf(status) {
-    const value = String(status || "").trim();
-    if (!value) return "-";
-    return value.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
+    const key = normalizeStockStatusKey(status);
+    if (!key) return "-";
+    return formatStockStatusLabel(key);
 }
 
 function clean(value) {

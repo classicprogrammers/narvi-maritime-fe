@@ -161,8 +161,14 @@ export const getStockListApi = async (params = {}) => {
     // Return full response with pagination metadata (support flat and nested result)
     if (data.status === "success" || (res && res.status === "success")) {
       const list = Array.isArray(data.stock_list) ? data.stock_list : (Array.isArray(res?.stock_list) ? res.stock_list : []);
+      const stockStatusOptions = Array.isArray(data.stock_status_options)
+        ? data.stock_status_options
+        : Array.isArray(res?.stock_status_options)
+          ? res.stock_status_options
+          : [];
       return {
         stock_list: list,
+        stock_status_options: stockStatusOptions,
         count: data.count ?? res?.count ?? 0,
         total_count: data.total_count ?? res?.total_count ?? 0,
         page: data.page ?? res?.page ?? page,
