@@ -1868,7 +1868,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     autoTable(doc, {
       startY: twoColStartY,
-      head: [["Field", "Value"]],
+      head: [["", ""]],
       body: summaryRows,
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 3 },
@@ -3410,7 +3410,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <ModalOverlay />
         <ModalContent m={4} maxH="calc(100vh - 2rem)">
           <ModalHeader>
-            Preview
+           CI PL Preview
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>

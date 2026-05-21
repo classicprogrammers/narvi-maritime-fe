@@ -1576,7 +1576,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     autoTable(doc, {
       startY: twoColStartY,
-      head: [["Field", "Value"]],
+      head: [["", ""]],
       body: summaryRows,
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 3 },
