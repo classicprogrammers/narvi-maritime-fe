@@ -78,7 +78,17 @@ export default function ShippingOrderEditPage() {
     // `orderFromState` is already normalized in the list view (SoNumberTab).
     // Keep it as-is so we retain the original `_raw` backend object for diffing.
     setOriginalOrder(orderFromState);
-    setFormData({ ...orderFromState });
+    const existingFiles = Array.isArray(orderFromState.existingAttachments)
+      ? orderFromState.existingAttachments
+      : Array.isArray(orderFromState.attachments)
+        ? orderFromState.attachments
+        : [];
+    setFormData({
+      ...orderFromState,
+      attachments: [],
+      existingAttachments: existingFiles,
+      attachment_to_delete: orderFromState.attachment_to_delete || [],
+    });
   }, [id, location.state, history, toast]);
 
   useEffect(() => {

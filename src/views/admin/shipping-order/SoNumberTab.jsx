@@ -72,7 +72,7 @@ import {
   updateShippingOrder,
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
-import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
+import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
 import {
   applyShippingOrderAttachmentsToPayload,
   notifyShippingOrderSaveResult,
@@ -1019,7 +1019,7 @@ const SoNumberTab = () => {
         </Td>
         <Td {...tableCellProps} maxW="200px">
           {(() => {
-            const files = Array.isArray(order.attachments) ? order.attachments : [];
+            const files = getOrderAttachmentsForDisplay(order);
             const count = files.length;
             if (count === 0) {
               return (

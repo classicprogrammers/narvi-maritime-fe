@@ -33,8 +33,11 @@ export default function ShippingOrderAttachmentsField({
   const [loadingAttachmentId, setLoadingAttachmentId] = useState(null);
   const resolvedOrderId = orderId ?? formData?.id ?? null;
 
-  const pending = formData?.attachments || [];
   const existing = formData?.existingAttachments || [];
+  /** Only not-yet-saved uploads (base64); ignore server files wrongly placed in attachments */
+  const pending = (formData?.attachments || []).filter(
+    (att) => att && att.datas != null && String(att.datas).trim() !== ""
+  );
 
   const handleUpload = async (fileList) => {
     if (!fileList?.length) return;

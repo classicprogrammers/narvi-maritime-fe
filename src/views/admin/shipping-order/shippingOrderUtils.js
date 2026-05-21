@@ -38,6 +38,8 @@ export function normalizeOrder(order) {
     ? `SO-${soIdVal}`
     : (order.so_number || (order.id ? `SO-${order.id}` : ""));
 
+  const attachmentList = mapExistingAttachmentsFromOrder(order);
+
   return {
     id: order.id,
     so_id: soIdVal,
@@ -70,11 +72,24 @@ export function normalizeOrder(order) {
     quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
     quotation_id: order.quotation_id && order.quotation_id !== false ? order.quotation_id : null,
     timestamp: order.timestamp || order.so_create_date || order.date_order,
+    /** New uploads only (base64); saved files live in existingAttachments */
     attachments: [],
-    existingAttachments: mapExistingAttachmentsFromOrder(order),
+    existingAttachments: attachmentList,
     attachment_to_delete: [],
     _raw: order,
   };
+}
+
+/** Saved + pending files for list/tooltips (edit form uses existingAttachments + attachments separately). */
+export function getOrderAttachmentsForDisplay(order) {
+  if (!order) return [];
+  if (Array.isArray(order.existingAttachments) && order.existingAttachments.length > 0) {
+    return order.existingAttachments;
+  }
+  if (Array.isArray(order.attachments) && order.attachments.length > 0) {
+    return order.attachments;
+  }
+  return mapExistingAttachmentsFromOrder(order._raw || order);
 }
 
 /**
