@@ -1,6 +1,7 @@
 /**
  * Shared utilities for shipping order list and edit page.
  */
+import { mapExistingAttachmentsFromOrder } from "../../../utils/shippingOrderAttachments";
 
 export function toDateOnly(dateStr) {
   if (!dateStr) return "";
@@ -69,6 +70,9 @@ export function normalizeOrder(order) {
     quotation: order.quotation || order.quotation_name || order.quotation_oc_number || "",
     quotation_id: order.quotation_id && order.quotation_id !== false ? order.quotation_id : null,
     timestamp: order.timestamp || order.so_create_date || order.date_order,
+    attachments: [],
+    existingAttachments: mapExistingAttachmentsFromOrder(order),
+    attachment_to_delete: [],
     _raw: order,
   };
 }

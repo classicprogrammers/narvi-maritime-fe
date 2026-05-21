@@ -45,6 +45,63 @@ const handleApiError = (error, operation) => {
   throw new Error(errorMessage);
 };
 
+// Load destination / AP destination dropdown options for stock list forms
+export const getStockListOptionsApi = async (params = {}) => {
+  try {
+    const {
+      q_destination = "",
+      q_ap_destination = "",
+      q_destination_ids,
+      q_ap_destination_ids,
+      page = 1,
+      page_size = 50,
+    } = params;
+
+    const payload = { page, page_size };
+    const destQ =
+      q_destination != null && String(q_destination).trim() !== ""
+        ? String(q_destination).trim()
+        : q_destination_ids != null && String(q_destination_ids).trim() !== ""
+          ? String(q_destination_ids).trim()
+          : "";
+    const apDestQ =
+      q_ap_destination != null && String(q_ap_destination).trim() !== ""
+        ? String(q_ap_destination).trim()
+        : q_ap_destination_ids != null && String(q_ap_destination_ids).trim() !== ""
+          ? String(q_ap_destination_ids).trim()
+          : "";
+    if (destQ) payload.q_destination = destQ;
+    if (apDestQ) payload.q_ap_destination = apDestQ;
+
+    const response = await api.post(getApiEndpoint("STOCK_LIST_OPTIONS"), payload);
+    const data = response.data || response;
+    const res = data.result || data;
+
+    if (data.result && data.result.status === "error") {
+      throw new Error(data.result.message || "Failed to fetch stock list options");
+    }
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch stock list options");
+    }
+
+    const source = data.status === "success" || res?.status === "success" ? (res || data) : data;
+    return {
+      destination_options: Array.isArray(source.destination_options) ? source.destination_options : [],
+      destination_total_count: source.destination_total_count ?? 0,
+      destination_total_pages: source.destination_total_pages ?? 0,
+      ap_destination_options: Array.isArray(source.ap_destination_options) ? source.ap_destination_options : [],
+      ap_destination_total_count: source.ap_destination_total_count ?? 0,
+      ap_destination_total_pages: source.ap_destination_total_pages ?? 0,
+      page: source.page ?? page,
+      page_size: source.page_size ?? page_size,
+    };
+  } catch (error) {
+    console.error("Get stock list options error:", error);
+    handleApiError(error, "Get stock list options");
+    throw error;
+  }
+};
+
 // Get stock list with pagination and search/filters (all params passed through to backend)
 export const getStockListApi = async (params = {}) => {
   try {

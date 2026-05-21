@@ -47,11 +47,19 @@ import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
+import {
+    buildStockDestinationIdsPayload,
+    getStockM2OId,
+    getStockM2OName,
+} from "../../../utils/stockDestinationOptions";
 import {
     buildStockReportPdfAttachmentForItem,
     createStockPdfRowHelpers,
     mapStandardFormRowToAdminItem,
 } from "../../../utils/stockReportPdf";
+import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 
 export default function StockForm() {
     const history = useHistory();
@@ -65,6 +73,7 @@ export default function StockForm() {
     const { user } = useUser();
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
+    const { destinationOptions, apDestinationOptions } = useStockDestinationOptions();
     const [isLoading, setIsLoading] = useState(isEditing);
     const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
     const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
@@ -120,8 +129,12 @@ export default function StockForm() {
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel
-        destination: "", // Auto-filled from vessel (destination field)
-        apDestination: "", // AP Destination - Free text
+        destination: "", // Free text (destination_new)
+        destinationId: null,
+        destinationSelect: "",
+        apDestination: "", // Free text (ap_destination_new)
+        apDestinationId: null,
+        apDestinationSelect: "",
         itemId: "",
         item: "",
         volumeCbm: "",
@@ -135,6 +148,7 @@ export default function StockForm() {
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
+    const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const statusPdfScheduleDedupeRef = useRef(null);
 
     const stockReportPdfHelpers = useMemo(
@@ -544,7 +558,19 @@ export default function StockForm() {
             vesselDestination: normalizeId(stock.vessel_destination) || normalizeId(stock.destination) || "",
             vesselEta: getFieldValue(stock.vessel_eta),
             destination: getFieldValue(stock.destination_new) || getFieldValue(stock.destination) || "",
+            destinationId: getStockM2OId(stock.destination_ids),
+            destinationSelect:
+                getStockM2OName(stock.destination_ids) ||
+                getFieldValue(stock.destination_new) ||
+                getFieldValue(stock.destination) ||
+                "",
             apDestination: getFieldValue(stock.ap_destination_new) || getFieldValue(stock.ap_destination) || "",
+            apDestinationId: getStockM2OId(stock.ap_destination_ids),
+            apDestinationSelect:
+                getStockM2OName(stock.ap_destination_ids) ||
+                getFieldValue(stock.ap_destination_new) ||
+                getFieldValue(stock.ap_destination) ||
+                "",
             itemId: normalizeId(stock.item_id) || "",
             item: stock.item || stock.items || stock.item_id || stock.stock_items_quantity || "",
             volumeCbm: getFieldValue(stock.volume_cbm, ""),
@@ -779,7 +805,12 @@ export default function StockForm() {
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
             currency_id: rowData.currency ? String(rowData.currency) : "",
             origin_text: rowData.origin_text ? String(rowData.origin_text) : "",
-            ap_destination_new: rowData.apDestination || "",
+            ap_destination_ids: buildStockDestinationIdsPayload(
+                rowData.apDestinationId,
+                rowData.apDestinationSelect,
+                apDestinationOptions
+            ),
+            ap_destination_new: "",
             via_hub: rowData.viaHub || "", // Free text field
             attachments: rowData.attachments || [], // Include attachments in payload
             attachment_to_delete: rowData.attachmentsToDelete || [], // Include attachment IDs to delete
@@ -832,7 +863,12 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
-            destination_new: rowData.destination || "",
+            destination_ids: buildStockDestinationIdsPayload(
+                rowData.destinationId,
+                rowData.destinationSelect,
+                destinationOptions
+            ),
+            destination_new: "",
             warehouse_new: rowData.warehouseId || "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
@@ -1142,7 +1178,6 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
@@ -1167,6 +1202,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Remarks</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase"></Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Client Access</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Stock Status</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Files</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Actions</Th>
                             </Tr>
@@ -1233,29 +1269,6 @@ export default function StockForm() {
                                             borderColor={borderColor}
                                             size="sm"
                                         />
-                                    </Td>
-                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <Select
-                                            value={row.stockStatus}
-                                            onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
-                                            size="sm"
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        >
-                                            <option value="">Select</option>
-                                            <option value="released">Released</option>
-                                            <option value="pending">Pending</option>
-                                            <option value="stock">Stock</option>
-                                            <option value="on_shipping">On Shipping Instr</option>
-                                            <option value="on_delivery">On Delivery Instr</option>
-                                            <option value="in_transit">In Transit</option>
-                                            <option value="arrived">Arrived Dest</option>
-                                            <option value="shipped">Shipped</option>
-                                            <option value="delivered">Delivered</option>
-                                            <option value="irregular">Irregularities</option>
-                                            <option value="cancelled">Cancelled</option>
-                                        </Select>
                                     </Td>
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px" overflow="visible" position="relative" zIndex={1}>
                                         <SimpleSearchableSelect
@@ -1721,6 +1734,29 @@ export default function StockForm() {
                                             <option value="true">Yes</option>
                                         </Select>
                                     </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Select
+                                            value={row.stockStatus}
+                                            onChange={(e) => handleInputChange(rowIndex, "stockStatus", e.target.value)}
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        >
+                                            <option value="">Select</option>
+                                            <option value="released">Released</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="stock">Stock</option>
+                                            <option value="on_shipping">On Shipping Instr</option>
+                                            <option value="on_delivery">On Delivery Instr</option>
+                                            <option value="in_transit">In Transit</option>
+                                            <option value="arrived">Arrived Dest</option>
+                                            <option value="shipped">Shipped</option>
+                                            <option value="delivered">Delivered</option>
+                                            <option value="irregular">Irregularities</option>
+                                            <option value="cancelled">Cancelled</option>
+                                        </Select>
+                                    </Td>
                                     {/* Files - Upload/Download button */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
                                         <VStack spacing={2} align="stretch">
@@ -1755,39 +1791,109 @@ export default function StockForm() {
                                                 </Text>
                                             )}
 
-                                            {/* Display existing attachments */}
-                                            {(row.existingAttachments || []).map((att, attIdx) => (
-                                                <Flex key={`existing-${att.id || attIdx}`} align="center" justify="space-between" fontSize="xs">
-                                                    <Text isTruncated flex={1} title={att.filename}>
-                                                        {att.filename}
-                                                    </Text>
-                                                    <IconButton
-                                                        aria-label="Delete attachment"
-                                                        icon={<MdRemove />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="red"
-                                                        onClick={() => handleDeleteExistingAttachment(rowIndex, att.id)}
-                                                    />
-                                                </Flex>
-                                            ))}
-
-                                            {/* Display newly uploaded attachments */}
-                                            {(row.attachments || []).map((att, attIdx) => (
-                                                <Flex key={`new-${attIdx}`} align="center" justify="space-between" fontSize="xs">
-                                                    <Text isTruncated flex={1} title={att.filename}>
-                                                        {att.filename}
-                                                    </Text>
-                                                    <IconButton
-                                                        aria-label="Remove attachment"
-                                                        icon={<MdRemove />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="red"
-                                                        onClick={() => handleDeleteAttachment(rowIndex, attIdx)}
-                                                    />
-                                                </Flex>
-                                            ))}
+                                            {(() => {
+                                                const { nonReportExisting, nonReportPending, reportEntries } =
+                                                    partitionAttachmentsRow(row);
+                                                const latestReport = reportEntries[0];
+                                                const olderReports = reportEntries.slice(1);
+                                                return (
+                                                    <>
+                                                        {nonReportExisting.map((att, attIdx) => (
+                                                            <Flex
+                                                                key={`existing-${att.id || attIdx}`}
+                                                                align="center"
+                                                                justify="space-between"
+                                                                fontSize="xs"
+                                                            >
+                                                                <Text isTruncated flex={1} title={att.filename}>
+                                                                    {att.filename}
+                                                                </Text>
+                                                                <IconButton
+                                                                    aria-label="Delete attachment"
+                                                                    icon={<MdRemove />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="red"
+                                                                    onClick={() =>
+                                                                        handleDeleteExistingAttachment(rowIndex, att.id)
+                                                                    }
+                                                                />
+                                                            </Flex>
+                                                        ))}
+                                                        {latestReport && (
+                                                            <Flex
+                                                                key={`latest-report-${
+                                                                    latestReport.source === "existing"
+                                                                        ? latestReport.id
+                                                                        : `new-${latestReport.newIndex}`
+                                                                }`}
+                                                                align="center"
+                                                                justify="space-between"
+                                                                fontSize="xs"
+                                                            >
+                                                                <Text
+                                                                    isTruncated
+                                                                    flex={1}
+                                                                    title={latestReport.att.filename}
+                                                                >
+                                                                    {latestReport.att.filename}
+                                                                </Text>
+                                                                <IconButton
+                                                                    aria-label="Delete latest status report"
+                                                                    icon={<MdRemove />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="red"
+                                                                    onClick={() =>
+                                                                        latestReport.source === "existing"
+                                                                            ? handleDeleteExistingAttachment(
+                                                                                  rowIndex,
+                                                                                  latestReport.id
+                                                                              )
+                                                                            : handleDeleteAttachment(
+                                                                                  rowIndex,
+                                                                                  latestReport.newIndex
+                                                                              )
+                                                                    }
+                                                                />
+                                                            </Flex>
+                                                        )}
+                                                        {olderReports.length > 0 && (
+                                                            <Button
+                                                                size="xs"
+                                                                variant="link"
+                                                                colorScheme="blue"
+                                                                fontWeight="normal"
+                                                                onClick={() => setStockReportHistoryRowIndex(rowIndex)}
+                                                            >
+                                                                Previous status reports ({olderReports.length})
+                                                            </Button>
+                                                        )}
+                                                        {nonReportPending.map(({ att, newIndex }) => (
+                                                            <Flex
+                                                                key={`new-${newIndex}`}
+                                                                align="center"
+                                                                justify="space-between"
+                                                                fontSize="xs"
+                                                            >
+                                                                <Text isTruncated flex={1} title={att.filename}>
+                                                                    {att.filename}
+                                                                </Text>
+                                                                <IconButton
+                                                                    aria-label="Remove attachment"
+                                                                    icon={<MdRemove />}
+                                                                    size="xs"
+                                                                    variant="ghost"
+                                                                    colorScheme="red"
+                                                                    onClick={() =>
+                                                                        handleDeleteAttachment(rowIndex, newIndex)
+                                                                    }
+                                                                />
+                                                            </Flex>
+                                                        ))}
+                                                    </>
+                                                );
+                                            })()}
                                         </VStack>
                                     </Td>
                                     <Td px="8px" py="8px">
@@ -1819,6 +1925,20 @@ export default function StockForm() {
                     </Table>
                 </Card>
             </Box>
+            <StockReportHistoryModal
+                isOpen={stockReportHistoryRowIndex !== null}
+                onClose={() => setStockReportHistoryRowIndex(null)}
+                entries={
+                    stockReportHistoryRowIndex !== null
+                        ? partitionAttachmentsRow(formRows[stockReportHistoryRowIndex]).reportEntries.slice(1)
+                        : []
+                }
+                rowIndex={stockReportHistoryRowIndex ?? 0}
+                stockItemId={null}
+                showFileActions={false}
+                onDeleteExisting={handleDeleteExistingAttachment}
+                onDeletePending={handleDeleteAttachment}
+            />
         </Box>
     );
 }

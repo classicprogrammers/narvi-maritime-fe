@@ -49,7 +49,11 @@ import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
 import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
+import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
+import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
+import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import {
     formatStockStatusLabel,
     getStatusOptionsForActiveFilter,
@@ -190,6 +194,7 @@ export default function StockList() {
     // Filter section visibility - default to open
     const [isFiltersOpen, setIsFiltersOpen] = useState(true);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
+    const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
 
     // Master data for filter dropdown options; display uses getDisplayName from API {id, name}
     const [locations, setLocations] = useState([]);
@@ -2204,11 +2209,16 @@ export default function StockList() {
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{(() => {
-                                                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                                                const prefixed = addSOPrefix(soValue);
-                                                return prefixed || "-";
-                                            })()}</Text></Td>
+                                            <Td {...cellProps}>
+                                                <StockSoNumberLink
+                                                    item={item}
+                                                    label={(() => {
+                                                        const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
+                                                        return addSOPrefix(soValue) || "-";
+                                                    })()}
+                                                    textProps={cellText}
+                                                />
+                                            </Td>
                                             <Td {...cellProps}><Text {...cellText}>{(() => {
                                                 return renderText(item.si_number) || "-";
                                             })()}</Text></Td>
@@ -2229,8 +2239,8 @@ export default function StockList() {
                                             <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text></Td>
-                                            <Td {...cellProps}><Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
+                                            <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
@@ -2291,44 +2301,15 @@ export default function StockList() {
                                             <Td {...cellProps}><Text {...cellText}>{getVesselEta(item.vessel_id || item.vessel, item)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{formatDateTime(item.sl_create_datetime)}</Text></Td>
                                             <Td {...cellProps}>
-                                                {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                                    <VStack spacing={1} align="stretch">
-                                                        {item.attachments.map((att, idx) => (
-                                                            <HStack key={idx} spacing={1} align="center">
-                                                                <Text
-                                                                    fontSize="xs"
-                                                                    isTruncated
-                                                                    flex={1}
-                                                                    title={att.filename || att.name}
-                                                                    cursor="pointer"
-                                                                    color="blue.500"
-                                                                    _hover={{ textDecoration: "underline" }}
-                                                                    onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                                >
-                                                                    {att.filename || att.name || `File ${idx + 1}`}
-                                                                </Text>
-                                                                <IconButton
-                                                                    icon={<Icon as={MdVisibility} />}
-                                                                    size="xs"
-                                                                    variant="ghost"
-                                                                    colorScheme="blue"
-                                                                    aria-label="View file"
-                                                                    onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                                />
-                                                                <IconButton
-                                                                    icon={<Icon as={MdDownload} />}
-                                                                    size="xs"
-                                                                    variant="ghost"
-                                                                    colorScheme="green"
-                                                                    aria-label="Download file"
-                                                                    onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                                                />
-                                                            </HStack>
-                                                        ))}
-                                                    </VStack>
-                                                ) : (
-                                                    <Text fontSize="xs" color="gray.500">No files</Text>
-                                                )}
+                                                <StockListAttachmentsCell
+                                                    attachments={item.attachments}
+                                                    stockItemId={item.id || item.stock_item_id}
+                                                    onViewFile={handleViewFile}
+                                                    onDownloadFile={handleDownloadFile}
+                                                    onOpenPreviousReports={(entries, stockItemId) =>
+                                                        setStockReportHistoryContext({ entries, stockItemId })
+                                                    }
+                                                />
                                             </Td>
                                             <Td {...cellProps}>
                                                 <IconButton
@@ -2510,9 +2491,11 @@ export default function StockList() {
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
                                                     SO Number
                                                 </Text>
-                                                <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                                                    {item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}
-                                                </Text>
+                                                <StockSoNumberLink
+                                                    item={item}
+                                                    label={item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}
+                                                    textProps={{ fontSize: "sm", fontWeight: "medium" }}
+                                                />
                                             </Box>
                                             <Box>
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
@@ -2831,6 +2814,18 @@ export default function StockList() {
                     </ModalFooter>
                 </ModalContent>
             </Modal>
+
+            <StockReportHistoryModal
+                isOpen={!!stockReportHistoryContext}
+                onClose={() => setStockReportHistoryContext(null)}
+                entries={stockReportHistoryContext?.entries ?? []}
+                rowIndex={0}
+                stockItemId={stockReportHistoryContext?.stockItemId ?? null}
+                showFileActions
+                allowDelete={false}
+                onViewFile={handleViewFile}
+                onDownloadFile={handleDownloadFile}
+            />
 
         </Box>
     );

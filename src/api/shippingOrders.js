@@ -1,4 +1,6 @@
-import api from './axios';
+import api from "./axios";
+import { getApiEndpoint, API_CONFIG } from "../config/api";
+import { parseContentDispositionFilename } from "../utils/shippingOrderAttachments";
 
 // Get all shipping orders with pagination and search
 export const getShippingOrders = async (params = {}) => {
@@ -175,6 +177,86 @@ export const updateShippingOrder = async (id, orderData, originalData = {}) => {
   }
 };
 
+/** GET /api/shipping/order/:orderId/attachments — metadata only */
+export const getShippingOrderAttachmentsApi = async (orderId) => {
+  try {
+    const response = await api.get(
+      `${getApiEndpoint("SHIPPING_ORDER")}/${orderId}/attachments`
+    );
+    const data = response.data || response;
+    if (data.result && data.result.status === "error") {
+      throw new Error(data.result.message || "Failed to fetch attachments");
+    }
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch attachments");
+    }
+    const source = data.status === "success" || data.result?.status === "success" ? data : data;
+    const attachments = Array.isArray(source.attachments)
+      ? source.attachments
+      : Array.isArray(source.result?.attachments)
+        ? source.result.attachments
+        : [];
+    return { attachments, ...source };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/** GET /api/shipping/order/:orderId/attachment/:attachmentId/download */
+export const downloadShippingOrderAttachmentApi = async (
+  orderId,
+  attachmentId,
+  forceDownload = false
+) => {
+  try {
+    const url = `${getApiEndpoint("SHIPPING_ORDER")}/${orderId}/attachment/${attachmentId}/download${
+      forceDownload ? "?download=true" : ""
+    }`;
+    const response = await api.get(url, { responseType: "blob" });
+
+    if (response.data instanceof Blob && response.data.type === "application/json") {
+      const text = await response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result && jsonData.result.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to download attachment");
+      }
+      return jsonData;
+    }
+
+    const disposition = response.headers["content-disposition"];
+    return {
+      data: response.data,
+      type: response.headers["content-type"] || "application/octet-stream",
+      filename: parseContentDispositionFilename(disposition),
+      contentDisposition: disposition,
+    };
+  } catch (error) {
+    if (error.response?.data instanceof Blob && error.response.data.type === "application/json") {
+      const text = await error.response.data.text();
+      const jsonData = JSON.parse(text);
+      if (jsonData.result?.status === "error") {
+        throw new Error(jsonData.result.message || "Failed to download attachment");
+      }
+    }
+    throw error;
+  }
+};
+
+/** Build absolute download URL when API returns a relative download_url. */
+export const buildShippingOrderAttachmentUrl = (orderId, attachment, forceDownload = false) => {
+  const base = (API_CONFIG.BASE_URL || "").replace(/\/$/, "");
+  if (attachment?.download_url) {
+    const path = String(attachment.download_url);
+    const absolute = path.startsWith("http") ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+    return forceDownload
+      ? `${absolute}${absolute.includes("?") ? "&" : "?"}download=true`
+      : absolute;
+  }
+  return `${base}${getApiEndpoint("SHIPPING_ORDER")}/${orderId}/attachment/${attachment.id}/download${
+    forceDownload ? "?download=true" : ""
+  }`;
+};
+
 // Delete shipping order
 export const deleteShippingOrder = async (id) => {
   try {
@@ -198,4 +280,7 @@ export default {
   createShippingOrder,
   updateShippingOrder,
   deleteShippingOrder,
+  getShippingOrderAttachmentsApi,
+  downloadShippingOrderAttachmentApi,
+  buildShippingOrderAttachmentUrl,
 };

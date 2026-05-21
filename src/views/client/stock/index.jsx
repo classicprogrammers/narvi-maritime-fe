@@ -46,10 +46,25 @@ import clientStockApi from "api/clientStock";
 import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import { normalizeStockStatusKey } from "constants/stockStatus";
+import { getAttachmentEntriesNewestFirst } from "utils/stockReportAttachmentsUi";
+import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
+import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
+import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
 import * as XLSX from "xlsx";
-import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
+
+/** Client portal: status reports only visible when stock status is STOCK. */
+const isClientPortalStockStatus = (status) => normalizeStockStatusKey(status) === "stock";
+
+const resolveReportDownloadFilename = (attachment, response) => {
+  const name = attachment?.filename || attachment?.name;
+  if (name && String(name).trim()) {
+    return normalizeLegacyStockReportFilename(String(name).trim());
+  }
+  const fromHeader = response?.filename;
+  if (fromHeader) return normalizeLegacyStockReportFilename(fromHeader);
+  return "stock-report.pdf";
+};
 
 function ClientStock() {
   const location = useLocation();
@@ -71,14 +86,20 @@ function ClientStock() {
   const [vesselFilterOptions, setVesselFilterOptions] = useState([]);
   const [hubFilterOptions, setHubFilterOptions] = useState([]);
   const [selectedRowIds, setSelectedRowIds] = useState([]);
-  const [isBulkPdfLoading, setIsBulkPdfLoading] = useState(false);
-  const [pdfPreviewItems, setPdfPreviewItems] = useState([]);
+  const [isBulkReportLoading, setIsBulkReportLoading] = useState(false);
+  const [reportPreviewItems, setReportPreviewItems] = useState([]);
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
-  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+  const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
   const [isPreparingPreview, setIsPreparingPreview] = useState(false);
+  const [loadingReportKey, setLoadingReportKey] = useState(null);
   const [isDimensionsModalOpen, setIsDimensionsModalOpen] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState([]);
   const [clientSortOption, setClientSortOption] = useState("none");
+  const [previousReportsModal, setPreviousReportsModal] = useState({
+    isOpen: false,
+    entries: [],
+    stockRecordId: null,
+  });
   const toast = useToast();
 
   const cardBg = useColorModeValue("white", "navy.800");
@@ -138,8 +159,20 @@ function ClientStock() {
           ? String(value)
           : "-";
 
-      const normalizedRows = (res?.stock_list || []).map((item, idx) => ({
-        id: `${item.stock_item_id || "stock"}-${idx}`,
+      const normalizedRows = (res?.stock_list || []).map((item, idx) => {
+        const stockStatusRaw = item.stock_status;
+        const attachmentEntries = getAttachmentEntriesNewestFirst(item.attachments);
+        const reportAttachments = attachmentEntries.map((e) => e.att);
+        return {
+        id: `${item.id ?? item.stock_item_id ?? "stock"}-${idx}`,
+        stockRecordId: item.id,
+        stockItemId: item.stock_item_id ?? item.stock_id,
+        stockStatusKey: normalizeStockStatusKey(stockStatusRaw),
+        rawAttachments: Array.isArray(item.attachments) ? item.attachments : [],
+        attachmentEntries,
+        reportAttachments,
+        latestReport: attachmentEntries[0]?.att ?? null,
+        previousReportEntries: attachmentEntries.slice(1),
         client: toDisplay(item.client?.name || res?.client?.name),
         dateOnStock: toDisplay(item.date_on_stock || item.first_entry_date),
         firstEntryDate: toDisplay(item.first_entry_date || item.date_on_stock),
@@ -161,7 +194,8 @@ function ClientStock() {
         viaHub2: toDisplay(item.via_hub_2),
         apDestination: toDisplay(item.ap_destination),
         destination: toDisplay(item.destination),
-        stockStatus: toDisplay(item.stock_status),
+        stockStatus: toDisplay(stockStatusRaw),
+        stockStatusRaw,
         soNumber: toDisplay(item.so_number),
         currency: toDisplay(item.currency),
         value: toNumberDisplay(item.value),
@@ -176,7 +210,8 @@ function ClientStock() {
             ? item.dimensions
             : [],
         pcsCount: item.pcs?.count ?? item.pieces ?? item.boxes ?? item.box ?? 0,
-      }));
+      };
+      });
       setStockRows(normalizedRows);
       setClientName(res?.client?.name || "");
     } catch (_e) {
@@ -391,188 +426,67 @@ function ClientStock() {
   const toSelectOptions = (values) =>
     values.map((value) => ({ id: value, name: value }));
 
-  const loadLetterheadOnPdf = async (doc) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
-        resolve();
-      };
-      img.onerror = reject;
-      img.src = narviLetterheadPrint;
-    });
-  };
+  const reportKey = (row, attachment) => `${row.id}-${attachment?.id ?? attachment?.filename}`;
 
-  const buildStockRowPdf = async (row) => {
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "pt",
-      format: "a4",
-      compress: true,
-    });
-    const contentLeft = 30;
-    const contentTop = 150;
-
-    try {
-      await loadLetterheadOnPdf(doc);
-    } catch (e) {
-      console.error("Failed to load letterhead image for stock PDF:", e);
+  const fetchReportBlob = async (row, attachment, forceDownload) => {
+    const stockRecordId = row.stockRecordId ?? row.stockItemId;
+    if (!stockRecordId || attachment?.id == null) {
+      throw new Error("Report file is not available for this row.");
     }
+    return clientStockApi.downloadClientStockAttachmentApi(
+      stockRecordId,
+      attachment,
+      forceDownload
+    );
+  };
 
-    doc.setFontSize(12);
-    doc.text(`Stock Report - ${row.vessel || "-"}`, contentLeft, contentTop);
-    doc.setFontSize(9);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, contentLeft, contentTop + 14);
+  const handleOpenPreviousReports = (entries, stockRecordId) => {
+    setPreviousReportsModal({
+      isOpen: true,
+      entries: entries || [],
+      stockRecordId,
+    });
+  };
 
-    const drawSectionHeader = (title, yPos) => {
-      autoTable(doc, {
-        startY: yPos,
-        head: [[title]],
-        body: [],
-        theme: "plain",
-        styles: { fontSize: 10, cellPadding: 5 },
-        headStyles: { fillColor: [236, 238, 241], textColor: [33, 33, 33], fontStyle: "bold" },
-        margin: { left: contentLeft, right: 24 },
+  const handleClosePreviousReports = () => {
+    setPreviousReportsModal({ isOpen: false, entries: [], stockRecordId: null });
+  };
+
+  const handleViewReportFile = async (row, attachment) => {
+    const stockRecordId = row.stockRecordId ?? row.stockItemId;
+    if (!stockRecordId || !attachment?.id) return;
+    setIsPreparingPreview(true);
+    try {
+      const response = await fetchReportBlob({ stockRecordId }, attachment, false);
+      if (!(response?.data instanceof Blob)) {
+        throw new Error("Could not load file.");
+      }
+      const blobUrl = URL.createObjectURL(response.data);
+      setReportPreviewItems((prev) => {
+        clearPreviewUrls(prev);
+        return [
+          {
+            rowId: row.id,
+            stockRecordId,
+            attachmentId: attachment.id,
+            filename: resolveReportDownloadFilename(attachment, response),
+            blobUrl,
+          },
+        ];
       });
-      return (doc.lastAutoTable?.finalY || yPos) + 2;
-    };
-
-    const clean = (value) =>
-      value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
-    const toFixedOrDash = (value, digits = 3) =>
-      value != null && value !== false && value !== "" && !Number.isNaN(Number(value))
-        ? Number(value).toFixed(digits)
-        : "-";
-
-    const stockDetailsRows = [
-      ["PO number", clean(row.poNo), "Stock number", clean(row.stockNumber)],
-      ["Supplier", clean(row.supplier), "Status", clean(formatStatus(row.stockStatus))],
-      ["First entry location", clean(row.firstEntryLocation), "First entry date", clean(row.firstEntryDate)],
-      ["Destination", clean(row.destination), "AP Destination", clean(row.apDestination)],
-      ["Weight", clean(row.weight), "CBM", clean(row.totalVolumeCbm)],
-      ["Pieces", clean(row.boxes), "Priority", "-"],
-      ["Delivery Irregularities", clean(row.deliveryIrregularities), "PO remarks", clean(row.poRemarks)],
-      ["SO Number", clean(row.soNumber), "Currency / Value", `${clean(row.currency)} ${clean(row.value)}`],
-      ["Vessel", clean(row.vessel), "Client", clean(row.client)],
-      ["DG/UN Number", clean(row.dgUnNumber), "Via Hub 1 / 2", `${clean(row.viaHub1)} / ${clean(row.viaHub2)}`],
-    ];
-
-    let cursorY = drawSectionHeader("Stock details", contentTop + 24);
-    autoTable(doc, {
-      startY: cursorY,
-      body: stockDetailsRows,
-      theme: "plain",
-      styles: { fontSize: 8.7, cellPadding: { top: 3, right: 5, bottom: 3, left: 5 } },
-      margin: { left: contentLeft, right: 24 },
-      columnStyles: {
-        0: { fontStyle: "bold", cellWidth: 110 },
-        1: { cellWidth: 150 },
-        2: { fontStyle: "bold", cellWidth: 110 },
-        3: { cellWidth: 150 },
-      },
-    });
-
-    cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
-    cursorY = drawSectionHeader("Location history", cursorY);
-    const locationHistoryRows = Array.isArray(row.locationHistory) && row.locationHistory.length
-      ? row.locationHistory.map((entry) => [
-        "Location",
-        clean(entry?.location),
-        "Delivery date",
-        clean(entry?.delivery_date),
-      ])
-      : [["Location", clean(row.firstEntryLocation || row.origin), "Delivery date", clean(row.firstEntryDate || row.dateOnStock)]];
-    autoTable(doc, {
-      startY: cursorY,
-      body: locationHistoryRows,
-      theme: "plain",
-      styles: { fontSize: 9, cellPadding: 5 },
-      margin: { left: contentLeft, right: 24 },
-      columnStyles: {
-        0: { fontStyle: "bold", cellWidth: 110 },
-        1: { cellWidth: 150 },
-        2: { fontStyle: "bold", cellWidth: 110 },
-        3: { cellWidth: 150 },
-      },
-    });
-
-    cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
-    const pcsLines = Array.isArray(row.pcsLines) ? row.pcsLines : [];
-    cursorY = drawSectionHeader(`Pcs (${clean(row.pcsCount || row.boxes || pcsLines.length || 0)})`, cursorY);
-    const pcsRows = pcsLines.length
-      ? pcsLines.flatMap((line, lineIndex) => ([
-        [
-          clean(line?.piece_name || `Piece ${line?.piece_no ?? lineIndex + 1}`),
-          clean(line?.warehouse_ref),
-          "Warehouse ref",
-          clean(line?.warehouse_ref),
-        ],
-        [
-          "L x W x H",
-          clean(line?.lwh || (
-            line?.length_cm || line?.width_cm || line?.height_cm
-              ? `${clean(line?.length_cm)} x ${clean(line?.width_cm)} x ${clean(line?.height_cm)}`
-              : "-"
-          )),
-          "CBM",
-          clean(toFixedOrDash(line?.cbm, 3)),
-        ],
-        [
-          "VW",
-          clean(toFixedOrDash(line?.vw, 2)),
-          "Weight",
-          clean(toFixedOrDash(line?.weight ?? line?.weight_kg, 2)),
-        ],
-      ]))
-      : [[
-        "Piece 1",
-        `${clean(row.client)} - ${clean(row.warehouseId)}`,
-        "Warehouse ref",
-        clean(row.warehouseId),
-      ], [
-        "L x W x H",
-        "-",
-        "CBM",
-        clean(row.totalVolumeCbm),
-      ], [
-        "VW",
-        "-",
-        "Weight",
-        clean(row.weight),
-      ]];
-    autoTable(doc, {
-      startY: cursorY,
-      body: pcsRows,
-      theme: "plain",
-      styles: { fontSize: 9, cellPadding: 5 },
-      margin: { left: contentLeft, right: 24, bottom: 24 },
-      columnStyles: {
-        0: { fontStyle: "bold", cellWidth: 110 },
-        1: { cellWidth: 150 },
-        2: { fontStyle: "bold", cellWidth: 110 },
-        3: { cellWidth: 150 },
-      },
-    });
-
-    return doc;
-  };
-
-  const getStockPdfFilename = (row) => {
-    const vesselSlug = String(row.vessel || "vessel")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    const warehouseSlug = String(row.warehouseId || "warehouse")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    return `stock-${vesselSlug || "vessel"}-${warehouseSlug || "warehouse"}.pdf`;
-  };
-
-  const handleDownloadSinglePdf = async (row) => {
-    await handleOpenPdfPreview([row]);
+      setActivePreviewIndex(0);
+      setIsReportPreviewOpen(true);
+    } catch (e) {
+      toast({
+        title: "Unable to open file",
+        description: e?.message || "Please try again.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsPreparingPreview(false);
+    }
   };
 
   const triggerBrowserDownload = (blobUrl, filename) => {
@@ -590,10 +504,10 @@ function ClientStock() {
     });
   }, []);
 
-  const handleClosePdfPreview = useCallback(() => {
-    setIsPdfPreviewOpen(false);
+  const handleCloseReportPreview = useCallback(() => {
+    setIsReportPreviewOpen(false);
     setActivePreviewIndex(0);
-    setPdfPreviewItems((prev) => {
+    setReportPreviewItems((prev) => {
       clearPreviewUrls(prev);
       return [];
     });
@@ -601,17 +515,47 @@ function ClientStock() {
 
   useEffect(() => {
     return () => {
-      clearPreviewUrls(pdfPreviewItems);
+      clearPreviewUrls(reportPreviewItems);
     };
-  }, [clearPreviewUrls, pdfPreviewItems]);
+  }, [clearPreviewUrls, reportPreviewItems]);
 
-  const handleOpenPdfPreview = async (rows) => {
-    if (!rows.length) {
+  const buildPreviewItemsFromRows = async (rows) => {
+    const nextPreviewItems = [];
+    for (const rowItem of rows) {
+      if (!isClientPortalStockStatus(rowItem.stockStatusKey)) continue;
+      const reports = rowItem.reportAttachments || [];
+      if (!reports.length) continue;
+      const latest = reports[0];
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetchReportBlob(
+        { stockRecordId: rowItem.stockRecordId, stockItemId: rowItem.stockItemId },
+        latest,
+        false
+      );
+      if (!(response?.data instanceof Blob)) continue;
+      const blobUrl = URL.createObjectURL(response.data);
+      nextPreviewItems.push({
+        rowId: rowItem.id,
+        stockItemId: rowItem.stockItemId,
+        attachmentId: latest.id,
+        filename: resolveReportDownloadFilename(latest, response),
+        blobUrl,
+      });
+    }
+    return nextPreviewItems;
+  };
+
+  const handleOpenReportPreview = async (rows) => {
+    const eligible = rows.filter(
+      (r) => isClientPortalStockStatus(r.stockStatusKey) && (r.reportAttachments?.length || 0) > 0
+    );
+    if (!eligible.length) {
       toast({
-        title: "No rows selected",
-        description: "Select at least one row to preview PDFs.",
+        title: "No reports available",
+        description:
+          "Stock reports are only available for rows with status Stock that have an uploaded report.",
         status: "info",
-        duration: 2500,
+        duration: 3500,
         isClosable: true,
       });
       return;
@@ -619,31 +563,21 @@ function ClientStock() {
 
     setIsPreparingPreview(true);
     try {
-      const nextPreviewItems = [];
-      for (const rowItem of rows) {
-        // Build preview blobs sequentially to keep browser responsive.
-        // eslint-disable-next-line no-await-in-loop
-        const doc = await buildStockRowPdf(rowItem);
-        const blob = doc.output("blob");
-        const blobUrl = URL.createObjectURL(blob);
-        nextPreviewItems.push({
-          rowId: rowItem.id,
-          filename: getStockPdfFilename(rowItem),
-          blobUrl,
-        });
+      const nextPreviewItems = await buildPreviewItemsFromRows(eligible);
+      if (!nextPreviewItems.length) {
+        throw new Error("Could not load report files.");
       }
-
-      setPdfPreviewItems((prev) => {
+      setReportPreviewItems((prev) => {
         clearPreviewUrls(prev);
         return nextPreviewItems;
       });
       setActivePreviewIndex(0);
-      setIsPdfPreviewOpen(true);
+      setIsReportPreviewOpen(true);
     } catch (e) {
-      console.error("Failed to build stock PDF preview:", e);
+      console.error("Failed to load stock report preview:", e);
       toast({
-        title: "Unable to prepare preview",
-        description: "Please try again.",
+        title: "Unable to open report",
+        description: e?.message || "Please try again.",
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -653,39 +587,74 @@ function ClientStock() {
     }
   };
 
-  const handleDownloadSelectedPdfs = async () => {
-    const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
-    setIsBulkPdfLoading(true);
+  const handleDownloadReport = async (row, attachment) => {
+    const key = reportKey(row, attachment);
+    setLoadingReportKey(key);
     try {
-      await handleOpenPdfPreview(selectedRows);
+      const response = await fetchReportBlob(row, attachment, true);
+      if (response?.data instanceof Blob) {
+        const blobUrl = URL.createObjectURL(response.data);
+        triggerBrowserDownload(
+          blobUrl,
+          resolveReportDownloadFilename(attachment, response)
+        );
+        URL.revokeObjectURL(blobUrl);
+      }
     } catch (e) {
-      console.error("Failed to open selected stock PDF previews:", e);
+      console.error("Failed to download stock report:", e);
       toast({
-        title: "Preview preparation failed",
-        description: "Please try again.",
+        title: "Download failed",
+        description: e?.message || "Please try again.",
         status: "error",
         duration: 3000,
         isClosable: true,
       });
     } finally {
-      setIsBulkPdfLoading(false);
+      setLoadingReportKey(null);
+    }
+  };
+
+  const handleDownloadSelectedReports = async () => {
+    const selectedRows = pagedRows.filter((row) => selectedRowIds.includes(row.id));
+    setIsBulkReportLoading(true);
+    try {
+      let count = 0;
+      for (const row of selectedRows) {
+        if (!isClientPortalStockStatus(row.stockStatusKey)) continue;
+        if (row.latestReport) {
+          // eslint-disable-next-line no-await-in-loop
+          await handleDownloadReport(row, row.latestReport);
+          count += 1;
+        }
+      }
+      if (!count) {
+        toast({
+          title: "No reports to download",
+          description: "Selected rows must have status Stock and an attached report.",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    } finally {
+      setIsBulkReportLoading(false);
     }
   };
 
   const handleDownloadCurrentPreview = () => {
-    const active = pdfPreviewItems[activePreviewIndex];
+    const active = reportPreviewItems[activePreviewIndex];
     if (!active) return;
     triggerBrowserDownload(active.blobUrl, active.filename);
   };
 
   const handleDownloadAllFromPreview = () => {
-    if (!pdfPreviewItems.length) return;
-    pdfPreviewItems.forEach((item) => {
+    if (!reportPreviewItems.length) return;
+    reportPreviewItems.forEach((item) => {
       triggerBrowserDownload(item.blobUrl, item.filename);
     });
     toast({
-      title: "PDF download started",
-      description: `${pdfPreviewItems.length} PDF(s) queued for download.`,
+      title: "Download started",
+      description: `${reportPreviewItems.length} report file(s) queued for download.`,
       status: "success",
       duration: 2500,
       isClosable: true,
@@ -934,9 +903,10 @@ function ClientStock() {
             <MenuList>
               <MenuItem
                 icon={<Icon as={MdPictureAsPdf} color="red.500" />}
-                onClick={handleDownloadSelectedPdfs}
+                onClick={handleDownloadSelectedReports}
+                isDisabled={isBulkReportLoading}
               >
-                PDF (Selected Rows)
+                Reports (Selected, Stock status)
               </MenuItem>
               <MenuItem icon={<Icon as={MdTableChart} color="green.500" />} onClick={handleDownloadExcel}>
                 Excel (All Filtered Rows)
@@ -1007,7 +977,7 @@ function ClientStock() {
               <Th>SO NUMBER</Th>
               <Th>CURRENCY</Th>
               <Th>VALUE</Th>
-              <Th>PDF</Th>
+              <Th>REPORT</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -1062,14 +1032,37 @@ function ClientStock() {
                   <Td>{row.currency}</Td>
                   <Td>{row.value}</Td>
                   <Td>
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
-                      onClick={() => handleDownloadSinglePdf(row)}
-                    >
-                      Preview
-                    </Button>
+                    {isClientPortalStockStatus(row.stockStatusKey) ? (
+                      row.stockRecordId && (row.rawAttachments?.length || 0) > 0 ? (
+                        <StockListAttachmentsCell
+                          attachments={row.rawAttachments}
+                          stockItemId={row.stockRecordId}
+                          attachmentMode="all"
+                          previousLabel="Previous documents"
+                          emptyLabel="—"
+                          onViewFile={(att, stockRecordId) =>
+                            handleViewReportFile(
+                              { ...row, stockRecordId },
+                              att
+                            )
+                          }
+                          onDownloadFile={(att, stockRecordId) =>
+                            handleDownloadReport({ ...row, stockRecordId }, att)
+                          }
+                          onOpenPreviousReports={(entries, stockRecordId) =>
+                            handleOpenPreviousReports(entries, stockRecordId)
+                          }
+                        />
+                      ) : (
+                        <Text fontSize="xs" color={muted}>
+                          —
+                        </Text>
+                      )
+                    ) : (
+                      <Text fontSize="xs" color={muted}>
+                        —
+                      </Text>
+                    )}
                   </Td>
                 </Tr>
               );
@@ -1154,24 +1147,43 @@ function ClientStock() {
         </ModalContent>
       </Modal>
 
-      <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="5xl">
+      <StockReportHistoryModal
+        isOpen={previousReportsModal.isOpen}
+        onClose={handleClosePreviousReports}
+        title="Previous documents"
+        entries={previousReportsModal.entries}
+        stockItemId={previousReportsModal.stockRecordId}
+        showFileActions
+        allowDelete={false}
+        onViewFile={(att, stockRecordId) =>
+          handleViewReportFile({ stockRecordId }, att)
+        }
+        onDownloadFile={(att, stockRecordId) =>
+          handleDownloadReport({ stockRecordId }, att)
+        }
+      />
+
+      <Modal isOpen={isReportPreviewOpen} onClose={handleCloseReportPreview} size="5xl">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>
-            PDF Preview
-            {pdfPreviewItems.length > 1
-              ? ` (${activePreviewIndex + 1}/${pdfPreviewItems.length})`
+            Stock report
+            {reportPreviewItems.length > 1
+              ? ` (${activePreviewIndex + 1}/${reportPreviewItems.length})`
+              : ""}
+            {reportPreviewItems[activePreviewIndex]?.filename
+              ? ` — ${reportPreviewItems[activePreviewIndex].filename}`
               : ""}
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={2}>
             {isPreparingPreview ? (
-              <Text fontSize="sm" color={muted}>Preparing preview...</Text>
-            ) : pdfPreviewItems.length ? (
+              <Text fontSize="sm" color={muted}>Loading report...</Text>
+            ) : reportPreviewItems.length ? (
               <Box border="1px solid" borderColor={borderColor} borderRadius="10px" overflow="hidden">
                 <iframe
-                  title="Stock PDF Preview"
-                  src={pdfPreviewItems[activePreviewIndex]?.blobUrl}
+                  title="Stock report preview"
+                  src={reportPreviewItems[activePreviewIndex]?.blobUrl}
                   style={{ width: "100%", height: "70vh", border: "none" }}
                 />
               </Box>
@@ -1186,7 +1198,7 @@ function ClientStock() {
                   size="sm"
                   variant="outline"
                   onClick={() => setActivePreviewIndex((i) => Math.max(0, i - 1))}
-                  isDisabled={activePreviewIndex === 0 || !pdfPreviewItems.length}
+                  isDisabled={activePreviewIndex === 0 || !reportPreviewItems.length}
                 >
                   Previous
                 </Button>
@@ -1194,34 +1206,34 @@ function ClientStock() {
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    setActivePreviewIndex((i) => Math.min(pdfPreviewItems.length - 1, i + 1))
+                    setActivePreviewIndex((i) => Math.min(reportPreviewItems.length - 1, i + 1))
                   }
                   isDisabled={
-                    !pdfPreviewItems.length || activePreviewIndex >= pdfPreviewItems.length - 1
+                    !reportPreviewItems.length || activePreviewIndex >= reportPreviewItems.length - 1
                   }
                 >
                   Next
                 </Button>
               </Flex>
               <Flex gap={2}>
-                <Button size="sm" variant="outline" onClick={handleClosePdfPreview}>
+                <Button size="sm" variant="outline" onClick={handleCloseReportPreview}>
                   Close
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
-                  leftIcon={<Icon as={MdPictureAsPdf} color="red.500" />}
+                  leftIcon={<Icon as={MdFileDownload} />}
                   onClick={handleDownloadCurrentPreview}
-                  isDisabled={!pdfPreviewItems.length}
+                  isDisabled={!reportPreviewItems.length}
                 >
-                  Download This PDF
+                  Download
                 </Button>
                 <Button
                   size="sm"
                   variant="brand"
                   leftIcon={<Icon as={MdFileDownload} />}
                   onClick={handleDownloadAllFromPreview}
-                  isDisabled={!pdfPreviewItems.length}
+                  isDisabled={!reportPreviewItems.length}
                 >
                   Download All
                 </Button>

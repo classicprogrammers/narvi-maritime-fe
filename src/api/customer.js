@@ -57,6 +57,50 @@ const getCurrentUserId = () => {
 const removeUndefined = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 
+export const getCustomerOptionsApi = async (params = {}) => {
+  try {
+    const {
+      q_job_title = "",
+      q_job_title_ids,
+      page = 1,
+      page_size = 50,
+    } = params;
+
+    const payload = { page, page_size };
+    const jobTitleQ =
+      q_job_title != null && String(q_job_title).trim() !== ""
+        ? String(q_job_title).trim()
+        : q_job_title_ids != null && String(q_job_title_ids).trim() !== ""
+          ? String(q_job_title_ids).trim()
+          : "";
+    if (jobTitleQ) payload.q_job_title = jobTitleQ;
+
+    const response = await api.post(getApiEndpoint("CUSTOMERS_OPTIONS"), payload);
+    const data = response.data || response;
+    const res = data.result || data;
+
+    if (data.result && data.result.status === "error") {
+      throw new Error(data.result.message || "Failed to fetch customer options");
+    }
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to fetch customer options");
+    }
+
+    const source = data.status === "success" || res?.status === "success" ? (res || data) : data;
+    return {
+      job_title_options: Array.isArray(source.job_title_options) ? source.job_title_options : [],
+      job_title_total_count: source.job_title_total_count ?? 0,
+      job_title_total_pages: source.job_title_total_pages ?? 0,
+      page: source.page ?? page,
+      page_size: source.page_size ?? page_size,
+    };
+  } catch (error) {
+    console.error("Get customer options error:", error);
+    handleApiError(error, "Get customer options");
+    throw error;
+  }
+};
+
 export const getCountriesApi = async () => {
   try {
     const response = await api.get(getApiEndpoint("COUNTRIES"));

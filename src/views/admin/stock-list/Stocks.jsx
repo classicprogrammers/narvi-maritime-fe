@@ -66,6 +66,15 @@ import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
+import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
+import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
+import {
+    buildStockDestinationIdsPayload,
+    formatStockDestinationDisplay,
+    getStockM2OId,
+    getStockM2OName,
+    mergeStockDestinationOptions,
+} from "../../../utils/stockDestinationOptions";
 import narviLetterheadPrint from "../../../assets/letterHead/NarviLetterhead.jpeg";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -77,6 +86,10 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
+import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
+import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
+import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
 const STATUS_CONFIG = {
@@ -395,11 +408,18 @@ export default function Stocks() {
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
     const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
+    const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
 
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
     const { clients, vessels, suppliers: vendors, countries, destinations, currencies } = useMasterData();
+    const {
+        destinationOptions: stockDestinationOptions,
+        apDestinationOptions: stockApDestinationOptions,
+        setQDestination,
+        setQApDestination,
+    } = useStockDestinationOptions();
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
 
     // Master data for filter/edit dropdown options; display uses getDisplayName from API {id, name}
@@ -2336,9 +2356,8 @@ export default function Stocks() {
                     const value = item.value || "-";
                     const client = getDisplayName(item.client_id || item.client) || "-";
                     const internalRemark = item.internal_remark || "-";
-                    const attachments = Array.isArray(item.attachments) && item.attachments.length > 0
-                        ? item.attachments.map((att) => att?.filename || att?.name).filter(Boolean).join("<br/>")
-                        : "-";
+                    const attachmentNames = getInlineAttachmentDisplayNames(item.attachments);
+                    const attachments = attachmentNames?.length ? attachmentNames.join("<br/>") : "-";
 
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${stockItemId}</td>`;
                     bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
@@ -2648,7 +2667,17 @@ export default function Stocks() {
             di_no: getFieldValue("di_no") || "",
             origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
             ap_destination_id: getFieldValue("ap_destination_id", "ap_destination"),
+            ap_destination_ids_id: getStockM2OId(item.ap_destination_ids),
+            ap_destination_select:
+                getStockM2OName(item.ap_destination_ids) ||
+                (item.ap_destination_new && item.ap_destination_new !== false ? String(item.ap_destination_new) : "") ||
+                "",
             destination_id: getFieldValue("destination_id", "destination", "stock_destination"),
+            destination_ids_id: getStockM2OId(item.destination_ids),
+            destination_select:
+                getStockM2OName(item.destination_ids) ||
+                (item.destination_new && item.destination_new !== false ? String(item.destination_new) : "") ||
+                "",
             warehouse_id: getFieldValue("warehouse_id", "stock_warehouse"),
             currency_id: getFieldValue("currency_id", "currency"),
             // Ensure numeric fields are preserved as strings for input compatibility
@@ -2807,7 +2836,6 @@ export default function Stocks() {
             { backend: "stock_items_quantity", original: ["stock_items_quantity", "items", "item_id"], edited: ["stock_items_quantity", "items"], transform: (v) => toValue(toId(v), false) },
             { backend: "currency_id", original: ["currency_id", "currency"], edited: ["currency_id"], transform: (v) => toValue(toId(v), false) },
             { backend: "origin_text", original: ["origin_id", "origin_text"], edited: ["origin_id", "origin_text"], transform: (v) => v ? String(v) : "" },
-            { backend: "ap_destination_new", original: ["ap_destination_new", "ap_destination_id", "ap_destination"], edited: ["ap_destination_new", "ap_destination"], transform: (v) => v || "" }, // Free text field
             { backend: "via_hub", original: ["via_hub"], edited: ["via_hub"], transform: (v) => v || "" },
             { backend: "via_hub2", original: ["via_hub2"], edited: ["via_hub2"], transform: (v) => v || "" },
             { backend: "client_access", original: ["client_access"], edited: ["client_access"], transform: (v) => Boolean(v !== undefined ? v : false) },
@@ -2831,7 +2859,6 @@ export default function Stocks() {
             { backend: "value", original: ["value"], edited: ["value"], transform: (v) => toNumber(v) },
             { backend: "shipment_type", original: ["shipment_type"], edited: ["shipment_type"], transform: (v) => v || "" },
             { backend: "extra", original: ["extra", "extra2"], edited: ["extra"], transform: (v) => v || "" },
-            { backend: "destination_new", original: ["destination_new", "destination_id", "destination", "stock_destination"], edited: ["destination_new", "destination"], transform: (v) => v || "" }, // Free text field
             { backend: "warehouse_new", original: ["warehouse_new", "warehouse_id", "stock_warehouse"], edited: ["warehouse_new", "warehouse_id"], transform: (v) => v || "" }, // Free text field
             { backend: "shipping_doc", original: ["shipping_doc"], edited: ["shipping_doc"], transform: (v) => v || "" },
             { backend: "export_doc", original: ["export_doc"], edited: ["export_doc"], transform: (v) => v || "" },
@@ -2874,6 +2901,48 @@ export default function Stocks() {
                 payload[backend] = editedVal;
             }
         });
+
+        const currentDestinationIds = buildStockDestinationIdsPayload(
+            getEditedValue(["destination_ids_id"]),
+            getEditedValue(["destination_select"]),
+            stockDestinationOptions
+        );
+        const originalDestinationIds = buildStockDestinationIdsPayload(
+            getStockM2OId(originalItem.destination_ids),
+            getStockM2OName(originalItem.destination_ids) ||
+                (originalItem.destination_new && originalItem.destination_new !== false
+                    ? String(originalItem.destination_new)
+                    : ""),
+            stockDestinationOptions
+        );
+        if (!valuesAreEqual(
+            JSON.stringify(currentDestinationIds),
+            JSON.stringify(originalDestinationIds)
+        )) {
+            payload.destination_ids = currentDestinationIds;
+            payload.destination_new = "";
+        }
+
+        const currentApDestinationIds = buildStockDestinationIdsPayload(
+            getEditedValue(["ap_destination_ids_id"]),
+            getEditedValue(["ap_destination_select"]),
+            stockApDestinationOptions
+        );
+        const originalApDestinationIds = buildStockDestinationIdsPayload(
+            getStockM2OId(originalItem.ap_destination_ids),
+            getStockM2OName(originalItem.ap_destination_ids) ||
+                (originalItem.ap_destination_new && originalItem.ap_destination_new !== false
+                    ? String(originalItem.ap_destination_new)
+                    : ""),
+            stockApDestinationOptions
+        );
+        if (!valuesAreEqual(
+            JSON.stringify(currentApDestinationIds),
+            JSON.stringify(originalApDestinationIds)
+        )) {
+            payload.ap_destination_ids = currentApDestinationIds;
+            payload.ap_destination_new = "";
+        }
 
         return payload;
     };
@@ -3132,25 +3201,80 @@ export default function Stocks() {
             );
         }
 
-        // Handle searchable select for destination fields (but NOT ap_destination - that's free text)
-        if (type === "searchable" || (field.includes("destination") && !field.includes("ap_destination"))) {
-            // Use destinations for destination fields
-            const destinationOptions = destinations.map(d => ({
-                value: String(d.id),
-                label: d.name || d.code || `Dest ${d.id}`
-            }));
-
+        if (type === "stock_destination_m2o") {
+            const selectValue =
+                rowEditingData.destination_select !== undefined
+                    ? rowEditingData.destination_select
+                    : (getStockM2OName(item.destination_ids) ||
+                        (item.destination_new && item.destination_new !== false ? String(item.destination_new) : ""));
+            const selectId =
+                rowEditingData.destination_ids_id !== undefined
+                    ? rowEditingData.destination_ids_id
+                    : getStockM2OId(item.destination_ids);
             return (
-                <Box position="relative" zIndex={10}>
-                    <SimpleSearchableSelect
-                        value={currentValue ? String(currentValue) : ""}
-                        onChange={(val) => handleChange(val)}
-                        options={destinationOptions}
-                        placeholder="Select Destination..."
-                        displayKey="label"
-                        valueKey="value"
-                        formatOption={(option) => option.label || `Dest ${option.value}`}
-                        isLoading={false}
+                <Box position="relative" zIndex={10} minW="160px">
+                    <StockDestinationSelect
+                        value={selectValue || ""}
+                        onChange={({ id, name }) => {
+                            setEditingRowData((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                    ...(prev[item.id] || normalizeItemForEditing(item)),
+                                    destination_select: name,
+                                    destination_ids_id: id,
+                                },
+                            }));
+                        }}
+                        onSearchChange={setQDestination}
+                        options={mergeStockDestinationOptions(
+                            stockDestinationOptions,
+                            selectId,
+                            selectValue
+                        )}
+                        placeholder="Select or type destination..."
+                        listId={`inline-dest-${item.id}`}
+                        size="sm"
+                        bg={inputBg}
+                        color={inputText}
+                        borderColor={borderColor}
+                    />
+                </Box>
+            );
+        }
+
+        if (type === "stock_ap_destination_m2o") {
+            const selectValue =
+                rowEditingData.ap_destination_select !== undefined
+                    ? rowEditingData.ap_destination_select
+                    : (getStockM2OName(item.ap_destination_ids) ||
+                        (item.ap_destination_new && item.ap_destination_new !== false ? String(item.ap_destination_new) : ""));
+            const selectId =
+                rowEditingData.ap_destination_ids_id !== undefined
+                    ? rowEditingData.ap_destination_ids_id
+                    : getStockM2OId(item.ap_destination_ids);
+            return (
+                <Box position="relative" zIndex={10} minW="160px">
+                    <StockDestinationSelect
+                        value={selectValue || ""}
+                        onChange={({ id, name }) => {
+                            setEditingRowData((prev) => ({
+                                ...prev,
+                                [item.id]: {
+                                    ...(prev[item.id] || normalizeItemForEditing(item)),
+                                    ap_destination_select: name,
+                                    ap_destination_ids_id: id,
+                                },
+                            }));
+                        }}
+                        onSearchChange={setQApDestination}
+                        options={mergeStockDestinationOptions(
+                            stockApDestinationOptions,
+                            selectId,
+                            selectValue
+                        )}
+                        placeholder="Select or type AP destination..."
+                        listId={`inline-ap-dest-${item.id}`}
+                        size="sm"
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
@@ -3295,10 +3419,16 @@ export default function Stocks() {
                                 : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
-                                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                                return soValue || "-";
-                            })()}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : (
+                                <StockSoNumberLink
+                                    item={item}
+                                    label={(() => {
+                                        const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
+                                        return soValue || "-";
+                                    })()}
+                                    textProps={cellText}
+                                />
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
@@ -3342,10 +3472,18 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "via_hub", item.via_hub) : <Text {...cellText}>{renderText(item.via_hub)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_new", item.ap_destination_new || item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text>}
+                            {isEditing ? (
+                                renderEditableCell(item, "ap_destination_ids", null, "stock_ap_destination_m2o")
+                            ) : (
+                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "destination_new", item.destination_new || item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text>}
+                            {isEditing ? (
+                                renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
+                            ) : (
+                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "warehouse_new", item.warehouse_new || item.warehouse_id || item.stock_warehouse) : <Text {...cellText}>{renderText(item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-")}</Text>}
@@ -3446,44 +3584,15 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "internal_remark", item.internal_remark || "", "textarea") : <Text {...cellText}>{renderText(item.internal_remark || "")}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                <VStack spacing={1} align="stretch">
-                                    {item.attachments.map((att, idx) => (
-                                        <HStack key={idx} spacing={1} align="center">
-                                            <Text
-                                                fontSize="xs"
-                                                isTruncated
-                                                flex={1}
-                                                title={att.filename || att.name}
-                                                cursor="pointer"
-                                                color="blue.500"
-                                                _hover={{ textDecoration: "underline" }}
-                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                            >
-                                                {att.filename || att.name || `File ${idx + 1}`}
-                                            </Text>
-                                            <IconButton
-                                                icon={<Icon as={MdVisibility} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="blue"
-                                                aria-label="View file"
-                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                            />
-                                            <IconButton
-                                                icon={<Icon as={MdDownload} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="green"
-                                                aria-label="Download file"
-                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                            />
-                                        </HStack>
-                                    ))}
-                                </VStack>
-                            ) : (
-                                <Text fontSize="xs" color="gray.500">No files</Text>
-                            )}
+                            <StockListAttachmentsCell
+                                attachments={item.attachments}
+                                stockItemId={item.id || item.stock_item_id}
+                                onViewFile={handleViewFile}
+                                onDownloadFile={handleDownloadFile}
+                                onOpenPreviousReports={(entries, stockItemId) =>
+                                    setStockReportHistoryContext({ entries, stockItemId })
+                                }
+                            />
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -3626,10 +3735,18 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "via_hub2", item.via_hub2) : <Text {...cellText}>{renderText(item.via_hub2)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "ap_destination_new", item.ap_destination_new || item.ap_destination_id || item.ap_destination) : <Text {...cellText}>{renderText(item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-")}</Text>}
+                            {isEditing ? (
+                                renderEditableCell(item, "ap_destination_ids", null, "stock_ap_destination_m2o")
+                            ) : (
+                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps} overflow="visible" position="relative" zIndex={1}>
-                            {isEditing ? renderEditableCell(item, "destination_new", item.destination_new || item.destination_id || item.destination || item.stock_destination) : <Text {...cellText}>{renderText(item.destination_new || item.destination_id || item.destination || item.stock_destination || "-")}</Text>}
+                            {isEditing ? (
+                                renderEditableCell(item, "destination_ids", null, "stock_destination_m2o")
+                            ) : (
+                                <Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text>
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "shipping_doc", item.shipping_doc) : <Text {...cellText}>{renderText(item.shipping_doc)}</Text>}
@@ -3647,10 +3764,16 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "vessel_id", item.vessel_id || item.vessel, "select", vessels.map(v => ({ value: v.id, label: v.name }))) : <Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : <Text {...cellText}>{(() => {
-                                const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                                return soValue || "-";
-                            })()}</Text>}
+                            {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : (
+                                <StockSoNumberLink
+                                    item={item}
+                                    label={(() => {
+                                        const soValue = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
+                                        return soValue || "-";
+                                    })()}
+                                    textProps={cellText}
+                                />
+                            )}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "si_number", item.si_number) : <Text {...cellText}>{(() => {
@@ -3668,44 +3791,15 @@ export default function Stocks() {
                             })()}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                <VStack spacing={1} align="stretch">
-                                    {item.attachments.map((att, idx) => (
-                                        <HStack key={idx} spacing={1} align="center">
-                                            <Text
-                                                fontSize="xs"
-                                                isTruncated
-                                                flex={1}
-                                                title={att.filename || att.name}
-                                                cursor="pointer"
-                                                color="blue.500"
-                                                _hover={{ textDecoration: "underline" }}
-                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                            >
-                                                {att.filename || att.name || `File ${idx + 1}`}
-                                            </Text>
-                                            <IconButton
-                                                icon={<Icon as={MdVisibility} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="blue"
-                                                aria-label="View file"
-                                                onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                            />
-                                            <IconButton
-                                                icon={<Icon as={MdDownload} />}
-                                                size="xs"
-                                                variant="ghost"
-                                                colorScheme="green"
-                                                aria-label="Download file"
-                                                onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                            />
-                                        </HStack>
-                                    ))}
-                                </VStack>
-                            ) : (
-                                <Text fontSize="xs" color="gray.500">No files</Text>
-                            )}
+                            <StockListAttachmentsCell
+                                attachments={item.attachments}
+                                stockItemId={item.id || item.stock_item_id}
+                                onViewFile={handleViewFile}
+                                onDownloadFile={handleDownloadFile}
+                                onOpenPreviousReports={(entries, stockItemId) =>
+                                    setStockReportHistoryContext({ entries, stockItemId })
+                                }
+                            />
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? (
@@ -5095,7 +5189,13 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}</Text></Td>
+                                                                <Td {...cellProps}>
+                                                                    <StockSoNumberLink
+                                                                        item={item}
+                                                                        label={item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number))}
+                                                                        textProps={cellText}
+                                                                    />
+                                                                </Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{(() => {
                                                                     return renderText(item.si_number) || "-";
                                                                 })()}</Text></Td>
@@ -5178,44 +5278,15 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.internal_remark || "")}</Text></Td>
                                                                 <Td {...cellProps}>
-                                                                    {item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 ? (
-                                                                        <VStack spacing={1} align="stretch">
-                                                                            {item.attachments.map((att, idx) => (
-                                                                                <HStack key={idx} spacing={1} align="center">
-                                                                                    <Text
-                                                                                        fontSize="xs"
-                                                                                        isTruncated
-                                                                                        flex={1}
-                                                                                        title={att.filename || att.name}
-                                                                                        cursor="pointer"
-                                                                                        color="blue.500"
-                                                                                        _hover={{ textDecoration: "underline" }}
-                                                                                        onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                                                    >
-                                                                                        {att.filename || att.name || `File ${idx + 1}`}
-                                                                                    </Text>
-                                                                                    <IconButton
-                                                                                        icon={<Icon as={MdVisibility} />}
-                                                                                        size="xs"
-                                                                                        variant="ghost"
-                                                                                        colorScheme="blue"
-                                                                                        aria-label="View file"
-                                                                                        onClick={() => handleViewFile(att, item.id || item.stock_item_id)}
-                                                                                    />
-                                                                                    <IconButton
-                                                                                        icon={<Icon as={MdDownload} />}
-                                                                                        size="xs"
-                                                                                        variant="ghost"
-                                                                                        colorScheme="green"
-                                                                                        aria-label="Download file"
-                                                                                        onClick={() => handleDownloadFile(att, item.id || item.stock_item_id)}
-                                                                                    />
-                                                                                </HStack>
-                                                                            ))}
-                                                                        </VStack>
-                                                                    ) : (
-                                                                        <Text fontSize="xs" color="gray.500">No files</Text>
-                                                                    )}
+                                                                    <StockListAttachmentsCell
+                                                                        attachments={item.attachments}
+                                                                        stockItemId={item.id || item.stock_item_id}
+                                                                        onViewFile={handleViewFile}
+                                                                        onDownloadFile={handleDownloadFile}
+                                                                        onOpenPreviousReports={(entries, stockItemId) =>
+                                                                            setStockReportHistoryContext({ entries, stockItemId })
+                                                                        }
+                                                                    />
                                                                 </Td>
                                                                 <Td {...cellProps}>
                                                                     <IconButton
@@ -6642,6 +6713,17 @@ export default function Stocks() {
                 </ModalContent>
             </Modal>
 
+            <StockReportHistoryModal
+                isOpen={!!stockReportHistoryContext}
+                onClose={() => setStockReportHistoryContext(null)}
+                entries={stockReportHistoryContext?.entries ?? []}
+                rowIndex={0}
+                stockItemId={stockReportHistoryContext?.stockItemId ?? null}
+                showFileActions
+                allowDelete={false}
+                onViewFile={handleViewFile}
+                onDownloadFile={handleDownloadFile}
+            />
 
         </Box>
     );

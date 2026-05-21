@@ -27,6 +27,7 @@ import { useHistory, useLocation, useParams } from "react-router-dom";
 import Card from "components/card/Card";
 import { useVendor } from "redux/hooks/useVendor";
 import { getVendorByIdApi, getAgentAttachmentApi } from "api/vendor";
+import { formatJobTitleDisplay } from "utils/contactJobTitle";
 
 const prettyValue = (value) => {
   if (value === null || value === undefined || value === "") {
@@ -461,7 +462,7 @@ const AgentDetail = () => {
       first_name: getValue(child.first_name),
       last_name: getValue(child.last_name),
       prefix: getValue(child.prefix),
-      job_title: getValue(child.job_title),
+      job_title: formatJobTitleDisplay(child),
       email: getValue(child.email),
       tel_direct: getValue(child.tel_direct),
       phone: getValue(child.phone),

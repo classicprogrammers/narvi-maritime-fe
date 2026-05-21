@@ -51,6 +51,7 @@ import {
 import Card from "components/card/Card";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useCustomer } from "redux/hooks/useCustomer";
+import { formatJobTitleDisplay } from "utils/contactJobTitle";
 import { SuccessModal } from "components/modals";
 import { useMasterData } from "../../../../hooks/useMasterData";
 import { refreshMasterData, MASTER_KEYS } from "../../../../utils/masterDataCache";
@@ -218,8 +219,8 @@ export default function CustomerTable(props) {
           [child?.first_name, child?.last_name].filter(Boolean).join(" ");
 
         const jobTitle =
+          formatJobTitleDisplay(child) ||
           child?.jobTitle ||
-          child?.job_title ||
           child?.position ||
           child?.title ||
           "";

@@ -17,11 +17,21 @@ async function loadLetterheadOnPdf(doc) {
 }
 
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
+import { formatStockDestinationDisplay } from "./stockDestinationOptions";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
     if (!key) return "-";
+    if (key === "arrived") return "Arrived under Customs";
     return formatStockStatusLabel(key);
+}
+
+function ensureDocNumberPrefix(val, prefix) {
+    if (val == null || val === "" || val === false) return "-";
+    const str = String(val).trim();
+    if (!str) return "-";
+    const re = new RegExp(`^${prefix}[- ]?`, "i");
+    return re.test(str) ? str : `${prefix}-${str.replace(/^[- ]+/i, "")}`;
 }
 
 function clean(value) {
@@ -89,12 +99,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         getDisplayName(item.origin_id || item.origin) ||
         "-";
 
-    const destination =
-        item.destination_new ||
-        item.destination_id ||
-        item.destination ||
-        item.stock_destination ||
-        "-";
+    const destination = formatStockDestinationDisplay(item, "destination");
 
     const dims = Array.isArray(item.dimensions) ? item.dimensions : [];
     const pcsLines = dims.map((dim, lineIndex) => {
@@ -139,7 +144,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         firstEntryLocation: clean(firstEntryLocation),
         viaHub1: clean(item.via_hub ?? item.via_hub_1),
         viaHub2: clean(item.via_hub2 ?? item.via_hub_2),
-        apDestination: clean(item.ap_destination_new || item.ap_destination_id || item.ap_destination),
+        apDestination: clean(formatStockDestinationDisplay(item, "ap")),
         destination: clean(destination),
         stockStatus: clean(stockStatusLabel),
         soNumber: clean(soDisplay),
@@ -153,6 +158,13 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         firstEntryDate: clean(formatDate(item.first_entry_date || item.date_on_stock)),
         client: clean(getDisplayName(item.client_id || item.client)),
         locationHistory: Array.isArray(item.location_history) ? item.location_history : [],
+        remarks: clean(item.remarks ?? item.internal_remark),
+        siNumber: clean(ensureDocNumberPrefix(item.si_number, "SI")),
+        siCombined: clean(ensureDocNumberPrefix(item.si_combined, "SIC")),
+        diNumber: clean(ensureDocNumberPrefix(item.di_no, "DI")),
+        shippingDoc: clean(item.shipping_doc),
+        exportDoc: clean(item.export_doc),
+        exportDoc2: clean(item.export_doc_2),
         pcsLines,
         pcsCount: piecesCount,
         warehouseId: clean(warehouseId),
@@ -231,14 +243,15 @@ export async function buildStockReportPdfDocument(row) {
     const stockDetailsRows = [
         ["PO number", clean(row.poNo), "Stock number", clean(row.stockNumber)],
         ["Supplier", clean(row.supplier), "Status", clean(row.stockStatus)],
-        ["First entry location", clean(row.firstEntryLocation), "First entry date", clean(row.firstEntryDate)],
+        ["Origin", clean(row.origin || row.firstEntryLocation), "First entry date", clean(row.firstEntryDate)],
+        ["Via HUB 1", clean(row.viaHub1), "Via HUB 2", clean(row.viaHub2)],
         ["Destination", clean(row.destination), "AP Destination", clean(row.apDestination)],
-        ["Weight", clean(row.weight), "CBM", clean(row.totalVolumeCbm)],
-        ["Pieces", clean(row.boxes), "Priority", clean(row.priority)],
-        ["Delivery Irregularities", clean(row.deliveryIrregularities), "PO remarks", clean(row.poRemarks)],
-        ["SO Number", clean(row.soNumber), "Currency / Value", `${clean(row.currency)} ${clean(row.value)}`],
+        ["SO Number", clean(row.soNumber), "SI Number", clean(row.siNumber)],
+        ["SIC Number", clean(row.siCombined), "DI Number", clean(row.diNumber)],
+        ["Shipping docs", clean(row.shippingDoc), "Export docs 1", clean(row.exportDoc)],
+        ["Export docs 2", clean(row.exportDoc2), "Currency / Value", `${clean(row.currency)} ${clean(row.value)}`],
         ["Vessel", clean(row.vessel), "Client", clean(row.client)],
-        ["DG/UN Number", clean(row.dgUnNumber), "Via Hub 1 / 2", `${clean(row.viaHub1)} / ${clean(row.viaHub2)}`],
+        ["DG/UN Number", clean(row.dgUnNumber), "", ""],
     ];
 
     let cursorY = drawSectionHeader("Stock details", headerY + 10);
@@ -257,50 +270,38 @@ export async function buildStockReportPdfDocument(row) {
     });
 
     cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
-    cursorY = drawSectionHeader("Location history", cursorY);
-    const locationHistoryRows =
-        Array.isArray(row.locationHistory) && row.locationHistory.length
-            ? row.locationHistory.map((entry) => [
-                "Location",
-                clean(entry?.location),
-                "Delivery date",
-                clean(entry?.delivery_date),
-            ])
-            : [
-                [
-                    "Location",
-                    clean(row.firstEntryLocation || row.origin),
-                    "Delivery date",
-                    clean(row.firstEntryDate || row.dateOnStock),
-                ],
-            ];
+    cursorY = drawSectionHeader("Remarks", cursorY);
     autoTable(doc, {
         startY: cursorY,
-        body: locationHistoryRows,
+        body: [["Remarks", clean(row.remarks)]],
         theme: "plain",
         styles: { fontSize: 9, cellPadding: 5 },
         margin: { left: contentLeft, right: 24 },
         columnStyles: {
             0: { fontStyle: "bold", cellWidth: 110 },
-            1: { cellWidth: 150 },
-            2: { fontStyle: "bold", cellWidth: 110 },
-            3: { cellWidth: 150 },
+            1: { cellWidth: 410 },
         },
     });
 
     cursorY = (doc.lastAutoTable?.finalY || cursorY) + 10;
     const pcsLines = Array.isArray(row.pcsLines) ? row.pcsLines : [];
     const pcsCountDisplay = clean(row.pcsCount || row.boxes || pcsLines.length || 0);
-    cursorY = drawSectionHeader(`Pcs (${pcsCountDisplay})`, cursorY);
+    const totalWeightDisplay = clean(row.weight);
+    const totalCbmDisplay =
+        toFixedOrDash(row.totalVolumeCbm, 3) !== "-"
+            ? toFixedOrDash(row.totalVolumeCbm, 3)
+            : clean(row.totalVolumeCbm);
+    const pcsSectionTitle = `Pcs (${pcsCountDisplay}) — Total weight: ${totalWeightDisplay} — Total volume (CBM): ${totalCbmDisplay}`;
+    cursorY = drawSectionHeader(pcsSectionTitle, cursorY);
 
     const pcsRows = pcsLines.length
         ? pcsLines.flatMap((line, lineIndex) => {
             const idx = lineIndex + 1;
             const lwhStr = clean(
                 line.lwh ||
-                    (line.length_cm != null && line.width_cm != null && line.height_cm != null
-                        ? `${clean(line.length_cm)} x ${clean(line.width_cm)} x ${clean(line.height_cm)}`
-                        : "-")
+                (line.length_cm != null && line.width_cm != null && line.height_cm != null
+                    ? `${clean(line.length_cm)} x ${clean(line.width_cm)} x ${clean(line.height_cm)}`
+                    : "-")
             );
             return [
                 [
@@ -336,12 +337,44 @@ export async function buildStockReportPdfDocument(row) {
     return doc;
 }
 
+/** Strip characters unsafe in common filesystems; normalize whitespace; cap length. */
+function sanitizePdfFilenameSegment(value, maxLen = 150) {
+    if (value == null || value === false) return "";
+    const s = String(value).trim();
+    if (s === "" || s === "-") return "";
+    const without = s
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!without) return "";
+    return without.length > maxLen ? without.slice(0, maxLen) : without;
+}
+
+/**
+ * Legacy names: `stock-report SL00055 + vessel-1779347492336.pdf` → `SL00055 + vessel.pdf`
+ */
+export function normalizeLegacyStockReportFilename(filename) {
+    if (filename == null || filename === "") return filename;
+    let n = String(filename).trim();
+    n = n.replace(/^stock-report\s+/i, "");
+    const tsMatch = n.match(/^(.+)-(\d{10,})\.pdf$/i);
+    if (tsMatch) {
+        n = `${tsMatch[1]}.pdf`;
+    }
+    return n;
+}
+
+/**
+ * Filename for stock report PDFs on status change, e.g. `SL00055 + testingg.pdf`.
+ */
 export function getStockReportPdfFilename(row) {
-    const stockSlug = String(row.stockNumber || "stock")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-    return `stock-report-${stockSlug || "stock"}.pdf`;
+    let numPart = sanitizePdfFilenameSegment(row.stockNumber);
+    if (!numPart) numPart = "stock";
+    const vesselPart = sanitizePdfFilenameSegment(row.vessel);
+    if (vesselPart) {
+        return `${numPart} + ${vesselPart}.pdf`;
+    }
+    return `${numPart}.pdf`;
 }
 
 /**
@@ -444,6 +477,7 @@ export function mapMainDbEditRowToAdminItem(row) {
     const stockSoNumeric = soRaw ? soRaw.replace(/^SO[- ]?/i, "").trim() : "";
     return {
         stock_item_id: row.stockItemId,
+        stock_number: row.stockItemId || row.stockNumber,
         stock_id: row.stockId,
         stock_status: row.stockStatus,
         client_id: row.client,
@@ -473,6 +507,12 @@ export function mapMainDbEditRowToAdminItem(row) {
         remarks: row.remarks,
         internal_remark: row.internalRemark,
         po_remarks: row.internalRemark,
+        si_number: row.siNumber,
+        si_combined: row.siCombined,
+        di_no: row.diNumber,
+        shipping_doc: row.shippingDoc,
+        export_doc: row.exportDoc,
+        export_doc_2: row.exportDoc2,
         location_history: [],
     };
 }
@@ -485,6 +525,7 @@ export function mapStandardFormRowToAdminItem(row) {
     const stockSoNumeric = soRaw ? soRaw.replace(/^SO[- ]?/i, "").trim() : "";
     return {
         stock_item_id: row.stockItemId,
+        stock_number: row.stockItemId || row.stockNumber,
         stock_id: row.stockId,
         stock_status: row.stockStatus,
         client_id: row.client,
@@ -514,6 +555,12 @@ export function mapStandardFormRowToAdminItem(row) {
         remarks: row.remarks,
         internal_remark: row.internalRemark,
         po_remarks: row.internalRemark,
+        si_number: row.siNumber,
+        si_combined: row.siCombined,
+        di_no: row.diNumber,
+        shipping_doc: row.shippingDoc,
+        export_doc: row.exportDoc,
+        export_doc_2: row.exportDoc2,
         location_history: [],
     };
 }
@@ -536,10 +583,10 @@ export async function buildStockReportPdfAttachmentForItem(adminItem, helpers, m
     const dataUri = doc.output("datauristring");
     const comma = dataUri.indexOf(",");
     const datas = comma >= 0 ? dataUri.slice(comma + 1) : dataUri;
-    const baseName = getStockReportPdfFilename(pdfRow);
-    const filename = meta.changedByName ? baseName.replace(/\.pdf$/i, `-${Date.now()}.pdf`) : baseName;
+    const filename = getStockReportPdfFilename(pdfRow);
     return {
         filename,
+        name: filename,
         mimetype: "application/pdf",
         datas,
     };

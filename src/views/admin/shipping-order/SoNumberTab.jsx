@@ -71,9 +71,19 @@ import {
   createShippingOrder,
   updateShippingOrder,
 } from "../../../api/shippingOrders";
-import { useHistory, Link } from "react-router-dom";
+import { useHistory, Link, useLocation } from "react-router-dom";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
+import {
+  applyShippingOrderAttachmentsToPayload,
+  notifyShippingOrderSaveResult,
+} from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
+import {
+  clearPendingSoFilter,
+  getInitialShippingOrderListState,
+  parseSoFilterFromUrl,
+  writePersistedShippingOrderListState,
+} from "../../../utils/shippingOrderListState";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -103,79 +113,7 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
-const SHIPPING_ORDER_LIST_STORAGE_KEY = "narvi_shipping_order_list_state";
-
-function readPersistedShippingOrderListState() {
-  try {
-    const raw = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SHIPPING_ORDER_LIST_STORAGE_KEY) : null;
-    if (!raw) return null;
-    const p = JSON.parse(raw);
-    return {
-      searchValue: typeof p.searchValue === "string" ? p.searchValue : "",
-      searchQuery: typeof p.searchQuery === "string" ? p.searchQuery : "",
-      searchClientFilter: p.searchClientFilter != null ? p.searchClientFilter : null,
-      searchVesselFilter: p.searchVesselFilter != null ? p.searchVesselFilter : null,
-      searchCountryFilter: p.searchCountryFilter != null ? p.searchCountryFilter : null,
-      page: typeof p.page === "number" ? p.page : 1,
-      sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
-      sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
-      activeFilters: p.activeFilters && typeof p.activeFilters === "object" ? p.activeFilters : {
-        activeATH: false,
-        activeSIN: false,
-        activeClient: false,
-        readyForInvoiceClient: false,
-        athReadyForInvoice: false,
-        sinReadyForInvoice: false,
-      },
-      activeATHPics: Array.isArray(p.activeATHPics) ? p.activeATHPics : [],
-      activeSINPics: Array.isArray(p.activeSINPics) ? p.activeSINPics : [],
-      athReadyForInvoicePics: Array.isArray(p.athReadyForInvoicePics) ? p.athReadyForInvoicePics : [],
-      sinReadyForInvoicePics: Array.isArray(p.sinReadyForInvoicePics) ? p.sinReadyForInvoicePics : [],
-      activeClientFilter: p.activeClientFilter != null ? p.activeClientFilter : null,
-      readyForInvoiceClientFilter: p.readyForInvoiceClientFilter != null ? p.readyForInvoiceClientFilter : null,
-      sortConfig: p.sortConfig && typeof p.sortConfig === "object" ? p.sortConfig : { field: null, direction: "asc" },
-      nextActionSortOption: p.nextActionSortOption === "none" || p.nextActionSortOption === "next_action" ? p.nextActionSortOption : "none",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writePersistedShippingOrderListState(state) {
-  try {
-    if (typeof sessionStorage === "undefined") return;
-    sessionStorage.setItem(SHIPPING_ORDER_LIST_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // ignore
-  }
-}
-
-const defaultShippingOrderListState = {
-  searchValue: "",
-  searchQuery: "",
-  searchClientFilter: null,
-  searchVesselFilter: null,
-  searchCountryFilter: null,
-  page: 1,
-  sortBy: "id",
-  sortOrder: "desc",
-  activeFilters: {
-    activeATH: false,
-    activeSIN: false,
-    activeClient: false,
-    readyForInvoiceClient: false,
-    athReadyForInvoice: false,
-    sinReadyForInvoice: false,
-  },
-  activeATHPics: [],
-  activeSINPics: [],
-  athReadyForInvoicePics: [],
-  sinReadyForInvoicePics: [],
-  activeClientFilter: null,
-  readyForInvoiceClientFilter: null,
-  sortConfig: { field: null, direction: "asc" },
-  nextActionSortOption: "none",
-};
+const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 18;
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -206,12 +144,21 @@ const SoNumberTab = () => {
 
   const toast = useToast();
   const history = useHistory();
+  const location = useLocation();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Filters state (initialized from sessionStorage so they persist across navigation)
-  const [savedState] = useState(() => readPersistedShippingOrderListState() || defaultShippingOrderListState);
+  const [savedState] = useState(() => getInitialShippingOrderListState(location.search));
+
+  useEffect(() => {
+    if (parseSoFilterFromUrl(location.search)) {
+      history.replace(location.pathname);
+    }
+    const timer = setTimeout(() => clearPendingSoFilter(), 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Search state
   const [searchValue, setSearchValue] = useState(savedState.searchValue);
@@ -349,6 +296,9 @@ const SoNumberTab = () => {
       quotation: "",
       quotation_id: null,
       timestamp: localTimestamp,
+      attachments: [],
+      existingAttachments: [],
+      attachment_to_delete: [],
     });
   };
 
@@ -909,14 +859,20 @@ const SoNumberTab = () => {
     try {
       setIsSaving(true);
 
-      const payload = buildPayloadFromForm(formData, false);
-      await createShippingOrder(payload);
-      toast({
-        title: "SO created",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      const payload = applyShippingOrderAttachmentsToPayload(
+        buildPayloadFromForm(formData, false),
+        formData
+      );
+      const response = await createShippingOrder(payload);
+      const notify = notifyShippingOrderSaveResult(response, toast, { created: true });
+      if (notify.ok && !notify.partial) {
+        toast({
+          title: "SO created",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
 
       await fetchOrders();
       handleFormClose(true);
@@ -948,7 +904,7 @@ const SoNumberTab = () => {
     if (isLoading && orders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={19}>
+          <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
             <Center py="10">
               <Spinner size="lg" color="blue.500" />
             </Center>
@@ -960,7 +916,7 @@ const SoNumberTab = () => {
     if (filteredOrders.length === 0) {
       return (
         <Tr>
-          <Td colSpan={19}>
+          <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
             <Center py="10">
               <Text color={tableTextColor}>No SO records match your filters.</Text>
             </Center>
@@ -1060,6 +1016,34 @@ const SoNumberTab = () => {
               {order.client_case_invoice_ref || "-"}
             </Text>
           </Tooltip>
+        </Td>
+        <Td {...tableCellProps} maxW="200px">
+          {(() => {
+            const files = Array.isArray(order.attachments) ? order.attachments : [];
+            const count = files.length;
+            if (count === 0) {
+              return (
+                <Text {...cellText} color="gray.500">
+                  -
+                </Text>
+              );
+            }
+            const names = files
+              .map((f) => f.filename || f.name)
+              .filter(Boolean)
+              .join("\n");
+            const summary =
+              count === 1
+                ? files[0].filename || files[0].name || "1 file"
+                : `${count} files`;
+            return (
+              <Tooltip label={names || summary} placement="top" hasArrow maxW="320px" whiteSpace="pre-wrap">
+                <Text {...cellText} isTruncated fontWeight="500" color="blue.700">
+                  {summary}
+                </Text>
+              </Tooltip>
+            );
+          })()}
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.timestamp || order.date_created)}</Text></Td>
@@ -1554,6 +1538,7 @@ const SoNumberTab = () => {
                 { label: "Internal Remark", field: "internal_remark", sortable: false },
                 { label: "VSLS Agent Details", field: "vsls_agent_dtls", sortable: false },
                 { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
+                { label: "Files", field: "attachments", sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
                 { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
               ].map((col) => (

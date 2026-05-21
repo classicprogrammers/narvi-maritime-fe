@@ -22,6 +22,7 @@ import {
 import { MdSearch, MdOpenInNew, MdClear, MdPerson } from "react-icons/md";
 import Card from "components/card/Card";
 import { getCached, MASTER_KEYS } from "utils/masterDataCache";
+import { formatJobTitleDisplay } from "utils/contactJobTitle";
 import { useHistory } from "react-router-dom";
 
 const Phonebook = () => {
@@ -136,7 +137,7 @@ const Phonebook = () => {
                   email: person.email || person.email1 || person.email2 || "",
                   phone: person.phone || person.tel_direct || person.tel_other || person.mobile || "",
                   dbId: client.client_code || "",
-                  jobTitle: person.job_title || "",
+                  jobTitle: formatJobTitleDisplay(person),
                   raw: { client, person },
                 });
               }
@@ -193,7 +194,7 @@ const Phonebook = () => {
                   email: person.email || person.email1 || person.email2 || "",
                   phone: person.phone || person.tel_direct || person.tel_other || person.mobile || "",
                   dbId: agent.agentsdb_id || "",
-                  jobTitle: person.job_title || "",
+                  jobTitle: formatJobTitleDisplay(person),
                   raw: { agent, person },
                 });
               }

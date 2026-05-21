@@ -13,6 +13,7 @@ export const API_CONFIG = {
     SIGNUP: "/api/signup",
     COUNTRIES: "/api/countries",
     CUSTOMERS: "/api/customers",
+    CUSTOMERS_OPTIONS: "/api/customers/options",
     CUSTOMER_REGISTER: "/api/customer/register",
     CUSTOMER_UPDATE: "/api/customer/update",
     CUSTOMER_DELETE: "/api/customer/delete",
@@ -22,6 +23,7 @@ export const API_CONFIG = {
     VENDORS: "/api/agents",
     // Stock list endpoints
     STOCK_LIST: "/api/stock/list",
+    STOCK_LIST_OPTIONS: "/api/stock/list/options",
     STOCK_CREATE: "/api/stock/list/create",
     STOCK_UPDATE: "/api/stock/list/update",
     STOCK_DELETE: "/api/stock/list/delete",
@@ -30,6 +32,11 @@ export const API_CONFIG = {
     PRODUCT_CREATE: "/api/product/create",
     PRODUCT_UPDATE: "/api/product/update",
     PRODUCT_DELETE: "/api/product/delete",
+    // Shipping order endpoints
+    SHIPPING_ORDERS: "/api/shipping/orders",
+    SHIPPING_ORDER: "/api/shipping/order",
+    SHIPPING_ORDER_CREATE: "/api/create/shipping/order",
+    SHIPPING_ORDER_UPDATE: "/api/shipping/order/update",
   },
 
   // Request timeout in milliseconds

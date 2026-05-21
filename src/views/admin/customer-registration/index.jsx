@@ -45,6 +45,10 @@ import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
 import { useMasterData } from "hooks/useMasterData";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
+import JobTitleSelect from "components/forms/JobTitleSelect";
+import useJobTitleOptions from "hooks/useJobTitleOptions";
+import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
+import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import { useCustomer } from "redux/hooks/useCustomer";
 
 
@@ -84,6 +88,7 @@ function CustomerRegistration() {
 
     const { customers, addCustomerToRedux } = useCustomer();
     const { countries: countryList = [] } = useMasterData();
+    const { jobTitleOptions, setQJobTitle, openOptions } = useJobTitleOptions();
 
     const [isSuccessModalOpen, setIsSuccessModalOpen] = React.useState(false);
     const [isFailureModalOpen, setIsFailureModalOpen] = React.useState(false);
@@ -125,7 +130,8 @@ function CustomerRegistration() {
         first_name: "",
         last_name: "",
         prefix: "",
-        job_title: "",
+        job_title_id: null,
+        job_title_select: "",
         email: "",
         tel_direct: "",
         phone: "",
@@ -359,7 +365,7 @@ function CustomerRegistration() {
                         first_name: getValue(child.first_name),
                         last_name: getValue(child.last_name),
                         prefix: getValue(child.prefix),
-                        job_title: getValue(child.job_title),
+                        ...mapJobTitleFieldsFromContact(child),
                         email: getValue(child.email),
                         tel_direct: getValue(child.tel_direct),
                         phone: getValue(child.phone),
@@ -744,7 +750,6 @@ function CustomerRegistration() {
                             phone: row.phone || undefined,
                             phone2: row.phone2 || undefined,
                             prefix: row.prefix || undefined,
-                            job_title: row.job_title || undefined,
                             tel_direct: row.tel_direct || undefined,
                             tel_other: row.tel_other || undefined,
                             whatsapp: row.whatsapp ? true : false,
@@ -752,6 +757,7 @@ function CustomerRegistration() {
                             attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
                             attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
+                        applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
                             if (childPayload[key] === undefined) {
@@ -772,7 +778,6 @@ function CustomerRegistration() {
                             phone: row.phone || undefined,
                             phone2: row.phone2 || undefined,
                             prefix: row.prefix || undefined,
-                            job_title: row.job_title || undefined,
                             tel_direct: row.tel_direct || undefined,
                             tel_other: row.tel_other || undefined,
                             whatsapp: row.whatsapp ? true : false,
@@ -780,6 +785,7 @@ function CustomerRegistration() {
                             attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
                             attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
+                        applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
                             if (childPayload[key] === undefined) {
@@ -803,12 +809,12 @@ function CustomerRegistration() {
                         phone: row.phone || undefined,
                         phone2: row.phone2 || undefined,
                         prefix: row.prefix || undefined,
-                        job_title: row.job_title || undefined,
                         tel_direct: row.tel_direct || undefined,
                         tel_other: row.tel_other || undefined,
                         whatsapp: row.whatsapp ? true : false,
                         remarks: row.remarks || undefined,
                     };
+                    applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                     // Remove undefined values
                     Object.keys(childPayload).forEach(key => {
                         if (childPayload[key] === undefined) {
@@ -1860,6 +1866,38 @@ function CustomerRegistration() {
                                                                             minW="24ch"
                                                                             maxW="90ch"
                                                                             cols={getAutoCols(row[column.key], "Type and press Enter to create numbered list...", { min: 24, max: 90 })}
+                                                                        />
+                                                                    ) : column.key === "job_title" ? (
+                                                                        <JobTitleSelect
+                                                                            value={row.job_title_select || ""}
+                                                                            onChange={({ id, name }) => {
+                                                                                setPeopleRows((prev) => {
+                                                                                    const updated = [...prev];
+                                                                                    updated[rowIndex] = {
+                                                                                        ...updated[rowIndex],
+                                                                                        job_title_select: name,
+                                                                                        job_title_id: id,
+                                                                                    };
+                                                                                    return updated;
+                                                                                });
+                                                                            }}
+                                                                            onSearchChange={setQJobTitle}
+                                                                            onOpen={(search) => openOptions(search)}
+                                                                            options={mergeM2OOptions(
+                                                                                jobTitleOptions,
+                                                                                row.job_title_id,
+                                                                                row.job_title_select
+                                                                            )}
+                                                                            placeholder="Select or type job title..."
+                                                                            listId={`client-job-title-${rowIndex}`}
+                                                                            size="sm"
+                                                                            style={{ backgroundColor: "#f7f7f77a" }}
+                                                                            border="1px solid"
+                                                                            borderColor={borderColor}
+                                                                            borderRadius="md"
+                                                                            htmlSize={getAutoHtmlSize(row.job_title_select, "Select or type job title...", { min: 16, max: 50 })}
+                                                                            flex="0 0 auto"
+                                                                            w="auto"
                                                                         />
                                                                     ) : column.key === "attachments" ? (
                                                                         <VStack spacing={2} align="stretch">

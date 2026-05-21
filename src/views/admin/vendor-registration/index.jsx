@@ -48,6 +48,10 @@ import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack, MdOpenIn
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi, getAgentAttachmentApi } from "api/vendor";
+import StockDestinationSelect from "components/forms/StockDestinationSelect";
+import useJobTitleOptions from "hooks/useJobTitleOptions";
+import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
+import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
 
@@ -145,7 +149,7 @@ const normalizePersonFromApi = (person = {}, companyName = "") => ({
     first_name: getValue(person.first_name),
     last_name: getValue(person.last_name),
     prefix: getValue(person.prefix),
-    job_title: getValue(person.job_title),
+    ...mapJobTitleFieldsFromContact(person),
     email: getValue(person.email),
     tel_direct: getValue(person.tel_direct || person.telDirect),
     phone: getValue(person.phone),
@@ -162,7 +166,7 @@ const normalizePersonFromApi = (person = {}, companyName = "") => ({
     })) : [], // Array of existing attachments from API
 });
 
-const buildChildPayload = (row, isUpdate = false, isEditMode = false) => {
+const buildChildPayload = (row, isUpdate = false, isEditMode = false, jobTitleOptions = []) => {
     // Build name from first_name and last_name
     const firstName = (row.first_name || "").trim();
     const lastName = (row.last_name || "").trim();
@@ -175,7 +179,6 @@ const buildChildPayload = (row, isUpdate = false, isEditMode = false) => {
         type: "contact",
         company_type: "person",
         prefix: row.prefix || undefined,
-        job_title: row.job_title || undefined,
         email: row.email || undefined,
         email2: row.email2 || undefined,
         phone: row.phone || undefined,
@@ -208,6 +211,8 @@ const buildChildPayload = (row, isUpdate = false, isEditMode = false) => {
         }
     }
     // For new registration, don't add op or id (children are created with the agent)
+
+    applyJobTitleIdsToPayload(payload, row, jobTitleOptions);
 
     // Remove undefined values
     // IMPORTANT: If name is empty/undefined, the backend will reject it
@@ -310,6 +315,7 @@ function VendorRegistration() {
     const location = useLocation();
     const { countries, isLoading: countriesLoading, getCountries } = useVendor();
     const countryList = countries?.countries;
+    const { jobTitleOptions, setQJobTitle } = useJobTitleOptions();
 
     // Only treat as edit mode if id exists and is a valid number (not "new", "register", etc.)
     const pathId = params.id || location.pathname.split('/').pop();
@@ -397,7 +403,8 @@ function VendorRegistration() {
         first_name: "",
         last_name: "",
         prefix: "",
-        job_title: "",
+        job_title_id: null,
+        job_title_select: "",
         email: "",
         tel_direct: "",
         phone: "",
@@ -885,7 +892,7 @@ function VendorRegistration() {
                     return; // Don't add rows without first_name or last_name
                 }
 
-                const payload = buildChildPayload(row, hasOriginalId, true); // isEditMode = true
+                const payload = buildChildPayload(row, hasOriginalId, true, jobTitleOptions); // isEditMode = true
 
                 // Validate that payload has name (required by backend)
                 if (hasRequiredChildFields(payload)) {
@@ -902,7 +909,7 @@ function VendorRegistration() {
                     return; // Skip rows without required fields
                 }
 
-                const payload = buildChildPayload(row, false, false); // isEditMode = false (new registration)
+                const payload = buildChildPayload(row, false, false, jobTitleOptions); // isEditMode = false (new registration)
 
                 // Validate that payload has name (required by backend)
                 if (hasRequiredChildFields(payload)) {
@@ -2230,6 +2237,37 @@ function VendorRegistration() {
                                                         >
                                                             Works via WhatsApp
                                                         </Checkbox>
+                                                    ) : column.key === "job_title" ? (
+                                                        <StockDestinationSelect
+                                                            value={row.job_title_select || ""}
+                                                            onChange={({ id, name }) => {
+                                                                setPeopleRows((prev) => {
+                                                                    const updated = [...prev];
+                                                                    updated[rowIndex] = {
+                                                                        ...updated[rowIndex],
+                                                                        job_title_select: name,
+                                                                        job_title_id: id,
+                                                                    };
+                                                                    return updated;
+                                                                });
+                                                            }}
+                                                            onSearchChange={setQJobTitle}
+                                                            options={mergeM2OOptions(
+                                                                jobTitleOptions,
+                                                                row.job_title_id,
+                                                                row.job_title_select
+                                                            )}
+                                                            placeholder="Select or type job title..."
+                                                            listId={`vendor-job-title-${rowIndex}`}
+                                                            size="sm"
+                                                            style={{ backgroundColor: "#f7f7f77a" }}
+                                                            border="1px solid"
+                                                            borderColor={borderColor}
+                                                            borderRadius="md"
+                                                            htmlSize={getAutoHtmlSize(row.job_title_select, "Select or type job title...", { min: 16, max: 50 })}
+                                                            flex="0 0 auto"
+                                                            w="auto"
+                                                        />
                                                     ) : column.key === "remarks" ? (
                                                         <Textarea
                                                             value={row[column.key] || ""}

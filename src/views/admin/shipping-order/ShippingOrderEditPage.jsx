@@ -23,6 +23,10 @@ import quotationsAPI from "../../../api/quotations";
 import { updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
+import {
+  applyShippingOrderAttachmentsToPayload,
+  notifyShippingOrderSaveResult,
+} from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 
 export default function ShippingOrderEditPage() {
@@ -116,14 +120,20 @@ export default function ShippingOrderEditPage() {
     }
     try {
       setIsSaving(true);
-      const payload = buildPayloadFromForm(formData, true, originalOrder || {});
-      await updateShippingOrder(id, payload, originalOrder?._raw || {});
-      toast({
-        title: "SO updated",
-        status: "success",
-        duration: 3000,
-        isClosable: true,
-      });
+      const payload = applyShippingOrderAttachmentsToPayload(
+        buildPayloadFromForm(formData, true, originalOrder || {}),
+        formData
+      );
+      const response = await updateShippingOrder(id, payload, originalOrder?._raw || {});
+      const notify = notifyShippingOrderSaveResult(response, toast, { created: false });
+      if (notify.ok && !notify.partial) {
+        toast({
+          title: "SO updated",
+          status: "success",
+          duration: 3000,
+          isClosable: true,
+        });
+      }
       history.push("/admin/shipping-orders");
     } catch (error) {
       console.error("Failed to update shipping order", error);

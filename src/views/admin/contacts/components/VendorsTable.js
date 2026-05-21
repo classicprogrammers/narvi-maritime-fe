@@ -336,7 +336,13 @@ export default function VendorsTable(props) {
           const fullName =
             child?.name ||
             [firstName, lastName].filter(Boolean).join(" ").trim();
-          const jobTitle = child?.job_title || child?.title || "";
+          const jobTitle =
+            (child?.job_title_ids && typeof child.job_title_ids === "object" && child.job_title_ids.name
+              ? String(child.job_title_ids.name)
+              : "") ||
+            (child?.job_title != null && child?.job_title !== false ? String(child.job_title) : "") ||
+            child?.title ||
+            "";
           const email =
             child?.email ||
             child?.email1 ||
