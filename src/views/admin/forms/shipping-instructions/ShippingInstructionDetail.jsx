@@ -105,6 +105,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const isDeliveryForm = formType === "delivery";
   const isDeliveryConfirmation = formType === "deliveryConfirmation";
   const isDeliveryLike = isDeliveryForm || isDeliveryConfirmation;
+  const isShippingInstruction = !isShippingAdvise && !isDeliveryLike;
+  const usesStocklistCargoLayout = isShippingInstruction || isShippingAdvise;
+
+  const getDgUnFromItem = (item) => {
+    const v = item?.dg_un ?? item?.dgUn ?? item?.dg_un_number;
+    if (v == null || v === false) return "";
+    return String(v).trim();
+  };
+  const hasDgUnValue = (item) => {
+    const s = getDgUnFromItem(item);
+    return s !== "" && s !== "-";
+  };
+  const shippingInstructionDgRows = (items) =>
+    (Array.isArray(items) ? items : []).filter(hasDgUnValue);
   const liaisonCheckboxStorageKey = `shipping-form-liaison-checked-${formType}`;
   const todayIso = new Date().toISOString().slice(0, 10);
   const loadFormLatest = isShippingAdvise
@@ -886,13 +900,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               : it.awb != null && it.awb !== false
                 ? String(it.awb)
                 : "",
-        poNumber: it.po_number != null && it.po_number !== false ? String(it.po_number) : "",
+        poNumber:
+          it.po_number != null && it.po_number !== false
+            ? String(it.po_number)
+            : it.po_text != null && it.po_text !== false
+              ? String(it.po_text)
+              : "",
         dg_un:
           it.dg_un != null && it.dg_un !== false
             ? String(it.dg_un)
-            : it.details != null && it.details !== false
-              ? String(it.details)
-              : "",
+            : it.dgUn != null && it.dgUn !== false
+              ? String(it.dgUn)
+              : it.dg_un_number != null && it.dg_un_number !== false
+                ? String(it.dg_un_number)
+                : "",
         boxes: Number(it.boxes || 0),
         kg: Number(it.kg || 0),
         cbm: Number(it.cbm || 0),
@@ -1478,11 +1499,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     }
 
     const dgUnPdf = (item) => {
-      const v = item?.dg_un ?? item?.dgUn;
-      if (v != null && v !== false && String(v).trim() !== "") return String(v);
-      return "-";
+      const s = getDgUnFromItem(item);
+      return s !== "" ? s : "-";
     };
-
     const docTitle = isShippingAdvise
       ? `Shipping Advise - ${formData.vessel || "-"}`
       : isDeliveryConfirmation
@@ -1596,46 +1615,57 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     let cargoHead;
     let cargoRows;
-    if (isShippingAdvise) {
-      cargoHead = [
-        "STOKITEM ID",
-        "FROM",
-        "Warehouse",
-        "SUPPLIER",
-        "PO",
-        "DG/UN",
-        "BOXES",
-        "KG",
-        "CBM",
-        "VW",
-        "LWH",
-      ];
+    let shippingInstructionPackedAsRowIndex = -1;
+    if (usesStocklistCargoLayout) {
+      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "STOCKLIST ID"];
       cargoRows = (cargoItems || []).map((item) => [
-        item.stockItemId || "-",
-        item.origin || "-",
-        item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
-        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
         item.vw != null && item.vw !== "" ? Number(item.vw).toFixed(2) : "-",
         item.lwh || "-",
+        item.origin || "-",
+        item.stockItemId || "-",
       ]);
       cargoRows.push([
         "CARGO TO BE SHIPPED",
         "",
-        "",
-        "",
-        "",
-        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
-        Number(totals.cbm || 0).toFixed(2),
+        "",
         Number(formData.totalVw || 0).toFixed(2),
         "",
+        "",
+        "",
       ]);
+      cargoRows.push([
+        "PACKED AS",
+        "",
+        String(formData.totalPackedQuantity ?? ""),
+        String(formData.totalPackedWeight ?? ""),
+        "",
+        String(formData.totalPackedVw ?? ""),
+        "",
+        "",
+        "",
+      ]);
+      shippingInstructionPackedAsRowIndex = cargoRows.length - 1;
+      cargoRows.push(["PO NUMBER", "DG / UN NUMBER", "", "", "", "", "", "", ""]);
+      shippingInstructionDgRows(cargoItems).forEach((item) => {
+        cargoRows.push([
+          item.poNumber || "-",
+          dgUnPdf(item),
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ]);
+      });
     } else if (isDeliveryConfirmation) {
       cargoHead = [
         "STOKITEM ID",
@@ -1698,44 +1728,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(formData.totalPackedWeight ?? ""),
         "",
       ]);
-    } else {
-      cargoHead = ["SUPPLIER", "PO NUMBER", "DG/UN", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "Warehouse"];
-      cargoRows = (cargoItems || []).map((item) => [
-        item.supplier || "-",
-        item.poNumber || "-",
-        dgUnPdf(item),
-        String(item.boxes ?? "-"),
-        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
-        item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
-        item.vw != null && item.vw !== "" ? Number(item.vw).toFixed(2) : "-",
-        item.lwh || "-",
-        item.origin || "-",
-        item.warehouseId || "-",
-      ]);
-      cargoRows.push([
-        "CARGO TO BE SHIPPED",
-        "",
-        "",
-        String(totals.boxes ?? 0),
-        Number(totals.kg || 0).toFixed(2),
-        "",
-        Number(formData.totalVw || 0).toFixed(2),
-        "",
-        "",
-        "",
-      ]);
-      cargoRows.push([
-        "PACKED AS",
-        "",
-        "",
-        String(formData.totalPackedQuantity ?? ""),
-        String(formData.totalPackedWeight ?? ""),
-        "",
-        String(formData.totalPackedVw ?? ""),
-        "",
-        "",
-        "",
-      ]);
     }
 
     autoTable(doc, {
@@ -1747,7 +1739,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
       margin: { left: contentLeft, right: 24, bottom: 24 },
       didParseCell: (hookData) => {
-        if ((!isShippingAdvise && !isDeliveryLike && hookData.section === "body") || (isDeliveryForm && hookData.section === "body")) {
+        if (usesStocklistCargoLayout && hookData.section === "body") {
+          if (hookData.row.index === shippingInstructionPackedAsRowIndex) {
+            hookData.cell.styles.fillColor = [255, 245, 204];
+            hookData.cell.styles.fontStyle = "bold";
+          }
+          if (
+            shippingInstructionPackedAsRowIndex >= 0 &&
+            hookData.row.index > shippingInstructionPackedAsRowIndex &&
+            hookData.column.index <= 1
+          ) {
+            const isDgHeaderRow = hookData.row.index === shippingInstructionPackedAsRowIndex + 1;
+            if (isDgHeaderRow) {
+              hookData.cell.styles.fillColor = [230, 236, 247];
+              hookData.cell.styles.fontStyle = "bold";
+              hookData.cell.styles.textColor = [33, 51, 91];
+            } else {
+              hookData.cell.styles.fillColor = [248, 250, 252];
+            }
+          }
+        }
+        if (isDeliveryForm && hookData.section === "body") {
           const packedAsRowIndex = cargoRows.length - 1;
           if (hookData.row.index === packedAsRowIndex) {
             hookData.cell.styles.fillColor = [255, 245, 204];
@@ -2685,9 +2697,130 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               <Text fontSize="sm" fontWeight="bold" mb={2}>
                 {isDeliveryLike
                   ? "CARGO TO BE DELIVERED TO THE VESSEL:"
-                  : "CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:"}
+                  : isShippingAdvise
+                    ? "CARGO TO BE INCLUDED IN THIS SHIPPING ADVISE:"
+                    : "CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:"}
               </Text>
               <Box overflowX="auto">
+                {usesStocklistCargoLayout ? (
+                  <VStack align="stretch" spacing={3}>
+                    <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
+                      <Thead bg="gray.100">
+                        <Tr>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">ORIGIN</Th>
+                          <Th py={2} px={2} fontSize="xs" fontWeight="bold">STOCKLIST ID</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {cargoItems.map((item, index) => (
+                          <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || "-"}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh || "-"}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin || "-"}</Td>
+                            <Td py={2} px={2} fontSize="xs">{item.stockItemId || "-"}</Td>
+                          </Tr>
+                        ))}
+                        <Tr bg="gray.100" fontWeight="bold">
+                          <Td colSpan={2} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                            CARGO TO BE SHIPPED:
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td py={2} px={2} fontSize="xs"></Td>
+                        </Tr>
+                        <Tr bg="yellow.50">
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
+                            PACKED AS:
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                            <Input
+                              id="totalPackedQuantity"
+                              type="number"
+                              value={formData.totalPackedQuantity}
+                              onChange={(e) => {
+                                packedTotalsUserEditedRef.current = true;
+                                handleInputChange("totalPackedQuantity", e.target.value);
+                              }}
+                              size="xs"
+                              variant="unstyled"
+                              bg="transparent"
+                              fontWeight="semibold"
+                            />
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                            <Input
+                              id="totalPackedWeight"
+                              type="number"
+                              step="0.01"
+                              value={formData.totalPackedWeight}
+                              onChange={(e) => {
+                                packedTotalsUserEditedRef.current = true;
+                                handleInputChange("totalPackedWeight", e.target.value);
+                              }}
+                              size="xs"
+                              variant="unstyled"
+                              bg="transparent"
+                              fontWeight="semibold"
+                            />
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
+                            <Input
+                              id="totalPackedVw"
+                              type="number"
+                              step="0.01"
+                              value={formData.totalPackedVw}
+                              onChange={(e) => {
+                                packedTotalsUserEditedRef.current = true;
+                                handleInputChange("totalPackedVw", e.target.value);
+                              }}
+                              size="xs"
+                              variant="unstyled"
+                              bg="transparent"
+                              fontWeight="semibold"
+                            />
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td py={2} px={2} fontSize="xs"></Td>
+                        </Tr>
+                        <Tr bg="gray.100">
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
+                            PO NUMBER
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
+                            DG / UN NUMBER
+                          </Td>
+                          <Td colSpan={7} py={2} px={2} fontSize="xs"></Td>
+                        </Tr>
+                        {shippingInstructionDgRows(cargoItems).map((item, index) => (
+                          <Tr key={`dg-${item.id}`} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{getDgUnFromItem(item) || "-"}</Td>
+                            <Td colSpan={7} py={2} px={2} fontSize="xs"></Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </VStack>
+                ) : (
                 <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
                   <Thead bg="gray.100">
                     <Tr>
@@ -2845,6 +2978,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     )}
                   </Tbody>
                 </Table>
+                )}
               </Box>
             </Box>
           </Box>

@@ -3410,7 +3410,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <ModalOverlay />
         <ModalContent m={4} maxH="calc(100vh - 2rem)">
           <ModalHeader>
-           CI PL Preview
+            CI PL Preview
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>
