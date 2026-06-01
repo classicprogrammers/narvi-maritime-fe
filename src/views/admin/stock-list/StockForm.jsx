@@ -53,6 +53,7 @@ import {
     getStockM2OId,
     getStockM2OName,
 } from "../../../utils/stockDestinationOptions";
+import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
     buildStockReportPdfAttachmentForItem,
     createStockPdfRowHelpers,
@@ -779,7 +780,67 @@ export default function StockForm() {
         }
     };
 
+    const removeSOPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SO-")) return str.substring(3);
+        return str;
+    };
+
+    const removeSIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const removeDIPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("DI-")) return str.substring(3);
+        return str;
+    };
+
+    const removeSICombinedPrefix = (value) => {
+        if (!value || value === "" || value === "-") return "";
+        const str = String(value).trim();
+        if (str.startsWith("SIC-")) return str.substring(4);
+        if (str.startsWith("SI-C-")) return str.substring(5);
+        if (str.startsWith("SI-")) return str.substring(3);
+        return str;
+    };
+
+    const stockCreatePayloadContext = useMemo(
+        () => ({
+            clients,
+            vessels,
+            suppliers,
+            currencies,
+            pics,
+            destinationOptions,
+            apDestinationOptions,
+            normalizeStockStatusKey,
+            removeSOPrefix,
+            removeSIPrefix,
+            removeDIPrefix,
+            removeSICombinedPrefix,
+        }),
+        [
+            clients,
+            vessels,
+            suppliers,
+            currencies,
+            pics,
+            destinationOptions,
+            apDestinationOptions,
+        ]
+    );
+
     const getPayload = (rowData, includeStockId = false) => {
+        if (!includeStockId) {
+            return buildStockCreateLinePayload(rowData, stockCreatePayloadContext);
+        }
+
         const splitLines = (val) =>
             (val || "")
                 .split(/\r?\n/)
@@ -789,7 +850,7 @@ export default function StockForm() {
         const poArray = splitLines(rowData.poNumber);
         const lwhArray = splitLines(rowData.lwhText);
 
-        // Payload matching the API structure exactly
+        // Update payload — create uses buildStockCreateLinePayload
         const payload = {
             stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
             stock_status_changed_by: rowData.stockStatusChangedBy || "",

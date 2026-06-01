@@ -1,6 +1,7 @@
 // Stock API functions
 import { getApiEndpoint } from "../config/api";
 import api from "./axios";
+import { sanitizeStockCreateLine } from "../utils/stockCreatePayload";
 
 // Import the global modal system
 import { showApiModal } from "../components/ApiModal";
@@ -315,7 +316,10 @@ export const createStockItemApi = async (stockData) => {
   try {
     // If stockData is already in lines format, use it directly
     // Otherwise, wrap single item in lines array
-    const payload = stockData.lines ? stockData : { lines: [stockData] };
+    const raw = stockData.lines ? stockData : { lines: [stockData] };
+    const payload = {
+      lines: raw.lines.map((line) => sanitizeStockCreateLine(line)),
+    };
 
     const response = await api.post(getApiEndpoint("STOCK_CREATE"), payload);
 

@@ -70,6 +70,7 @@ import {
     getStockM2OName,
     mergeStockDestinationOptions,
 } from "../../../utils/stockDestinationOptions";
+import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
     buildStockReportPdfAttachmentForItem,
     createStockPdfRowHelpers,
@@ -1060,7 +1061,37 @@ export default function StockForm() {
         history.push("/admin/stock-list/stocks");
     };
 
+    const stockCreatePayloadContext = useMemo(
+        () => ({
+            clients,
+            vessels,
+            suppliers,
+            currencies,
+            pics,
+            destinationOptions,
+            apDestinationOptions,
+            normalizeStockStatusKey,
+            removeSOPrefix,
+            removeSIPrefix,
+            removeDIPrefix,
+            removeSICombinedPrefix,
+        }),
+        [
+            clients,
+            vessels,
+            suppliers,
+            currencies,
+            pics,
+            destinationOptions,
+            apDestinationOptions,
+        ]
+    );
+
     const getPayload = (rowData, includeStockId = false) => {
+        if (!includeStockId) {
+            return buildStockCreateLinePayload(rowData, stockCreatePayloadContext);
+        }
+
         const splitLines = (val) =>
             (val || "")
                 .split(/\r?\n/)
@@ -1070,7 +1101,7 @@ export default function StockForm() {
         const poArray = splitLines(rowData.poNumber);
         const lwhArray = splitLines(rowData.lwhText);
 
-        // Payload matching the API structure exactly - match the lines array format
+        // Update payload (partial/changed fields) — create uses buildStockCreateLinePayload
         const payload = {
             stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
             stock_status_changed_by: rowData.stockStatusChangedBy || "",
