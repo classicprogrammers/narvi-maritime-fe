@@ -209,6 +209,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     totalPackedWeight: "",
     totalPackedVw: "",
     totalVw: "",
+    totalBox: null,
+    totalWeight: null,
+    totalValueInUsd: null,
     selectAgent: "", // stores selected agent id
     selectConsignee: "", // stores selected option id
     company: "",
@@ -276,6 +279,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     kg: cargoItems.reduce((sum, item) => sum + item.kg, 0),
     cbm: cargoItems.reduce((sum, item) => sum + item.cbm, 0),
     vw: cargoItems.reduce((sum, item) => sum + item.vw, 0),
+  };
+  const stockListTableTotals = {
+    boxes: formData.totalBox != null ? formData.totalBox : totals.boxes,
+    weight: formData.totalWeight != null ? formData.totalWeight : totals.kg,
+    valueUsd:
+      formData.totalValueInUsd != null
+        ? formData.totalValueInUsd
+        : cargoItems.reduce((sum, item) => {
+          const v = Number(item.valueUsd);
+          return sum + (Number.isFinite(v) ? v : 0);
+        }, 0),
+  };
+  const formatStockListTotal = (value, fractionDigits = 2) => {
+    if (!Number.isFinite(value)) return "-";
+    return Number(value).toFixed(fractionDigits);
   };
 
   const handleInputChange = (field, value) => {
@@ -649,6 +667,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ? Boolean(form.in_liason_with && String(form.in_liason_with).trim() !== "")
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
+    const formTotalsSource =
+      form.totals && typeof form.totals === "object" ? form.totals : form;
+    const parseFormTotal = (value) => {
+      if (value == null || value === false || value === "") return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    };
+    const totalBox = parseFormTotal(form.total_box ?? formTotalsSource.total_box);
+    const totalWeight = parseFormTotal(form.total_weight ?? formTotalsSource.total_weight);
+    const totalValueInUsd = parseFormTotal(
+      form.total_value_in_usd ?? formTotalsSource.total_value_in_usd
+    );
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes ?? it?.box ?? 0), 0),
       weight: stockList.reduce((sum, it) => sum + Number(it?.kg ?? it?.weight ?? 0), 0),
@@ -831,6 +861,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
       totalVw: hasTotalVw ? Number(form.total_vw) : stockTotals.vw,
+      totalBox,
+      totalWeight,
+      totalValueInUsd,
       transportDetails:
         isShippingAdvise && form.transport_details && form.transport_details !== false
           ? String(form.transport_details)
@@ -1615,7 +1648,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   };
 
   /** Builds the same PDF used for preview, download, and print */
-  const buildShippingFormPdf = async () => {
+  const buildShippingFormPdf = async ({ isPreview = false } = {}) => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
@@ -1633,6 +1666,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : formData.diNo
           ? ["DI NO", diNoLabel || "-"]
           : ["SI / SIC / DI", "-"];
+    const isCiPlPdf = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm;
+    const selectedIdentifierLabelForPdf =
+      isPreview &&
+      isCiPlPdf &&
+      (selectedIdentifierLabel[0] === "SI NUMBER" || selectedIdentifierLabel[0] === "SI / SIC / DI")
+        ? ["Invoice No", selectedIdentifierLabel[1]]
+        : selectedIdentifierLabel;
     const picLabel =
       picOptions.find((o) => Number(o.id) === Number(formData.pic))?.name || formData.pic || "";
     const doc = new jsPDF({
@@ -1666,36 +1706,71 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       return "-";
     };
 
-    const isCiPlPdf = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm;
     if (isCiPlPdf) {
       const pdfDate =
         formData.date != null && String(formData.date).trim() !== ""
           ? String(formData.date)
           : todayIso;
       const invoiceRefLines = [
-        selectedIdentifierLabel?.[1] ? `${selectedIdentifierLabel[0]}: ${selectedIdentifierLabel[1]}` : "",
+        selectedIdentifierLabelForPdf?.[1]
+          ? `${selectedIdentifierLabelForPdf[0]}: ${selectedIdentifierLabelForPdf[1]}`
+          : "",
         formData.jobNo ? `JOB NO: ${formData.jobNo}` : "",
       ].filter(Boolean);
 
+      const formatCiPlPdfText = (value) => {
+        if (value == null || value === false) return "";
+        return String(value).trim();
+      };
+      const formatCiPlPdfNumber = (value) => {
+        if (value == null || value === "" || value === false) return "";
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toFixed(2) : "";
+      };
+      const formatCiPlPdfBoxes = (value) => {
+        if (value == null || value === "" || value === false) return "";
+        const n = Number(value);
+        if (!Number.isFinite(n)) return formatCiPlPdfText(value);
+        return Number.isInteger(n) ? String(n) : n.toFixed(2);
+      };
       const ciPlRows = (cargoItems || []).map((item) => (
         isCiPlPerUnitTab
           ? [
-            item.poNumber || "via system",
-            String(item.boxes ?? "via system"),
-            item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
-            item.details || "Free text, line shifts",
-            item.quantity || "Free text",
-            item.perUnit || "Free text",
-            item.valueUsd || "Free text",
+            formatCiPlPdfText(item.poNumber),
+            formatCiPlPdfBoxes(item.boxes),
+            formatCiPlPdfNumber(item.kg),
+            formatCiPlPdfText(item.details),
+            formatCiPlPdfText(item.quantity),
+            formatCiPlPdfText(item.perUnit),
+            formatCiPlPdfText(item.valueUsd),
           ]
           : [
-            item.poNumber || "via system",
-            String(item.boxes ?? "via system"),
-            item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "via system",
-            item.details || "Free text, line shifts",
-            item.valueUsd || "Free text",
+            formatCiPlPdfText(item.poNumber),
+            formatCiPlPdfBoxes(item.boxes),
+            formatCiPlPdfNumber(item.kg),
+            formatCiPlPdfText(item.details),
+            formatCiPlPdfText(item.valueUsd),
           ]
       ));
+      const ciPlTotalRow = isCiPlPerUnitTab
+        ? [
+          "TOTAL",
+          formatStockListTotal(stockListTableTotals.boxes),
+          formatStockListTotal(stockListTableTotals.weight),
+          "",
+          "",
+          "",
+          formatStockListTotal(stockListTableTotals.valueUsd),
+        ]
+        : [
+          "TOTAL",
+          formatStockListTotal(stockListTableTotals.boxes),
+          formatStockListTotal(stockListTableTotals.weight),
+          "",
+          formatStockListTotal(stockListTableTotals.valueUsd),
+        ];
+      const ciPlBody = [...ciPlRows, ciPlTotalRow];
+      const ciPlTotalRowIndex = ciPlBody.length - 1;
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
@@ -1746,11 +1821,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         head: [isCiPlPerUnitTab
           ? ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
           : ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"]],
-        body: ciPlRows.length
-          ? ciPlRows
-          : [isCiPlPerUnitTab
-            ? ["via system", "via system", "via system", "Free text, line shifts", "Free text", "Free text", "Free text"]
-            : ["via system", "via system", "via system", "Free text, line shifts", "Free text"]],
+        body: ciPlBody,
         theme: "grid",
         styles: {
           fontSize: 8,
@@ -1776,6 +1847,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           6: { cellWidth: isCiPlPerUnitTab ? 92 : 0 },
         },
         margin: { left: 30, right: 40 },
+        didParseCell: (hookData) => {
+          if (hookData.section === "body" && hookData.row.index === ciPlTotalRowIndex) {
+            hookData.cell.styles.fillColor = [237, 242, 247];
+            hookData.cell.styles.fontStyle = "bold";
+          }
+        },
       });
 
       doc.setFont("helvetica", "bold");
@@ -2048,7 +2125,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const handleOpenPdfPreview = async () => {
     setIsPdfPreviewLoading(true);
     try {
-      const doc = await buildShippingFormPdf();
+      const doc = await buildShippingFormPdf({ isPreview: true });
       const blob = doc.output("blob");
       if (pdfPreviewBlobUrlRef.current) {
         URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
@@ -2995,6 +3072,30 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           )}
                         </Tr>
                       ))}
+                      {!isShippingAdvise && !isDeliveryLike && (
+                        <Tr bg="gray.100" fontWeight="bold">
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                            TOTAL
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                            {formatStockListTotal(stockListTableTotals.boxes)}
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                            {formatStockListTotal(stockListTableTotals.weight)}
+                          </Td>
+                          <Td
+                            borderRight="1px"
+                            borderColor="gray.300"
+                            py={2}
+                            px={2}
+                            fontSize="xs"
+                            colSpan={isCiPlPerUnitTab ? 3 : 1}
+                          />
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                            {formatStockListTotal(stockListTableTotals.valueUsd)}
+                          </Td>
+                        </Tr>
+                      )}
                       {isDeliveryLike && (
                         <Tr bg="gray.100" fontWeight="bold">
                           <Td colSpan={6} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">

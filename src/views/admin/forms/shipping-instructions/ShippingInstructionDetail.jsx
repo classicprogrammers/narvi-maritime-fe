@@ -1457,8 +1457,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : `shipping-instruction-${dateTag}.pdf`;
   };
 
-  /** Builds the same PDF used for preview, download, and print */
-  const buildShippingFormPdf = async () => {
+  /** Builds PDF for preview, download, and print (preview can hide VW column) */
+  const buildShippingFormPdf = async ({ hideVwInPdf = false } = {}) => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
@@ -1616,6 +1616,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     let cargoHead;
     let cargoRows;
     let shippingInstructionPackedAsRowIndex = -1;
+    const vwColumnIndex = 5;
     if (usesStocklistCargoLayout) {
       cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "STOCKLIST ID"];
       cargoRows = (cargoItems || []).map((item) => [
@@ -1666,6 +1667,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           "",
         ]);
       });
+      if (hideVwInPdf) {
+        cargoHead.splice(vwColumnIndex, 1);
+        cargoRows = cargoRows.map((row) => {
+          const nextRow = [...row];
+          nextRow.splice(vwColumnIndex, 1);
+          return nextRow;
+        });
+      }
     } else if (isDeliveryConfirmation) {
       cargoHead = [
         "STOKITEM ID",
@@ -1808,7 +1817,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const handleOpenPdfPreview = async () => {
     setIsPdfPreviewLoading(true);
     try {
-      const doc = await buildShippingFormPdf();
+      const doc = await buildShippingFormPdf({ hideVwInPdf: true });
       const blob = doc.output("blob");
       if (pdfPreviewBlobUrlRef.current) {
         URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
