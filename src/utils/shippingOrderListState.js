@@ -121,7 +121,109 @@ function buildFilterFromSearchKey(searchKey) {
   return { searchValue, searchQuery, page: 1 };
 }
 
-/** SO number for stock edit/create form inputs (M2O so_id.name, stock_so_number, etc.). */
+/** Resolve shipping order record id for stock form dropdown (M2O so_id.id). */
+export function resolveStockSoIdForForm(stock, shippingOrders = []) {
+  if (!stock) return null;
+  if (typeof stock.so_id === "object" && stock.so_id != null && stock.so_id.id != null) {
+    return String(stock.so_id.id);
+  }
+  if (stock.so_id != null && stock.so_id !== "" && stock.so_id !== false) {
+    const raw = String(stock.so_id);
+    if (/^\d+$/.test(raw)) return raw;
+  }
+  const legacy = stock.stock_so_number ?? stock.so_number;
+  if (legacy != null && legacy !== "" && Array.isArray(shippingOrders) && shippingOrders.length > 0) {
+    const legacyStr = String(legacy).trim().replace(/^SO-/i, "");
+    const match = shippingOrders.find(
+      (s) =>
+        String(s.so_id) === legacyStr ||
+        String(s.so_number || s.name || "")
+          .trim()
+          .replace(/^SO-/i, "") === legacyStr ||
+        String(s.id) === legacyStr
+    );
+    if (match?.id != null) return String(match.id);
+  }
+  return null;
+}
+
+/** Display label for a shipping order row (e.g. SO-3674). */
+export function getShippingOrderDisplayLabel(order) {
+  if (!order) return "";
+  if (order.so_id != null && order.so_id !== "" && order.so_id !== false) {
+    return `SO-${order.so_id}`;
+  }
+  const name = order.so_number ?? order.name;
+  if (name != null && String(name).trim() !== "") {
+    const str = String(name).trim();
+    return /^SO-/i.test(str) ? str : `SO-${str.replace(/^SO-/i, "")}`;
+  }
+  return order.id != null ? `SO-${order.id}` : "";
+}
+
+/** Options for SimpleSearchableSelect on stock forms. */
+export function buildShippingOrderSelectOptions(shippingOrders = []) {
+  return (Array.isArray(shippingOrders) ? shippingOrders : [])
+    .filter((so) => so && so.id != null)
+    .map((so) => ({
+      id: so.id,
+      name: getShippingOrderDisplayLabel(so),
+    }));
+}
+
+/** Normalize form soId for comparison (shipping order record id or null). */
+export function normalizeStockFormSoId(value) {
+  if (value == null || value === "" || value === false) return null;
+  if (typeof value === "object" && value != null && value.id != null) {
+    return String(value.id);
+  }
+  return String(value);
+}
+
+/** Compare two form soId values. */
+export function stockFormSoIdsEqual(a, b) {
+  return normalizeStockFormSoId(a) === normalizeStockFormSoId(b);
+}
+
+/** Build so_id payload for stock create/update; false clears the link. */
+export function buildStockSoIdPayloadValue(soId, shippingOrders = []) {
+  if (soId == null || soId === "" || soId === false) return false;
+  return buildStockSoIdM2O(soId, shippingOrders) || false;
+}
+
+/** Compare transformed so_id payload values. */
+export function stockSoIdPayloadValuesEqual(a, b, shippingOrders = []) {
+  const left = buildStockSoIdPayloadValue(a, shippingOrders);
+  const right = buildStockSoIdPayloadValue(b, shippingOrders);
+  if (left === false && right === false) return true;
+  if (left && right && typeof left === "object" && typeof right === "object") {
+    return String(left.id) === String(right.id) && String(left.name) === String(right.name);
+  }
+  return false;
+}
+
+/** Build M2O so_id payload { id, name } for stock create/update. */
+export function buildStockSoIdM2O(soId, shippingOrders = []) {
+  if (soId == null || soId === "" || soId === false) return undefined;
+  const id = Number(soId);
+  if (!Number.isFinite(id)) return undefined;
+  const order = (Array.isArray(shippingOrders) ? shippingOrders : []).find(
+    (s) => String(s.id) === String(soId)
+  );
+  let name = "";
+  if (order) {
+    if (order.so_id != null && order.so_id !== "" && order.so_id !== false) {
+      name = String(order.so_id);
+    } else {
+      name = String(order.so_number ?? order.name ?? "")
+        .trim()
+        .replace(/^SO-/i, "");
+    }
+  }
+  return { id, name: name || String(id) };
+}
+
+/** SO number for stock edit/create form inputs (M2O so_id.name, stock_so_number, etc.). @deprecated use resolveStockSoIdForForm */
 export function resolveStockSoNumberForForm(stock) {
   if (!stock) return "";
   const key =
@@ -144,6 +246,12 @@ export function resolveSoFilterFromStockItem(item) {
   const fromSoId = getSoNumberSearchKeyFromField(item.so_id);
   if (fromSoId) {
     return buildFilterFromSearchKey(fromSoId);
+  }
+
+  if (item.soId != null && item.soId !== "") {
+    const built = buildStockSoIdM2O(item.soId, item._shippingOrders || []);
+    const fromBuilt = getSoNumberSearchKeyFromField(built);
+    if (fromBuilt) return buildFilterFromSearchKey(fromBuilt);
   }
 
   const raw = item.stock_so_number ?? item.so_number ?? item.soNumber ?? "";

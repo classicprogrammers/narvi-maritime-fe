@@ -64,6 +64,13 @@ import { useHistory, useLocation } from "react-router-dom";
 import api from "../../../api/axios";
 import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
+import {
+  buildStockSoIdM2O,
+  resolveStockSoIdForForm,
+  buildStockSoIdPayloadValue,
+  stockSoIdPayloadValuesEqual,
+  normalizeStockFormSoId,
+} from "../../../utils/shippingOrderListState";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
@@ -2662,7 +2669,7 @@ export default function Stocks() {
             client_id: getFieldValue("client_id", "client"),
             // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || "",
-            so_id: addSOPrefix(getFieldValue("so_id", "so_number", "stock_so_number")),
+            so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrders)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
             origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
@@ -2879,7 +2886,6 @@ export default function Stocks() {
             },
             { backend: "vessel_destination", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination"], transform: (v) => v || "" },
             { backend: "vessel_eta", original: ["vessel_eta"], edited: ["vessel_eta"], transform: (v) => toValue(v, false) },
-            { backend: "stock_so_number", original: ["so_id", "so_number", "stock_so_number"], edited: ["so_id", "stock_so_number"], transform: (v) => v ? removeSOPrefix(String(v)) : "" },
             { backend: "si_number", original: ["si_number"], edited: ["si_number"], transform: (v) => v ? removeSIPrefix(String(v)) : "" },
             { backend: "di_no", original: ["di_no"], edited: ["di_no"], transform: (v) => v ? removeDIPrefix(String(v)) : "" },
             { backend: "vessel_destination_text", original: ["vessel_destination", "vessel_destination_text"], edited: ["vessel_destination", "vessel_destination_text"], transform: (v) => v || "" },
@@ -2901,6 +2907,14 @@ export default function Stocks() {
                 payload[backend] = editedVal;
             }
         });
+
+        const originalSoId = normalizeStockFormSoId(
+            resolveStockSoIdForForm(originalItem, shippingOrders)
+        );
+        const editedSoId = normalizeStockFormSoId(getEditedValue(["so_id"]));
+        if (!stockSoIdPayloadValuesEqual(editedSoId, originalSoId, shippingOrders)) {
+            payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrders);
+        }
 
         const currentDestinationIds = buildStockDestinationIdsPayload(
             getEditedValue(["destination_ids_id"]),

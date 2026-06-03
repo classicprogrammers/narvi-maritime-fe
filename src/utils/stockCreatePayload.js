@@ -3,7 +3,7 @@
  * (lines[].* fields only — no internal/UI keys).
  */
 
-import { getM2OId, getM2OName } from "./m2oFieldOptions";
+import { buildStockSoIdPayloadValue } from "./shippingOrderListState";
 
 /** Keys accepted by the stock create API (line object). */
 export const STOCK_CREATE_LINE_KEYS = new Set([
@@ -39,7 +39,6 @@ export const STOCK_CREATE_LINE_KEYS = new Set([
   "di_no",
   "si_number",
   "si_combined",
-  "stock_so_number",
   "stock_shipping_instruction",
   "stock_delivery_instruction",
   "stock_destination",
@@ -217,8 +216,8 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     pics = [],
     destinationOptions = [],
     apDestinationOptions = [],
+    shippingOrders = [],
     normalizeStockStatusKey = (v) => v,
-    removeSOPrefix = (v) => v,
     removeSIPrefix = (v) => v,
     removeDIPrefix = (v) => v,
     removeSICombinedPrefix = (v) => v,
@@ -232,13 +231,6 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
   const dims = Array.isArray(rowData.dimensions) ? rowData.dimensions : [];
   const lwhDim = firstDimension(dims, "lwh");
   const volDim = firstDimension(dims, "volume");
-
-  const formatSo = (raw) => {
-    if (!raw) return "";
-    let value = String(raw);
-    if (value && !value.startsWith("SO-")) value = `SO-${value}`;
-    return String(removeSOPrefix(value));
-  };
 
   const formatSi = (raw) => {
     if (!raw) return "";
@@ -277,6 +269,8 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
 
   const apDestName =
     rowData.apDestinationSelect || rowData.apDestination || "";
+
+  const soIdValue = buildStockSoIdPayloadValue(rowData.soId, shippingOrders);
 
   const line = {
     stock_status: normalizeStockStatusKey(rowData.stockStatus) || "",
@@ -329,7 +323,7 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
       : undefined,
     vessel_destination_text: rowData.vesselDestination || "",
     vessel_eta: rowData.vesselEta || "",
-    stock_so_number: formatSo(rowData.soNumber),
+    ...(soIdValue !== false ? { so_id: soIdValue } : {}),
     si_number: formatSi(rowData.siNumber),
     si_combined: formatSiCombined(rowData.siCombined),
     di_no: formatDi(rowData.diNumber),

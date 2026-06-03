@@ -14,6 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import ShippingOrderAttachmentsField from "../../../components/shipping-order/ShippingOrderAttachmentsField";
+import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
 
 // Coerce relation field to id so we never pass { id, name } to inputs (avoids "Objects are not valid as a React child")
 const toId = (v) =>
@@ -361,6 +362,15 @@ export default function ShippingOrderFormFields({
       {/* Attachments */}
       <Box>
         <ShippingOrderAttachmentsField
+          formData={formData}
+          setFormData={setFormData}
+          orderId={isEditMode ? formData.id : null}
+        />
+      </Box>
+
+      {/* CIPL form report */}
+      <Box>
+        <ShippingOrderCiplFilesField
           formData={formData}
           setFormData={setFormData}
           orderId={isEditMode ? formData.id : null}

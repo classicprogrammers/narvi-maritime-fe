@@ -71,11 +71,29 @@ export function filesToShippingAttachments(files) {
   );
 }
 
+/** Map API CIPL file metadata for form state. */
+export function mapExistingCiplFilesFromOrder(order = {}) {
+  const list = Array.isArray(order.cipl_files) ? order.cipl_files : [];
+  return list
+    .filter((att) => att && att.id != null)
+    .map((att) => ({
+      id: att.id,
+      filename: att.filename || att.name || `CIPL ${att.id}`,
+      mimetype: att.mimetype || "application/pdf",
+      file_size: att.file_size,
+      url: att.url,
+      download_url: att.download_url,
+    }));
+}
+
 /** Attach pending uploads and deletions to create/update payload. */
 export function applyShippingOrderAttachmentsToPayload(payload, formData = {}) {
   if (!payload || !formData) return payload;
-  if (Array.isArray(formData.attachments) && formData.attachments.length > 0) {
-    payload.attachments = formData.attachments;
+  const pendingAttachments = (formData.attachments || []).filter(
+    (att) => att && att.datas != null && String(att.datas).trim() !== ""
+  );
+  if (pendingAttachments.length > 0) {
+    payload.attachments = pendingAttachments;
   }
   if (
     Array.isArray(formData.attachment_to_delete) &&
@@ -83,6 +101,31 @@ export function applyShippingOrderAttachmentsToPayload(payload, formData = {}) {
   ) {
     payload.attachment_to_delete = formData.attachment_to_delete;
   }
+  return payload;
+}
+
+/** Attach pending CIPL uploads and deletions to create/update payload. */
+export function applyShippingOrderCiplFilesToPayload(payload, formData = {}) {
+  if (!payload || !formData) return payload;
+  const pendingCiplFiles = (formData.cipl_files || []).filter(
+    (att) => att && att.datas != null && String(att.datas).trim() !== ""
+  );
+  if (pendingCiplFiles.length > 0) {
+    payload.cipl_files = pendingCiplFiles;
+  }
+  if (
+    Array.isArray(formData.cipl_files_to_delete) &&
+    formData.cipl_files_to_delete.length > 0
+  ) {
+    payload.cipl_files_to_delete = formData.cipl_files_to_delete;
+  }
+  return payload;
+}
+
+/** Attach general files and CIPL files to create/update payload. */
+export function applyShippingOrderFilesToPayload(payload, formData = {}) {
+  applyShippingOrderAttachmentsToPayload(payload, formData);
+  applyShippingOrderCiplFilesToPayload(payload, formData);
   return payload;
 }
 

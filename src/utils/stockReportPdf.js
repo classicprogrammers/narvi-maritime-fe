@@ -1,6 +1,10 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../assets/letterHead/NarviLetterhead.jpeg";
+import {
+  buildStockSoIdM2O,
+  getShippingOrderDisplayLabel,
+} from "./shippingOrderListState";
 
 async function loadLetterheadOnPdf(doc) {
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -470,11 +474,14 @@ function totalVolumeFromDimensions(dimensions, fallback) {
 }
 
 /** Stock DB main edit form row → API-like item for {@link mapAdminStockItemToPdfRow}. */
-export function mapMainDbEditRowToAdminItem(row) {
+export function mapMainDbEditRowToAdminItem(row, helpers = {}) {
     const dims = Array.isArray(row.dimensions) ? row.dimensions : [];
     const totalCbm = totalVolumeFromDimensions(dims, row.volumeCbm);
-    const soRaw = row.soNumber != null ? String(row.soNumber) : "";
-    const stockSoNumeric = soRaw ? soRaw.replace(/^SO[- ]?/i, "").trim() : "";
+    const shippingOrders = helpers.shippingOrders || [];
+    const soM2O = buildStockSoIdM2O(row.soId, shippingOrders);
+    const soDisplay = soM2O ? getShippingOrderDisplayLabel(
+        shippingOrders.find((s) => String(s.id) === String(row.soId))
+    ) : "";
     return {
         stock_item_id: row.stockItemId,
         stock_number: row.stockItemId || row.stockNumber,
@@ -501,8 +508,8 @@ export function mapMainDbEditRowToAdminItem(row) {
         currency_id: row.currency,
         value: row.value,
         dg_un: row.dgUn,
-        so_number: soRaw || undefined,
-        stock_so_number: stockSoNumeric || undefined,
+        so_id: soM2O,
+        so_number: soDisplay || undefined,
         dimensions: dims,
         remarks: row.remarks,
         internal_remark: row.internalRemark,
@@ -518,11 +525,14 @@ export function mapMainDbEditRowToAdminItem(row) {
 }
 
 /** New stock / StockForm row → API-like item for {@link mapAdminStockItemToPdfRow}. */
-export function mapStandardFormRowToAdminItem(row) {
+export function mapStandardFormRowToAdminItem(row, helpers = {}) {
     const dims = Array.isArray(row.dimensions) ? row.dimensions : [];
     const totalCbm = totalVolumeFromDimensions(dims, row.volumeCbm);
-    const soRaw = row.soNumber != null ? String(row.soNumber) : "";
-    const stockSoNumeric = soRaw ? soRaw.replace(/^SO[- ]?/i, "").trim() : "";
+    const shippingOrders = helpers.shippingOrders || [];
+    const soM2O = buildStockSoIdM2O(row.soId, shippingOrders);
+    const soDisplay = soM2O ? getShippingOrderDisplayLabel(
+        shippingOrders.find((s) => String(s.id) === String(row.soId))
+    ) : "";
     return {
         stock_item_id: row.stockItemId,
         stock_number: row.stockItemId || row.stockNumber,
@@ -549,8 +559,8 @@ export function mapStandardFormRowToAdminItem(row) {
         currency_id: row.currency,
         value: row.value,
         dg_un: row.dgUn,
-        so_number: soRaw || undefined,
-        stock_so_number: stockSoNumeric || undefined,
+        so_id: soM2O,
+        so_number: soDisplay || undefined,
         dimensions: dims,
         remarks: row.remarks,
         internal_remark: row.internalRemark,

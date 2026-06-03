@@ -24,7 +24,7 @@ import { updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
 import {
-  applyShippingOrderAttachmentsToPayload,
+  applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
@@ -88,6 +88,11 @@ export default function ShippingOrderEditPage() {
       attachments: [],
       existingAttachments: existingFiles,
       attachment_to_delete: orderFromState.attachment_to_delete || [],
+      cipl_files: [],
+      existingCiplFiles: Array.isArray(orderFromState.existingCiplFiles)
+        ? orderFromState.existingCiplFiles
+        : [],
+      cipl_files_to_delete: orderFromState.cipl_files_to_delete || [],
     });
   }, [id, location.state, history, toast]);
 
@@ -130,7 +135,7 @@ export default function ShippingOrderEditPage() {
     }
     try {
       setIsSaving(true);
-      const payload = applyShippingOrderAttachmentsToPayload(
+      const payload = applyShippingOrderFilesToPayload(
         buildPayloadFromForm(formData, true, originalOrder || {}),
         formData
       );

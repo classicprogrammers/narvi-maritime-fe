@@ -90,7 +90,14 @@ import {
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
-import { resolveStockSoNumberForForm } from "../../../utils/shippingOrderListState";
+import {
+  resolveStockSoIdForForm,
+  buildStockSoIdM2O,
+  buildShippingOrderSelectOptions,
+  normalizeStockFormSoId,
+  buildStockSoIdPayloadValue,
+  stockSoIdPayloadValuesEqual,
+} from "../../../utils/shippingOrderListState";
 
 export default function StockDBMainEdit() {
     const history = useHistory();
@@ -140,6 +147,10 @@ export default function StockDBMainEdit() {
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
     const [shippingOrders, setShippingOrders] = useState([]);
     const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
+    const shippingOrdersRef = useRef([]);
+    shippingOrdersRef.current = shippingOrders;
+    const hasInitializedFormRef = useRef(false);
+    const hasPatchedLegacySoIdRef = useRef(false);
 
     const textColor = useColorModeValue("gray.700", "white");
     const inputBg = useColorModeValue("gray.100", "gray.800");
@@ -332,7 +343,7 @@ export default function StockDBMainEdit() {
         // Editable fields - all from main DB table
         client: "",
         vessel: "",
-        soNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
+        soId: null, // Shipping order M2O (so_id.id)
         siNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
         siCombined: "", // STRING type (preserves spaces, e.g., "00021 1.1")
         diNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
@@ -395,6 +406,11 @@ export default function StockDBMainEdit() {
     /** React Strict Mode runs functional setState twice in dev; avoids duplicate PDF scheduling. */
     const statusPdfScheduleDedupeRef = useRef(null);
 
+    const shippingOrderOptions = useMemo(
+        () => buildShippingOrderSelectOptions(shippingOrders),
+        [shippingOrders]
+    );
+
     const stockReportPdfHelpers = useMemo(
         () =>
             createStockPdfRowHelpers({
@@ -419,7 +435,7 @@ export default function StockDBMainEdit() {
         async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
             setStockReportPdfLoadingRowIndex(rowIndex);
             try {
-                const adminItem = mapMainDbEditRowToAdminItem(rowSnapshot);
+                const adminItem = mapMainDbEditRowToAdminItem(rowSnapshot, { shippingOrders });
                 const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
                     changedByName: statusChangeActorName || "Unknown user",
                     previousStatus,
@@ -470,7 +486,7 @@ export default function StockDBMainEdit() {
             client: normalizeId(stock.client_id) || normalizeId(stock.client) || "",
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
             // Use getFieldValue to preserve spaces in text fields (e.g., "00021 1.1")
-            soNumber: resolveStockSoNumberForForm(stock),
+            soId: normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrdersRef.current)),
             siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
@@ -555,17 +571,29 @@ export default function StockDBMainEdit() {
         setFormRows([rowData]);
     }, []);
 
-    // Load selected items into form
+    // Load selected items into form (once — do not reset when shipping orders load)
     useEffect(() => {
-        if (selectedItemsFromState.length > 0) {
-            // Load from API
-            const rows = selectedItemsFromState.map((item) => {
-                return loadFormDataFromStock(item, true);
-            });
-            setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
-            // Store original data for comparison - deep copy and normalize types
-            setOriginalRows(rows.length > 0 ? rows.map(row => {
+        if (selectedItemsFromState.length === 0) {
+            if (!hasInitializedFormRef.current) {
+                toast({
+                    title: "Open from list",
+                    description: "Please open the edit page from the Stock List.",
+                    status: "warning",
+                    duration: 5000,
+                    isClosable: true,
+                });
+                history.replace("/admin/stock-list/stocks");
+            }
+            return;
+        }
+        if (hasInitializedFormRef.current) return;
+        hasInitializedFormRef.current = true;
+
+        const rows = selectedItemsFromState.map((item) => loadFormDataFromStock(item, true));
+        setFormRows(rows.length > 0 ? rows : [getEmptyRow()]);
+        setOriginalRows(rows.length > 0 ? rows.map(row => {
                 const normalized = { ...row };
+                if (normalized.soId != null) normalized.soId = normalizeStockFormSoId(normalized.soId);
                 // Normalize numeric fields to strings to match NumberInput output
                 if (normalized.items !== undefined) normalized.items = String(normalized.items || "");
                 if (normalized.weightKgs !== undefined) normalized.weightKgs = String(normalized.weightKgs || "");
@@ -576,11 +604,9 @@ export default function StockDBMainEdit() {
                 if (normalized.volumeCbm !== undefined) normalized.volumeCbm = String(normalized.volumeCbm || "");
                 if (normalized.cwAirfreight !== undefined) normalized.cwAirfreight = String(normalized.cwAirfreight || "");
                 if (normalized.value !== undefined) normalized.value = String(normalized.value || "");
-                // Deep copy dimensions array to ensure proper comparison
                 if (normalized.dimensions && Array.isArray(normalized.dimensions)) {
                     normalized.dimensions = normalized.dimensions.map(dim => ({
                         ...dim,
-                        // Preserve original values as-is for comparison
                         id: dim.id || null,
                         length_cm: dim.length_cm,
                         width_cm: dim.width_cm,
@@ -592,18 +618,29 @@ export default function StockDBMainEdit() {
                 }
                 return normalized;
             }) : [getEmptyRow()]);
-        } else {
-            // No data passed (e.g. direct URL or refresh) - redirect; do not call API to load items
-            toast({
-                title: "Open from list",
-                description: "Please open the edit page from the Stock List.",
-                status: "warning",
-                duration: 5000,
-                isClosable: true,
-            });
-            history.replace("/admin/stock-list/stocks");
-        }
     }, [selectedItemsFromState, loadFormDataFromStock, history, toast]);
+
+    // Patch legacy stock_so_number → soId once shipping orders are available (never overwrite user edits)
+    useEffect(() => {
+        if (!shippingOrders.length || hasPatchedLegacySoIdRef.current || !hasInitializedFormRef.current) return;
+        hasPatchedLegacySoIdRef.current = true;
+
+        const patchRow = (row, stock) => {
+            if (row.soId != null) return row;
+            if (!stock) return row;
+            const resolved = normalizeStockFormSoId(
+                resolveStockSoIdForForm(stock, shippingOrders)
+            );
+            return resolved ? { ...row, soId: resolved } : row;
+        };
+
+        setFormRows((prev) =>
+            prev.map((row, index) => patchRow(row, selectedItemsFromState[index]))
+        );
+        setOriginalRows((prev) =>
+            prev.map((row, index) => patchRow(row, selectedItemsFromState[index]))
+        );
+    }, [shippingOrders, selectedItemsFromState]);
 
     // Fetch lookup data once on mount (locations, shipping orders). Destinations, currencies, PICs from cache.
     const hasFetchedLookupDataRef = useRef(false);
@@ -627,7 +664,7 @@ export default function StockDBMainEdit() {
 
             try {
                 setIsLoadingShippingOrders(true);
-                const shippingOrdersResponse = await getShippingOrders();
+                const shippingOrdersResponse = await getShippingOrders({ page_size: 500 });
                 const shippingOrdersData = (shippingOrdersResponse && Array.isArray(shippingOrdersResponse.orders))
                     ? shippingOrdersResponse.orders
                     : (Array.isArray(shippingOrdersResponse) ? shippingOrdersResponse : []);
@@ -1057,15 +1094,8 @@ export default function StockDBMainEdit() {
             const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
             let processedValue = value;
 
-            // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
-            if (field === "soNumber") {
-                if (value && value !== "") {
-                    // Remove existing prefix if present, then add it back (preserves spaces)
-                    const withoutPrefix = value.startsWith("SO-") ? value.substring(3) : value;
-                    processedValue = `SO-${withoutPrefix}`;
-                } else {
-                    processedValue = "";
-                }
+            if (field === "soId") {
+                processedValue = normalizeStockFormSoId(value);
             } else if (field === "siNumber") {
                 if (value && value !== "") {
                     // Remove existing prefix if present, then add it back (preserves spaces)
@@ -1280,8 +1310,7 @@ export default function StockDBMainEdit() {
             ["details", "details", (v) => v || ""],
             ["item", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["vesselDestination", "vessel_destination", (v) => v || ""],
-            // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
-            ["soNumber", "stock_so_number", (v) => v ? String(removeSOPrefix(String(v))) : ""],
+            // SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
             ["siNumber", "si_number", (v) => v ? String(removeSIPrefix(String(v))) : ""],
             ["siCombined", "si_combined", (v) => {
                 const cleaned = v ? String(removeSICombinedPrefix(String(v))) : "";
@@ -1510,6 +1539,10 @@ export default function StockDBMainEdit() {
                 }
             }
         });
+
+        if (!stockSoIdPayloadValuesEqual(rowData.soId, originalData?.soId, shippingOrders)) {
+            payload.so_id = buildStockSoIdPayloadValue(rowData.soId, shippingOrders);
+        }
 
         const currentDestinationIds = buildStockDestinationIdsPayload(
             rowData.destinationId,
@@ -1987,21 +2020,32 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps} position="relative">
                                         <Flex gap="1" align="center">
-                                            <Input
-                                                type="text"
-                                                inputMode="text"
-                                                value={row.soNumber || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
-                                                placeholder="Enter SO (e.g., SO-00021 1.1)"
-                                                size="sm"
-                                                w="auto"
-                                                flex="0 0 auto"
-                                                htmlSize={getAutoHtmlSize(row.soNumber, "Enter SO (e.g., SO-00021 1.1)", { min: 18, max: 60 })}
+                                            <SimpleSearchableSelect
+                                                value={row.soId || null}
+                                                onChange={(val) => handleInputChange(rowIndex, "soId", val)}
+                                                options={shippingOrderOptions}
+                                                placeholder={
+                                                    isLoadingShippingOrders
+                                                        ? "Loading SO numbers..."
+                                                        : shippingOrderOptions.length === 0
+                                                            ? "No SO numbers available"
+                                                            : "Select SO Number"
+                                                }
+                                                displayKey="name"
+                                                valueKey="id"
+                                                isLoading={isLoadingShippingOrders}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
+                                                autoWidth
+                                                autoWidthMin={18}
+                                                autoWidthMax={50}
                                             />
-                                            <StockSoNumberOpenButton item={{ soNumber: row.soNumber }} />
+                                            <StockSoNumberOpenButton
+                                                item={{
+                                                    so_id: buildStockSoIdM2O(row.soId, shippingOrders),
+                                                }}
+                                            />
                                             {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                 <Menu>
                                                     <MenuButton
@@ -2012,10 +2056,10 @@ export default function StockDBMainEdit() {
                                                         aria-label="Copy to rows below"
                                                     />
                                                     <MenuList>
-                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", false)}>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", false)}>
                                                             Assign to below row
                                                         </MenuItem>
-                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", true)}>
+                                                        <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", true)}>
                                                             Assign to all rows below
                                                         </MenuItem>
                                                     </MenuList>

@@ -1,7 +1,7 @@
 /**
  * Shared utilities for shipping order list and edit page.
  */
-import { mapExistingAttachmentsFromOrder } from "../../../utils/shippingOrderAttachments";
+import { mapExistingAttachmentsFromOrder, mapExistingCiplFilesFromOrder } from "../../../utils/shippingOrderAttachments";
 
 export function toDateOnly(dateStr) {
   if (!dateStr) return "";
@@ -39,6 +39,7 @@ export function normalizeOrder(order) {
     : (order.so_number || (order.id ? `SO-${order.id}` : ""));
 
   const attachmentList = mapExistingAttachmentsFromOrder(order);
+  const ciplFileList = mapExistingCiplFilesFromOrder(order);
 
   return {
     id: order.id,
@@ -76,6 +77,11 @@ export function normalizeOrder(order) {
     attachments: [],
     existingAttachments: attachmentList,
     attachment_to_delete: [],
+    /** CIPL form report PDFs */
+    cipl_files: [],
+    existingCiplFiles: ciplFileList,
+    cipl_files_to_delete: [],
+    shipping_package: order.shipping_package || null,
     _raw: order,
   };
 }

@@ -257,6 +257,63 @@ export const buildShippingOrderAttachmentUrl = (orderId, attachment, forceDownlo
   }`;
 };
 
+/** Resolve package download URL (absolute). */
+export const resolveShippingPackageDownloadUrl = (url) => {
+  if (!url || url === false) return null;
+  if (String(url).startsWith("http")) return String(url);
+  const base = (API_CONFIG.BASE_URL || "").replace(/\/$/, "");
+  const path = String(url);
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+/** POST /api/shipping/order/package/check — readiness (no download URL). */
+export const checkShippingOrderPackage = async (id) => {
+  try {
+    const normalizedId =
+      typeof id === "string" && id.trim() !== "" && !Number.isNaN(Number(id))
+        ? Number(id)
+        : id;
+    const response = await api.post("/api/shipping/order/package/check", { id: normalizedId });
+    const data = response.data || response;
+    if (data.result && data.result.status === "error") {
+      throw new Error(data.result.message || "Failed to check shipping package");
+    }
+    if (data.status === "error") {
+      throw new Error(data.message || "Failed to check shipping package");
+    }
+    return data.result && typeof data.result === "object" ? data.result : data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/** POST /api/shipping/order/package/merge — merge CIPL + stock report PDFs. */
+export const mergeShippingOrderPackage = async (id) => {
+  try {
+    const normalizedId =
+      typeof id === "string" && id.trim() !== "" && !Number.isNaN(Number(id))
+        ? Number(id)
+        : id;
+    const response = await api.post("/api/shipping/order/package/merge", { id: normalizedId });
+    const data = response.data || response;
+    if (data.result && data.result.status === "error") {
+      const err = new Error(data.result.message || "Failed to merge shipping package");
+      err.missing = data.result.missing;
+      err.missing_messages = data.result.missing_messages;
+      throw err;
+    }
+    if (data.status === "error") {
+      const err = new Error(data.message || "Failed to merge shipping package");
+      err.missing = data.missing;
+      err.missing_messages = data.missing_messages;
+      throw err;
+    }
+    return data.result && typeof data.result === "object" ? data.result : data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 // Delete shipping order
 export const deleteShippingOrder = async (id) => {
   try {
@@ -283,4 +340,7 @@ export default {
   getShippingOrderAttachmentsApi,
   downloadShippingOrderAttachmentApi,
   buildShippingOrderAttachmentUrl,
+  resolveShippingPackageDownloadUrl,
+  checkShippingOrderPackage,
+  mergeShippingOrderPackage,
 };

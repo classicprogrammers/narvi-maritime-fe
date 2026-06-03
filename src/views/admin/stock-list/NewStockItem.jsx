@@ -53,7 +53,7 @@ import {
     MdClose as MdRemove,
     MdMoreVert,
 } from "react-icons/md";
-import { createStockItemApi, updateStockItemApi } from "../../../api/stock";
+import { getShippingOrders } from "../../../api/shippingOrders";
 import { normalizeStockStatusKey } from "../../../constants/stockStatus";
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
@@ -79,7 +79,13 @@ import {
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
-import { resolveStockSoNumberForForm } from "../../../utils/shippingOrderListState";
+import {
+  resolveStockSoIdForForm,
+  buildStockSoIdM2O,
+  buildShippingOrderSelectOptions,
+  normalizeStockFormSoId,
+  buildStockSoIdPayloadValue,
+} from "../../../utils/shippingOrderListState";
 
 export default function StockForm() {
     const history = useHistory();
@@ -104,7 +110,11 @@ export default function StockForm() {
     const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
+    const [shippingOrders, setShippingOrders] = useState([]);
+    const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
     const hasFetchedCurrenciesRef = React.useRef(false);
+    const hasFetchedShippingOrdersRef = React.useRef(false);
+    const hasPatchedLegacySoIdRef = React.useRef(false);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -198,7 +208,7 @@ export default function StockForm() {
         exportDoc2: "", // Export doc 2 - Free text + textarea
         remarks: "", // Remarks - Free text + textarea
         internalRemark: "", // Internal Remark - Free text + textarea
-        soNumber: "", // SO - STRING type (preserves spaces, e.g., "00021 1.1")
+        soId: null, // Shipping order M2O (so_id.id)
         siNumber: "", // SI Number - STRING type (preserves spaces, e.g., "00021 1.1")
         siCombined: "", // SI Combined - STRING type (preserves spaces, e.g., "00021 1.1")
         diNumber: "", // DI Number - STRING type (preserves spaces, e.g., "00021 1.1")
@@ -224,6 +234,11 @@ export default function StockForm() {
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const statusPdfScheduleDedupeRef = useRef(null);
 
+    const shippingOrderOptions = useMemo(
+        () => buildShippingOrderSelectOptions(shippingOrders),
+        [shippingOrders]
+    );
+
     const stockReportPdfHelpers = useMemo(
         () =>
             createStockPdfRowHelpers({
@@ -231,9 +246,9 @@ export default function StockForm() {
                 vessels,
                 suppliers,
                 currencies,
-                shippingOrders: [],
+                shippingOrders,
             }),
-        [clients, vessels, suppliers, currencies]
+        [clients, vessels, suppliers, currencies, shippingOrders]
     );
 
     const statusChangeActorName = useMemo(
@@ -279,7 +294,7 @@ export default function StockForm() {
         async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
             setStockReportPdfLoadingRowIndex(rowIndex);
             try {
-                const adminItem = mapStandardFormRowToAdminItem(rowSnapshot);
+                const adminItem = mapStandardFormRowToAdminItem(rowSnapshot, { shippingOrders });
                 const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
                     changedByName: statusChangeActorName || "Unknown user",
                     previousStatus,
@@ -441,6 +456,43 @@ export default function StockForm() {
         refreshClients();
         refreshVessels();
     }, [refreshClients, refreshVessels]);
+
+    useEffect(() => {
+        if (hasFetchedShippingOrdersRef.current) return;
+        hasFetchedShippingOrdersRef.current = true;
+        const fetchShippingOrders = async () => {
+            try {
+                setIsLoadingShippingOrders(true);
+                const response = await getShippingOrders({ page_size: 500 });
+                const list = Array.isArray(response?.orders) ? response.orders : [];
+                setShippingOrders(list);
+            } catch (error) {
+                console.error("Failed to fetch shipping orders:", error);
+            } finally {
+                setIsLoadingShippingOrders(false);
+            }
+        };
+        fetchShippingOrders();
+    }, []);
+
+    useEffect(() => {
+        if (!shippingOrders.length || hasPatchedLegacySoIdRef.current || !isEditing) return;
+        hasPatchedLegacySoIdRef.current = true;
+
+        setFormRows((prev) => {
+            let changed = false;
+            const next = prev.map((row) => {
+                if (row.soId != null || !row.stockId) return row;
+                const stock = stockList?.find((s) => String(s.id) === String(row.stockId));
+                if (!stock) return row;
+                const soId = normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrders));
+                if (!soId) return row;
+                changed = true;
+                return { ...row, soId };
+            });
+            return changed ? next : prev;
+        });
+    }, [shippingOrders, isEditing, stockList]);
 
     // Normalize currency values when currencies are loaded
     useEffect(() => {
@@ -761,7 +813,7 @@ export default function StockForm() {
             exportDoc2: getFieldValue(stock.export_doc_2),
             remarks: getFieldValue(stock.remarks),
             internalRemark: getFieldValue(stock.internal_remark),
-            soNumber: resolveStockSoNumberForForm(stock),
+            soId: normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrders)),
             siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
@@ -894,15 +946,8 @@ export default function StockForm() {
             const previousClient = prev[rowIndex]?.client == null ? "" : String(prev[rowIndex].client);
             let processedValue = value;
 
-            // For SO, SI, SI Combined, DI Number - add prefix immediately but preserve spaces
-            if (field === "soNumber") {
-                if (value && value !== "") {
-                    // Remove existing prefix if present, then add it back (preserves spaces)
-                    const withoutPrefix = value.startsWith("SO-") ? value.substring(3) : value;
-                    processedValue = `SO-${withoutPrefix}`;
-                } else {
-                    processedValue = "";
-                }
+            if (field === "soId") {
+                processedValue = normalizeStockFormSoId(value);
             } else if (field === "siNumber") {
                 if (value && value !== "") {
                     // Remove existing prefix if present, then add it back (preserves spaces)
@@ -1070,8 +1115,8 @@ export default function StockForm() {
             pics,
             destinationOptions,
             apDestinationOptions,
+            shippingOrders,
             normalizeStockStatusKey,
-            removeSOPrefix,
             removeSIPrefix,
             removeDIPrefix,
             removeSICombinedPrefix,
@@ -1084,6 +1129,7 @@ export default function StockForm() {
             pics,
             destinationOptions,
             apDestinationOptions,
+            shippingOrders,
         ]
     );
 
@@ -1176,16 +1222,7 @@ export default function StockForm() {
                 : undefined,
             vessel_destination: rowData.vesselDestination ? String(rowData.vesselDestination) : "", // Free text field
             vessel_eta: rowData.vesselEta || "",
-            // SO, SI, SI Combined, DI Number are STRING types - preserve spaces (e.g., "00021 1.1")
-            // Ensure prefix exists before removing it (in case user typed without prefix)
-            stock_so_number: rowData.soNumber ? (() => {
-                let value = String(rowData.soNumber);
-                // Add prefix if missing (preserves spaces)
-                if (value && !value.startsWith("SO-")) {
-                    value = `SO-${value}`;
-                }
-                return String(removeSOPrefix(value));
-            })() : "",
+            so_id: buildStockSoIdPayloadValue(rowData.soId, shippingOrders),
             si_number: rowData.siNumber ? (() => {
                 let value = String(rowData.siNumber);
                 // Add prefix if missing (preserves spaces)
@@ -2147,24 +2184,35 @@ export default function StockForm() {
                                                 borderColor={borderColor}
                                             />
                                         </Td>
-                                        {/* SO - Free text */}
+                                        {/* SO Number — shipping order M2O */}
                                         <Td {...cellProps} position="relative">
                                             <Flex gap="1" align="center">
-                                                <Input
-                                                    type="text"
-                                                    inputMode="text"
-                                                    value={row.soNumber || ""}
-                                                    onChange={(e) => handleInputChange(rowIndex, "soNumber", e.target.value)}
-                                                    placeholder="Enter SO (e.g., 00021 1.1)"
-                                                    size="sm"
-                                                    w="auto"
-                                                    flex="0 0 auto"
-                                                    htmlSize={getAutoHtmlSize(row.soNumber, "Enter SO (e.g., 00021 1.1)", { min: 18, max: 60 })}
+                                                <SimpleSearchableSelect
+                                                    value={row.soId || null}
+                                                    onChange={(val) => handleInputChange(rowIndex, "soId", val)}
+                                                    options={shippingOrderOptions}
+                                                    placeholder={
+                                                        isLoadingShippingOrders
+                                                            ? "Loading SO numbers..."
+                                                            : shippingOrderOptions.length === 0
+                                                                ? "No SO numbers available"
+                                                                : "Select SO Number"
+                                                    }
+                                                    displayKey="name"
+                                                    valueKey="id"
+                                                    isLoading={isLoadingShippingOrders}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
+                                                    autoWidth
+                                                    autoWidthMin={18}
+                                                    autoWidthMax={50}
                                                 />
-                                                <StockSoNumberOpenButton item={{ soNumber: row.soNumber }} />
+                                                <StockSoNumberOpenButton
+                                                    item={{
+                                                        so_id: buildStockSoIdM2O(row.soId, shippingOrders),
+                                                    }}
+                                                />
                                                 {formRows.length > 1 && rowIndex < formRows.length - 1 && (
                                                     <Menu>
                                                         <MenuButton
@@ -2175,10 +2223,10 @@ export default function StockForm() {
                                                             aria-label="Copy to rows below"
                                                         />
                                                         <MenuList>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", false)}>
+                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", false)}>
                                                                 Assign to below row
                                                             </MenuItem>
-                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soNumber", true)}>
+                                                            <MenuItem onClick={() => copyValueToRowsBelow(rowIndex, "soId", true)}>
                                                                 Assign to all rows below
                                                             </MenuItem>
                                                         </MenuList>

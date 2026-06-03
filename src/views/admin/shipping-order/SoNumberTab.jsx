@@ -70,11 +70,13 @@ import {
   getShippingOrders,
   createShippingOrder,
   updateShippingOrder,
+  mergeShippingOrderPackage,
+  resolveShippingPackageDownloadUrl,
 } from "../../../api/shippingOrders";
 import { useHistory, Link, useLocation } from "react-router-dom";
 import { normalizeOrder, buildPayloadFromForm, getOrderAttachmentsForDisplay } from "./shippingOrderUtils";
 import {
-  applyShippingOrderAttachmentsToPayload,
+  applyShippingOrderFilesToPayload,
   notifyShippingOrderSaveResult,
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
@@ -113,7 +115,7 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
-const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 18;
+const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 19;
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -187,7 +189,11 @@ const SoNumberTab = () => {
   const formDisclosure = useDisclosure();
   const picFilterModalDisclosure = useDisclosure();
   const vslsAgentDtlsDisclosure = useDisclosure();
+  const packageLinkDisclosure = useDisclosure();
   const advancedFiltersDisclosure = useDisclosure({ defaultIsOpen: false });
+
+  const [mergingOrderId, setMergingOrderId] = useState(null);
+  const [packageLinkData, setPackageLinkData] = useState({ url: "", soNumber: "" });
 
   // VSLS Agent Details modal state (used for both edit + view)
   const [vslsAgentDtlsModalValue, setVslsAgentDtlsModalValue] = useState("");
@@ -299,6 +305,9 @@ const SoNumberTab = () => {
       attachments: [],
       existingAttachments: [],
       attachment_to_delete: [],
+      cipl_files: [],
+      existingCiplFiles: [],
+      cipl_files_to_delete: [],
     });
   };
 
@@ -841,6 +850,60 @@ const SoNumberTab = () => {
     fetchOrders();
   };
 
+  const getSoNumber = (order) => {
+    if (order.so_number) return order.so_number;
+    return order.id ? `SO-${order.id}` : "-";
+  };
+
+  const handleGeneratePackageLink = async (order) => {
+    if (!order?.id) return;
+    setMergingOrderId(order.id);
+    try {
+      const data = await mergeShippingOrderPackage(order.id);
+      if (data.status !== "success") {
+        const lines = (data.missing || []).map(
+          (key) => data.missing_messages?.[key] || key
+        );
+        toast({
+          title: "Cannot generate link",
+          description: lines.join("\n\n") || data.message || "Merge failed.",
+          status: "error",
+          duration: 8000,
+          isClosable: true,
+        });
+        return;
+      }
+      const url = resolveShippingPackageDownloadUrl(
+        data.shipping_package?.full_download_url
+      );
+      if (!url) {
+        toast({
+          title: "Merge succeeded",
+          description: "No download URL was returned.",
+          status: "warning",
+          duration: 5000,
+          isClosable: true,
+        });
+        return;
+      }
+      setPackageLinkData({ url, soNumber: getSoNumber(order) });
+      packageLinkDisclosure.onOpen();
+    } catch (error) {
+      const lines = (error.missing || []).map(
+        (key) => error.missing_messages?.[key] || key
+      );
+      toast({
+        title: "Cannot generate link",
+        description: lines.join("\n\n") || error.message || "Merge failed.",
+        status: "error",
+        duration: 8000,
+        isClosable: true,
+      });
+    } finally {
+      setMergingOrderId(null);
+    }
+  };
+
   const handleFormSubmit = async () => {
     const hasClient = !!formData?.client_id;
     const hasVessel = !!formData?.vessel_id;
@@ -859,7 +922,7 @@ const SoNumberTab = () => {
     try {
       setIsSaving(true);
 
-      const payload = applyShippingOrderAttachmentsToPayload(
+      const payload = applyShippingOrderFilesToPayload(
         buildPayloadFromForm(formData, false),
         formData
       );
@@ -888,11 +951,6 @@ const SoNumberTab = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const getSoNumber = (order) => {
-    if (order.so_number) return order.so_number;
-    return order.id ? `SO-${order.id}` : "-";
   };
 
   const getEtaDisplay = (order) => {
@@ -1044,6 +1102,18 @@ const SoNumberTab = () => {
               </Tooltip>
             );
           })()}
+        </Td>
+        <Td {...tableCellProps} maxW="160px">
+          <Button
+            size="xs"
+            colorScheme="blue"
+            variant="outline"
+            isLoading={mergingOrderId === order.id}
+            loadingText="Merging"
+            onClick={() => handleGeneratePackageLink(order)}
+          >
+            Generate Link
+          </Button>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.timestamp || order.date_created)}</Text></Td>
@@ -1539,6 +1609,7 @@ const SoNumberTab = () => {
                 { label: "VSLS Agent Details", field: "vsls_agent_dtls", sortable: false },
                 { label: "Client Case Invoice Ref", field: "client_case_invoice_ref", sortable: false },
                 { label: "Files", field: "attachments", sortable: false },
+                { label: "Package Link", field: null, sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
                 { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
               ].map((col) => (
@@ -1681,6 +1752,75 @@ const SoNumberTab = () => {
             </Button>
             <Button colorScheme="blue" onClick={handleFormSubmit} isLoading={isSaving}>
               Create SO
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Shipping package download link (shown only after merge) */}
+      <Modal
+        isOpen={packageLinkDisclosure.isOpen}
+        onClose={packageLinkDisclosure.onClose}
+        size="lg"
+      >
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Package download link — {packageLinkData.soNumber}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text fontSize="sm" mb={3} color={tableTextColor}>
+              CIPL and stock report PDFs were merged. Share this link to download the package.
+            </Text>
+            <Input
+              value={packageLinkData.url}
+              isReadOnly
+              size="sm"
+              bg={inputBg}
+              color={inputText}
+              borderColor={borderColor}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              leftIcon={<Icon as={MdContentCopy} />}
+              colorScheme="blue"
+              mr={3}
+              onClick={async () => {
+                try {
+                  if (packageLinkData.url) {
+                    await navigator.clipboard.writeText(packageLinkData.url);
+                    toast({
+                      title: "Link copied",
+                      status: "success",
+                      duration: 2000,
+                      isClosable: true,
+                    });
+                  }
+                } catch {
+                  toast({
+                    title: "Copy failed",
+                    status: "error",
+                    duration: 2000,
+                    isClosable: true,
+                  });
+                }
+              }}
+            >
+              Copy link
+            </Button>
+            <Button
+              as="a"
+              href={packageLinkData.url ? `${packageLinkData.url}${packageLinkData.url.includes("?") ? "&" : "?"}download=true` : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outline"
+              mr={3}
+              isDisabled={!packageLinkData.url}
+            >
+              Download
+            </Button>
+            <Button variant="ghost" onClick={packageLinkDisclosure.onClose}>
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>

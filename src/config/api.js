@@ -37,6 +37,8 @@ export const API_CONFIG = {
     SHIPPING_ORDER: "/api/shipping/order",
     SHIPPING_ORDER_CREATE: "/api/create/shipping/order",
     SHIPPING_ORDER_UPDATE: "/api/shipping/order/update",
+    SHIPPING_ORDER_PACKAGE_CHECK: "/api/shipping/order/package/check",
+    SHIPPING_ORDER_PACKAGE_MERGE: "/api/shipping/order/package/merge",
   },
 
   // Request timeout in milliseconds
