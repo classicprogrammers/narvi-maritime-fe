@@ -51,6 +51,27 @@ export const formatJobTitleDisplay = (contact = {}) => {
 export const buildJobTitleIdsPayload = (optionId, selectName, options = []) =>
   buildM2OIdsPayload(optionId, selectName, options, null);
 
+/** Resolve display label for API q_job_title from form row + options. */
+export const resolveJobTitleLabelForPayload = (row, options = []) => {
+  const select = String(row?.job_title_select ?? "").trim();
+  if (select) return select;
+  const id = row?.job_title_id;
+  if (id != null && id !== "" && Array.isArray(options)) {
+    const match = options.find((opt) => String(opt.id) === String(id));
+    if (match?.name) return String(match.name).trim();
+  }
+  return "";
+};
+
+/** Customer register/update children: send q_job_title text, not job_title_ids id. */
+export const applyQJobTitleToPayload = (payload, row, options = []) => {
+  if (!payload || !row) return payload;
+  delete payload.job_title_ids;
+  const label = resolveJobTitleLabelForPayload(row, options);
+  payload.q_job_title = label || null;
+  return payload;
+};
+
 export const applyJobTitleIdsToPayload = (payload, row, options = []) => {
   if (!payload || !row) return payload;
   const hasSelect = String(row.job_title_select ?? "").trim() !== "";
