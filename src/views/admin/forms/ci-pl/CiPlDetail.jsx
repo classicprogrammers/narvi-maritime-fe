@@ -39,6 +39,8 @@ import {
 } from "@chakra-ui/react";
 import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
+import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
+import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import {
   getShippingAdviseOptionsApi,
@@ -156,6 +158,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const [fromOptions, setFromOptions] = useState([]);
   const [shippedByOptions, setShippedByOptions] = useState([]);
   const [toOptions, setToOptions] = useState([]);
+  const [optionsReloadToken, setOptionsReloadToken] = useState(0);
+  const { ingestOptionsResponse, getDeleteSelectProps } = useFormOptionDelete();
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
@@ -339,6 +343,23 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const match = list.find((opt) => String(opt.name || "").toLowerCase() === String(value).trim().toLowerCase());
     if (!match || match.id == null || !Number.isFinite(Number(match.id))) return null;
     return Number(match.id);
+  };
+  const refreshFormOptions = () => setOptionsReloadToken((token) => token + 1);
+  const handleDeletedPicOption = (option) => {
+    setPicOptions((prev) => prev.filter((row) => Number(row.id) !== Number(option.id)));
+    setFormData((prev) => (
+      String(prev.pic) === String(option.id) ? { ...prev, pic: "" } : prev
+    ));
+    refreshFormOptions();
+  };
+  const handleDeletedToOption = (option) => {
+    setToOptions((prev) => prev.filter((row) => Number(row.id) !== Number(option.id)));
+    setFormData((prev) => (
+      String(prev.to).toLowerCase() === String(option.name).toLowerCase()
+        ? { ...prev, to: "", toId: null }
+        : prev
+    ));
+    refreshFormOptions();
   };
   const toNullIfEmpty = (value) => {
     const text = value == null ? "" : String(value).trim();
@@ -1099,6 +1120,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
         const data = await loadOptions(optionsParams);
         if (cancelled) return;
+        ingestOptionsResponse(data);
 
         const result = data?.result && typeof data.result === "object" ? data.result : data;
         const optionsSource =
@@ -1236,7 +1258,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qDi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.diNo, selectedSiName, isShippingAdvise, isDeliveryLike, ciPlTabIndex]);
+  }, [qCnee, qSi, qSic, qDi, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.diNo, selectedSiName, isShippingAdvise, isDeliveryLike, ciPlTabIndex, optionsReloadToken, ingestOptionsResponse]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -2680,6 +2702,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           placeholder="Select PIC..."
                           _placeholder={{ color: "whiteAlpha.800" }}
                           style={{ color: "white" }}
+                          {...getDeleteSelectProps("pic", handleDeletedPicOption)}
                         />
                       </FormControl>
                     )}
@@ -2785,6 +2808,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             placeholder="Select PIC..."
                             _placeholder={{ color: "whiteAlpha.800" }}
                             style={{ color: "white" }}
+                            {...getDeleteSelectProps("pic", handleDeletedPicOption)}
                           />
                         </FormControl>
                         <FormControl display="contents">
@@ -2874,17 +2898,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <FormLabel htmlFor="location-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                             LOCATION :
                           </FormLabel>
-                          <Input
+                          <DeletableOptionCombobox
                             id="location-delivery"
-                            list="si-to-options"
                             value={formData.to}
-                            onChange={(e) => {
+                            onChange={(nextVal) => {
                               headerUserEditedRef.current = true;
-                              const nextVal = e.target.value;
                               handleInputChange("to", nextVal);
                               handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
                               setQTo(nextVal);
                             }}
+                            onSearchChange={setQTo}
+                            options={toOptions}
+                            isLoading={isOptionsLoading || isSiFormLoading}
                             size="sm"
                             fontWeight="semibold"
                             variant="unstyled"
@@ -2892,12 +2917,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             color="white"
                             placeholder="Select or type location..."
                             _placeholder={{ color: "whiteAlpha.800" }}
+                            {...getDeleteSelectProps("to", handleDeletedToOption)}
                           />
-                          <datalist id="si-to-options">
-                            {toOptions.map((opt) => (
-                              <option key={opt.key || `${opt.id ?? "txt"}-${opt.name}`} value={opt.name} />
-                            ))}
-                          </datalist>
                         </FormControl>
                       </>
                     )}

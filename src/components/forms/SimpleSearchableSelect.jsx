@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Input,
   Box,
+  Flex,
+  IconButton,
   List,
   ListItem,
   useColorModeValue,
   Spinner,
 } from '@chakra-ui/react';
+import { CloseIcon } from '@chakra-ui/icons';
 
 const SimpleSearchableSelect = ({
   value,
@@ -20,6 +23,9 @@ const SimpleSearchableSelect = ({
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
   isLoading = false,
+  canDeleteOption,
+  onDeleteOption,
+  isDeletingOptionId = null,
   bg,
   color,
   borderColor,
@@ -33,7 +39,6 @@ const SimpleSearchableSelect = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [filteredOptions, setFilteredOptions] = useState(options);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -68,20 +73,13 @@ const SimpleSearchableSelect = ({
   // Pull layout props so we can apply them to the wrapper too
   const { w, minW, maxW, ...inputProps } = props;
 
-  // Filter options based on search
-  useEffect(() => {
-    if (searchValue.trim()) {
-      const filtered = options.filter(option => {
-        const optionText = formatOption(option).toLowerCase();
-        return optionText.includes(searchValue.toLowerCase());
-      });
-      setFilteredOptions(filtered);
-    } else {
-      setFilteredOptions(options);
-    }
-  // Exclude formatOption from deps to avoid re-filtering/highlight resets on every parent render
+  const filteredOptions = useMemo(() => {
+    const q = String(isOpen ? searchValue : displayValue).trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((option) => formatOption(option).toLowerCase().includes(q));
+  // Exclude formatOption from deps to avoid recomputes on every parent render
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchValue, options]);
+  }, [searchValue, options, isOpen, displayValue]);
 
   // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
@@ -145,20 +143,27 @@ const SimpleSearchableSelect = ({
     setSearchValue("");
   };
 
+  const openDropdown = (prefill = "") => {
+    setIsOpen(true);
+    setSearchValue(prefill);
+    if (typeof onSearchChange === "function") onSearchChange(prefill);
+  };
+
   const handleInputChange = (e) => {
     const newValue = e.target.value;
     setSearchValue(newValue);
+    setIsOpen(true);
     if (typeof onSearchChange === "function") onSearchChange(newValue);
-    if (!isOpen) {
-      setIsOpen(true);
-    }
   };
 
   const handleFocus = () => {
-    setIsOpen(true);
-    // Optionally prefill with current display value
-    setSearchValue(prefillOnFocus ? displayValue : "");
-    if (typeof onSearchChange === "function") onSearchChange(prefillOnFocus ? displayValue : "");
+    openDropdown(prefillOnFocus ? displayValue : "");
+  };
+
+  const handleClick = () => {
+    if (!isOpen) {
+      openDropdown(prefillOnFocus ? displayValue : "");
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -224,9 +229,10 @@ const SimpleSearchableSelect = ({
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
     };
-  }, [isOpen]);
+  }, [isOpen, filteredOptions.length, isLoading]);
 
-  const dropdownContent = isOpen ? (
+  const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
+  const dropdownContent = showDropdown ? (
     <Box
       ref={dropdownRef}
       bg={dropdownBg}
@@ -242,31 +248,51 @@ const SimpleSearchableSelect = ({
         <Box p={3} textAlign="center">
           <Spinner size="sm" />
         </Box>
-      ) : filteredOptions.length > 0 ? (
+      ) : (
         <List spacing={0}>
           {filteredOptions.map((option, index) => (
             <ListItem
-              key={option.id ?? `opt-${index}`}
+              key={option.id ?? option.key ?? `opt-${index}`}
               ref={index === highlightedIndex ? highlightedItemRef : null}
-              px={3}
-              py={2}
-              cursor="pointer"
+              px={canDeleteOption?.(option) ? 2 : 3}
+              py={canDeleteOption?.(option) ? 1 : 2}
               bg={index === highlightedIndex ? highlightBg : undefined}
-              _hover={{ bg: highlightBg }}
-              onClick={(e) => handleSelect(e, option)}
-              onMouseDown={(e) => e.preventDefault()}
               borderBottom="1px"
               borderColor={defaultBorderColor}
               fontSize="sm"
             >
-              {formatOption(option)}
+              <Flex align="center" gap={1}>
+                <Box
+                  flex="1"
+                  px={canDeleteOption?.(option) ? 1 : 0}
+                  py={canDeleteOption?.(option) ? 1 : 0}
+                  cursor="pointer"
+                  _hover={{ bg: highlightBg }}
+                  onClick={(e) => handleSelect(e, option)}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {formatOption(option)}
+                </Box>
+                {canDeleteOption?.(option) ? (
+                  <IconButton
+                    aria-label={`Delete ${formatOption(option)}`}
+                    icon={<CloseIcon boxSize={2.5} />}
+                    size="xs"
+                    variant="ghost"
+                    colorScheme="red"
+                    isLoading={Number(isDeletingOptionId) === Number(option.id)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDeleteOption?.(option, e);
+                    }}
+                  />
+                ) : null}
+              </Flex>
             </ListItem>
           ))}
         </List>
-      ) : (
-        <Box px={3} py={2} color="gray.500" fontSize="sm">
-          No options found
-        </Box>
       )}
     </Box>
   ) : null;
@@ -284,6 +310,7 @@ const SimpleSearchableSelect = ({
           value={inputValue}
           onChange={handleInputChange}
           onFocus={handleFocus}
+          onClick={handleClick}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           size={size}
