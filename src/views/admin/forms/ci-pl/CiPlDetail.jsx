@@ -1644,11 +1644,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ? `delivery-confirmation-${dateTag}.pdf`
         : isDeliveryForm
           ? `delivery-instruction-${dateTag}.pdf`
-          : `shipping-instruction-${dateTag}.pdf`;
+          : `ci-pl-${dateTag}.pdf`;
   };
 
   /** Builds the same PDF used for preview, download, and print */
-  const buildShippingFormPdf = async ({ isPreview = false } = {}) => {
+  const buildShippingFormPdf = async () => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
@@ -1668,9 +1668,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : ["SI / SIC / DI", "-"];
     const isCiPlPdf = !isShippingAdvise && !isDeliveryConfirmation && !isDeliveryForm;
     const selectedIdentifierLabelForPdf =
-      isPreview &&
       isCiPlPdf &&
-      (selectedIdentifierLabel[0] === "SI NUMBER" || selectedIdentifierLabel[0] === "SI / SIC / DI")
+      selectedIdentifierLabel[1] &&
+      selectedIdentifierLabel[1] !== "-"
         ? ["Invoice No", selectedIdentifierLabel[1]]
         : selectedIdentifierLabel;
     const picLabel =
@@ -1711,13 +1711,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         formData.date != null && String(formData.date).trim() !== ""
           ? String(formData.date)
           : todayIso;
-      const invoiceRefLines = [
-        selectedIdentifierLabelForPdf?.[1]
-          ? `${selectedIdentifierLabelForPdf[0]}: ${selectedIdentifierLabelForPdf[1]}`
-          : "",
-        formData.jobNo ? `JOB NO: ${formData.jobNo}` : "",
-      ].filter(Boolean);
-
+      const leftColWidth = 250;
+      const gapBetweenCols = 16;
+      const rightColWidth = 260;
+      const ciPlTableWidth = leftColWidth + gapBetweenCols + rightColWidth;
+      const ciPlDescriptionColWidth = isCiPlPerUnitTab ? 178 : 242;
       const formatCiPlPdfText = (value) => {
         if (value == null || value === false) return "";
         return String(value).trim();
@@ -1733,13 +1731,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         if (!Number.isFinite(n)) return formatCiPlPdfText(value);
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
       };
+      const formatCiPlDescriptionCell = (value) => {
+        doc.setFontSize(7);
+        const text = formatCiPlPdfText(value) || "-";
+        return doc.splitTextToSize(text, ciPlDescriptionColWidth - 6);
+      };
       const ciPlRows = (cargoItems || []).map((item) => (
         isCiPlPerUnitTab
           ? [
             formatCiPlPdfText(item.poNumber),
             formatCiPlPdfBoxes(item.boxes),
             formatCiPlPdfNumber(item.kg),
-            formatCiPlPdfText(item.details),
+            formatCiPlDescriptionCell(item.details),
             formatCiPlPdfText(item.quantity),
             formatCiPlPdfText(item.perUnit),
             formatCiPlPdfText(item.valueUsd),
@@ -1748,7 +1751,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             formatCiPlPdfText(item.poNumber),
             formatCiPlPdfBoxes(item.boxes),
             formatCiPlPdfNumber(item.kg),
-            formatCiPlPdfText(item.details),
+            formatCiPlDescriptionCell(item.details),
             formatCiPlPdfText(item.valueUsd),
           ]
       ));
@@ -1772,98 +1775,107 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       const ciPlBody = [...ciPlRows, ciPlTotalRow];
       const ciPlTotalRowIndex = ciPlBody.length - 1;
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("INVOICE / PACKING LIST", pageWidth / 2, 168, { align: "center" });
-      doc.setDrawColor(52, 76, 255);
-      doc.setLineWidth(1);
-      doc.line(30, 180, pageWidth - 40, 180);
-
+      const docTitle = `Invoice / Packing List${formData.vessel ? ` - ${formData.vessel}` : ""}`;
+      doc.setFontSize(12);
+      doc.text(docTitle, contentLeft, contentTop);
       doc.setFontSize(9);
-      doc.text("CONSIGNED TO:", 32, 204);
-      const consignTextLines = doc.splitTextToSize(
-        formData.consignBlock || "Select agent + Select consignee + Free text (copy / paste)",
-        245
-      );
-      const consignBoxTopY = 212;
-      const consignTextStartY = 224;
-      const consignLineHeight = 9;
-      const consignBoxHeight = Math.max(56, (consignTextLines.length * consignLineHeight) + 16);
-      doc.rect(30, consignBoxTopY, 260, consignBoxHeight);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(consignTextLines, 36, consignTextStartY);
-      if (isCiPlPerUnitTab) {
-        const picRowY = consignBoxTopY + consignBoxHeight + 16;
-        const resolvedPicName = picLabel || "TAS";
-        doc.setFont("helvetica", "bold");
-        doc.text("PIC :", 32, picRowY);
-        doc.setFont("helvetica", "normal");
-        doc.text(resolvedPicName, 84, picRowY);
-      }
+      doc.text(`Date: ${pdfDate}`, contentLeft, contentTop + 14);
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      const refStartY = 218;
-      const refLineHeight = 12;
-      const resolvedRefLines = invoiceRefLines.length ? invoiceRefLines : ["-"];
-      resolvedRefLines.forEach((line, idx) => {
-        doc.text(String(line), 365, refStartY + (idx * refLineHeight));
-      });
-      const dateY = refStartY + (resolvedRefLines.length * refLineHeight) + 10;
-      doc.text(`DATE : ${pdfDate}`, 365, dateY);
-      const rightHeaderBottomY = dateY + 4;
-      const picHeaderBottomY = isCiPlPerUnitTab ? (consignBoxTopY + consignBoxHeight + 26) : 0;
-      const ciPlHeaderBottomY = Math.max(consignBoxTopY + consignBoxHeight, rightHeaderBottomY, picHeaderBottomY);
+      const consignLines = String(formData.consignBlock || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+
+      const twoColStartY = contentTop + 26;
+      const rightColLeft = contentLeft + leftColWidth + gapBetweenCols;
 
       autoTable(doc, {
-        startY: ciPlHeaderBottomY + 20,
+        startY: twoColStartY,
+        head: [["CONSIGN TO"]],
+        body: (consignLines.length ? consignLines : ["-"]).map((line) => [line]),
+        theme: "plain",
+        styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
+        headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+        margin: { left: contentLeft, right: 24 },
+        tableWidth: leftColWidth,
+      });
+      const consignTableTopY = twoColStartY;
+      const consignTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
+
+      const summaryRows = [
+        selectedIdentifierLabelForPdf,
+        ["JOB NO", formData.jobNo || "-"],
+        ["DATE", pdfDate],
+      ];
+      if (isCiPlPerUnitTab) {
+        summaryRows.push(["PIC", picLabel || "-"]);
+      }
+
+      autoTable(doc, {
+        startY: twoColStartY,
+        head: [["", ""]],
+        body: summaryRows,
+        theme: "grid",
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+        margin: { left: rightColLeft, right: 24 },
+        tableWidth: rightColWidth,
+      });
+      const summaryTableEndY = doc.lastAutoTable?.finalY || twoColStartY;
+      const twoColEndY = Math.max(consignTableEndY, summaryTableEndY);
+
+      doc.setDrawColor(205, 215, 232);
+      doc.setLineWidth(0.35);
+      const sharedBoxHeight = Math.max(12, twoColEndY - consignTableTopY);
+      doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
+      doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
+
+      const ciPlDescriptionColIndex = 3;
+      const ciPlColumnStyles = isCiPlPerUnitTab
+        ? {
+          0: { cellWidth: 60 },
+          1: { cellWidth: 44 },
+          2: { cellWidth: 56 },
+          3: { cellWidth: ciPlDescriptionColWidth, overflow: "linebreak" },
+          4: { cellWidth: 56 },
+          5: { cellWidth: 56 },
+          6: { cellWidth: 76 },
+        }
+        : {
+          0: { cellWidth: 78 },
+          1: { cellWidth: 52 },
+          2: { cellWidth: 66 },
+          3: { cellWidth: ciPlDescriptionColWidth, overflow: "linebreak" },
+          4: { cellWidth: 88 },
+        };
+
+      autoTable(doc, {
+        startY: twoColEndY + 14,
         head: [isCiPlPerUnitTab
           ? ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", "VALUE IN USD"]
           : ["PO#", "BOX", "WEIGHT", "DESCRIPTION", "VALUE IN USD"]],
         body: ciPlBody,
         theme: "grid",
-        styles: {
-          fontSize: 8,
-          cellPadding: 4,
-          lineColor: [0, 0, 0],
-          lineWidth: 0.6,
-          textColor: [0, 0, 0],
-          overflow: "linebreak",
-          valign: "top",
+        tableWidth: ciPlTableWidth,
+        styles: { fontSize: 7, cellPadding: 2, overflow: "linebreak", valign: "top" },
+        headStyles: { fillColor: [230, 236, 247], textColor: [33, 51, 91] },
+        columnStyles: ciPlColumnStyles,
+        margin: {
+          left: contentLeft,
+          right: pageWidth - contentLeft - ciPlTableWidth,
+          bottom: 24,
         },
-        headStyles: {
-          fillColor: [255, 255, 255],
-          textColor: [0, 0, 0],
-          fontStyle: "bold",
-        },
-        columnStyles: {
-          0: { cellWidth: 82 },
-          1: { cellWidth: 54 },
-          2: { cellWidth: 64 },
-          3: { cellWidth: isCiPlPerUnitTab ? 196 : 230 },
-          4: { cellWidth: isCiPlPerUnitTab ? 82 : 102 },
-          5: { cellWidth: isCiPlPerUnitTab ? 82 : 0 },
-          6: { cellWidth: isCiPlPerUnitTab ? 92 : 0 },
-        },
-        margin: { left: 30, right: 40 },
         didParseCell: (hookData) => {
+          if (hookData.column.index === ciPlDescriptionColIndex) {
+            hookData.cell.styles.overflow = "linebreak";
+            hookData.cell.styles.valign = "top";
+          }
           if (hookData.section === "body" && hookData.row.index === ciPlTotalRowIndex) {
             hookData.cell.styles.fillColor = [237, 242, 247];
             hookData.cell.styles.fontStyle = "bold";
           }
         },
       });
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.text("VALUE FOR CUSTOMS PURPOSE ONLY USD.", 405, 522, { align: "right" });
-      doc.setLineWidth(1);
-      doc.line(430, 512, pageWidth - 40, 512);
-      doc.line(430, 526, pageWidth - 40, 526);
-
-      doc.text("PACKING DETAILS :", pageWidth / 2, 730, { align: "center" });
-      doc.line(30, 736, pageWidth - 40, 736);
 
       return doc;
     }
@@ -2125,7 +2137,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const handleOpenPdfPreview = async () => {
     setIsPdfPreviewLoading(true);
     try {
-      const doc = await buildShippingFormPdf({ isPreview: true });
+      const doc = await buildShippingFormPdf();
       const blob = doc.output("blob");
       if (pdfPreviewBlobUrlRef.current) {
         URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
@@ -2162,12 +2174,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={bgColor} minH="100vh">
       <Box px={{ base: "4", md: "6", lg: "8" }} pt={0} pb={6} mx="auto">
         <Tabs variant="enclosed" colorScheme="orange" isLazy index={ciPlTabIndex} onChange={setCiPlTabIndex}>
-          <TabList mb={4}>
-            <Tab fontWeight="semibold">Simple</Tab>
-            <Tab fontWeight="semibold">Per unit</Tab>
-          </TabList>
-          {/* Header with actions */}
-          <Flex justify="end" align="center" mb={1}>
+          <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={3}>
+            <TabList>
+              <Tab fontWeight="semibold">Simple</Tab>
+              <Tab fontWeight="semibold">Per unit</Tab>
+            </TabList>
             <HStack spacing={3}>
               <Button
                 variant="outline"
@@ -2190,8 +2201,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             </HStack>
           </Flex>
 
+          <Text fontSize="2xl" fontWeight="bold" mb={6}>
+            {isCiPlPerUnitTab
+              ? `INVOICE / PACKING LIST (PER UNIT)${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
+              : `INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`}
+          </Text>
 
-          <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6} mt={6}>
+          <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6}>
             <Box>
               <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
                 <Box>
@@ -2253,13 +2269,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       bg="transparent"
                       fontSize="sm"
                       whiteSpace="pre-wrap"
-                      rows={5}
+                      rows={8}
                       placeholder="Write liaison details here..."
                       style={{
                         background: "#cdd0d3b5",
                         borderRadius: "6px",
                         padding: "15px",
-                        minHeight: "160px",
+                        minHeight: "255px",
                         lineHeight: "1.4rem",
                       }}
                     />
@@ -2893,7 +2909,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 <Text fontSize="sm" fontWeight="bold" mb={2}>
                   {isDeliveryLike
                     ? "CARGO TO BE DELIVERED TO THE VESSEL:"
-                    : "CARGO TO BE INCLUDED IN THIS SHIPPING INSTRUCTION:"}
+                    : "CARGO TO BE INCLUDED IN THIS INVOICE / PACKING LIST:"}
                 </Text>
                 <Box overflowX="auto">
                   <Table
@@ -3511,7 +3527,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         <ModalOverlay />
         <ModalContent m={4} maxH="calc(100vh - 2rem)">
           <ModalHeader>
-            CI PL Preview
+            Preview
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>

@@ -50,7 +50,10 @@ import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi, getAgentAttachmentApi } from "api/vendor";
 import StockDestinationSelect from "components/forms/StockDestinationSelect";
 import useJobTitleOptions from "hooks/useJobTitleOptions";
-import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
+import {
+    mapJobTitleFieldsFromContact,
+    resolveJobTitleLabelForPayload,
+} from "utils/contactJobTitle";
 import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import SearchableSelect from "components/forms/SearchableSelect";
 import { useVendor } from "redux/hooks/useVendor";
@@ -212,7 +215,15 @@ const buildChildPayload = (row, isUpdate = false, isEditMode = false, jobTitleOp
     }
     // For new registration, don't add op or id (children are created with the agent)
 
-    applyJobTitleIdsToPayload(payload, row, jobTitleOptions);
+    // For agent people, backend expects the job title name in job_title_ids,
+    // not the numeric ID. Resolve the label from the row + options and send
+    // that as a plain string (or null when empty).
+    const jobTitleLabel = resolveJobTitleLabelForPayload(row, jobTitleOptions);
+    if (jobTitleLabel && jobTitleLabel.trim() !== "") {
+        payload.job_title_ids = jobTitleLabel.trim();
+    } else {
+        payload.job_title_ids = null;
+    }
 
     // Remove undefined values
     // IMPORTANT: If name is empty/undefined, the backend will reject it
@@ -307,7 +318,7 @@ const isSuccessResponse = (response) => {
 };
 
 // No-op stub (draft/return-to-edit save removed; kept so any cached reference does not throw)
-function saveVendorReturnState() {}
+function saveVendorReturnState() { }
 
 function VendorRegistration() {
     const history = useHistory();
@@ -2137,12 +2148,12 @@ function VendorRegistration() {
                                     </Flex>
                                 ))}
 
-                                {(!formData.existingAttachments || formData.existingAttachments.length === 0) && 
-                                 (!formData.attachments || formData.attachments.length === 0) && (
-                                    <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={2}>
-                                        No attachments uploaded
-                                    </Text>
-                                )}
+                                {(!formData.existingAttachments || formData.existingAttachments.length === 0) &&
+                                    (!formData.attachments || formData.attachments.length === 0) && (
+                                        <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={2}>
+                                            No attachments uploaded
+                                        </Text>
+                                    )}
                             </VStack>
                         </Box>
                     </Box>
@@ -2361,12 +2372,12 @@ function VendorRegistration() {
                                                                 </Flex>
                                                             ))}
 
-                                                            {(!row.existingAttachments || row.existingAttachments.length === 0) && 
-                                                             (!row.attachments || row.attachments.length === 0) && (
-                                                                <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={1}>
-                                                                    No files
-                                                                </Text>
-                                                            )}
+                                                            {(!row.existingAttachments || row.existingAttachments.length === 0) &&
+                                                                (!row.attachments || row.attachments.length === 0) && (
+                                                                    <Text fontSize="sm" color={textColorSecondary} textAlign="center" py={1}>
+                                                                        No files
+                                                                    </Text>
+                                                                )}
                                                         </VStack>
                                                     ) : (
                                                         <Tooltip
@@ -2398,9 +2409,9 @@ function VendorRegistration() {
                                                                     (column.key === "email" &&
                                                                         String(row.email || "").trim() !== "" &&
                                                                         !isValidEmail(row.email)) ||
-                                                                    (column.key === "email2" &&
-                                                                        String(row.email2 || "").trim() !== "" &&
-                                                                        !isValidEmail(row.email2))
+                                                                        (column.key === "email2" &&
+                                                                            String(row.email2 || "").trim() !== "" &&
+                                                                            !isValidEmail(row.email2))
                                                                         ? "red.500"
                                                                         : borderLight
                                                                 }
@@ -2411,9 +2422,9 @@ function VendorRegistration() {
                                                                         (column.key === "email" &&
                                                                             String(row.email || "").trim() !== "" &&
                                                                             !isValidEmail(row.email)) ||
-                                                                        (column.key === "email2" &&
-                                                                            String(row.email2 || "").trim() !== "" &&
-                                                                            !isValidEmail(row.email2))
+                                                                            (column.key === "email2" &&
+                                                                                String(row.email2 || "").trim() !== "" &&
+                                                                                !isValidEmail(row.email2))
                                                                             ? "red.500"
                                                                             : "blue.500",
                                                                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.3)",

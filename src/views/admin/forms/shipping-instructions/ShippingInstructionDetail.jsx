@@ -1457,8 +1457,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : `shipping-instruction-${dateTag}.pdf`;
   };
 
-  /** Builds PDF for preview, download, and print (preview can hide VW column) */
-  const buildShippingFormPdf = async ({ hideVwInPdf = false } = {}) => {
+  /** Builds PDF for preview, download, and print (VW column excluded) */
+  const buildShippingFormPdf = async () => {
     const siNoLabel =
       siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
@@ -1616,16 +1616,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     let cargoHead;
     let cargoRows;
     let shippingInstructionPackedAsRowIndex = -1;
-    const vwColumnIndex = 5;
     if (usesStocklistCargoLayout) {
-      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "VW", "LWH", "ORIGIN", "STOCKLIST ID"];
+      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH", "ORIGIN", "STOCKLIST ID"];
       cargoRows = (cargoItems || []).map((item) => [
         item.supplier || "-",
         item.poNumber || "-",
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
-        item.vw != null && item.vw !== "" ? Number(item.vw).toFixed(2) : "-",
         item.lwh || "-",
         item.origin || "-",
         item.stockItemId || "-",
@@ -1636,7 +1634,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         "",
-        Number(formData.totalVw || 0).toFixed(2),
         "",
         "",
         "",
@@ -1647,13 +1644,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(formData.totalPackedQuantity ?? ""),
         String(formData.totalPackedWeight ?? ""),
         "",
-        String(formData.totalPackedVw ?? ""),
         "",
         "",
         "",
       ]);
       shippingInstructionPackedAsRowIndex = cargoRows.length - 1;
-      cargoRows.push(["PO NUMBER", "DG / UN NUMBER", "", "", "", "", "", "", ""]);
+      cargoRows.push(["PO NUMBER", "DG / UN NUMBER", "", "", "", "", "", ""]);
       shippingInstructionDgRows(cargoItems).forEach((item) => {
         cargoRows.push([
           item.poNumber || "-",
@@ -1664,17 +1660,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           "",
           "",
           "",
-          "",
         ]);
       });
-      if (hideVwInPdf) {
-        cargoHead.splice(vwColumnIndex, 1);
-        cargoRows = cargoRows.map((row) => {
-          const nextRow = [...row];
-          nextRow.splice(vwColumnIndex, 1);
-          return nextRow;
-        });
-      }
     } else if (isDeliveryConfirmation) {
       cargoHead = [
         "STOKITEM ID",
@@ -1817,7 +1804,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const handleOpenPdfPreview = async () => {
     setIsPdfPreviewLoading(true);
     try {
-      const doc = await buildShippingFormPdf({ hideVwInPdf: true });
+      const doc = await buildShippingFormPdf();
       const blob = doc.output("blob");
       if (pdfPreviewBlobUrlRef.current) {
         URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
