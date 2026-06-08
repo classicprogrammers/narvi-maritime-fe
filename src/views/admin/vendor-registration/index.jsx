@@ -48,11 +48,11 @@ import { MdPersonAdd, MdBusiness, MdPerson, MdEdit, MdAdd, MdArrowBack, MdOpenIn
 import Card from "components/card/Card";
 import { SuccessModal, FailureModal } from "components/modals";
 import { registerVendorApi, updateVendorApi, getAgentAttachmentApi } from "api/vendor";
-import StockDestinationSelect from "components/forms/StockDestinationSelect";
+import JobTitleSelect from "components/forms/JobTitleSelect";
 import useJobTitleOptions from "hooks/useJobTitleOptions";
 import {
+    applyJobTitleIdsToPayload,
     mapJobTitleFieldsFromContact,
-    resolveJobTitleLabelForPayload,
 } from "utils/contactJobTitle";
 import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import SearchableSelect from "components/forms/SearchableSelect";
@@ -215,15 +215,7 @@ const buildChildPayload = (row, isUpdate = false, isEditMode = false, jobTitleOp
     }
     // For new registration, don't add op or id (children are created with the agent)
 
-    // For agent people, backend expects the job title name in job_title_ids,
-    // not the numeric ID. Resolve the label from the row + options and send
-    // that as a plain string (or null when empty).
-    const jobTitleLabel = resolveJobTitleLabelForPayload(row, jobTitleOptions);
-    if (jobTitleLabel && jobTitleLabel.trim() !== "") {
-        payload.job_title_ids = jobTitleLabel.trim();
-    } else {
-        payload.job_title_ids = null;
-    }
+    applyJobTitleIdsToPayload(payload, row, jobTitleOptions);
 
     // Remove undefined values
     // IMPORTANT: If name is empty/undefined, the backend will reject it
@@ -326,7 +318,7 @@ function VendorRegistration() {
     const location = useLocation();
     const { countries, isLoading: countriesLoading, getCountries } = useVendor();
     const countryList = countries?.countries;
-    const { jobTitleOptions, setQJobTitle } = useJobTitleOptions();
+    const { jobTitleOptions, setQJobTitle, openOptions } = useJobTitleOptions();
 
     // Only treat as edit mode if id exists and is a valid number (not "new", "register", etc.)
     const pathId = params.id || location.pathname.split('/').pop();
@@ -2249,7 +2241,7 @@ function VendorRegistration() {
                                                             Works via WhatsApp
                                                         </Checkbox>
                                                     ) : column.key === "job_title" ? (
-                                                        <StockDestinationSelect
+                                                        <JobTitleSelect
                                                             value={row.job_title_select || ""}
                                                             onChange={({ id, name }) => {
                                                                 setPeopleRows((prev) => {
@@ -2263,6 +2255,7 @@ function VendorRegistration() {
                                                                 });
                                                             }}
                                                             onSearchChange={setQJobTitle}
+                                                            onOpen={(search) => openOptions(search)}
                                                             options={mergeM2OOptions(
                                                                 jobTitleOptions,
                                                                 row.job_title_id,

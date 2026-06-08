@@ -47,7 +47,7 @@ import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
 import JobTitleSelect from "components/forms/JobTitleSelect";
 import useJobTitleOptions from "hooks/useJobTitleOptions";
-import { applyQJobTitleToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
+import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
 import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import { useCustomer } from "redux/hooks/useCustomer";
 
@@ -757,7 +757,7 @@ function CustomerRegistration() {
                             attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
                             attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
-                        applyQJobTitleToPayload(childPayload, row, jobTitleOptions);
+                        applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
                             if (childPayload[key] === undefined) {
@@ -785,7 +785,7 @@ function CustomerRegistration() {
                             attachments: row.attachments && row.attachments.length > 0 ? row.attachments : undefined,
                             attachment_to_delete: row.attachment_to_delete && row.attachment_to_delete.length > 0 ? row.attachment_to_delete : undefined,
                         };
-                        applyQJobTitleToPayload(childPayload, row, jobTitleOptions);
+                        applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                         // Remove undefined values
                         Object.keys(childPayload).forEach(key => {
                             if (childPayload[key] === undefined) {
@@ -814,7 +814,7 @@ function CustomerRegistration() {
                         whatsapp: row.whatsapp ? true : false,
                         remarks: row.remarks || undefined,
                     };
-                    applyQJobTitleToPayload(childPayload, row, jobTitleOptions);
+                    applyJobTitleIdsToPayload(childPayload, row, jobTitleOptions);
                     // Remove undefined values
                     Object.keys(childPayload).forEach(key => {
                         if (childPayload[key] === undefined) {

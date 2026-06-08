@@ -1,8 +1,4 @@
-import {
-  buildM2OIdsPayload,
-  getM2OId,
-  getM2OName,
-} from "./m2oFieldOptions";
+import { getM2OId, getM2OName } from "./m2oFieldOptions";
 
 /** Resolve API job_title_ids (object, id number, or name string). */
 export const resolveJobTitleFromField = (field) => {
@@ -48,32 +44,34 @@ export const formatJobTitleDisplay = (contact = {}) => {
   return "";
 };
 
-export const buildJobTitleIdsPayload = (optionId, selectName, options = []) =>
-  buildM2OIdsPayload(optionId, selectName, options, null);
+/** Build job_title_ids for save: { id, name }, { name }, id only, or null. */
+export const buildJobTitleIdsPayload = (optionId, selectName, options = []) => {
+  const name = String(selectName ?? "").trim();
+  const id =
+    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
+      ? Number(optionId)
+      : null;
 
-/** Resolve display label for API q_job_title from form row + options. */
-export const resolveJobTitleLabelForPayload = (row, options = []) => {
-  const select = String(row?.job_title_select ?? "").trim();
-  if (select) return select;
-  const id = row?.job_title_id;
-  if (id != null && id !== "" && Array.isArray(options)) {
-    const match = options.find((opt) => String(opt.id) === String(id));
-    if (match?.name) return String(match.name).trim();
+  if (!name && id == null) return null;
+
+  if (id != null && name) return { id, name };
+
+  if (id != null) return id;
+
+  const match = Array.isArray(options)
+    ? options.find((opt) => String(opt.name || "").toLowerCase() === name.toLowerCase())
+    : null;
+  if (match?.id != null && Number.isFinite(Number(match.id))) {
+    return { id: Number(match.id), name: match.name || name };
   }
-  return "";
-};
 
-/** Customer register/update children: send q_job_title text, not job_title_ids id. */
-export const applyQJobTitleToPayload = (payload, row, options = []) => {
-  if (!payload || !row) return payload;
-  delete payload.job_title_ids;
-  const label = resolveJobTitleLabelForPayload(row, options);
-  payload.q_job_title = label || null;
-  return payload;
+  return { name };
 };
 
 export const applyJobTitleIdsToPayload = (payload, row, options = []) => {
   if (!payload || !row) return payload;
+  delete payload.q_job_title;
+  delete payload.job_title;
   const hasSelect = String(row.job_title_select ?? "").trim() !== "";
   const hasId = row.job_title_id != null && row.job_title_id !== "";
   if (!hasSelect && !hasId) {
