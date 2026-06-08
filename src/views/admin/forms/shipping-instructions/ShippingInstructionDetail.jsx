@@ -456,9 +456,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : "")
       : form.cnee_text;
     lastSavedAutosaveRef.current.cneeText = snapshotValue(cneeRaw);
+    const packedAsSnapshot =
+      form.packed_as && typeof form.packed_as === "object" ? form.packed_as : null;
     lastSavedAutosaveRef.current.packed = {
-      total_packed_quantity: Number(form.total_packed_quantity || 0),
-      total_packed_weight: Number(form.total_packed_weight || 0),
+      total_packed_quantity: Number(
+        form.total_packed_quantity ?? form.total_boxes ?? packedAsSnapshot?.boxes ?? 0
+      ),
+      total_packed_weight: Number(
+        form.total_packed_weight ?? form.total_kgs ?? packedAsSnapshot?.kg ?? 0
+      ),
       total_packed_vw: Number(form.total_packed_vw || 0),
     };
   };
@@ -589,7 +595,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
-      weight: stockList.reduce((sum, it) => sum + Number(it?.kg || 0), 0),
+      weight: stockList.reduce((sum, it) => sum + Number(it?.kg ?? it?.weight_kg ?? 0), 0),
       vw: stockList.reduce((sum, it) => sum + Number(it?.vw ?? it?.ww ?? 0), 0),
     };
     const packedAs =
@@ -601,13 +607,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         form.total_packed_quantity !== false &&
         form.total_packed_quantity !== ""
         ? form.total_packed_quantity
-        : packedAs?.boxes;
+        : form.total_boxes != null &&
+            form.total_boxes !== false &&
+            form.total_boxes !== ""
+          ? form.total_boxes
+          : packedAs?.boxes;
     const packedWeightValue =
       form.total_packed_weight != null &&
         form.total_packed_weight !== false &&
         form.total_packed_weight !== ""
         ? form.total_packed_weight
-        : packedAs?.kg;
+        : form.total_kgs != null &&
+            form.total_kgs !== false &&
+            form.total_kgs !== ""
+          ? form.total_kgs
+          : packedAs?.kg;
     const hasPackedQty =
       packedQtyValue != null &&
       packedQtyValue !== false &&
@@ -624,7 +638,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       form.total_vw != null &&
       form.total_vw !== false &&
       form.total_vw !== "";
-    packedTotalsUserEditedRef.current = Boolean(hasPackedQty || hasPackedWeight || hasPackedVw);
+    packedTotalsUserEditedRef.current = isDeliveryConfirmation
+      ? Boolean(hasPackedQty || hasPackedWeight)
+      : Boolean(hasPackedQty || hasPackedWeight || hasPackedVw);
 
     const resolvedPicId = (() => {
       const fromHeaderPicIdObj =
@@ -915,7 +931,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 ? String(it.dg_un_number)
                 : "",
         boxes: Number(it.boxes || 0),
-        kg: Number(it.kg || 0),
+        kg: Number(it.kg ?? it.weight_kg ?? 0),
         cbm: Number(it.cbm || 0),
         lwh: lwhVal,
         vw: Number(it.vw ?? it.ww ?? 0),
@@ -1687,6 +1703,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
       ]);
+      cargoRows.push([
+        "PACKED AS",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        String(formData.totalPackedQuantity ?? ""),
+        String(formData.totalPackedWeight ?? ""),
+        "",
+      ]);
     } else if (isDeliveryForm) {
       cargoHead = [
         "STOKITEM ID",
@@ -1755,7 +1783,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             }
           }
         }
-        if (isDeliveryForm && hookData.section === "body") {
+        if ((isDeliveryForm || isDeliveryConfirmation) && hookData.section === "body") {
           const packedAsRowIndex = cargoRows.length - 1;
           if (hookData.row.index === packedAsRowIndex) {
             hookData.cell.styles.fillColor = [255, 245, 204];
@@ -2136,6 +2164,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
                             setQSi(selectedName);
                             if (v === "") return;
+                            packedTotalsUserEditedRef.current = false;
                             try {
                               setIsSiFormLoading(true);
                               const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
@@ -2484,6 +2513,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
                               setQSi(selectedName);
                               if (v === "") return;
+                              packedTotalsUserEditedRef.current = false;
                               try {
                                 setIsSiFormLoading(true);
                                 const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
@@ -2904,10 +2934,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       )}
                       {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
                     </Tr>
-                    {!isShippingAdvise && !isDeliveryConfirmation && (
+                    {!isShippingAdvise && (
                       <Tr bg="gray.50">
                         <Td
-                          colSpan={isDeliveryForm ? 6 : 5}
+                          colSpan={isDeliveryLike ? 6 : 5}
                           borderRight="1px"
                           borderColor="gray.300"
                           py={2}
@@ -2949,7 +2979,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           />
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                        {!isDeliveryForm && (
+                        {!isDeliveryLike && (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                         )}
                         {!isDeliveryLike && (
