@@ -45,6 +45,7 @@ import Phonebook from "views/admin/phonebook";
 // Quotations Imports
 import Quotations from "views/admin/quotations";
 import RateList from "views/admin/quotations/rate-list";
+import ClientTariffs from "views/admin/quotations/client-tariffs";
 import QuotationEditor from "views/admin/quotations/QuotationEditor";
 import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import ShippingOrder from "views/admin/shipping-order";
@@ -148,6 +149,14 @@ const routes = [
           <Icon as={MdRateReview} width="20px" height="20px" color="inherit" />
         ),
         component: RateList,
+      },
+      {
+        name: "Client Tariffs",
+        path: "/quotations/client-tariffs",
+        icon: (
+          <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
+        ),
+        component: ClientTariffs,
       },
     ],
   },
