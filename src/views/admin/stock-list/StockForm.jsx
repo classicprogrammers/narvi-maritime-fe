@@ -59,7 +59,10 @@ import {
     createStockPdfRowHelpers,
     mapStandardFormRowToAdminItem,
 } from "../../../utils/stockReportPdf";
-import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import {
+    applyStockReportAttachmentOnStatusChange,
+    partitionAttachmentsRow,
+} from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 
 export default function StockForm() {
@@ -215,7 +218,7 @@ export default function StockForm() {
                 });
                 setFormRows((prev) =>
                     prev.map((r, i) =>
-                        i === rowIndex ? { ...r, attachments: [...(r.attachments || []), att] } : r
+                        i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
                     )
                 );
             } catch (err) {

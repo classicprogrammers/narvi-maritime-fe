@@ -47,13 +47,16 @@ import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import { normalizeStockStatusKey } from "constants/stockStatus";
-import { getAttachmentEntriesNewestFirst } from "utils/stockReportAttachmentsUi";
+import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
 import * as XLSX from "xlsx";
 
-/** Client portal: status reports only visible when stock status is STOCK. */
+/**
+ * Client portal only (/Client/Stock): stock report PDFs are shown only when status is Stock.
+ * Admin stock list (/admin/stock-list/stocks) shows reports for every status — do not reuse here.
+ */
 const isClientPortalStockStatus = (status) => normalizeStockStatusKey(status) === "stock";
 
 const resolveReportDownloadFilename = (attachment, response) => {
@@ -99,6 +102,8 @@ function ClientStock() {
     isOpen: false,
     entries: [],
     stockRecordId: null,
+    stockStatusKey: null,
+    rowId: null,
   });
   const toast = useToast();
 
@@ -161,18 +166,20 @@ function ClientStock() {
 
       const normalizedRows = (res?.stock_list || []).map((item, idx) => {
         const stockStatusRaw = item.stock_status;
-        const attachmentEntries = getAttachmentEntriesNewestFirst(item.attachments);
-        const reportAttachments = attachmentEntries.map((e) => e.att);
+        const stockStatusKey = normalizeStockStatusKey(stockStatusRaw);
+        const reportEntries = isClientPortalStockStatus(stockStatusKey)
+          ? getCappedStockReportEntriesForDisplay(item.attachments)
+          : [];
+        const reportAttachments = reportEntries.map((e) => e.att);
         return {
         id: `${item.id ?? item.stock_item_id ?? "stock"}-${idx}`,
         stockRecordId: item.id,
         stockItemId: item.stock_item_id ?? item.stock_id,
-        stockStatusKey: normalizeStockStatusKey(stockStatusRaw),
-        rawAttachments: Array.isArray(item.attachments) ? item.attachments : [],
-        attachmentEntries,
+        stockStatusKey,
+        attachmentEntries: reportEntries,
         reportAttachments,
-        latestReport: attachmentEntries[0]?.att ?? null,
-        previousReportEntries: attachmentEntries.slice(1),
+        latestReport: reportEntries[0]?.att ?? null,
+        previousReportEntries: reportEntries.slice(1),
         client: toDisplay(item.client?.name || res?.client?.name),
         dateOnStock: toDisplay(item.date_on_stock || item.first_entry_date),
         firstEntryDate: toDisplay(item.first_entry_date || item.date_on_stock),
@@ -440,19 +447,28 @@ function ClientStock() {
     );
   };
 
-  const handleOpenPreviousReports = (entries, stockRecordId) => {
+  const handleOpenPreviousReports = (entries, stockRecordId, stockStatusKey, rowId) => {
     setPreviousReportsModal({
       isOpen: true,
       entries: entries || [],
       stockRecordId,
+      stockStatusKey,
+      rowId,
     });
   };
 
   const handleClosePreviousReports = () => {
-    setPreviousReportsModal({ isOpen: false, entries: [], stockRecordId: null });
+    setPreviousReportsModal({
+      isOpen: false,
+      entries: [],
+      stockRecordId: null,
+      stockStatusKey: null,
+      rowId: null,
+    });
   };
 
   const handleViewReportFile = async (row, attachment) => {
+    if (!isClientPortalStockStatus(row.stockStatusKey)) return;
     const stockRecordId = row.stockRecordId ?? row.stockItemId;
     if (!stockRecordId || !attachment?.id) return;
     setIsPreparingPreview(true);
@@ -588,6 +604,7 @@ function ClientStock() {
   };
 
   const handleDownloadReport = async (row, attachment) => {
+    if (!isClientPortalStockStatus(row.stockStatusKey)) return;
     const key = reportKey(row, attachment);
     setLoadingReportKey(key);
     try {
@@ -1033,12 +1050,11 @@ function ClientStock() {
                   <Td>{row.value}</Td>
                   <Td>
                     {isClientPortalStockStatus(row.stockStatusKey) ? (
-                      row.stockRecordId && (row.rawAttachments?.length || 0) > 0 ? (
+                      row.stockRecordId && (row.reportAttachments?.length || 0) > 0 ? (
                         <StockListAttachmentsCell
-                          attachments={row.rawAttachments}
+                          attachments={row.reportAttachments}
                           stockItemId={row.stockRecordId}
-                          attachmentMode="all"
-                          previousLabel="Previous documents"
+                          previousLabel="Previous status reports"
                           emptyLabel="—"
                           onViewFile={(att, stockRecordId) =>
                             handleViewReportFile(
@@ -1050,7 +1066,12 @@ function ClientStock() {
                             handleDownloadReport({ ...row, stockRecordId }, att)
                           }
                           onOpenPreviousReports={(entries, stockRecordId) =>
-                            handleOpenPreviousReports(entries, stockRecordId)
+                            handleOpenPreviousReports(
+                              entries,
+                              stockRecordId,
+                              row.stockStatusKey,
+                              row.id
+                            )
                           }
                         />
                       ) : (
@@ -1150,16 +1171,30 @@ function ClientStock() {
       <StockReportHistoryModal
         isOpen={previousReportsModal.isOpen}
         onClose={handleClosePreviousReports}
-        title="Previous documents"
+        title="Previous status reports"
         entries={previousReportsModal.entries}
         stockItemId={previousReportsModal.stockRecordId}
         showFileActions
         allowDelete={false}
         onViewFile={(att, stockRecordId) =>
-          handleViewReportFile({ stockRecordId }, att)
+          handleViewReportFile(
+            {
+              id: previousReportsModal.rowId,
+              stockRecordId,
+              stockStatusKey: previousReportsModal.stockStatusKey,
+            },
+            att
+          )
         }
         onDownloadFile={(att, stockRecordId) =>
-          handleDownloadReport({ stockRecordId }, att)
+          handleDownloadReport(
+            {
+              id: previousReportsModal.rowId,
+              stockRecordId,
+              stockStatusKey: previousReportsModal.stockStatusKey,
+            },
+            att
+          )
         }
       />
 

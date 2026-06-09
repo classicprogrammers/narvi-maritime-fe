@@ -61,6 +61,7 @@ import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import api from "../../../api/axios";
+import { createStockItemApi } from "../../../api/stock";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
@@ -76,7 +77,10 @@ import {
     createStockPdfRowHelpers,
     mapStandardFormRowToAdminItem,
 } from "../../../utils/stockReportPdf";
-import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import {
+    applyStockReportAttachmentOnStatusChange,
+    partitionAttachmentsRow,
+} from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
@@ -302,7 +306,7 @@ export default function StockForm() {
                 });
                 setFormRows((prev) =>
                     prev.map((r, i) =>
-                        i === rowIndex ? { ...r, attachments: [...(r.attachments || []), att] } : r
+                        i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
                     )
                 );
             } catch (err) {

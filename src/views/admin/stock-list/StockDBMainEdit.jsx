@@ -87,7 +87,10 @@ import {
     mapMainDbEditRowToAdminItem,
     normalizeLegacyStockReportFilename,
 } from "../../../utils/stockReportPdf";
-import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import {
+    applyStockReportAttachmentOnStatusChange,
+    partitionAttachmentsRow,
+} from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
@@ -443,7 +446,7 @@ export default function StockDBMainEdit() {
                 });
                 setFormRows((prev) =>
                     prev.map((r, i) =>
-                        i === rowIndex ? { ...r, attachments: [...(r.attachments || []), att] } : r
+                        i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
                     )
                 );
             } catch (err) {

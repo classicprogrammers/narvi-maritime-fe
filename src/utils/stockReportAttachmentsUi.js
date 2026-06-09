@@ -74,6 +74,13 @@ export function getStockReportAttachmentsFromList(attachments) {
     return getStockReportEntriesFromAttachments(attachments).map((entry) => entry.att);
 }
 
+/** At most two stock reports for client-portal display: newest + oldest (first ever). */
+export function getCappedStockReportEntriesForDisplay(attachments) {
+    const entries = getStockReportEntriesFromAttachments(attachments);
+    if (entries.length <= 2) return entries;
+    return [entries[0], entries[entries.length - 1]];
+}
+
 /** Split saved attachments (list/detail views) into other files vs status reports. */
 export function partitionAttachmentsList(attachments) {
     const list = Array.isArray(attachments) ? attachments : [];
@@ -93,6 +100,36 @@ export function getAttachmentEntriesNewestFirst(attachments) {
             return rankB - rankA;
         })
         .map((att) => ({ att, source: "saved", id: att.id }));
+}
+
+/**
+ * Max two status-report PDFs per row: keep the first ever generated; replace the latest on 3rd+ change.
+ */
+export function applyStockReportAttachmentOnStatusChange(row, newAttachment) {
+    if (!row || !newAttachment) return row;
+
+    const reportEntries = getStockReportEntriesFromRow(row);
+    if (reportEntries.length < 2) {
+        return { ...row, attachments: [...(row.attachments || []), newAttachment] };
+    }
+
+    const oldestEntry = reportEntries[reportEntries.length - 1];
+    const replaceEntries = reportEntries.slice(0, -1);
+
+    let existingAttachments = [...(row.existingAttachments || [])];
+    let attachmentsToDelete = [...(row.attachmentsToDelete || [])];
+
+    replaceEntries.forEach((entry) => {
+        if (entry.source !== "existing" || entry.id == null) return;
+        if (!attachmentsToDelete.includes(entry.id)) attachmentsToDelete.push(entry.id);
+        existingAttachments = existingAttachments.filter((att) => att.id !== entry.id);
+    });
+
+    const attachments = (row.attachments || []).filter((att) => !isStockReportAttachment(att));
+    if (oldestEntry.source === "new") attachments.push(oldestEntry.att);
+    attachments.push(newAttachment);
+
+    return { ...row, existingAttachments, attachments, attachmentsToDelete };
 }
 
 /** Filenames shown inline in tables/exports (other files + latest status report only). */
