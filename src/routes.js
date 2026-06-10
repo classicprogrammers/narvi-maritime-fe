@@ -44,10 +44,9 @@ import Phonebook from "views/admin/phonebook";
 
 // Quotations Imports
 import Quotations from "views/admin/quotations";
+import QuotationForm from "views/admin/quotations/QuotationForm";
 import RateList from "views/admin/quotations/rate-list";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
-import QuotationEditor from "views/admin/quotations/QuotationEditor";
-import QuotationDetail from "views/admin/quotations/QuotationDetail";
 import ShippingOrder from "views/admin/shipping-order";
 import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
 
@@ -380,16 +379,16 @@ const routes = [
 // Hidden routes that should not appear in sidebar but are available for routing
 const hiddenRoutes = [
   {
-    name: "Quotation Editor",
+    name: "Quotation Create",
     layout: "/admin",
-    path: "/quotations/edit/:id?",
-    component: QuotationEditor,
+    path: "/quotations/create",
+    component: QuotationForm,
   },
   {
-    name: "Quotation Detail",
+    name: "Quotation Edit",
     layout: "/admin",
-    path: "/quotations/detail/:id",
-    component: QuotationDetail,
+    path: "/quotations/edit/:id",
+    component: QuotationForm,
   },
   {
     name: "Shipping Instruction Detail",

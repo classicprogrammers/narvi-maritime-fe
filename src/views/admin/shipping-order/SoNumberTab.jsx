@@ -64,7 +64,7 @@ import {
   MdContentCopy,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
-import quotationsAPI from "../../../api/quotations";
+import { getNarviQuotations } from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
   getShippingOrders,
@@ -483,18 +483,12 @@ const SoNumberTab = () => {
     const fetchQuotations = async () => {
       try {
         setIsLoadingQuotations(true);
-        const response = await quotationsAPI.getQuotations();
-        const data = response || {};
+        const response = await getNarviQuotations({ page: 1, page_size: 200 });
+        const list = Array.isArray(response?.data) ? response.data : [];
 
-        const list =
-          (Array.isArray(data.quotations) && data.quotations) ||
-          (Array.isArray(data.result?.quotations) && data.result.quotations) ||
-          [];
-
-        // Normalize to { id, name } for SimpleSearchableSelect
         const normalized = list.map((q) => ({
           id: q.id,
-          name: q.oc_number || q.name || `Q-${q.id}`,
+          name: q.name || `Q-${q.id}`,
         }));
 
         setQuotations(normalized);

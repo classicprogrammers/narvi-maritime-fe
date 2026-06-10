@@ -110,6 +110,7 @@ api.interceptors.response.use(
 
         // Special handling for quotation and rate list APIs
         if (error.config?.url?.includes('/api/quotations') ||
+          error.config?.url?.includes('/api/narvi/quotation') ||
           error.config?.url?.includes('/api/products') ||
           error.config?.url?.includes('/api/agents')) {
           console.log("Quotation/Rate List API error - this should not cause logout:", {

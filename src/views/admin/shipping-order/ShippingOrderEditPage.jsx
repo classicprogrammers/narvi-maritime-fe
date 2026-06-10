@@ -19,7 +19,7 @@ import {
 } from "@chakra-ui/react";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 import { MdArrowBack, MdContentCopy } from "react-icons/md";
-import quotationsAPI from "../../../api/quotations";
+import { getNarviQuotations } from "../../../api/narviQuotation";
 import { updateShippingOrder } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { normalizeOrder, buildPayloadFromForm } from "./shippingOrderUtils";
@@ -100,15 +100,11 @@ export default function ShippingOrderEditPage() {
     const fetchQuotations = async () => {
       try {
         setIsLoadingQuotations(true);
-        const response = await quotationsAPI.getQuotations();
-        const data = response || {};
-        const list =
-          (Array.isArray(data.quotations) && data.quotations) ||
-          (Array.isArray(data.result?.quotations) && data.result.quotations) ||
-          [];
+        const response = await getNarviQuotations({ page: 1, page_size: 200 });
+        const list = Array.isArray(response?.data) ? response.data : [];
         const normalized = list.map((q) => ({
           id: q.id,
-          name: q.oc_number || q.name || `Q-${q.id}`,
+          name: q.name || `Q-${q.id}`,
         }));
         setQuotations(normalized);
       } catch (err) {

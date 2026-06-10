@@ -1,2244 +1,616 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Box,
-    Flex,
-    Text,
-    Button,
-    Badge,
-    Input,
-    Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
-    Icon,
-    HStack,
-    VStack,
-    IconButton,
-    useColorModeValue,
-    FormControl,
-    FormLabel,
-    Select,
-    NumberInput,
-    NumberInputField,
-    NumberInputStepper,
-    NumberIncrementStepper,
-    NumberDecrementStepper,
-    Grid,
-    Modal,
-    ModalOverlay,
-    ModalContent,
-    ModalHeader,
-    ModalFooter,
-    ModalBody,
-    ModalCloseButton,
-    useDisclosure,
-    AlertDialog,
-    AlertDialogBody,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogContent,
-    AlertDialogOverlay,
-    Textarea,
-    useToast,
-    Popover,
-    PopoverTrigger,
-    PopoverContent,
-    PopoverBody,
-    List,
-    ListItem,
-    Switch,
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Icon,
+  IconButton,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  InputRightElement,
+  Select,
+  Table,
+  Tbody,
+  Td,
+  Text,
+  Th,
+  Thead,
+  Tooltip,
+  Tr,
+  useColorModeValue,
+  useToast,
+  VStack,
 } from "@chakra-ui/react";
-import {
-    MdAdd,
-    MdSettings,
-    MdDelete,
-    MdEdit,
-    MdKeyboardArrowDown,
-} from "react-icons/md";
-import quotationsAPI from "../../../api/quotations";
+import { MdAdd, MdClose, MdDelete, MdEdit, MdFilterList, MdSearch } from "react-icons/md";
 import { useHistory } from "react-router-dom";
+import Card from "components/card/Card";
+import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import {
+  deleteNarviQuotation,
+  extractNarviQuotationError,
+  getNarviQuotations,
+} from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
-import api from "../../../api/axios";
-import uomAPI from "../../../api/uom";
-import currenciesAPI from "../../../api/currencies";
-import locationsAPI from "../../../api/locations";
+import {
+  intOrUndef,
+  m2oName,
+  quotationRateNames,
+  quotationSoDisplay,
+  quotationVesselName,
+} from "./quotationUtils";
 
-const SearchableSelect = ({
-    value,
-    onChange,
-    options,
-    placeholder,
-    displayKey = "name",
-    valueKey = "id",
-    formatOption = (option) => `${option[valueKey]} - ${option[displayKey]}`,
-    isRequired = false,
-    label
-}) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [searchValue, setSearchValue] = useState("");
-    const [filteredOptions, setFilteredOptions] = useState(options);
-
-    useEffect(() => {
-        if (searchValue) {
-            const filtered = options.filter(option =>
-                formatOption(option).toLowerCase().includes(searchValue.toLowerCase())
-            );
-            setFilteredOptions(filtered);
-        } else {
-            setFilteredOptions(options);
-        }
-    }, [searchValue, options, formatOption]);
-
-    const selectedOption = options.find(option => option[valueKey] === value);
-
-    const handleSelect = (option) => {
-        onChange(option[valueKey]);
-        setSearchValue("");
-        setIsOpen(false);
-    };
-
-    return (
-        <Popover minW="100%" isOpen={isOpen} onClose={() => setIsOpen(false)} placement="bottom-start" >
-            <PopoverTrigger>
-                <Button
-                    w="100%"
-                    minW="100%"
-                    justifyContent="space-between"
-                    variant="outline"
-                    size="sm"
-                    bg="white"
-                    borderColor="gray.300"
-                    _hover={{ borderColor: "gray.400" }}
-                    _focus={{ borderColor: "#1c4a95", boxShadow: "0 0 0 1px #1c4a95", bg: "#f0f4ff" }}
-                    onClick={() => setIsOpen(!isOpen)}
-                    borderRadius="md"
-                    fontWeight="normal"
-                    fontSize="sm"
-                    h="32px"
-                >
-                    <Box
-                        flex="1"
-                        textAlign="left"
-                        overflow="hidden"
-                        textOverflow="ellipsis"
-                        whiteSpace="nowrap"
-                        pr={2}
-                        title={selectedOption ? formatOption(selectedOption) : placeholder}
-                    >
-                        {selectedOption ? formatOption(selectedOption) : placeholder}
-                    </Box>
-                    <Icon as={MdKeyboardArrowDown} />
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent w="100%" minW="100%" maxW="520px" maxH="200px" overflowY="auto" borderRadius="md">
-                <PopoverBody p={0}>
-                    <Input
-                        placeholder="Search..."
-                        value={searchValue}
-                        onChange={(e) => setSearchValue(e.target.value)}
-                        border="none"
-                        borderRadius="0"
-                        borderBottom="1px"
-                        borderColor="gray.200"
-                        _focus={{ borderColor: "#1c4a95" }}
-                        px={3}
-                        py={2}
-                        fontSize="sm"
-                    />
-                    <List spacing={0}>
-                        {filteredOptions.map((option) => (
-                            <ListItem
-                                key={option[valueKey]}
-                                px={3}
-                                py={2}
-                                cursor="pointer"
-                                _hover={{ bg: "gray.100" }}
-                                onClick={() => handleSelect(option)}
-                                borderBottom="1px"
-                                borderColor="gray.100"
-                                fontSize="sm"
-                            overflow="hidden"
-                            textOverflow="ellipsis"
-                            whiteSpace="nowrap"
-                            title={formatOption(option)}
-                            >
-                                {formatOption(option)}
-                            </ListItem>
-                        ))}
-                        {filteredOptions.length === 0 && (
-                            <ListItem px={3} py={2} color="gray.500" fontSize="sm">
-                                No options found
-                            </ListItem>
-                        )}
-                    </List>
-                </PopoverBody>
-            </PopoverContent>
-        </Popover>
-    );
+const DEFAULT_FILTERS = {
+  client_id: "",
+  vessel_id: "",
+  sale_order_id: "",
+  rate_name: "",
+  validity_date: "",
 };
 
+function TruncatedCell({ value, maxW = "200px", fontWeight, textColor, tdStyle, cellText }) {
+  const text = value || "-";
+  return (
+    <Td
+      maxW={maxW}
+      isTruncated
+      fontWeight={fontWeight}
+      title={text !== "-" ? text : undefined}
+      {...tdStyle}
+    >
+      <Text color={textColor} fontSize="sm" fontWeight={fontWeight} {...cellText}>
+        {text}
+      </Text>
+    </Td>
+  );
+}
+
 export default function Quotations() {
-    const history = useHistory();
-    const [quotations, setQuotations] = useState([]);
-    const { clients: customers, agents, vessels } = useMasterData();
-    const [isLoading, setIsLoading] = useState(false);
-    const [editingQuotation, setEditingQuotation] = useState(null);
-    const [originalQuotationData, setOriginalQuotationData] = useState(null);
-
-    // Master data for quotation lines
-    const [rateItems, setRateItems] = useState([]);
-    const [uomList, setUomList] = useState([]);
-    const [currenciesList, setCurrenciesList] = useState([]);
-    const [locationsList, setLocationsList] = useState([]);
-    // List filters
-    const [clientFilter, setClientFilter] = useState("");
-    const [vesselFilter, setVesselFilter] = useState("");
-    const [currencyFilter, setCurrencyFilter] = useState("");
-    const [soIdFilter, setSoIdFilter] = useState("");
-    const [validityDateFilter, setValidityDateFilter] = useState("");
-    const [idFilter, setIdFilter] = useState("");
-
-    // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(100);
-    const [apiTotalPages, setApiTotalPages] = useState(1);
-    const [apiTotalCount, setApiTotalCount] = useState(0);
-
-    // Reset pagination when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [clientFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter, idFilter]);
-
-    const getFilteredQuotations = useCallback(() => {
-        return quotations.filter((q) => {
-            const matchClient = clientFilter ? q.partner_id === clientFilter : true;
-            const matchId = idFilter ? String(q.id) === String(idFilter) : true;
-            const matchVessel = vesselFilter ? q.vessel_id === vesselFilter : true;
-            const matchCurrency = currencyFilter ? q.sale_currency === currencyFilter : true;
-            const matchSoId = soIdFilter ? (q.oc_number || '').toLowerCase().includes(soIdFilter.toLowerCase()) : true;
-            const matchValidityDate = validityDateFilter ? q.eta_date === validityDateFilter : true;
-            return matchClient && matchId && matchVessel && matchCurrency && matchSoId && matchValidityDate;
-        });
-    }, [quotations, clientFilter, idFilter, vesselFilter, currencyFilter, soIdFilter, validityDateFilter]);
-
-    // Modal states
-    const { isOpen: isNewQuotationOpen, onClose: onNewQuotationClose } = useDisclosure();
-    const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
-    const [deleteQuotationId, setDeleteQuotationId] = useState(null);
-
-    const toast = useToast();
-    const fetchQuotationDetail = useCallback(async (id) => {
-        const response = await quotationsAPI.getQuotationById(id);
-        return response?.quotations?.[0] || response?.quotation || null;
-    }, []);
-
-    const handleEditClick = async (id) => {
-        try {
-            const fullQuotation = await fetchQuotationDetail(id);
-            history.push({
-                pathname: `/admin/quotations/edit/${id}`,
-                state: { quotation: fullQuotation || null },
-            });
-        } catch (error) {
-            const apiMessage =
-                error?.response?.data?.message ||
-                error?.response?.data?.result?.message ||
-                error?.message;
-            toast({
-                title: "Error",
-                description: apiMessage || "Failed to load quotation details.",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
-
-    const handleViewClick = async (id) => {
-        try {
-            const fullQuotation = await fetchQuotationDetail(id);
-            history.push({
-                pathname: `/admin/quotations/detail/${id}`,
-                state: { quotation: fullQuotation || null },
-            });
-        } catch (error) {
-            const apiMessage =
-                error?.response?.data?.message ||
-                error?.response?.data?.result?.message ||
-                error?.message;
-            toast({
-                title: "Error",
-                description: apiMessage || "Failed to load quotation details.",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-        }
-    };
-
-    // Function to get only changed fields between two objects
-    const getChangedFields = (original, current) => {
-        const changed = {};
-
-        // Compare main quotation fields
-        const mainFields = [
-            'partner_id', 'vessel_id', 'est_to_usd', 'est_profit_usd', 'eta', 'eta_date',
-            'deadline_date', 'deadline_info', 'estimated_to', 'estimated_profit', 'oc_number',
-            'client_remark', 'internal_remark', 'delivery_note', 'done', 'destination_id',
-            'usd_roe', 'general_mu', 'caf'
-        ];
-
-        mainFields.forEach(field => {
-            if (original[field] !== current[field]) {
-                changed[field] = current[field];
-            }
-        });
-
-        // Compare quotation lines
-        if (JSON.stringify(original.quotation_lines) !== JSON.stringify(current.quotation_lines)) {
-            changed.quotation_lines = current.quotation_lines;
-        }
-
-        return changed;
-    };
-
-    // Form states for new quotation - matching API payload
-    const [newQuotation, setNewQuotation] = useState({
-        partner_id: "",
-        vessel_id: "",
-        est_to_usd: "",
-        est_profit_usd: "",
-        eta: "",
-        eta_date: "",
-        deadline_date: "",
-        deadline_info: "",
-        estimated_to: "",
-        estimated_profit: "",
-        oc_number: "",
-        client_remark: "",
-        internal_remark: "",
-        delivery_note: "",
-        done: "active",
-        destination_id: "",
-        usd_roe: "",
-        general_mu: "",
-        caf: "",
-        quotation_lines: []
-    });
-
-    const textColor = useColorModeValue("gray.700", "white");
-    const tableBorderColor = useColorModeValue("rgba(226, 232, 240, 0.85)", "rgba(255, 255, 255, 0.14)");
-    const tableHeaderBg = useColorModeValue("secondaryGray.300", "whiteAlpha.100");
-    const tableRowHoverBg = useColorModeValue("gray.50", "whiteAlpha.100");
-    const tableRowEvenBg = useColorModeValue("blackAlpha.50", "whiteAlpha.50");
-
-    // Fetch quotations
-    const fetchQuotations = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const response = await quotationsAPI.getQuotations({
-                page: currentPage,
-                page_size: itemsPerPage,
-            });
-            if (response.status === "success" && response.quotations) {
-                setQuotations(response.quotations);
-                setApiTotalPages(Math.max(1, response.total_pages || 1));
-                setApiTotalCount(response.total_count || response.count || response.quotations.length || 0);
-            } else {
-                setQuotations([]);
-                setApiTotalPages(1);
-                setApiTotalCount(0);
-            }
-        } catch (error) {
-            console.error("Failed to fetch quotations:", error);
-            setQuotations([]);
-            setApiTotalPages(1);
-            setApiTotalCount(0);
-
-            const apiMessage =
-                error?.response?.data?.message ||
-                error?.response?.data?.result?.message ||
-                error.message;
-
-            toast({
-                title: "Error",
-                description: apiMessage || "Please try again later.",
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast, currentPage, itemsPerPage]);
-
-    // Fetch rate items (products)
-    const fetchRateItems = useCallback(async () => {
-        try {
-            const response = await api.get("/api/products");
-            const result = response.data;
-            if (result.status === "success" && result.products) {
-                setRateItems(result.products);
-            } else {
-                setRateItems([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch rate items:", error);
-            setRateItems([]);
-        }
-    }, []);
-
-    // Fetch master data
-    const fetchMasterData = useCallback(async () => {
-        try {
-            // Fetch UOM
-            const uomResponse = await uomAPI.getUOM();
-            if (uomResponse.uom && Array.isArray(uomResponse.uom)) {
-                setUomList(uomResponse.uom);
-            } else {
-                setUomList([]);
-            }
-
-            // Fetch Currencies
-            const currenciesResponse = await currenciesAPI.getCurrencies();
-            if (currenciesResponse.currencies && Array.isArray(currenciesResponse.currencies)) {
-                setCurrenciesList(currenciesResponse.currencies);
-            } else {
-                setCurrenciesList([]);
-            }
-
-            // Fetch locations
-            const locationsResponse = await locationsAPI.getLocations();
-            if (locationsResponse.locations && Array.isArray(locationsResponse.locations)) {
-                setLocationsList(locationsResponse.locations);
-            } else {
-                setLocationsList([]);
-            }
-
-        } catch (error) {
-            console.error("Failed to fetch master data:", error);
-            setUomList([]);
-            setCurrenciesList([]);
-            setLocationsList([]);
-        }
-    }, []);
-
-    // Fetch data on component mount
-    useEffect(() => {
-        fetchQuotations();
-    }, [fetchQuotations]);
-
-    useEffect(() => {
-        fetchRateItems();
-        fetchMasterData();
-    }, [fetchRateItems, fetchMasterData]);
-
-    // Handler functions
-
-    const resetForm = () => {
-        setNewQuotation({
-            partner_id: "",
-            vessel_id: "",
-            est_to_usd: "",
-            est_profit_usd: "",
-            eta: "",
-            eta_date: "",
-            deadline_date: "",
-            deadline_info: "",
-            estimated_to: "",
-            estimated_profit: "",
-            oc_number: "",
-            client_remark: "",
-            internal_remark: "",
-            delivery_note: "",
-            done: "active",
-            destination_id: "",
-            usd_roe: "",
-            general_mu: "",
-            caf: "",
-            quotation_lines: []
-        });
-        setOriginalQuotationData(null); // Clear original data
-    };
-
-    const handleSaveQuotation = async () => {
-        try {
-            setIsLoading(true);
-
-            // Frontend validation for required fields
-            if (!editingQuotation) {
-                // For create, validate required fields
-                if (!newQuotation.oc_number || !newQuotation.oc_number.trim()) {
-                    toast({
-                        title: "Validation Error",
-                        description: "SO number (OC Number) is required",
-                        status: "error",
-                        duration: 5000,
-                        isClosable: true,
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-
-                if (!newQuotation.partner_id) {
-                    toast({
-                        title: "Validation Error",
-                        description: "Client is required",
-                        status: "error",
-                        duration: 5000,
-                        isClosable: true,
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-
-                if (!newQuotation.vessel_id) {
-                    toast({
-                        title: "Validation Error",
-                        description: "Vessel is required",
-                        status: "error",
-                        duration: 5000,
-                        isClosable: true,
-                    });
-                    setIsLoading(false);
-                    return;
-                }
-            }
-
-            let response;
-            if (editingQuotation) {
-                // Update existing quotation - only send changed fields
-                const changedFields = getChangedFields(originalQuotationData, newQuotation);
-
-                // Ensure quotation_lines only contains vendor_id (not vendor_name)
-                if (changedFields.quotation_lines) {
-                    changedFields.quotation_lines = changedFields.quotation_lines.map(line => ({
-                        ...line,
-                        vendor_id: line.vendor_id || null,
-                        location: line.location || line.location_id || null,
-                        vendor_name: undefined
-                    }));
-                }
-
-                // Only send changed fields + quotation_id, mapping destination_id -> destination for API
-                const updateData = {
-                    quotation_id: editingQuotation.id,
-                    ...changedFields,
-                };
-
-                if (updateData.destination_id !== undefined) {
-                    updateData.destination = updateData.destination_id;
-                    delete updateData.destination_id;
-                }
-                if (updateData.eta_date !== undefined) {
-                    updateData.validity_date = updateData.eta_date;
-                    delete updateData.eta_date;
-                }
-
-                response = await quotationsAPI.updateQuotation(updateData);
-            } else {
-                // Create new quotation - send all data but ensure only vendor_id
-                // Build payload with required fields and optional fields
-                const quotationData = {
-                    partner_id: newQuotation.partner_id,
-                    client_id: newQuotation.partner_id, // Also send as client_id in case backend expects this
-                    vessel_id: newQuotation.vessel_id,
-                    oc_number: newQuotation.oc_number.trim(),
-                    done: newQuotation.done || "active",
-                    quotation_lines: (newQuotation.quotation_lines || []).map(line => ({
-                        ...line,
-                        vendor_id: line.vendor_id || null,
-                        location: line.location || line.location_id || null,
-                        vendor_name: undefined
-                    }))
-                };
-
-                // Add optional fields only if they have values
-                if (newQuotation.est_to_usd) quotationData.est_to_usd = newQuotation.est_to_usd;
-                if (newQuotation.est_profit_usd) quotationData.est_profit_usd = newQuotation.est_profit_usd;
-                if (newQuotation.eta) quotationData.eta = newQuotation.eta;
-                if (newQuotation.eta_date) quotationData.validity_date = newQuotation.eta_date;
-                if (newQuotation.deadline_date) quotationData.deadline_date = newQuotation.deadline_date;
-                if (newQuotation.deadline_info) quotationData.deadline_info = newQuotation.deadline_info;
-                if (newQuotation.estimated_to) quotationData.estimated_to = newQuotation.estimated_to;
-                if (newQuotation.estimated_profit) quotationData.estimated_profit = newQuotation.estimated_profit;
-                if (newQuotation.client_remark) quotationData.client_remark = newQuotation.client_remark;
-                if (newQuotation.internal_remark) quotationData.internal_remark = newQuotation.internal_remark;
-                if (newQuotation.delivery_note) quotationData.delivery_note = newQuotation.delivery_note;
-                if (newQuotation.destination_id) quotationData.destination = newQuotation.destination_id;
-                if (newQuotation.usd_roe) quotationData.usd_roe = newQuotation.usd_roe;
-                if (newQuotation.general_mu) quotationData.general_mu = newQuotation.general_mu;
-                if (newQuotation.caf) quotationData.caf = newQuotation.caf;
-
-                // Log payload for debugging
-                console.log("Creating quotation with payload:", quotationData);
-
-                response = await quotationsAPI.createQuotation(quotationData);
-            }
-
-            // Extract message from API response
-            let message = editingQuotation ? "Quotation updated successfully" : "Quotation created successfully";
-            let status = "success";
-
-            if (response?.message) message = response.message;
-            if (response?.status) status = response.status;
-            if (response?.result?.message) message = response.result.message;
-            if (response?.result?.status) status = response.result.status;
-
-            // Check if the response indicates an error
-            if (status === "error") {
-                // Show error message but keep modal open and don't reset form
-                toast({
-                    title: "Error",
-                    description: message,
-                    status: "error",
-                    duration: 5000,
-                    isClosable: true,
-                });
-                // Don't close modal or reset form on error
-                return;
-            }
-
-            // Success case - close modal and reset form
-            toast({
-                title: "Success",
-                description: message,
-                status: "success",
-                duration: 3000,
-                isClosable: true,
-            });
-
-            onNewQuotationClose();
-            resetForm();
-            fetchQuotations();
-        } catch (error) {
-            // Extract error message from API response
-            let errorMessage = `Failed to ${editingQuotation ? 'update' : 'create'} quotation`;
-
-                if (error.response && error.response.data) {
-                    if (error.response.data.message) {
-                        errorMessage = error.response.data.message;
-                    } else if (error.response.data.result && error.response.data.result.message) {
-                        errorMessage = error.response.data.result.message;
-                    }
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-
-            // Show error message but keep modal open and don't reset form
-            toast({
-                title: "Error",
-                description: errorMessage,
-                status: "error",
-                duration: 5000,
-                isClosable: true,
-            });
-            // Don't close modal or reset form on error
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleDeleteQuotation = (quotation) => {
-        setDeleteQuotationId(quotation.id);
-        onDeleteOpen();
-    };
-
-    const confirmDelete = async () => {
-        try {
-            setIsLoading(true);
-            const response = await quotationsAPI.deleteQuotation({ quotation_id: deleteQuotationId });
-
-            // Extract success message from API response
-            let successMessage = "Quotation deleted successfully";
-            let status = "success";
-
-            if (response?.message) successMessage = response.message;
-            if (response?.status) status = response.status;
-            if (response?.result?.message) successMessage = response.result.message;
-            if (response?.result?.status) status = response.result.status;
-
-            toast({
-                title: status,
-                description: successMessage,
-                status: status,
-                duration: 3000,
-                isClosable: true,
-            });
-
-            onDeleteClose();
-            setDeleteQuotationId(null);
-            fetchQuotations();
-        } catch (error) {
-            // Extract error message from API response
-            let errorMessage = "Failed to delete quotation";
-            let status = "error";
-
-            if (error.response && error.response.data) {
-                if (error.response.data.message) {
-                    errorMessage = error.response.data.message;
-                    status = error.response.data.status || "error";
-                } else if (error.response.data.result && error.response.data.result.message) {
-                    errorMessage = error.response.data.result.message;
-                    status = error.response.data.result.status || "error";
-                }
-            } else if (error.message) {
-                errorMessage = error.message;
-                status = "error";
-            }
-
-            toast({
-                title: status,
-                description: errorMessage,
-                status: status,
-                duration: 5000,
-                isClosable: true,
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleInputChange = (field, value) => {
-        setNewQuotation(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    // Add new quotation line
-    const addQuotationLine = () => {
-        const newLine = {
-            name: "",
-            vendor_id: "",
-            vendor_rate: "",
-            item_name: "",
-            rate: "",
-            rate_remark: "",
-            free_text: "",
-            remark: "",
-            pre_text: "",
-            pre_text_auto: false,
-            currency_override: "",
-            quantity: 1,
-            buy_rate_calculation: "",
-            uom: "",
-            cost_actual: "",
-            fixed: false,
-            sale_currency: "",
-            cost_sum: "",
-            roe: "",
-            cost_usd: "",
-            mu_percent: "",
-            mu_amount: "",
-            qt_rate: "",
-            amended_rate: "",
-            rate_to_client: "",
-            group_free_text: "",
-            status: "current",
-            // New worksheet-like fields
-            is_client_specific: false,
-            location_id: ""
-        };
-
-        setNewQuotation(prev => ({
-            ...prev,
-            quotation_lines: [...prev.quotation_lines, newLine]
-        }));
-    };
-
-    // Remove quotation line
-    const removeQuotationLine = (index) => {
-        setNewQuotation(prev => ({
-            ...prev,
-            quotation_lines: prev.quotation_lines.filter((_, i) => i !== index)
-        }));
-    };
-
-    // Update quotation line
-    const updateQuotationLine = (index, field, value) => {
-        setNewQuotation(prev => ({
-            ...prev,
-            quotation_lines: prev.quotation_lines.map((line, i) =>
-                i === index ? { ...line, [field]: value } : line
-            )
-        }));
-    };
-
-    // Handle rate item selection and auto-fill
-    const handleRateItemSelect = (index, rateItem) => {
-        if (rateItem) {
-            updateQuotationLine(index, 'name', rateItem.name || '');
-            updateQuotationLine(index, 'rate', rateItem.rate || '');
-            updateQuotationLine(index, 'item_name', rateItem.id || '');
-            updateQuotationLine(index, 'uom', rateItem.uom_id || '');
-            updateQuotationLine(index, 'currency_override', rateItem.currency_rate_id || '');
-            updateQuotationLine(index, 'rate_remark', rateItem.rate_text || '');
-            updateQuotationLine(index, 'remark', rateItem.remarks || '');
-
-            // Auto-fill vendor if available in rate item
-            if (rateItem.seller_ids && rateItem.seller_ids.length > 0) {
-                updateQuotationLine(index, 'vendor_id', rateItem.seller_ids[0]);
-            }
-
-        }
-    };
-
-    return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-            <VStack spacing={6} align="stretch">
-                {/* Header Section */}
-                <Flex justify="space-between" align="center" px="25px">
-                    <HStack spacing={4}>
-                        <Text fontSize="2xl" fontWeight="bold" color={textColor}>
-                            Quotations
-                        </Text>
-                    </HStack>
-                    <Button leftIcon={<Icon as={MdAdd} />} bg="#1c4a95" color="white" size="md" px="6" py="3" borderRadius="md" _hover={{ bg: "#173f7c" }} onClick={() => history.push('/admin/quotations/edit')}>
-                        New Quotation
-                    </Button>
-                </Flex>
-
-                {/* Quotations List */}
-                <Box bg="white" borderRadius="lg" boxShadow="sm" mx="25px" mb="6">
-                    <Box p="6">
-                        {/* Filters Row */}
-                        <Grid templateColumns={{ base: '1fr', md: 'repeat(3, 1fr)' }} gap={4} mb={4} alignItems="end">
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Quotation ID</Text>
-                                <NumberInput size="sm" value={idFilter || ''} onChange={(v) => setIdFilter(v)} min={0}>
-                                    <NumberInputField placeholder="ID" />
-                                    <NumberInputStepper><NumberIncrementStepper /><NumberDecrementStepper /></NumberInputStepper>
-                                </NumberInput>
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Client</Text>
-                                <SearchableSelect
-                                    value={clientFilter}
-                                    onChange={(value) => setClientFilter(value)}
-                                    options={customers}
-                                    placeholder="Select client"
-                                    displayKey="name"
-                                    valueKey="id"
-                                    formatOption={(option) => option.name}
-                                />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Vessel</Text>
-                                <SearchableSelect
-                                    value={vesselFilter}
-                                    onChange={(value) => setVesselFilter(value)}
-                                    options={vessels}
-                                    placeholder="Select vessel"
-                                    displayKey="name"
-                                    valueKey="id"
-                                    formatOption={(option) => option.name}
-                                />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Currency</Text>
-                                <SearchableSelect
-                                    value={currencyFilter}
-                                    onChange={(value) => setCurrencyFilter(value)}
-                                    options={currenciesList}
-                                    placeholder="Select currency"
-                                    displayKey="name"
-                                    valueKey="id"
-                                    formatOption={(option) => option.name}
-                                />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by SO ID</Text>
-                                <Input
-                                    size="sm"
-                                    value={soIdFilter}
-                                    onChange={(e) => setSoIdFilter(e.target.value)}
-                                    placeholder="Enter SO ID"
-                                />
-                            </Box>
-                            <Box minW="260px">
-                                <Text fontSize="sm" mb={1}>Filter by Validity Date</Text>
-                                <Input
-                                    size="sm"
-                                    type="date"
-                                    value={validityDateFilter}
-                                    onChange={(e) => setValidityDateFilter(e.target.value)}
-                                />
-                            </Box>
-                            <Box gridColumn={{ base: '1 / -1', md: '1 / -1' }} display="flex" justifyContent="flex-end">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => { setClientFilter(""); setVesselFilter(""); setCurrencyFilter(""); setSoIdFilter(""); setValidityDateFilter(""); setIdFilter(""); }}
-                                    isDisabled={!clientFilter && !vesselFilter && !currencyFilter && !soIdFilter && !validityDateFilter && !idFilter}
-                                >
-                                    Clear filters
-                                </Button>
-                            </Box>
-                        </Grid>
-                        <Box
-                            maxH="600px"
-                            overflowY="auto"
-                            overflowX="auto"
-                            borderRadius="16px"
-                            border="1px"
-                            borderColor={tableBorderColor}
-                            sx={{
-                                "&::-webkit-scrollbar": {
-                                    width: "8px",
-                                    height: "8px",
-                                },
-                                "&::-webkit-scrollbar-track": {
-                                    background: "gray.100",
-                                    borderRadius: "4px",
-                                },
-                                "&::-webkit-scrollbar-thumb": {
-                                    background: "gray.300",
-                                    borderRadius: "4px",
-                                    "&:hover": {
-                                        background: "gray.400",
-                                    },
-                                },
-                            }}
-                        >
-                            <Table
-                                variant="simple"
-                                size="sm"
-                                minW="1200px"
-                                w="100%"
-                                sx={{
-                                    th: {
-                                        borderColor: `${tableBorderColor} !important`,
-                                        borderRight: `1px solid ${tableBorderColor} !important`,
-                                        borderBottom: `1px solid ${tableBorderColor} !important`,
-                                        fontSize: "11px",
-                                        letterSpacing: "0.02em",
-                                        whiteSpace: "nowrap",
-                                        py: 3,
-                                        bg: tableHeaderBg,
-                                        color: textColor,
-                                    },
-                                    td: {
-                                        borderColor: `${tableBorderColor} !important`,
-                                        borderRight: `1px solid ${tableBorderColor} !important`,
-                                        borderBottom: `1px solid ${tableBorderColor} !important`,
-                                        fontSize: "12px",
-                                        py: 2.5,
-                                    },
-                                    "th:last-child, td:last-child": {
-                                        borderRight: "none",
-                                    },
-                                }}
-                            >
-                                <Thead position="sticky" top="0" zIndex={1}>
-                                    <Tr>
-                                        <Th px="12px">QT Number</Th>
-                                        <Th px="12px">Client</Th>
-                                        <Th px="12px">Vessel</Th>
-                                        <Th px="12px">SO ID</Th>
-                                        <Th px="12px">Job Description</Th>
-                                        <Th px="12px">Validity Date</Th>
-                                        <Th px="12px">Currency</Th>
-                                        <Th px="12px" isNumeric>USD ROE</Th>
-                                        <Th px="12px" isNumeric>General MU</Th>
-                                        <Th px="12px" isNumeric>CAF</Th>
-                                        <Th px="12px" isNumeric>Line Items</Th>
-                                        <Th px="12px" minW="100px" w="100px">
-                                            Actions
-                                        </Th>
-                                    </Tr>
-                                </Thead>
-                                <Tbody>
-                                    {(() => {
-                                        const filteredQuotations = getFilteredQuotations();
-
-                                        const paginatedQuotations = filteredQuotations;
-
-                                        return filteredQuotations.length > 0 ? (
-                                            paginatedQuotations.map((quotation, index) => (
-                                                <Tr
-                                                    key={quotation.id}
-                                                    _even={{ bg: tableRowEvenBg }}
-                                                    _hover={{ bg: tableRowHoverBg }}
-                                                >
-                                                    {(() => {
-                                                        const clientName = customers.find(c => c.id === quotation.partner_id)?.name || '-';
-                                                        const vesselName = vessels.find(v => v.id === quotation.vessel_id)?.name || '-';
-                                                        const currencyName = currenciesList.find(c => c.id === quotation.sale_currency)?.name || '-';
-                                                        const lineItemsCount = quotation.quotation_line_count ?? (quotation.quotation_line_ids || quotation.quotation_lines || []).length;
-                                                        return (
-                                                            <>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm" fontWeight="bold">{quotation.id}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{clientName}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{vesselName}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.oc_number || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm" isTruncated maxW="200px">{quotation.client_remark || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{quotation.eta_date || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px"><Text fontSize="sm">{currencyName}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.usd_roe || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.general_mu || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric><Text fontSize="sm">{quotation.caf || '-'}</Text></Td>
-                                                                <Td py="14px" px="12px" isNumeric>
-                                                                    <Badge colorScheme="blue" variant="solid" fontSize="xs" px="8px" py="2px" borderRadius="full">
-                                                                        {lineItemsCount} {lineItemsCount === 1 ? 'line' : 'lines'}
-                                                                    </Badge>
-                                                                </Td>
-                                                            </>
-                                                        )
-                                                    })()}
-                                                    <Td py="14px" px="12px" minW="100px" w="100px">
-                                                        <HStack spacing={1} justify="center">
-                                                            <IconButton icon={<Icon as={MdEdit} />} size="sm" colorScheme="blue" variant="ghost" aria-label="Edit quotation" onClick={() => handleEditClick(quotation.id)} _hover={{ bg: "blue.100", transform: "scale(1.1)" }} transition="all 0.2s ease" />
-                                                            <Button size="xs" variant="outline" onClick={() => handleViewClick(quotation.id)}>View</Button>
-                                                            <IconButton
-                                                                icon={<Icon as={MdDelete} />}
-                                                                size="sm"
-                                                                colorScheme="red"
-                                                                variant="ghost"
-                                                                aria-label="Delete quotation"
-                                                                onClick={() => handleDeleteQuotation(quotation)}
-                                                                _hover={{ bg: "red.100", transform: "scale(1.1)" }}
-                                                                transition="all 0.2s ease"
-                                                            />
-                                                        </HStack>
-                                                    </Td>
-                                                </Tr>
-                                            ))
-                                        ) : (
-                                            <Tr>
-                                                <Td colSpan={12} py="60px" textAlign="center">
-                                                    <VStack spacing={4}>
-                                                        <Box
-                                                            p="6"
-                                                            borderRadius="full"
-                                                            bg="linear-gradient(135deg, #f0f4ff 0%, #e6f3ff 100%)"
-                                                            boxShadow="0 4px 12px rgba(0,0,0,0.1)"
-                                                        >
-                                                            <Icon as={MdSettings} color="blue.400" boxSize={16} />
-                                                        </Box>
-                                                        <VStack spacing={2}>
-                                                            <Text color="gray.600" fontSize="lg" fontWeight="600">
-                                                                No items found
-                                                            </Text>
-                                                            <Text color="gray.500" fontSize="sm" textAlign="center" maxW="300px">
-                                                                {quotations.length === 0
-                                                                    ? "Get started by creating your first quotation. Click the 'New Quotation' button above."
-                                                                    : "No quotations match your current filters. Try adjusting your search criteria."
-                                                                }
-                                                            </Text>
-                                                        </VStack>
-                                                    </VStack>
-                                                </Td>
-                                            </Tr>
-                                        );
-                                    })()}
-                                </Tbody>
-                            </Table>
-                        </Box>
-
-                        {/* Pagination */}
-                        {(() => {
-                            const filteredQuotations = getFilteredQuotations();
-                            const totalPages = apiTotalPages;
-                            const pageWindow = 2;
-
-                            if (filteredQuotations.length === 0 || totalPages <= 1) return null;
-
-                            const getVisiblePages = () => {
-                                const pages = [];
-                                const start = Math.max(1, currentPage - pageWindow);
-                                const end = Math.min(totalPages, currentPage + pageWindow);
-
-                                pages.push(1);
-                                if (start > 2) pages.push("ellipsis-start");
-
-                                for (let page = start; page <= end; page += 1) {
-                                    if (page !== 1 && page !== totalPages) {
-                                        pages.push(page);
-                                    }
-                                }
-
-                                if (end < totalPages - 1) pages.push("ellipsis-end");
-                                if (totalPages > 1) pages.push(totalPages);
-
-                                return pages;
-                            };
-
-                            return (
-                                <Flex justify="flex-end" align="center" mt={6} gap={2} wrap="wrap">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                        isDisabled={currentPage === 1}
-                                    >
-                                        Previous
-                                    </Button>
-
-                                    <HStack spacing={1}>
-                                        {getVisiblePages().map((page) => (
-                                            typeof page === "number" ? (
-                                                <Button
-                                                    key={page}
-                                                    size="sm"
-                                                    variant={currentPage === page ? "solid" : "outline"}
-                                                    colorScheme={currentPage === page ? "blue" : "gray"}
-                                                    onClick={() => setCurrentPage(page)}
-                                                    minW="40px"
-                                                >
-                                                    {page}
-                                                </Button>
-                                            ) : (
-                                                <Text key={page} px={2} color="gray.500" fontSize="sm">
-                                                    ...
-                                                </Text>
-                                            )
-                                        ))}
-                                    </HStack>
-
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                        isDisabled={currentPage === totalPages}
-                                    >
-                                        Next
-                                    </Button>
-
-                                    <Text fontSize="sm" color="gray.600" ml={2}>
-                                        Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, apiTotalCount)} of {apiTotalCount} quotations
-                                    </Text>
-                                </Flex>
-                            );
-                        })()}
-                    </Box>
-                </Box>
-            </VStack>
-
-            {/* New Quotation Modal */}
-            <Modal isOpen={isNewQuotationOpen} onClose={onNewQuotationClose} size="6xl" maxW="90vw">
-                <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader bg="#1c4a95" color="white">
-                        {editingQuotation ? "Edit Quotation" : "Create New Quotation"}
-                    </ModalHeader>
-                    <ModalCloseButton color="white" />
-                    <ModalBody py="6">
-                        <Grid templateColumns="repeat(2, 1fr)" gap="6">
-                            {/* Left Column */}
-                            <VStack spacing="4" align="stretch">
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>Client</FormLabel>
-                                    <SearchableSelect
-                                        value={newQuotation.partner_id}
-                                        onChange={(value) => handleInputChange('partner_id', value)}
-                                        options={customers}
-                                        placeholder="Select client"
-                                        displayKey="name"
-                                        valueKey="id"
-                                        formatOption={(option) => option.name}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Vessel</FormLabel>
-                                    <SearchableSelect
-                                        value={newQuotation.vessel_id}
-                                        onChange={(value) => handleInputChange('vessel_id', value)}
-                                        options={vessels}
-                                        placeholder="Select vessel"
-                                        displayKey="name"
-                                        valueKey="id"
-                                        formatOption={(option) => option.name}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>ETA</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newQuotation.eta}
-                                        onChange={(e) => handleInputChange('eta', e.target.value)}
-                                        placeholder="Enter ETA"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>ETA Date</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        type="date"
-                                        value={newQuotation.eta_date}
-                                        onChange={(e) => handleInputChange('eta_date', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Deadline Date</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        type="date"
-                                        value={newQuotation.deadline_date}
-                                        onChange={(e) => handleInputChange('deadline_date', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Deadline Info</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newQuotation.deadline_info}
-                                        onChange={(e) => handleInputChange('deadline_info', e.target.value)}
-                                        placeholder="Enter deadline info"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl isRequired>
-                                    <FormLabel fontSize="sm" color={textColor}>OC Number (SO Number)</FormLabel>
-                                    <Input
-                                        size="sm"
-                                        value={newQuotation.oc_number}
-                                        onChange={(e) => handleInputChange('oc_number', e.target.value)}
-                                        placeholder="Enter OC number"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>CAF</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.caf}
-                                        onChange={(value) => handleInputChange('caf', value)}
-                                        step={0.1}
-                                        precision={2}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter CAF"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Status</FormLabel>
-                                    <Select
-                                        size="sm"
-                                        value={newQuotation.done}
-                                        onChange={(e) => handleInputChange('done', e.target.value)}
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                    >
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </Select>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Client Remark</FormLabel>
-                                    <Textarea
-                                        size="sm"
-                                        value={newQuotation.client_remark}
-                                        onChange={(e) => handleInputChange('client_remark', e.target.value)}
-                                        placeholder="Enter client remark"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                        rows={3}
-                                    />
-                                </FormControl>
-
-                            </VStack>
-
-                            {/* Right Column */}
-                            <VStack spacing="4" align="stretch">
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Estimated TO (USD)</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.est_to_usd}
-                                        onChange={(value) => handleInputChange('est_to_usd', value)}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter estimated TO"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Estimated Profit (USD)</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.est_profit_usd}
-                                        onChange={(value) => handleInputChange('est_profit_usd', value)}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter estimated profit"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Estimated TO</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.estimated_to}
-                                        onChange={(value) => handleInputChange('estimated_to', value)}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter estimated TO"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Estimated Profit</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.estimated_profit}
-                                        onChange={(value) => handleInputChange('estimated_profit', value)}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter estimated profit"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Destination</FormLabel>
-                                    <SearchableSelect
-                                        value={newQuotation.destination}
-                                        onChange={(value) => handleInputChange('destination', value)}
-                                        options={locationsList}
-                                        valueKey="id"
-                                        labelKey="name"
-                                        placeholder="Select destination"
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>USD ROE</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.usd_roe}
-                                        onChange={(value) => handleInputChange('usd_roe', value)}
-                                        step={0.1}
-                                        precision={2}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter USD ROE"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>General MU</FormLabel>
-                                    <NumberInput
-                                        size="sm"
-                                        value={newQuotation.general_mu}
-                                        onChange={(value) => handleInputChange('general_mu', value)}
-                                        step={0.1}
-                                        precision={2}
-                                    >
-                                        <NumberInputField
-                                            placeholder="Enter general MU"
-                                            border="1px"
-                                            borderColor="gray.300"
-                                            borderRadius="md"
-                                            _focus={{
-                                                borderColor: "#1c4a95",
-                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                bg: "#f0f4ff"
-                                            }}
-                                        />
-                                        <NumberInputStepper>
-                                            <NumberIncrementStepper />
-                                            <NumberDecrementStepper />
-                                        </NumberInputStepper>
-                                    </NumberInput>
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Internal Remark</FormLabel>
-                                    <Textarea
-                                        size="sm"
-                                        value={newQuotation.internal_remark}
-                                        onChange={(e) => handleInputChange('internal_remark', e.target.value)}
-                                        placeholder="Enter internal remark"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                        rows={3}
-                                    />
-                                </FormControl>
-
-                                <FormControl>
-                                    <FormLabel fontSize="sm" color={textColor}>Delivery Note</FormLabel>
-                                    <Textarea
-                                        size="sm"
-                                        value={newQuotation.delivery_note}
-                                        onChange={(e) => handleInputChange('delivery_note', e.target.value)}
-                                        placeholder="Enter delivery note"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        borderRadius="md"
-                                        _focus={{
-                                            borderColor: "#1c4a95",
-                                            boxShadow: "0 0 0 1px #1c4a95",
-                                            bg: "#f0f4ff"
-                                        }}
-                                        rows={3}
-                                    />
-                                </FormControl>
-
-                            </VStack>
-                        </Grid>
-
-                        {/* Quotation Lines Section */}
-                        <Box mt="6" borderTop="1px" borderColor="gray.200" pt="6">
-                            <Flex justify="space-between" align="center" mb="4">
-                                <Text fontSize="lg" fontWeight="bold" color={textColor}>
-                                    Quotation Lines
-                                </Text>
-                                <Button
-                                    leftIcon={<Icon as={MdAdd} />}
-                                    size="sm"
-                                    bg="#1c4a95"
-                                    color="white"
-                                    _hover={{ bg: "#173f7c" }}
-                                    onClick={addQuotationLine}
-                                >
-                                    Add Line
-                                </Button>
-                            </Flex>
-
-                            {newQuotation.quotation_lines.length > 0 ? (
-                                <VStack spacing="4" align="stretch">
-                                    {newQuotation.quotation_lines.map((line, index) => (
-                                        <Box
-                                            key={index}
-                                            p="4"
-                                            border="1px"
-                                            borderColor="gray.200"
-                                            borderRadius="md"
-                                            bg="gray.50"
-                                        >
-                                            <Flex justify="space-between" align="center" mb="3">
-                                                <Text fontSize="md" fontWeight="semibold" color={textColor}>
-                                                    Line {index + 1}
-                                                </Text>
-                                                <IconButton
-                                                    icon={<Icon as={MdDelete} />}
-                                                    size="sm"
-                                                    colorScheme="red"
-                                                    variant="ghost"
-                                                    onClick={() => removeQuotationLine(index)}
-                                                />
-                                            </Flex>
-
-                                            <Grid templateColumns="repeat(5, 1fr)" gap="4">
-                                                {/* Client Specific */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Client Specific</FormLabel>
-                                                    <HStack spacing={3}>
-                                                        <Switch
-                                                            isChecked={line.is_client_specific}
-                                                            onChange={(e) => updateQuotationLine(index, 'is_client_specific', e.target.checked)}
-                                                            colorScheme="green"
-                                                            size="md"
-                                                        />
-                                                        <Text fontSize="sm" color={textColor}>
-                                                            {line.is_client_specific ? 'Yes' : 'No'}
-                                                        </Text>
-                                                    </HStack>
-                                                </FormControl>
-                                                {/* Location ID */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Location ID</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.location_id}
-                                                        onChange={(e) => updateQuotationLine(index, 'location_id', e.target.value)}
-                                                        placeholder="Enter location id"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                {/* Rate Item Selection */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Rate Item</FormLabel>
-                                                    <SearchableSelect
-                                                        value={line.item_name}
-                                                        onChange={(value) => {
-                                                            const selectedItem = rateItems.find(item => item.id === value);
-                                                            handleRateItemSelect(index, selectedItem);
-                                                        }}
-                                                        options={rateItems}
-                                                        placeholder="Select rate item"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        formatOption={(option) => `${option.name} - $${option.rate || 0}`}
-                                                    />
-                                                </FormControl>
-
-                                                {/* Name */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Name</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.name}
-                                                        onChange={(e) => updateQuotationLine(index, 'name', e.target.value)}
-                                                        placeholder="Enter name"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-
-                                                {/* Vendor */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Vendor</FormLabel>
-                                                    <SearchableSelect
-                                                        value={line.vendor_id}
-                                                        onChange={(value) => updateQuotationLine(index, 'vendor_id', value)}
-                                                        options={agents}
-                                                        placeholder="Select vendor"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        formatOption={(option) => option.name}
-                                                    />
-                                                </FormControl>
-
-                                                {/* Vendor Rate */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Vendor Rate</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.vendor_rate}
-                                                        onChange={(value) => updateQuotationLine(index, 'vendor_rate', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter vendor rate"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Rate */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Rate</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.rate}
-                                                        onChange={(value) => updateQuotationLine(index, 'rate', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter rate"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Quantity */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Quantity</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.quantity}
-                                                        onChange={(value) => updateQuotationLine(index, 'quantity', value)}
-                                                        min={1}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter quantity"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* UOM */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>UOM</FormLabel>
-                                                    <SearchableSelect
-                                                        value={line.uom}
-                                                        onChange={(value) => updateQuotationLine(index, 'uom', value)}
-                                                        options={uomList}
-                                                        placeholder="Select UOM"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        formatOption={(option) => option.name}
-                                                    />
-                                                </FormControl>
-
-                                                {/* Currency Override */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Currency</FormLabel>
-                                                    <SearchableSelect
-                                                        value={line.currency_override}
-                                                        onChange={(value) => updateQuotationLine(index, 'currency_override', value)}
-                                                        options={currenciesList}
-                                                        placeholder="Select currency"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        formatOption={(option) => option.name}
-                                                    />
-                                                </FormControl>
-
-                                                {/* Sale Currency */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Sale Currency</FormLabel>
-                                                    <SearchableSelect
-                                                        value={line.sale_currency}
-                                                        onChange={(value) => updateQuotationLine(index, 'sale_currency', value)}
-                                                        options={currenciesList}
-                                                        placeholder="Select sale currency"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                                                        formatOption={(option) => option.name}
-                                                    />
-                                                </FormControl>
-
-
-                                                {/* Fixed */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Fixed</FormLabel>
-                                                    <Select
-                                                        size="sm"
-                                                        value={line.fixed}
-                                                        onChange={(e) => updateQuotationLine(index, 'fixed', e.target.value === 'true')}
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    >
-                                                        <option value={false}>No</option>
-                                                        <option value={true}>Yes</option>
-                                                    </Select>
-                                                </FormControl>
-
-                                                {/* Status */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Status</FormLabel>
-                                                    <Select
-                                                        size="sm"
-                                                        value={line.status}
-                                                        onChange={(e) => updateQuotationLine(index, 'status', e.target.value)}
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    >
-                                                        <option value="current">Current</option>
-                                                    </Select>
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Additional Fields Row */}
-                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
-                                                {/* Buy Rate Calculation */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Buy Rate Calculation</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.buy_rate_calculation}
-                                                        onChange={(value) => updateQuotationLine(index, 'buy_rate_calculation', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter buy rate calculation"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Cost Actual */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Cost Actual</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.cost_actual}
-                                                        onChange={(value) => updateQuotationLine(index, 'cost_actual', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter cost actual"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Cost Sum */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Cost Sum</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.cost_sum}
-                                                        onChange={(value) => updateQuotationLine(index, 'cost_sum', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter cost sum"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* ROE */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>ROE</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.roe}
-                                                        onChange={(value) => updateQuotationLine(index, 'roe', value)}
-                                                        step={0.01}
-                                                        precision={2}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter ROE"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Additional Fields Row 2 */}
-                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
-                                                {/* Cost USD */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Cost USD</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.cost_usd}
-                                                        onChange={(value) => updateQuotationLine(index, 'cost_usd', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter cost USD"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* MU Percent */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>MU Percent</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.mu_percent}
-                                                        onChange={(value) => updateQuotationLine(index, 'mu_percent', value)}
-                                                        step={0.01}
-                                                        precision={2}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter MU percent"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* MU Amount */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>MU Amount</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.mu_amount}
-                                                        onChange={(value) => updateQuotationLine(index, 'mu_amount', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter MU amount"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* QT Rate */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>QT Rate</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.qt_rate}
-                                                        onChange={(value) => updateQuotationLine(index, 'qt_rate', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter QT rate"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Additional Fields Row 3 */}
-                                            <Grid templateColumns="repeat(4, 1fr)" gap="4" mt="4">
-                                                {/* Amended Rate */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Amended Rate</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.amended_rate}
-                                                        onChange={(value) => updateQuotationLine(index, 'amended_rate', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter amended rate"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Rate to Client */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Rate to Client</FormLabel>
-                                                    <NumberInput
-                                                        size="sm"
-                                                        value={line.rate_to_client}
-                                                        onChange={(value) => updateQuotationLine(index, 'rate_to_client', value)}
-                                                    >
-                                                        <NumberInputField
-                                                            placeholder="Enter rate to client"
-                                                            border="1px"
-                                                            borderColor="gray.300"
-                                                            borderRadius="md"
-                                                            _focus={{
-                                                                borderColor: "#1c4a95",
-                                                                boxShadow: "0 0 0 1px #1c4a95",
-                                                                bg: "#f0f4ff"
-                                                            }}
-                                                        />
-                                                    </NumberInput>
-                                                </FormControl>
-
-                                                {/* Group Free Text */}
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Group Free Text</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.group_free_text}
-                                                        onChange={(e) => updateQuotationLine(index, 'group_free_text', e.target.value)}
-                                                        placeholder="Enter group free text"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Pre-text controls row */}
-                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Pre-text Mode</FormLabel>
-                                                    <Select
-                                                        size="sm"
-                                                        value={line.pre_text_auto ? 'auto' : 'custom'}
-                                                        onChange={(e) => {
-                                                            const auto = e.target.value === 'auto';
-                                                            updateQuotationLine(index, 'pre_text_auto', auto);
-                                                            if (auto) updateQuotationLine(index, 'pre_text', line.name || '');
-                                                        }}
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    >
-                                                        <option value={'auto'}>Use Rate Item Name</option>
-                                                        <option value={'custom'}>Custom</option>
-                                                    </Select>
-                                                </FormControl>
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Pre-text</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.pre_text}
-                                                        onChange={(e) => updateQuotationLine(index, 'pre_text', e.target.value)}
-                                                        placeholder="Enter pre text"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Text Fields Row */}
-                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Rate Remark</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.rate_remark}
-                                                        onChange={(e) => updateQuotationLine(index, 'rate_remark', e.target.value)}
-                                                        placeholder="Enter rate remark"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Free Text</FormLabel>
-                                                    <Input
-                                                        size="sm"
-                                                        value={line.free_text}
-                                                        onChange={(e) => updateQuotationLine(index, 'free_text', e.target.value)}
-                                                        placeholder="Enter free text"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                            </Grid>
-
-                                            {/* Textarea Fields */}
-                                            <Grid templateColumns="repeat(2, 1fr)" gap="4" mt="4">
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Remark</FormLabel>
-                                                    <Textarea
-                                                        size="sm"
-                                                        value={line.remark}
-                                                        onChange={(e) => updateQuotationLine(index, 'remark', e.target.value)}
-                                                        placeholder="Enter remark"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                        rows={2}
-                                                    />
-                                                </FormControl>
-
-                                                <FormControl>
-                                                    <FormLabel fontSize="sm" color={textColor}>Pre Text</FormLabel>
-                                                    <Textarea
-                                                        size="sm"
-                                                        value={line.pre_text}
-                                                        onChange={(e) => updateQuotationLine(index, 'pre_text', e.target.value)}
-                                                        placeholder="Enter pre text"
-                                                        border="1px"
-                                                        borderColor="gray.300"
-                                                        borderRadius="md"
-                                                        _focus={{
-                                                            borderColor: "#1c4a95",
-                                                            boxShadow: "0 0 0 1px #1c4a95",
-                                                            bg: "#f0f4ff"
-                                                        }}
-                                                        rows={2}
-                                                    />
-                                                </FormControl>
-                                            </Grid>
-                                        </Box>
-                                    ))}
-                                </VStack>
-                            ) : (
-                                <Box
-                                    p="8"
-                                    textAlign="center"
-                                    border="2px dashed"
-                                    borderColor="gray.300"
-                                    borderRadius="md"
-                                    bg="gray.50"
-                                >
-                                    <VStack spacing={2}>
-                                        <Icon as={MdAdd} boxSize={8} color="gray.400" />
-                                        <Text color="gray.500" fontSize="sm">
-                                            No quotation lines added yet. Click "Add Line" to get started.
-                                        </Text>
-                                    </VStack>
-                                </Box>
-                            )}
-                        </Box>
-                    </ModalBody>
-                    <ModalFooter bg="gray.50" borderTop="1px" borderColor="gray.200">
-                        <Button variant="ghost" mr={3} onClick={onNewQuotationClose}>
-                            Cancel
-                        </Button>
-                        <Button
-                            bg="#1c4a95"
-                            color="white"
-                            _hover={{ bg: "#173f7c" }}
-                            onClick={handleSaveQuotation}
-                            isLoading={isLoading}
-                        >
-                            {editingQuotation ? "Update Quotation" : "Create Quotation"}
-                        </Button>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
-
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog isOpen={isDeleteOpen} onClose={onDeleteClose}>
-                <AlertDialogOverlay />
-                <AlertDialogContent>
-                    <AlertDialogHeader fontSize="lg" fontWeight="bold">
-                        Delete Quotation
-                    </AlertDialogHeader>
-                    <AlertDialogBody>
-                        Are you sure you want to delete this quotation? This action cannot be undone.
-                    </AlertDialogBody>
-                    <AlertDialogFooter>
-                        <Button onClick={onDeleteClose}>
-                            Cancel
-                        </Button>
-                        <Button
-                            colorScheme="red"
-                            onClick={confirmDelete}
-                            ml={3}
-                            isLoading={isLoading}
-                        >
-                            Delete
-                        </Button>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </Box>
+  const history = useHistory();
+  const toast = useToast();
+  const { clients, vessels } = useMasterData();
+
+  const textColor = useColorModeValue("secondaryGray.900", "white");
+  const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
+  const inputBg = useColorModeValue("white", "navy.900");
+  const inputText = useColorModeValue("gray.700", "gray.100");
+  const expandableFilterBg = useColorModeValue("gray.50", "gray.700");
+  const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
+  const tableRowBg = useColorModeValue("white", "gray.800");
+  const tableRowBgAlt = useColorModeValue("gray.50", "gray.700");
+  const tableBorderColor = useColorModeValue("gray.200", "whiteAlpha.200");
+  const tableTextColor = useColorModeValue("gray.600", "gray.300");
+  const tableTextColorSecondary = useColorModeValue("gray.500", "gray.400");
+  const placeholderColor = useColorModeValue("gray.400", "gray.500");
+  const hoverBg = useColorModeValue("blue.50", "gray.700");
+
+  const cellText = {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    display: "block",
+  };
+  const thStyle = {
+    border: "1px",
+    borderColor: tableBorderColor,
+    py: "12px",
+    px: "16px",
+    fontSize: "12px",
+    fontWeight: "600",
+    color: tableTextColor,
+    textTransform: "uppercase",
+  };
+  const tdStyle = {
+    borderRight: "1px",
+    borderColor: tableBorderColor,
+    py: "12px",
+    px: "16px",
+  };
+  const filterInputProps = {
+    variant: "outline",
+    fontSize: "sm",
+    bg: inputBg,
+    color: inputText,
+    borderRadius: "8px",
+    border: "2px",
+    borderColor: borderColor,
+    _focus: {
+      borderColor: "blue.400",
+      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+    },
+    _hover: {
+      borderColor: "blue.300",
+    },
+    _placeholder: { color: placeholderColor, fontSize: "14px" },
+  };
+  const searchableSelectProps = {
+    size: "sm",
+    bg: inputBg,
+    color: inputText,
+    borderColor: borderColor,
+  };
+
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+
+  const hasAnyAdvanceFilter = Boolean(
+    filters.client_id ||
+      filters.vessel_id ||
+      filters.sale_order_id ||
+      filters.rate_name.trim() ||
+      filters.validity_date
+  );
+  const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
+  const [showFilterFields, setShowFilterFields] = useState(false);
+
+  useEffect(() => {
+    if (hasAnyAdvanceFilter) setShowFilterFields(true);
+  }, [hasAnyAdvanceFilter]);
+
+  const isFirstSearchRun = useRef(true);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      if (!isFirstSearchRun.current) {
+        setPage(1);
+      }
+      isFirstSearchRun.current = false;
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filteredVessels = useMemo(() => {
+    if (!filters.client_id) return vessels;
+    return vessels.filter(
+      (vessel) => String(vessel.client_id?.id ?? vessel.client_id) === String(filters.client_id)
     );
+  }, [vessels, filters.client_id]);
+
+  const loadList = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page,
+        page_size: pageSize,
+        search: debouncedSearch.trim() || undefined,
+        client_id: intOrUndef(filters.client_id),
+        vessel_id: intOrUndef(filters.vessel_id),
+        sale_order_id: intOrUndef(filters.sale_order_id),
+        rate_name: filters.rate_name.trim() || undefined,
+        validity_date: filters.validity_date || undefined,
+      };
+
+      const result = await getNarviQuotations(params);
+      const rows = Array.isArray(result.data) ? result.data : [];
+      setItems(rows);
+      setTotalPages(result.total_pages || 1);
+      setTotalCount(result.total_count ?? rows.length);
+      setHasNext(Boolean(result.has_next));
+      setHasPrevious(Boolean(result.has_previous));
+    } catch (error) {
+      setItems([]);
+      setTotalPages(1);
+      setTotalCount(0);
+      setHasNext(false);
+      setHasPrevious(false);
+      toast({
+        title: "Error",
+        description: extractNarviQuotationError(error, "Failed to load quotations."),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, debouncedSearch, filters, toast]);
+
+  useEffect(() => {
+    loadList();
+  }, [loadList]);
+
+  const handleFilterChange = (field, value) => {
+    setFilters((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "client_id") {
+        next.vessel_id = "";
+        next.sale_order_id = "";
+      }
+      if (field === "vessel_id") {
+        next.sale_order_id = "";
+      }
+      return next;
+    });
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setFilters(DEFAULT_FILTERS);
+    setPage(1);
+  };
+
+  const handleDelete = async (quotationId) => {
+    try {
+      await deleteNarviQuotation(quotationId);
+      toast({ title: "Quotation deleted", status: "success", duration: 2000, isClosable: true });
+      await loadList();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: extractNarviQuotationError(error, "Failed to delete quotation."),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  return (
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+      <VStack spacing={6} align="stretch">
+        <Card direction="column" w="100%" px="0px" overflowX={{ sm: "scroll", lg: "hidden" }}>
+          <Flex px="25px" justify="space-between" mb="20px" align="center">
+            <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
+              Quotations
+            </Text>
+            <Button
+              leftIcon={<Icon as={MdAdd} />}
+              colorScheme="blue"
+              size="sm"
+              onClick={() => history.push("/admin/quotations/create")}
+            >
+              New Quotation
+            </Button>
+          </Flex>
+
+          <Box
+            px="25px"
+            mb="20px"
+            bg={inputBg}
+            borderRadius="16px"
+            p="24px"
+            border="1px"
+            borderColor={borderColor}
+          >
+            <HStack spacing={6} justify="space-between" align="center" flexWrap="wrap" mb={4}>
+              <Box flex="1" minW="240px">
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  Search Quotations
+                </Text>
+                <InputGroup>
+                  <InputLeftElement>
+                    <Icon as={MdSearch} color="blue.500" w="16px" h="16px" />
+                  </InputLeftElement>
+                  <Input
+                    {...filterInputProps}
+                    borderRadius="10px"
+                    placeholder="Search client, vessel, SO, rate name..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    pr={search ? "32px" : undefined}
+                  />
+                  {search && (
+                    <InputRightElement width="32px">
+                      <IconButton
+                        aria-label="Clear search"
+                        size="xs"
+                        variant="ghost"
+                        icon={<Icon as={MdClose} />}
+                        onClick={() => setSearch("")}
+                        _hover={{ bg: "gray.200" }}
+                      />
+                    </InputRightElement>
+                  )}
+                </InputGroup>
+              </Box>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  &nbsp;
+                </Text>
+                {hasAnyFilter && (
+                  <Button
+                    size="md"
+                    variant="outline"
+                    onClick={clearFilters}
+                    colorScheme="red"
+                    _hover={{ bg: "red.50" }}
+                    borderRadius="10px"
+                    border="2px"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </Box>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  Advanced Filters
+                </Text>
+                <Button
+                  size="md"
+                  variant={hasAnyAdvanceFilter ? "solid" : "outline"}
+                  colorScheme={hasAnyAdvanceFilter ? "blue" : "gray"}
+                  leftIcon={<Icon as={MdFilterList} />}
+                  onClick={() => setShowFilterFields(!showFilterFields)}
+                  borderRadius="10px"
+                  border="2px"
+                  borderColor={borderColor}
+                >
+                  {showFilterFields ? "Hide Filters" : "Show Filters"}
+                </Button>
+              </Box>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  Page Size
+                </Text>
+                <Select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  size="md"
+                  bg={inputBg}
+                  color={inputText}
+                  borderRadius="8px"
+                  border="2px"
+                  borderColor={borderColor}
+                  _focus={{
+                    borderColor: "blue.400",
+                    boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+                  }}
+                  _hover={{
+                    borderColor: "blue.300",
+                  }}
+                >
+                  <option value={20}>20 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </Select>
+              </Box>
+            </HStack>
+
+            {showFilterFields && (
+              <Box
+                mt={4}
+                pt={4}
+                borderTop="2px"
+                borderColor={borderColor}
+                bg={expandableFilterBg}
+                borderRadius="12px"
+                p="20px"
+              >
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
+                  Filter by Specific Fields
+                </Text>
+                <HStack spacing={6} flexWrap="wrap" align="flex-start">
+                  <Box minW="220px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Client
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.client_id}
+                      onChange={(value) => handleFilterChange("client_id", value || "")}
+                      options={clients}
+                      placeholder="All Clients"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(client) => client.name || `Client ${client.id}`}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="220px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Vessel
+                    </Text>
+                    <SimpleSearchableSelect
+                      value={filters.vessel_id}
+                      onChange={(value) => handleFilterChange("vessel_id", value || "")}
+                      options={filteredVessels}
+                      placeholder="All Vessels"
+                      displayKey="name"
+                      valueKey="id"
+                      formatOption={(vessel) => vessel.name || `Vessel ${vessel.id}`}
+                      {...searchableSelectProps}
+                    />
+                  </Box>
+                  <Box minW="160px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      SO ID
+                    </Text>
+                    <Input
+                      {...filterInputProps}
+                      placeholder="SO ID"
+                      value={filters.sale_order_id}
+                      onChange={(e) => handleFilterChange("sale_order_id", e.target.value)}
+                    />
+                  </Box>
+                  <Box minW="200px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Rate Name
+                    </Text>
+                    <Input
+                      {...filterInputProps}
+                      placeholder="Rate name"
+                      value={filters.rate_name}
+                      onChange={(e) => handleFilterChange("rate_name", e.target.value)}
+                    />
+                  </Box>
+                  <Box minW="180px" flex="1">
+                    <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                      Valid Date
+                    </Text>
+                    <Input
+                      {...filterInputProps}
+                      type="date"
+                      value={filters.validity_date}
+                      onChange={(e) => handleFilterChange("validity_date", e.target.value)}
+                    />
+                  </Box>
+                </HStack>
+              </Box>
+            )}
+          </Box>
+
+          <Box px="15px" maxH="65vh" overflow="auto">
+            <Table variant="unstyled" size="sm" minW="1000px" layout="fixed">
+              <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1} boxShadow="sm">
+                <Tr>
+                  {[
+                    { label: "Client", w: "18%" },
+                    { label: "Vessel", w: "16%" },
+                    { label: "SO ID", w: "12%" },
+                    { label: "Rate Name", w: "28%" },
+                    { label: "Valid Date", w: "12%" },
+                    { label: "", w: "90px" },
+                  ].map((col) => (
+                    <Th key={col.label || "actions"} w={col.w} {...thStyle}>
+                      {col.label}
+                    </Th>
+                  ))}
+                </Tr>
+              </Thead>
+              <Tbody>
+                {loading ? (
+                  <Tr>
+                    <Td colSpan={6} textAlign="center" py="40px" {...tdStyle}>
+                      <Text color={tableTextColorSecondary} fontSize="sm">
+                        Loading quotations...
+                      </Text>
+                    </Td>
+                  </Tr>
+                ) : items.length === 0 ? (
+                  <Tr>
+                    <Td colSpan={6} textAlign="center" py="40px" {...tdStyle}>
+                      <Text color={tableTextColorSecondary} fontSize="sm">
+                        No quotations found.
+                      </Text>
+                    </Td>
+                  </Tr>
+                ) : (
+                  items.map((item, index) => (
+                    <Tr
+                      key={item.id}
+                      bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
+                      border="1px"
+                      borderColor={tableBorderColor}
+                      _hover={{ bg: hoverBg }}
+                    >
+                      <TruncatedCell
+                        value={item.client_name || m2oName(item.client_id, "-")}
+                        maxW="220px"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <TruncatedCell
+                        value={quotationVesselName(item)}
+                        maxW="200px"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <TruncatedCell
+                        value={quotationSoDisplay(item)}
+                        maxW="140px"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <TruncatedCell
+                        value={quotationRateNames(item)}
+                        maxW="320px"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <TruncatedCell
+                        value={item.validity_date || "-"}
+                        maxW="140px"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
+                      <Td w="90px" {...tdStyle}>
+                        <HStack spacing={1}>
+                          <Tooltip label="Edit">
+                            <IconButton
+                              aria-label="Edit quotation"
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="blue"
+                              icon={<MdEdit />}
+                              onClick={() => history.push(`/admin/quotations/edit/${item.id}`)}
+                            />
+                          </Tooltip>
+                          <Tooltip label="Delete">
+                            <IconButton
+                              aria-label="Delete quotation"
+                              size="sm"
+                              variant="ghost"
+                              colorScheme="red"
+                              icon={<MdDelete />}
+                              onClick={() => handleDelete(item.id)}
+                            />
+                          </Tooltip>
+                        </HStack>
+                      </Td>
+                    </Tr>
+                  ))
+                )}
+              </Tbody>
+            </Table>
+          </Box>
+
+          <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
+            <Text fontSize="sm" color={tableTextColorSecondary}>
+              Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1} to{" "}
+              {Math.min(page * pageSize, totalCount)} of {totalCount} results
+            </Text>
+            <HStack spacing={1}>
+              <Button size="sm" variant="outline" isDisabled={!hasPrevious} onClick={() => setPage(1)}>
+                ««
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={!hasPrevious}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                «
+              </Button>
+              <Text fontSize="sm" color={tableTextColorSecondary} px={2}>
+                Page {page} of {totalPages}
+              </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                isDisabled={!hasNext}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                »
+              </Button>
+              <Button size="sm" variant="outline" isDisabled={!hasNext} onClick={() => setPage(totalPages)}>
+                »»
+              </Button>
+            </HStack>
+          </Flex>
+        </Card>
+      </VStack>
+    </Box>
+  );
 }

@@ -111,27 +111,26 @@ export const getDestinationsForSelect = async (searchTerm = '') => {
 // Get quotations for select dropdown
 export const getQuotationsForSelect = async (searchTerm = '') => {
   try {
-    const response = await api.get('/api/quotations');
-    
-    // Check if response has error status (JSON-RPC format)
-    if (response.data.result && response.data.result.status === 'error') {
-      throw new Error(response.data.result.message || 'Failed to fetch quotations');
-    }
-    
-    const quotations = response.data.quotations || [];
-    
-    // Filter locally if search term provided
+    const response = await api.get('/api/narvi/quotation', {
+      params: { page: 1, page_size: 200 },
+    });
+    const result = response.data || {};
+    const quotations = Array.isArray(result.data) ? result.data : [];
+
     if (searchTerm.trim()) {
-      return quotations.filter(quotation => 
-        quotation.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        quotation.quotation_number?.toLowerCase().includes(searchTerm.toLowerCase())
+      const term = searchTerm.toLowerCase();
+      return quotations.filter(
+        (quotation) =>
+          quotation.name?.toLowerCase().includes(term) ||
+          quotation.client_name?.toLowerCase().includes(term) ||
+          String(quotation.id).includes(term)
       );
     }
-    
+
     return quotations;
   } catch (error) {
     console.error('Failed to fetch quotations:', error);
-    throw error; // Re-throw to be handled by the hook
+    throw error;
   }
 };
 
