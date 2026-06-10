@@ -37,6 +37,7 @@ import {
 } from "../../../api/narviQuotation";
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
+  apiString,
   emptyHeader,
   emptyLine,
   ensureSelectedOption,
@@ -273,7 +274,14 @@ export default function QuotationForm() {
               updates.agentOptions = ensureSelectedOption(
                 normalizeOptions(result.agent_options),
                 line.agent_id,
-                (agentId) => (agentId ? { id: agentId, name: `Agent ${agentId}` } : null)
+                (agentId) =>
+                  agentId
+                    ? {
+                      id: agentId,
+                      name: line.agent_name || `Agent ${agentId}`,
+                      company_name: line.agent_name || "",
+                    }
+                    : null
               );
             }
             if (result.rate_item_options) {
@@ -284,7 +292,7 @@ export default function QuotationForm() {
                   rateId
                     ? {
                       id: rateId,
-                      name: line.rate_id || line.rate_item_name || `Rate ${rateId}`,
+                      name: line.rate_list_name || line.rate_id || line.rate_item_name || `Rate ${rateId}`,
                       rate_id: line.rate_id,
                       rate_item_name: line.rate_item_name,
                       rate_remark: line.rate_remark,
@@ -334,8 +342,7 @@ export default function QuotationForm() {
 
       setLoading(true);
       try {
-        const result = await getNarviQuotation(id);
-        const q = result.data || result.quotation || result;
+        const q = await getNarviQuotation(id);
         editOptionLabels.current = {
           client: {
             id: m2oId(q.client_id),
@@ -345,19 +352,19 @@ export default function QuotationForm() {
           },
           vessel: {
             id: m2oId(q.vessel_id),
-            name: m2oName(q.vessel_id),
+            name: q.vessel_name || m2oName(q.vessel_id),
             imo: q.vessel_imo || "",
           },
           so: {
-            id: m2oId(q.sale_order_id) || m2oId(q.so_id),
-            name: m2oName(q.sale_order_id) || m2oName(q.so_id) || q.so_number || "",
+            id: m2oId(q.sale_order_id),
+            name: m2oName(q.sale_order_id) || apiString(q.so_id) || apiString(q.so_number),
           },
         };
         const nextHeader = {
           client_id: m2oId(q.client_id),
           vessel_id: m2oId(q.vessel_id),
-          sale_order_id: m2oId(q.sale_order_id) || m2oId(q.so_id),
-          validity_date: q.validity_date || "",
+          sale_order_id: m2oId(q.sale_order_id),
+          validity_date: apiString(q.validity_date),
           currency_id: m2oId(q.currency_id),
           usd_roe: q.usd_roe != null ? String(q.usd_roe) : "1",
           general_mu: q.general_mu != null ? String(q.general_mu) : "",
@@ -373,6 +380,7 @@ export default function QuotationForm() {
         await loadHeaderOptions({
           client_id: nextHeader.client_id,
           vessel_id: nextHeader.vessel_id,
+          sale_order_id: nextHeader.sale_order_id,
         });
         await Promise.all(
           loadedLines.map((line, index) => loadLineOptions(index, line, nextHeader.client_id))
@@ -444,19 +452,7 @@ export default function QuotationForm() {
       prev.map((line, i) => {
         if (i !== index) return line;
         nextLine = { ...line, [field]: value };
-        if (field === "is_client_specific") {
-          Object.assign(nextLine, {
-            location: "",
-            agent_id: "",
-            rate_list_id: "",
-            rate_id: "",
-            rate_item_name: "",
-            rate_remark: "",
-            locationOptions: [],
-            agentOptions: [],
-            rateItemOptions: [],
-          });
-        } else if (field === "location") {
+        if (field === "location") {
           Object.assign(nextLine, {
             agent_id: "",
             rate_list_id: "",

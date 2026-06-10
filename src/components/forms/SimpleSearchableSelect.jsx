@@ -74,12 +74,18 @@ const SimpleSearchableSelect = ({
   const { w, minW, maxW, ...inputProps } = props;
 
   const filteredOptions = useMemo(() => {
-    const q = String(isOpen ? searchValue : displayValue).trim().toLowerCase();
+    const q = String(isOpen ? searchValue : "").trim().toLowerCase();
     if (!q) return options;
     return options.filter((option) => formatOption(option).toLowerCase().includes(q));
   // Exclude formatOption from deps to avoid recomputes on every parent render
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchValue, options, isOpen, displayValue]);
+  }, [searchValue, options, isOpen]);
+
+  useEffect(() => {
+    if (!value && searchValue) {
+      setSearchValue("");
+    }
+  }, [value, searchValue]);
 
   // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
@@ -153,16 +159,19 @@ const SimpleSearchableSelect = ({
     const newValue = e.target.value;
     setSearchValue(newValue);
     setIsOpen(true);
+    if (newValue === "" && value != null && value !== "") {
+      onChange("");
+    }
     if (typeof onSearchChange === "function") onSearchChange(newValue);
   };
 
   const handleFocus = () => {
-    openDropdown(prefillOnFocus ? displayValue : "");
+    openDropdown(prefillOnFocus && value ? displayValue : "");
   };
 
   const handleClick = () => {
     if (!isOpen) {
-      openDropdown(prefillOnFocus ? displayValue : "");
+      openDropdown(prefillOnFocus && value ? displayValue : "");
     }
   };
 

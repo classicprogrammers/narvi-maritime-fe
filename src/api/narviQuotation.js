@@ -34,16 +34,19 @@ export function ensureNarviSuccess(data, fallback = "Request failed.") {
 }
 
 export function extractNarviQuotationError(error, fallback = "Request failed.") {
-  const data = error?.response?.data;
-  if (typeof data?.message === "string" && data.message.trim()) return data.message;
-  if (typeof data?.error === "string" && data.error.trim()) return data.error;
-  if (data?.result?.message) return data.result.message;
+  const raw = error?.response?.data;
+  const unwrapped = unwrapNarviResponse(raw ?? {});
+
+  if (typeof unwrapped?.message === "string" && unwrapped.message.trim()) return unwrapped.message;
+  if (typeof raw?.message === "string" && raw.message.trim()) return raw.message;
+  if (typeof raw?.error === "string" && raw.error.trim()) return raw.error;
+  if (typeof raw?.result?.message === "string" && raw.result.message.trim()) return raw.result.message;
   if (typeof error?.message === "string" && error.message.trim() && error.message !== "Network Error") {
     return error.message;
   }
   if (error?.response?.status === 401) return "Authentication required. Please log in again.";
   if (error?.response?.status === 400) {
-    return data?.message || data?.error || "Invalid request to quotation API.";
+    return unwrapped?.message || raw?.message || raw?.error || fallback;
   }
   return fallback;
 }
@@ -61,7 +64,24 @@ export async function getNarviQuotations(params = {}) {
 
 export async function getNarviQuotation(id) {
   const response = await api.get("/api/narvi/quotation", { params: { id } });
-  return unwrapNarviResponse(response.data);
+  const result = unwrapNarviResponse(response.data);
+  if (result?.status === "error") {
+    const err = new Error(result.message || "Failed to load quotation.");
+    err.response = { data: result };
+    throw err;
+  }
+  if (Array.isArray(result?.data)) {
+    const match = result.data.find((row) => String(row.id) === String(id));
+    if (match) return match;
+    if (result.data.length === 1) return result.data[0];
+  }
+  if (result?.data && typeof result.data === "object" && !Array.isArray(result.data)) {
+    return result.data;
+  }
+  if (result?.quotation && typeof result.quotation === "object") {
+    return result.quotation;
+  }
+  return result;
 }
 
 export async function getNarviQuotationOptions(payload = {}) {
@@ -90,17 +110,17 @@ export async function getNarviQuotationLineOptions(payload = {}) {
 
 export async function createNarviQuotation(payload) {
   const response = await api.post("/api/narvi/quotation/create", payload);
-  return unwrapNarviResponse(response.data);
+  return ensureNarviSuccess(response.data, "Failed to create quotation.");
 }
 
 export async function updateNarviQuotation(payload) {
   const response = await api.post("/api/narvi/quotation/update", payload);
-  return unwrapNarviResponse(response.data);
+  return ensureNarviSuccess(response.data, "Failed to update quotation.");
 }
 
 export async function deleteNarviQuotation(id) {
   const response = await api.post("/api/narvi/quotation/delete", { id });
-  return unwrapNarviResponse(response.data);
+  return ensureNarviSuccess(response.data, "Failed to delete quotation.");
 }
 
 const narviQuotation = {

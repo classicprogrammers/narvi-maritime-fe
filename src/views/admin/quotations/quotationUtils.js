@@ -47,6 +47,11 @@ function normalizeRemark(value) {
   return String(value);
 }
 
+export function apiString(value) {
+  if (value === false || value == null) return "";
+  return String(value);
+}
+
 export function normalizeOptions(list, labelKey = "name") {
   if (!Array.isArray(list)) return [];
   return list.map((item) => {
@@ -193,14 +198,16 @@ export function lineFromApi(line) {
     ...emptyLine(),
     id: line.id ?? null,
     is_client_specific: Boolean(line.is_client_specific),
-    location: line.location || "",
+    location: apiString(line.location),
     agent_id: m2oId(line.agent_id),
+    agent_name: apiString(line.agent) || m2oName(line.agent_id),
     rate_list_id: m2oId(line.rate_list_id),
-    rate_id: line.rate_id || "",
-    rate_item_name: line.rate_item_name || "",
-    rate_remark: line.rate_remark || "",
-    free_text: line.free_text || "",
+    rate_list_name: m2oName(line.rate_list_id),
+    rate_id: apiString(line.rate_id),
+    rate_item_name: apiString(line.rate_item_name),
+    rate_remark: normalizeRemark(line.rate_remark),
+    free_text: apiString(line.free_text),
     pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
-    remark: line.remark || "",
+    remark: apiString(line.remark),
   };
 }
