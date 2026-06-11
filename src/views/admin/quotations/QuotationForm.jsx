@@ -135,6 +135,7 @@ export default function QuotationForm() {
   const [soOptions, setSoOptions] = useState([]);
   const [headerOptionsLoading, setHeaderOptionsLoading] = useState(false);
   const [lineOptionsLoading, setLineOptionsLoading] = useState({});
+  const [deletedLineIds, setDeletedLineIds] = useState([]);
 
   const headerSearchTimer = useRef(null);
   const editOptionLabels = useRef({
@@ -229,8 +230,24 @@ export default function QuotationForm() {
     [toast]
   );
 
-  const loadLineOptions = useCallback(
-    async (lineIndex, lineState, clientId) => {
+  const buildLineOptionsPayload = (stage, lineState, clientId) => {
+    if (stage === "rate") {
+      return { agent_id: intOrUndef(lineState.agent_id) };
+    }
+    const payload = {
+      is_client_specific: Boolean(lineState.is_client_specific),
+    };
+    if (lineState.is_client_specific) {
+      payload.client_id = intOrUndef(clientId);
+    }
+    if (stage === "agent" && lineState.location) {
+      payload.location = lineState.location;
+    }
+    return payload;
+  };
+
+  const loadLineOptionsStage = useCallback(
+    async (lineIndex, lineState, clientId, stage) => {
       if (lineState.is_client_specific && !intOrUndef(clientId)) {
         setLines((prev) =>
           prev.map((line, i) =>
@@ -247,30 +264,26 @@ export default function QuotationForm() {
         return;
       }
 
+      if (stage === "agent" && !lineState.location) return;
+      if (stage === "rate" && !intOrUndef(lineState.agent_id)) return;
+
       setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: true }));
       try {
-        const payload = {
-          page: 1,
-          page_size: 50,
-          is_client_specific: Boolean(lineState.is_client_specific),
-        };
-        if (lineState.is_client_specific) payload.client_id = intOrUndef(clientId);
-        if (lineState.location) payload.location = lineState.location;
-        if (lineState.agent_id) payload.agent_id = intOrUndef(lineState.agent_id);
-
-        const result = await getNarviQuotationLineOptions(payload);
+        const result = await getNarviQuotationLineOptions(
+          buildLineOptionsPayload(stage, lineState, clientId)
+        );
         setLines((prev) =>
           prev.map((line, i) => {
             if (i !== lineIndex) return line;
             const updates = { ...line };
-            if (result.location_options) {
+            if (stage === "location" && result.location_options) {
               updates.locationOptions = ensureSelectedOption(
                 normalizeLocationOptions(result.location_options),
                 line.location,
                 (loc) => (loc ? { id: loc, name: loc, location: loc } : null)
               );
             }
-            if (result.agent_options) {
+            if (stage === "agent" && result.agent_options) {
               updates.agentOptions = ensureSelectedOption(
                 normalizeOptions(result.agent_options),
                 line.agent_id,
@@ -284,7 +297,7 @@ export default function QuotationForm() {
                     : null
               );
             }
-            if (result.rate_item_options) {
+            if (stage === "rate" && result.rate_item_options) {
               updates.rateItemOptions = ensureSelectedOption(
                 normalizeRateItems(result.rate_item_options),
                 line.rate_list_id,
@@ -318,6 +331,19 @@ export default function QuotationForm() {
     [toast]
   );
 
+  const loadAllLineOptions = useCallback(
+    async (lineIndex, lineState, clientId) => {
+      await loadLineOptionsStage(lineIndex, lineState, clientId, "location");
+      if (lineState.location) {
+        await loadLineOptionsStage(lineIndex, lineState, clientId, "agent");
+      }
+      if (intOrUndef(lineState.agent_id)) {
+        await loadLineOptionsStage(lineIndex, lineState, clientId, "rate");
+      }
+    },
+    [loadLineOptionsStage]
+  );
+
   const scheduleHeaderSearch = (field, value, currentHeader) => {
     if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
     headerSearchTimer.current = setTimeout(() => {
@@ -336,7 +362,7 @@ export default function QuotationForm() {
     const init = async () => {
       if (!isEdit) {
         await loadHeaderOptions();
-        await loadLineOptions(0, emptyLine(), "");
+        await loadLineOptionsStage(0, emptyLine(), "", "location");
         return;
       }
 
@@ -383,7 +409,7 @@ export default function QuotationForm() {
           sale_order_id: nextHeader.sale_order_id,
         });
         await Promise.all(
-          loadedLines.map((line, index) => loadLineOptions(index, line, nextHeader.client_id))
+          loadedLines.map((line, index) => loadAllLineOptions(index, line, nextHeader.client_id))
         );
       } catch (error) {
         toast({
@@ -402,7 +428,7 @@ export default function QuotationForm() {
     return () => {
       if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
     };
-  }, [id, isEdit, history, loadHeaderOptions, loadLineOptions, toast]);
+  }, [id, isEdit, history, loadHeaderOptions, loadLineOptionsStage, loadAllLineOptions, toast]);
 
   const handleClientChange = async (value) => {
     setHeader((prev) => ({ ...prev, client_id: value || "", vessel_id: "", sale_order_id: "" }));
@@ -427,10 +453,15 @@ export default function QuotationForm() {
           : {}),
       }));
       updated.forEach((line, index) => {
-        if (line.is_client_specific) {
-          loadLineOptions(index, { ...line, location: "", agent_id: "" }, value);
-        } else {
-          loadLineOptions(index, line, value);
+        const lineState = line.is_client_specific
+          ? { ...line, location: "", agent_id: "" }
+          : line;
+        loadLineOptionsStage(index, lineState, value, "location");
+        if (lineState.location) {
+          loadLineOptionsStage(index, lineState, value, "agent");
+        }
+        if (intOrUndef(lineState.agent_id)) {
+          loadLineOptionsStage(index, lineState, value, "rate");
         }
       });
       return updated;
@@ -452,9 +483,23 @@ export default function QuotationForm() {
       prev.map((line, i) => {
         if (i !== index) return line;
         nextLine = { ...line, [field]: value };
-        if (field === "location") {
+        if (field === "is_client_specific") {
+          Object.assign(nextLine, {
+            location: "",
+            agent_id: "",
+            agent_name: "",
+            rate_list_id: "",
+            rate_id: "",
+            rate_item_name: "",
+            rate_remark: "",
+            locationOptions: [],
+            agentOptions: [],
+            rateItemOptions: [],
+          });
+        } else if (field === "location") {
           Object.assign(nextLine, {
             agent_id: "",
+            agent_name: "",
             rate_list_id: "",
             rate_id: "",
             rate_item_name: "",
@@ -475,24 +520,39 @@ export default function QuotationForm() {
           nextLine.rate_list_id = value || "";
           nextLine.rate_id = item?.rate_id ?? "";
           nextLine.rate_item_name = item?.rate_item_name ?? "";
-          nextLine.rate_remark = item?.rate_remark ?? "";
+          nextLine.rate_remark = item?.rate_remark ?? item?.remarks ?? "";
         }
         return nextLine;
       })
     );
-    if (!["rate_list_id", "free_text", "remark", "pre_text_rate_item_name"].includes(field)) {
-      await loadLineOptions(index, nextLine, header.client_id);
+
+    const cascadeStage = {
+      is_client_specific: "location",
+      location: "agent",
+      agent_id: "rate",
+    }[field];
+
+    if (cascadeStage) {
+      await loadLineOptionsStage(index, nextLine, header.client_id, cascadeStage);
     }
   };
 
   const addLine = async () => {
     const newLine = emptyLine();
+    const newIndex = lines.length;
     setLines((prev) => [...prev, newLine]);
-    await loadLineOptions(lines.length, newLine, header.client_id);
+    await loadLineOptionsStage(newIndex, newLine, header.client_id, "location");
   };
 
   const removeLine = (index) => {
-    setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+    setLines((prev) => {
+      if (prev.length <= 1) return prev;
+      const line = prev[index];
+      if (line.id) {
+        setDeletedLineIds((ids) => [...ids, line.id]);
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const buildPayload = () => ({
@@ -505,16 +565,19 @@ export default function QuotationForm() {
     usd_roe: header.usd_roe !== "" ? Number(header.usd_roe) : 1.0,
     general_mu: header.general_mu !== "" ? Number(header.general_mu) : undefined,
     caf: header.caf !== "" ? Number(header.caf) : undefined,
-    quotation_lines: lines.map((line) => ({
-      ...(line.id ? { id: line.id } : {}),
-      is_client_specific: Boolean(line.is_client_specific),
-      location: line.location || undefined,
-      agent_id: intOrUndef(line.agent_id),
-      rate_list_id: intOrUndef(line.rate_list_id),
-      free_text: line.free_text || undefined,
-      pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
-      remark: line.remark || undefined,
-    })),
+    quotation_lines: [
+      ...lines.map((line) => ({
+        ...(line.id ? { id: line.id } : {}),
+        is_client_specific: Boolean(line.is_client_specific),
+        location: line.location || undefined,
+        agent_id: intOrUndef(line.agent_id),
+        rate_list_id: intOrUndef(line.rate_list_id),
+        free_text: line.free_text || undefined,
+        pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
+        remark: line.remark || undefined,
+      })),
+      ...deletedLineIds.map((lineId) => ({ id: lineId, delete: true })),
+    ],
   });
 
   const validate = () => {
