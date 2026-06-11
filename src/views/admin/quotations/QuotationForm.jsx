@@ -127,7 +127,6 @@ export default function QuotationForm() {
   const inputText = useColorModeValue("gray.700", "gray.100");
   const tableHeaderBg = useColorModeValue("orange.50", "orange.900");
   const tableHeaderText = useColorModeValue("orange.900", "orange.50");
-  const remarkReadonlyBg = useColorModeValue("blue.50", "blue.900");
   const freeTextBg = useColorModeValue("green.50", "green.900");
 
   const [loading, setLoading] = useState(isEdit);
@@ -1101,7 +1100,7 @@ export default function QuotationForm() {
                           {line.rate_item_name || "—"}
                         </Text>
                       </Td>
-                      <Td {...lineCell} bg={remarkReadonlyBg}>
+                      <Td {...lineCell}>
                         <Text {...lineCellFont} noOfLines={2} color={textColor}>
                           {line.rate_remark || "—"}
                         </Text>
