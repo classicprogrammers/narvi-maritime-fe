@@ -19,6 +19,8 @@ const SimpleSearchableSelect = ({
   placeholder = "Select...",
   onSearchChange,
   prefillOnFocus = true,
+  clearOnEmptySearch = true,
+  serverSideSearch = false,
   displayKey = "name",
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
@@ -74,18 +76,20 @@ const SimpleSearchableSelect = ({
   const { w, minW, maxW, ...inputProps } = props;
 
   const filteredOptions = useMemo(() => {
-    const q = String(isOpen ? searchValue : "").trim().toLowerCase();
+    if (serverSideSearch || !isOpen) return options;
+    const q = String(searchValue).trim().toLowerCase();
     if (!q) return options;
     return options.filter((option) => formatOption(option).toLowerCase().includes(q));
   // Exclude formatOption from deps to avoid recomputes on every parent render
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchValue, options, isOpen]);
+  }, [searchValue, options, isOpen, serverSideSearch]);
 
+  // Reset search text when closed or when a new value is selected externally
   useEffect(() => {
-    if (!value && searchValue) {
+    if (!isOpen) {
       setSearchValue("");
     }
-  }, [value, searchValue]);
+  }, [value, isOpen]);
 
   // When dropdown opens/value changes, set highlighted index
   useEffect(() => {
@@ -159,7 +163,7 @@ const SimpleSearchableSelect = ({
     const newValue = e.target.value;
     setSearchValue(newValue);
     setIsOpen(true);
-    if (newValue === "" && value != null && value !== "") {
+    if (clearOnEmptySearch && newValue === "" && value != null && value !== "") {
       onChange("");
     }
     if (typeof onSearchChange === "function") onSearchChange(newValue);

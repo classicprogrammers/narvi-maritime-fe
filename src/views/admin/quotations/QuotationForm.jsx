@@ -47,8 +47,11 @@ import {
   formatRateItemOption,
   formatSoOption,
   formatVesselOption,
+  intOrNull,
   intOrUndef,
   lineFromApi,
+  numOrNull,
+  strOrNull,
   m2oId,
   m2oName,
   normalizeLocationOptions,
@@ -128,6 +131,7 @@ export default function QuotationForm() {
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [quotationId, setQuotationId] = useState(isEdit ? id : null);
   const [header, setHeader] = useState(emptyHeader);
   const [lines, setLines] = useState([emptyLine()]);
   const [clientOptions, setClientOptions] = useState([]);
@@ -137,9 +141,33 @@ export default function QuotationForm() {
   const [lineOptionsLoading, setLineOptionsLoading] = useState({});
   const [deletedLineIds, setDeletedLineIds] = useState([]);
 
-  const headerSearchTimer = useRef(null);
+  const autoSaveTimerRef = useRef(null);
+  const headerSearchTimerRef = useRef(null);
+  const saveQueueRef = useRef(Promise.resolve());
+  const isReadyToSaveRef = useRef(false);
   const headerRef = useRef(header);
   headerRef.current = header;
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+  const deletedLineIdsRef = useRef(deletedLineIds);
+  deletedLineIdsRef.current = deletedLineIds;
+  const quotationIdRef = useRef(quotationId);
+  quotationIdRef.current = quotationId;
+
+  const syncHeader = (updater) => {
+    const next = typeof updater === "function" ? updater(headerRef.current) : updater;
+    headerRef.current = next;
+    setHeader(next);
+    return next;
+  };
+
+  const syncLines = (updater) => {
+    const next = typeof updater === "function" ? updater(linesRef.current) : updater;
+    linesRef.current = next;
+    setLines(next);
+    return next;
+  };
+
   const initKeyRef = useRef(null);
   const lastHeaderOptionsKeyRef = useRef("");
   const lastLineOptionsKeyRef = useRef({});
@@ -152,7 +180,19 @@ export default function QuotationForm() {
   const headerSelectProps = { ...selectProps, bg: "transparent" };
   const lineCellFont = { fontSize: "xs", lineHeight: "short" };
   const lineCell = { py: 1.5, px: 2, verticalAlign: "middle" };
-  const lineSelectProps = { ...selectProps, fontSize: "xs", w: "100%" };
+  const lineSelectProps = {
+    ...selectProps,
+    fontSize: "xs",
+    w: "100%",
+    prefillOnFocus: false,
+    clearOnEmptySearch: false,
+  };
+  const headerDropdownProps = {
+    ...headerSelectProps,
+    prefillOnFocus: false,
+    clearOnEmptySearch: false,
+    serverSideSearch: true,
+  };
   const lineColumnWidths = [
     "72px",
     "9%",
@@ -239,44 +279,82 @@ export default function QuotationForm() {
     [toast]
   );
 
-  const buildLineOptionsPayload = (stage, lineState, clientId) => {
-    if (stage === "rate") {
-      return { agent_id: intOrUndef(lineState.agent_id) };
-    }
+  const buildLineOptionsPayload = (stage, lineState, quotationId) => {
     const payload = {
+      quotation_id: intOrUndef(quotationId),
+      line_id: intOrUndef(lineState.id),
       is_client_specific: Boolean(lineState.is_client_specific),
     };
-    if (lineState.is_client_specific) {
-      payload.client_id = intOrUndef(clientId);
-    }
-    if (stage === "agent" && lineState.location) {
+    if (stage !== "location" && lineState.location) {
       payload.location = lineState.location;
+    }
+    if (stage === "rate" && lineState.is_client_specific && intOrUndef(lineState.agent_id)) {
+      payload.agent_id = intOrUndef(lineState.agent_id);
     }
     return payload;
   };
 
+  const getLineCascadeStage = (field, lineState) => {
+    if (field === "is_client_specific") return "location";
+    if (field === "location") return lineState.is_client_specific ? "agent" : "rate";
+    if (field === "agent_id") return "rate";
+    return null;
+  };
+
+  const showLineOptionsWarnings = useCallback(
+    (result, stage) => {
+      const warnings = result?.warnings ?? result?.warning;
+      if (warnings) {
+        const message = Array.isArray(warnings)
+          ? warnings.filter(Boolean).join(" ")
+          : String(warnings);
+        if (message.trim()) {
+          toast({
+            title: "Line options",
+            description: message,
+            status: "warning",
+            duration: 4000,
+            isClosable: true,
+          });
+          return;
+        }
+      }
+      const emptyLocations =
+        stage === "location" &&
+        (!Array.isArray(result?.location_options) || result.location_options.length === 0);
+      const emptyAgents =
+        stage === "agent" &&
+        (!Array.isArray(result?.agent_options) || result.agent_options.length === 0);
+      const emptyRates =
+        stage === "rate" &&
+        (!Array.isArray(result?.rate_item_options) || result.rate_item_options.length === 0);
+      if (emptyLocations || emptyAgents || emptyRates) {
+        toast({
+          title: "No options available",
+          description: "The server returned no matching options for this line. Check saved values and try again.",
+          status: "warning",
+          duration: 4000,
+          isClosable: true,
+        });
+      }
+    },
+    [toast]
+  );
+
   const loadLineOptionsStage = useCallback(
-    async (lineIndex, lineState, clientId, stage) => {
-      if (lineState.is_client_specific && !intOrUndef(clientId)) {
-        setLines((prev) =>
-          prev.map((line, i) =>
-            i === lineIndex
-              ? {
-                ...line,
-                locationOptions: [],
-                agentOptions: [],
-                rateItemOptions: [],
-              }
-              : line
-          )
-        );
-        return;
+    async (lineIndex, lineState, stage) => {
+      const quotationId = quotationIdRef.current;
+      if (!intOrUndef(quotationId) || !intOrUndef(lineState.id)) return;
+
+      if (stage === "agent") {
+        if (!lineState.is_client_specific || !lineState.location) return;
+      }
+      if (stage === "rate") {
+        if (!lineState.location) return;
+        if (lineState.is_client_specific && !intOrUndef(lineState.agent_id)) return;
       }
 
-      if (stage === "agent" && !lineState.location) return;
-      if (stage === "rate" && !intOrUndef(lineState.agent_id)) return;
-
-      const linePayload = buildLineOptionsPayload(stage, lineState, clientId);
+      const linePayload = buildLineOptionsPayload(stage, lineState, quotationId);
       const requestKey = `${lineIndex}:${stage}:${JSON.stringify(linePayload)}`;
       if (lastLineOptionsKeyRef.current[requestKey]) return;
       lastLineOptionsKeyRef.current[requestKey] = true;
@@ -284,18 +362,30 @@ export default function QuotationForm() {
       setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: true }));
       try {
         const result = await getNarviQuotationLineOptions(linePayload);
-        setLines((prev) =>
-          prev.map((line, i) => {
-            if (i !== lineIndex) return line;
-            const updates = { ...line };
-            if (stage === "location" && result.location_options) {
-              updates.locationOptions = ensureSelectedOption(
-                normalizeLocationOptions(result.location_options),
-                line.location,
-                (loc) => (loc ? { id: loc, name: loc, location: loc } : null)
-              );
-            }
-            if (stage === "agent" && result.agent_options) {
+        showLineOptionsWarnings(result, stage);
+
+        const nextLines = linesRef.current.map((line, i) => {
+          if (i !== lineIndex) return line;
+          const updates = { ...line };
+          if (result.agent_required != null) {
+            updates.agent_required = Boolean(result.agent_required);
+          }
+          if (result.rate_type_filter != null) {
+            updates.rate_type_filter = apiString(result.rate_type_filter);
+          }
+          if (result.client_id != null && lineState.is_client_specific) {
+            updates.line_client_id = m2oId(result.client_id);
+          }
+          if (stage === "location" && result.location_options) {
+            updates.locationOptions = ensureSelectedOption(
+              normalizeLocationOptions(result.location_options),
+              line.location,
+              (loc) => (loc ? { id: loc, name: loc, location: loc } : null)
+            );
+          }
+          if (stage === "agent") {
+            updates.rateItemOptions = [];
+            if (result.agent_options) {
               updates.agentOptions = ensureSelectedOption(
                 normalizeOptions(result.agent_options),
                 line.agent_id,
@@ -309,25 +399,30 @@ export default function QuotationForm() {
                     : null
               );
             }
-            if (stage === "rate" && result.rate_item_options) {
-              updates.rateItemOptions = ensureSelectedOption(
-                normalizeRateItems(result.rate_item_options),
-                line.rate_list_id,
-                (rateId) =>
-                  rateId
-                    ? {
-                      id: rateId,
-                      name: line.rate_list_name || line.rate_id || line.rate_item_name || `Rate ${rateId}`,
-                      rate_id: line.rate_id,
-                      rate_item_name: line.rate_item_name,
-                      rate_remark: line.rate_remark,
-                    }
-                    : null
-              );
-            }
-            return updates;
-          })
-        );
+          }
+          if (stage === "rate" && !lineState.is_client_specific) {
+            updates.agentOptions = [];
+          }
+          if (stage === "rate" && result.rate_item_options) {
+            updates.rateItemOptions = ensureSelectedOption(
+              normalizeRateItems(result.rate_item_options),
+              line.rate_list_id,
+              (rateId) =>
+                rateId
+                  ? {
+                    id: rateId,
+                    name: line.rate_list_name || line.rate_id || line.rate_item_name || `Rate ${rateId}`,
+                    rate_id: line.rate_id,
+                    rate_item_name: line.rate_item_name,
+                    rate_remark: line.rate_remark,
+                  }
+                  : null
+            );
+          }
+          return updates;
+        });
+        linesRef.current = nextLines;
+        setLines(nextLines);
       } catch (error) {
         toast({
           title: "Error",
@@ -340,17 +435,21 @@ export default function QuotationForm() {
         setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: false }));
       }
     },
-    [toast]
+    [showLineOptionsWarnings, toast]
   );
 
   const loadAllLineOptions = useCallback(
-    async (lineIndex, lineState, clientId) => {
-      await loadLineOptionsStage(lineIndex, lineState, clientId, "location");
-      if (lineState.location) {
-        await loadLineOptionsStage(lineIndex, lineState, clientId, "agent");
-      }
-      if (intOrUndef(lineState.agent_id)) {
-        await loadLineOptionsStage(lineIndex, lineState, clientId, "rate");
+    async (lineIndex, lineState) => {
+      if (!intOrUndef(quotationIdRef.current) || !intOrUndef(lineState.id)) return;
+      await loadLineOptionsStage(lineIndex, lineState, "location");
+      if (!lineState.location) return;
+      if (lineState.is_client_specific) {
+        await loadLineOptionsStage(lineIndex, lineState, "agent");
+        if (intOrUndef(lineState.agent_id)) {
+          await loadLineOptionsStage(lineIndex, lineState, "rate");
+        }
+      } else {
+        await loadLineOptionsStage(lineIndex, lineState, "rate");
       }
     },
     [loadLineOptionsStage]
@@ -360,8 +459,9 @@ export default function QuotationForm() {
     const q = String(value ?? "").trim();
     if (!q) return;
 
-    if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
-    headerSearchTimer.current = setTimeout(() => {
+    if (headerSearchTimerRef.current) clearTimeout(headerSearchTimerRef.current);
+    headerSearchTimerRef.current = setTimeout(() => {
+      lastHeaderOptionsKeyRef.current = "";
       const currentHeader = headerRef.current;
       loadHeaderOptions({
         client_id: currentHeader.client_id,
@@ -385,7 +485,7 @@ export default function QuotationForm() {
 
       if (!isEdit) {
         await loadHeaderOptions();
-        await loadLineOptionsStage(0, emptyLine(), "", "location");
+        isReadyToSaveRef.current = true;
         return;
       }
 
@@ -431,9 +531,10 @@ export default function QuotationForm() {
           vessel_id: nextHeader.vessel_id,
           sale_order_id: nextHeader.sale_order_id,
         });
-        await Promise.all(
-          loadedLines.map((line, index) => loadAllLineOptions(index, line, nextHeader.client_id))
-        );
+        await Promise.all(loadedLines.map((line, index) => loadAllLineOptions(index, line)));
+        setQuotationId(id);
+        quotationIdRef.current = id;
+        isReadyToSaveRef.current = true;
       } catch (error) {
         toast({
           title: "Error",
@@ -449,23 +550,168 @@ export default function QuotationForm() {
     };
     init();
     return () => {
-      if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (headerSearchTimerRef.current) clearTimeout(headerSearchTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEdit]);
 
+  const extractSavedQuotationId = (result) =>
+    result?.id ?? result?.data?.id ?? result?.quotation?.id ?? null;
+
+  const applySaveResponse = useCallback((result) => {
+    const saved = result?.quotation ?? result?.data ?? result;
+    const savedLines = saved?.quotation_lines;
+    if (!Array.isArray(savedLines) || !savedLines.length) return;
+
+    const next = linesRef.current.map((line, index) => {
+      const apiLine = savedLines[index];
+      if (!apiLine) return line;
+      return { ...line, id: apiLine.id ?? line.id };
+    });
+    linesRef.current = next;
+    setLines(next);
+  }, []);
+
+  const buildPayload = useCallback((qId) => {
+    const h = headerRef.current;
+    const ls = linesRef.current;
+    const dels = deletedLineIdsRef.current;
+    return {
+      ...(qId ? { id: Number(qId) } : {}),
+      client_id: intOrNull(h.client_id),
+      vessel_id: intOrNull(h.vessel_id),
+      sale_order_id: intOrNull(h.sale_order_id),
+      validity_date: strOrNull(h.validity_date),
+      currency_id: intOrNull(h.currency_id),
+      usd_roe: numOrNull(h.usd_roe),
+      general_mu: numOrNull(h.general_mu),
+      caf: numOrNull(h.caf),
+      quotation_lines: [
+        ...ls.map((line) => {
+          const row = {
+            id: line.id ?? null,
+            is_client_specific: Boolean(line.is_client_specific),
+            location: strOrNull(line.location),
+            rate_list_id: intOrNull(line.rate_list_id),
+            free_text: strOrNull(line.free_text),
+            pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
+            remark: strOrNull(line.remark),
+          };
+          if (line.is_client_specific) {
+            row.agent_id = intOrNull(line.agent_id);
+          }
+          return row;
+        }),
+        ...dels.map((lineId) => ({ id: lineId, delete: true })),
+      ],
+    };
+  }, []);
+
+  const canAutoSave = useCallback(() => {
+    if (!isReadyToSaveRef.current || loading) return false;
+    if (!headerRef.current.client_id) return false;
+    if (linesRef.current.some((line) => line.is_client_specific && !headerRef.current.client_id)) {
+      return false;
+    }
+    return true;
+  }, [loading]);
+
+  const persistQuotation = useCallback(async () => {
+    if (!canAutoSave()) return false;
+
+    setSaving(true);
+    try {
+      const currentId = quotationIdRef.current;
+      const payload = buildPayload(currentId);
+
+      if (!currentId) {
+        const result = await createNarviQuotation(payload);
+        const newId = extractSavedQuotationId(result);
+        if (newId) {
+          quotationIdRef.current = newId;
+          setQuotationId(String(newId));
+          const newInitKey = `edit-${newId}`;
+          initKeyRef.current = newInitKey;
+          history.replace(`/admin/quotations/edit/${newId}`);
+        }
+        applySaveResponse(result);
+      } else {
+        const result = await updateNarviQuotation(payload);
+        applySaveResponse(result);
+      }
+
+      if (deletedLineIdsRef.current.length) {
+        deletedLineIdsRef.current = [];
+        setDeletedLineIds([]);
+      }
+      return true;
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: extractNarviQuotationError(
+          error,
+          quotationIdRef.current ? "Failed to update quotation." : "Failed to create quotation."
+        ),
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [applySaveResponse, buildPayload, canAutoSave, history, toast]);
+
+  const runPersistThenOptions = useCallback(
+    async (optionsFn) => {
+      if (!isReadyToSaveRef.current) return false;
+      const run = async () => {
+        const saved = await persistQuotation();
+        if (saved && optionsFn) {
+          await optionsFn();
+        }
+        return saved;
+      };
+      saveQueueRef.current = saveQueueRef.current.then(run).catch(() => false);
+      return saveQueueRef.current;
+    },
+    [persistQuotation]
+  );
+
+  const schedulePersist = useCallback(
+    (optionsFn, delay = 500) => {
+      if (!isReadyToSaveRef.current) return;
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        runPersistThenOptions(optionsFn);
+      }, delay);
+    },
+    [runPersistThenOptions]
+  );
+
+  const clearLineOptionsCache = (lineIndex, stage) => {
+    const lineKeyPrefix = `${lineIndex}:${stage}:`;
+    Object.keys(lastLineOptionsKeyRef.current).forEach((key) => {
+      if (key.startsWith(lineKeyPrefix)) {
+        delete lastLineOptionsKeyRef.current[key];
+      }
+    });
+  };
+
   const handleClientChange = async (value) => {
-    lastHeaderOptionsKeyRef.current = "";
-    setHeader((prev) => ({ ...prev, client_id: value || "", vessel_id: "", sale_order_id: "" }));
+    syncHeader((prev) => ({
+      ...prev,
+      client_id: value || "",
+      vessel_id: "",
+      sale_order_id: "",
+    }));
     setVesselOptions([]);
     setSoOptions([]);
-    await loadHeaderOptions({ client_id: value || undefined });
 
-    const clientSpecificReloads = [];
-    setLines((prev) =>
-      prev.map((line, index) => {
+    syncLines((prev) =>
+      prev.map((line) => {
         if (!line.is_client_specific) return line;
-        clientSpecificReloads.push({ index, lineId: line.id });
         return {
           ...line,
           location: "",
@@ -482,35 +728,36 @@ export default function QuotationForm() {
       })
     );
 
-    if (clientSpecificReloads.length) {
+    await runPersistThenOptions(async () => {
+      lastHeaderOptionsKeyRef.current = "";
+      await loadHeaderOptions({ client_id: value || undefined });
       lastLineOptionsKeyRef.current = {};
-      clientSpecificReloads.forEach(({ index, lineId }) => {
-        loadLineOptionsStage(
-          index,
-          { ...emptyLine(), id: lineId, is_client_specific: true },
-          value,
-          "location"
-        );
-      });
-    }
+      await Promise.all(
+        linesRef.current.map((line, index) =>
+          intOrUndef(line.id) ? loadLineOptionsStage(index, line, "location") : Promise.resolve()
+        )
+      );
+    });
   };
 
   const handleVesselChange = async (value) => {
-    lastHeaderOptionsKeyRef.current = "";
-    setHeader((prev) => ({ ...prev, vessel_id: value || "", sale_order_id: "" }));
+    syncHeader((prev) => ({ ...prev, vessel_id: value || "", sale_order_id: "" }));
     setSoOptions([]);
-    await loadHeaderOptions({
-      client_id: headerRef.current.client_id || undefined,
-      vessel_id: value || undefined,
+
+    await runPersistThenOptions(async () => {
+      lastHeaderOptionsKeyRef.current = "";
+      await loadHeaderOptions({
+        client_id: headerRef.current.client_id || undefined,
+        vessel_id: value || undefined,
+      });
     });
   };
 
   const updateLineCascade = async (index, field, value) => {
-    let nextLine;
-    setLines((prev) =>
+    syncLines((prev) =>
       prev.map((line, i) => {
         if (i !== index) return line;
-        nextLine = { ...line, [field]: value };
+        const nextLine = { ...line, [field]: value };
         if (field === "is_client_specific") {
           Object.assign(nextLine, {
             location: "",
@@ -554,107 +801,42 @@ export default function QuotationForm() {
       })
     );
 
-    const cascadeStage = {
-      is_client_specific: "location",
-      location: "agent",
-      agent_id: "rate",
-    }[field];
+    const lineState = linesRef.current[index];
+    const cascadeStage = lineState ? getLineCascadeStage(field, lineState) : null;
 
-    if (cascadeStage) {
-      const lineKeyPrefix = `${index}:${cascadeStage}:`;
-      Object.keys(lastLineOptionsKeyRef.current).forEach((key) => {
-        if (key.startsWith(lineKeyPrefix)) {
-          delete lastLineOptionsKeyRef.current[key];
-        }
-      });
-      await loadLineOptionsStage(index, nextLine, headerRef.current.client_id, cascadeStage);
-    }
+    await runPersistThenOptions(async () => {
+      if (!cascadeStage) return;
+      clearLineOptionsCache(index, cascadeStage);
+      const currentLine = linesRef.current[index];
+      if (!currentLine) return;
+      await loadLineOptionsStage(index, currentLine, cascadeStage);
+    });
   };
 
   const addLine = async () => {
     const newLine = emptyLine();
-    const newIndex = lines.length;
-    setLines((prev) => [...prev, newLine]);
-    await loadLineOptionsStage(newIndex, newLine, headerRef.current.client_id, "location");
-  };
-
-  const removeLine = (index) => {
-    setLines((prev) => {
-      if (prev.length <= 1) return prev;
-      const line = prev[index];
-      if (line.id) {
-        setDeletedLineIds((ids) => [...ids, line.id]);
+    const newIndex = linesRef.current.length;
+    syncLines((prev) => [...prev, newLine]);
+    await runPersistThenOptions(async () => {
+      const savedLine = linesRef.current[newIndex];
+      if (savedLine?.id) {
+        await loadLineOptionsStage(newIndex, savedLine, "location");
       }
-      return prev.filter((_, i) => i !== index);
     });
   };
 
-  const buildPayload = () => ({
-    ...(isEdit ? { id: Number(id) } : {}),
-    client_id: intOrUndef(header.client_id),
-    vessel_id: intOrUndef(header.vessel_id),
-    sale_order_id: intOrUndef(header.sale_order_id),
-    validity_date: header.validity_date || undefined,
-    currency_id: intOrUndef(header.currency_id),
-    usd_roe: header.usd_roe !== "" ? Number(header.usd_roe) : 1.0,
-    general_mu: header.general_mu !== "" ? Number(header.general_mu) : undefined,
-    caf: header.caf !== "" ? Number(header.caf) : undefined,
-    quotation_lines: [
-      ...lines.map((line) => ({
-        ...(line.id ? { id: line.id } : {}),
-        is_client_specific: Boolean(line.is_client_specific),
-        location: line.location || undefined,
-        agent_id: intOrUndef(line.agent_id),
-        rate_list_id: intOrUndef(line.rate_list_id),
-        free_text: line.free_text || undefined,
-        pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
-        remark: line.remark || undefined,
-      })),
-      ...deletedLineIds.map((lineId) => ({ id: lineId, delete: true })),
-    ],
-  });
-
-  const validate = () => {
-    if (!header.client_id) return "Client is required.";
-    if (lines.some((line) => line.is_client_specific && !header.client_id)) {
-      return "Client is required for client-specific lines.";
+  const removeLine = (index) => {
+    if (linesRef.current.length <= 1) return;
+    const line = linesRef.current[index];
+    const nextLines = linesRef.current.filter((_, i) => i !== index);
+    linesRef.current = nextLines;
+    setLines(nextLines);
+    if (line.id) {
+      const nextDeleted = [...deletedLineIdsRef.current, line.id];
+      deletedLineIdsRef.current = nextDeleted;
+      setDeletedLineIds(nextDeleted);
     }
-    if (lines.some((line) => !line.rate_list_id)) return "Each line must have a rate item.";
-    return "";
-  };
-
-  const handleSave = async () => {
-    const error = validate();
-    if (error) {
-      toast({ title: "Validation", description: error, status: "warning", duration: 3000, isClosable: true });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const payload = buildPayload();
-      if (isEdit) {
-        await updateNarviQuotation(payload);
-        toast({ title: "Quotation updated", status: "success", duration: 2500, isClosable: true });
-      } else {
-        await createNarviQuotation(payload);
-        toast({ title: "Quotation created", status: "success", duration: 2500, isClosable: true });
-      }
-      history.push("/admin/quotations/list");
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: extractNarviQuotationError(
-          error,
-          isEdit ? "Failed to update quotation." : "Failed to create quotation."
-        ),
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setSaving(false);
-    }
+    schedulePersist();
   };
 
   if (loading) {
@@ -684,7 +866,10 @@ export default function QuotationForm() {
         {type === "currency" ? (
           <SimpleSearchableSelect
             value={header.currency_id}
-            onChange={(val) => setHeader((p) => ({ ...p, currency_id: val || "" }))}
+            onChange={(val) => {
+              syncHeader((p) => ({ ...p, currency_id: val || "" }));
+              runPersistThenOptions();
+            }}
             options={currencies}
             placeholder="Currency"
             formatOption={(c) => c.name || `Currency ${c.id}`}
@@ -698,7 +883,10 @@ export default function QuotationForm() {
             bg="transparent"
             w="100%"
             value={header[key]}
-            onChange={(e) => setHeader((p) => ({ ...p, [key]: e.target.value }))}
+            onChange={(e) => {
+              syncHeader((p) => ({ ...p, [key]: e.target.value }));
+              schedulePersist(null, 800);
+            }}
           />
         )}
       </ValueCell>
@@ -719,15 +907,20 @@ export default function QuotationForm() {
               Back
             </Button>
             <Text color={textColor} fontSize="xl" fontWeight="700">
-              {isEdit ? `Edit Quotation #${id}` : "New Quotation"}
+              {quotationId ? `Edit Quotation #${quotationId}` : "New Quotation"}
             </Text>
           </HStack>
-          <HStack>
+          <HStack spacing={3}>
+            {saving ? (
+              <HStack spacing={2}>
+                <Spinner size="sm" />
+                <Text fontSize="sm" color={textColor}>
+                  Saving...
+                </Text>
+              </HStack>
+            ) : null}
             <Button variant="outline" onClick={() => history.push("/admin/quotations/list")}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleSave} isLoading={saving}>
-              {isEdit ? "Update" : "Create"}
+              Back to list
             </Button>
           </HStack>
         </Flex>
@@ -756,9 +949,8 @@ export default function QuotationForm() {
                     placeholder="Select client"
                     isLoading={headerOptionsLoading}
                     formatOption={formatClientOption}
-                    prefillOnFocus={false}
                     onSearchChange={(q) => scheduleHeaderSearch("client", q)}
-                    {...headerSelectProps}
+                    {...headerDropdownProps}
                   />
                 </ValueCell>
 
@@ -771,9 +963,8 @@ export default function QuotationForm() {
                     placeholder="Select vessel"
                     isLoading={headerOptionsLoading}
                     formatOption={formatVesselOption}
-                    prefillOnFocus={false}
                     onSearchChange={(q) => scheduleHeaderSearch("vessel", q)}
-                    {...headerSelectProps}
+                    {...headerDropdownProps}
                   />
                 </ValueCell>
 
@@ -781,14 +972,16 @@ export default function QuotationForm() {
                 <ValueCell bordered={false} bg="transparent">
                   <SimpleSearchableSelect
                     value={header.sale_order_id}
-                    onChange={(val) => setHeader((p) => ({ ...p, sale_order_id: val || "" }))}
+                    onChange={(val) => {
+                      syncHeader((p) => ({ ...p, sale_order_id: val || "" }));
+                      runPersistThenOptions();
+                    }}
                     options={soOptions}
                     placeholder="Select SO"
                     isLoading={headerOptionsLoading}
                     formatOption={formatSoOption}
-                    prefillOnFocus={false}
                     onSearchChange={(q) => scheduleHeaderSearch("so", q)}
-                    {...headerSelectProps}
+                    {...headerDropdownProps}
                   />
                 </ValueCell>
               </Grid>
@@ -875,15 +1068,21 @@ export default function QuotationForm() {
                         />
                       </Td>
                       <Td {...lineCell}>
-                        <SimpleSearchableSelect
-                          value={line.agent_id}
-                          onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
-                          options={line.agentOptions}
-                          placeholder="Vendor"
-                          isLoading={lineOptionsLoading[index]}
-                          formatOption={formatAgentOption}
-                          {...lineSelectProps}
-                        />
+                        {line.is_client_specific ? (
+                          <SimpleSearchableSelect
+                            value={line.agent_id}
+                            onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
+                            options={line.agentOptions}
+                            placeholder="Vendor"
+                            isLoading={lineOptionsLoading[index]}
+                            formatOption={formatAgentOption}
+                            {...lineSelectProps}
+                          />
+                        ) : (
+                          <Text {...lineCellFont} color="gray.500">
+                            —
+                          </Text>
+                        )}
                       </Td>
                       <Td {...lineCell}>
                         <SimpleSearchableSelect
@@ -914,28 +1113,32 @@ export default function QuotationForm() {
                           w="100%"
                           fontSize="xs"
                           value={line.free_text}
-                          onChange={(e) =>
-                            setLines((prev) =>
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            syncLines((prev) =>
                               prev.map((l, i) =>
-                                i === index ? { ...l, free_text: e.target.value } : l
+                                i === index ? { ...l, free_text: value } : l
                               )
-                            )
-                          }
+                            );
+                            schedulePersist(null, 800);
+                          }}
                         />
                       </Td>
                       <Td {...lineCell} textAlign="center">
                         <Checkbox
                           size="sm"
                           isChecked={line.pre_text_rate_item_name}
-                          onChange={(e) =>
-                            setLines((prev) =>
+                          onChange={(e) => {
+                            const { checked } = e.target;
+                            syncLines((prev) =>
                               prev.map((l, i) =>
                                 i === index
-                                  ? { ...l, pre_text_rate_item_name: e.target.checked }
+                                  ? { ...l, pre_text_rate_item_name: checked }
                                   : l
                               )
-                            )
-                          }
+                            );
+                            schedulePersist();
+                          }}
                         />
                       </Td>
                       <Td {...lineCell}>
@@ -948,13 +1151,15 @@ export default function QuotationForm() {
                           w="100%"
                           fontSize="xs"
                           value={line.remark}
-                          onChange={(e) =>
-                            setLines((prev) =>
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            syncLines((prev) =>
                               prev.map((l, i) =>
-                                i === index ? { ...l, remark: e.target.value } : l
+                                i === index ? { ...l, remark: value } : l
                               )
-                            )
-                          }
+                            );
+                            schedulePersist(null, 800);
+                          }}
                         />
                       </Td>
                       <Td {...lineCell} textAlign="center">

@@ -42,6 +42,24 @@ export function intOrUndef(value) {
   return Number.isNaN(n) ? undefined : n;
 }
 
+export function intOrNull(value) {
+  if (value === "" || value == null) return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
+export function strOrNull(value) {
+  if (value === false || value == null) return null;
+  const s = String(value).trim();
+  return s === "" ? null : s;
+}
+
+export function numOrNull(value) {
+  if (value === "" || value == null) return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
 function normalizeRemark(value) {
   if (value === false || value == null) return "";
   return String(value);
@@ -190,6 +208,8 @@ export function emptyLine() {
     locationOptions: [],
     agentOptions: [],
     rateItemOptions: [],
+    agent_required: false,
+    rate_type_filter: "",
   };
 }
 
