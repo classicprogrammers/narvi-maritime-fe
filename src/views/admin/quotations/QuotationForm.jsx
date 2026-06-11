@@ -138,6 +138,11 @@ export default function QuotationForm() {
   const [deletedLineIds, setDeletedLineIds] = useState([]);
 
   const headerSearchTimer = useRef(null);
+  const headerRef = useRef(header);
+  headerRef.current = header;
+  const initKeyRef = useRef(null);
+  const lastHeaderOptionsKeyRef = useRef("");
+  const lastLineOptionsKeyRef = useRef({});
   const editOptionLabels = useRef({
     client: { name: "", code: "", address: "" },
     vessel: { name: "", imo: "" },
@@ -163,18 +168,22 @@ export default function QuotationForm() {
 
   const loadHeaderOptions = useCallback(
     async (overrides = {}) => {
+      const payload = {
+        page: 1,
+        page_size: 50,
+        client_id: intOrUndef(overrides.client_id),
+        vessel_id: intOrUndef(overrides.vessel_id),
+        sale_order_id: intOrUndef(overrides.sale_order_id),
+        q_client: overrides.q_client ?? "",
+        q_vessel: overrides.q_vessel ?? "",
+        q_so: overrides.q_so ?? "",
+      };
+      const requestKey = JSON.stringify(payload);
+      if (requestKey === lastHeaderOptionsKeyRef.current) return;
+      lastHeaderOptionsKeyRef.current = requestKey;
+
       setHeaderOptionsLoading(true);
       try {
-        const payload = {
-          page: 1,
-          page_size: 50,
-          client_id: intOrUndef(overrides.client_id),
-          vessel_id: intOrUndef(overrides.vessel_id),
-          sale_order_id: intOrUndef(overrides.sale_order_id),
-          q_client: overrides.q_client ?? "",
-          q_vessel: overrides.q_vessel ?? "",
-          q_so: overrides.q_so ?? "",
-        };
         const result = await getNarviQuotationOptions(payload);
         setClientOptions(
           ensureSelectedOption(
@@ -267,11 +276,14 @@ export default function QuotationForm() {
       if (stage === "agent" && !lineState.location) return;
       if (stage === "rate" && !intOrUndef(lineState.agent_id)) return;
 
+      const linePayload = buildLineOptionsPayload(stage, lineState, clientId);
+      const requestKey = `${lineIndex}:${stage}:${JSON.stringify(linePayload)}`;
+      if (lastLineOptionsKeyRef.current[requestKey]) return;
+      lastLineOptionsKeyRef.current[requestKey] = true;
+
       setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: true }));
       try {
-        const result = await getNarviQuotationLineOptions(
-          buildLineOptionsPayload(stage, lineState, clientId)
-        );
+        const result = await getNarviQuotationLineOptions(linePayload);
         setLines((prev) =>
           prev.map((line, i) => {
             if (i !== lineIndex) return line;
@@ -344,22 +356,33 @@ export default function QuotationForm() {
     [loadLineOptionsStage]
   );
 
-  const scheduleHeaderSearch = (field, value, currentHeader) => {
+  const scheduleHeaderSearch = (field, value) => {
+    const q = String(value ?? "").trim();
+    if (!q) return;
+
     if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
     headerSearchTimer.current = setTimeout(() => {
+      const currentHeader = headerRef.current;
       loadHeaderOptions({
         client_id: currentHeader.client_id,
         vessel_id: currentHeader.vessel_id,
         sale_order_id: currentHeader.sale_order_id,
-        q_client: field === "client" ? value : "",
-        q_vessel: field === "vessel" ? value : "",
-        q_so: field === "so" ? value : "",
+        q_client: field === "client" ? q : "",
+        q_vessel: field === "vessel" ? q : "",
+        q_so: field === "so" ? q : "",
       });
     }, 300);
   };
 
   useEffect(() => {
+    const initKey = isEdit ? `edit-${id}` : "new";
+    if (initKeyRef.current === initKey) return;
+    initKeyRef.current = initKey;
+
     const init = async () => {
+      lastHeaderOptionsKeyRef.current = "";
+      lastLineOptionsKeyRef.current = {};
+
       if (!isEdit) {
         await loadHeaderOptions();
         await loadLineOptionsStage(0, emptyLine(), "", "location");
@@ -428,51 +451,56 @@ export default function QuotationForm() {
     return () => {
       if (headerSearchTimer.current) clearTimeout(headerSearchTimer.current);
     };
-  }, [id, isEdit, history, loadHeaderOptions, loadLineOptionsStage, loadAllLineOptions, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, isEdit]);
 
   const handleClientChange = async (value) => {
+    lastHeaderOptionsKeyRef.current = "";
     setHeader((prev) => ({ ...prev, client_id: value || "", vessel_id: "", sale_order_id: "" }));
     setVesselOptions([]);
     setSoOptions([]);
     await loadHeaderOptions({ client_id: value || undefined });
-    setLines((prev) => {
-      const updated = prev.map((line) => ({
-        ...line,
-        ...(line.is_client_specific
-          ? {
-            location: "",
-            agent_id: "",
-            rate_list_id: "",
-            rate_id: "",
-            rate_item_name: "",
-            rate_remark: "",
-            locationOptions: [],
-            agentOptions: [],
-            rateItemOptions: [],
-          }
-          : {}),
-      }));
-      updated.forEach((line, index) => {
-        const lineState = line.is_client_specific
-          ? { ...line, location: "", agent_id: "" }
-          : line;
-        loadLineOptionsStage(index, lineState, value, "location");
-        if (lineState.location) {
-          loadLineOptionsStage(index, lineState, value, "agent");
-        }
-        if (intOrUndef(lineState.agent_id)) {
-          loadLineOptionsStage(index, lineState, value, "rate");
-        }
+
+    const clientSpecificReloads = [];
+    setLines((prev) =>
+      prev.map((line, index) => {
+        if (!line.is_client_specific) return line;
+        clientSpecificReloads.push({ index, lineId: line.id });
+        return {
+          ...line,
+          location: "",
+          agent_id: "",
+          agent_name: "",
+          rate_list_id: "",
+          rate_id: "",
+          rate_item_name: "",
+          rate_remark: "",
+          locationOptions: [],
+          agentOptions: [],
+          rateItemOptions: [],
+        };
+      })
+    );
+
+    if (clientSpecificReloads.length) {
+      lastLineOptionsKeyRef.current = {};
+      clientSpecificReloads.forEach(({ index, lineId }) => {
+        loadLineOptionsStage(
+          index,
+          { ...emptyLine(), id: lineId, is_client_specific: true },
+          value,
+          "location"
+        );
       });
-      return updated;
-    });
+    }
   };
 
   const handleVesselChange = async (value) => {
+    lastHeaderOptionsKeyRef.current = "";
     setHeader((prev) => ({ ...prev, vessel_id: value || "", sale_order_id: "" }));
     setSoOptions([]);
     await loadHeaderOptions({
-      client_id: header.client_id || undefined,
+      client_id: headerRef.current.client_id || undefined,
       vessel_id: value || undefined,
     });
   };
@@ -533,7 +561,13 @@ export default function QuotationForm() {
     }[field];
 
     if (cascadeStage) {
-      await loadLineOptionsStage(index, nextLine, header.client_id, cascadeStage);
+      const lineKeyPrefix = `${index}:${cascadeStage}:`;
+      Object.keys(lastLineOptionsKeyRef.current).forEach((key) => {
+        if (key.startsWith(lineKeyPrefix)) {
+          delete lastLineOptionsKeyRef.current[key];
+        }
+      });
+      await loadLineOptionsStage(index, nextLine, headerRef.current.client_id, cascadeStage);
     }
   };
 
@@ -541,7 +575,7 @@ export default function QuotationForm() {
     const newLine = emptyLine();
     const newIndex = lines.length;
     setLines((prev) => [...prev, newLine]);
-    await loadLineOptionsStage(newIndex, newLine, header.client_id, "location");
+    await loadLineOptionsStage(newIndex, newLine, headerRef.current.client_id, "location");
   };
 
   const removeLine = (index) => {
@@ -722,7 +756,8 @@ export default function QuotationForm() {
                     placeholder="Select client"
                     isLoading={headerOptionsLoading}
                     formatOption={formatClientOption}
-                    onSearchChange={(q) => scheduleHeaderSearch("client", q, header)}
+                    prefillOnFocus={false}
+                    onSearchChange={(q) => scheduleHeaderSearch("client", q)}
                     {...headerSelectProps}
                   />
                 </ValueCell>
@@ -736,7 +771,8 @@ export default function QuotationForm() {
                     placeholder="Select vessel"
                     isLoading={headerOptionsLoading}
                     formatOption={formatVesselOption}
-                    onSearchChange={(q) => scheduleHeaderSearch("vessel", q, header)}
+                    prefillOnFocus={false}
+                    onSearchChange={(q) => scheduleHeaderSearch("vessel", q)}
                     {...headerSelectProps}
                   />
                 </ValueCell>
@@ -750,7 +786,8 @@ export default function QuotationForm() {
                     placeholder="Select SO"
                     isLoading={headerOptionsLoading}
                     formatOption={formatSoOption}
-                    onSearchChange={(q) => scheduleHeaderSearch("so", q, header)}
+                    prefillOnFocus={false}
+                    onSearchChange={(q) => scheduleHeaderSearch("so", q)}
                     {...headerSelectProps}
                   />
                 </ValueCell>
