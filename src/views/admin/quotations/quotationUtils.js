@@ -82,6 +82,25 @@ export function normalizeOptions(list, labelKey = "name") {
   });
 }
 
+export function normalizeClientOptions(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => {
+    if (typeof item === "string") {
+      return { id: item, name: item, client_code: "", client_address: "" };
+    }
+    const name = item.name ?? item.client_name ?? String(item.id ?? "");
+    const client_code = apiString(item.client_code ?? item.code);
+    const client_address = apiString(item.client_address ?? item.address);
+    return {
+      ...item,
+      id: item.id,
+      name,
+      client_code,
+      client_address,
+    };
+  });
+}
+
 export function normalizeLocationOptions(list) {
   if (!Array.isArray(list)) return [];
   return list.map((item) => {
@@ -117,7 +136,7 @@ export function ensureSelectedOption(options, value, buildOption) {
 export function formatClientOption(client) {
   if (!client) return "";
   const name = client.name || client.client_name || "";
-  const code = client.client_code || client.code || "";
+  const code = apiString(client.client_code ?? client.code);
   if (name && code) return `${name} (${code})`;
   return name || code || `Client ${client.id}`;
 }

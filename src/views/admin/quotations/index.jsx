@@ -30,12 +30,16 @@ import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import {
   deleteNarviQuotation,
   extractNarviQuotationError,
+  getNarviQuotationOptions,
   getNarviQuotations,
 } from "../../../api/narviQuotation";
-import { useMasterData } from "../../../hooks/useMasterData";
 import {
+  formatClientOption,
+  formatVesselOption,
   intOrUndef,
   m2oName,
+  normalizeClientOptions,
+  normalizeOptions,
   quotationRateNames,
   quotationSoDisplay,
   quotationVesselName,
@@ -69,7 +73,6 @@ function TruncatedCell({ value, maxW = "200px", fontWeight, textColor, tdStyle, 
 export default function Quotations() {
     const history = useHistory();
     const toast = useToast();
-  const { clients, vessels } = useMasterData();
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -142,6 +145,12 @@ export default function Quotations() {
   const [totalCount, setTotalCount] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
+  const [clientOptions, setClientOptions] = useState([]);
+  const [vesselOptions, setVesselOptions] = useState([]);
+  const [filterOptionsLoading, setFilterOptionsLoading] = useState(false);
+  const filterSearchTimer = useRef(null);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
 
   const hasAnyAdvanceFilter = Boolean(
     filters.client_id ||
@@ -169,12 +178,55 @@ export default function Quotations() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const filteredVessels = useMemo(() => {
-    if (!filters.client_id) return vessels;
-    return vessels.filter(
-      (vessel) => String(vessel.client_id?.id ?? vessel.client_id) === String(filters.client_id)
-    );
-  }, [vessels, filters.client_id]);
+  const loadFilterOptions = useCallback(
+    async (overrides = {}) => {
+      setFilterOptionsLoading(true);
+      try {
+        const current = filtersRef.current;
+        const result = await getNarviQuotationOptions({
+          page: 1,
+          page_size: 50,
+          client_id: intOrUndef(overrides.client_id ?? current.client_id),
+          vessel_id: intOrUndef(overrides.vessel_id ?? current.vessel_id),
+          q_client: overrides.q_client ?? "",
+          q_vessel: overrides.q_vessel ?? "",
+          q_so: "",
+        });
+        setClientOptions(normalizeClientOptions(result.client_options));
+        setVesselOptions(normalizeOptions(result.vessel_options));
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: extractNarviQuotationError(error, "Failed to load filter options."),
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setFilterOptionsLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  const scheduleFilterSearch = (field, value) => {
+    const q = String(value ?? "").trim();
+    if (!q) return;
+    if (filterSearchTimer.current) clearTimeout(filterSearchTimer.current);
+    filterSearchTimer.current = setTimeout(() => {
+      loadFilterOptions({
+        q_client: field === "client" ? q : "",
+        q_vessel: field === "vessel" ? q : "",
+      });
+    }, 300);
+  };
+
+  useEffect(() => {
+    loadFilterOptions();
+    return () => {
+      if (filterSearchTimer.current) clearTimeout(filterSearchTimer.current);
+    };
+  }, [loadFilterOptions]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -232,6 +284,11 @@ export default function Quotations() {
       return next;
     });
     setPage(1);
+    if (field === "client_id") {
+      loadFilterOptions({ client_id: value || undefined, vessel_id: undefined });
+    } else if (field === "vessel_id") {
+      loadFilterOptions({ vessel_id: value || undefined });
+    }
   };
 
   const clearFilters = () => {
@@ -405,11 +462,14 @@ export default function Quotations() {
                     <SimpleSearchableSelect
                       value={filters.client_id}
                       onChange={(value) => handleFilterChange("client_id", value || "")}
-                      options={clients}
+                      options={clientOptions}
                       placeholder="All Clients"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                      formatOption={(client) => client.name || `Client ${client.id}`}
+                      isLoading={filterOptionsLoading}
+                      formatOption={formatClientOption}
+                      prefillOnFocus={false}
+                      clearOnEmptySearch={false}
+                      serverSideSearch
+                      onSearchChange={(q) => scheduleFilterSearch("client", q)}
                       {...searchableSelectProps}
                     />
                   </Box>
@@ -420,11 +480,14 @@ export default function Quotations() {
                     <SimpleSearchableSelect
                       value={filters.vessel_id}
                       onChange={(value) => handleFilterChange("vessel_id", value || "")}
-                      options={filteredVessels}
+                      options={vesselOptions}
                       placeholder="All Vessels"
-                                                        displayKey="name"
-                                                        valueKey="id"
-                      formatOption={(vessel) => vessel.name || `Vessel ${vessel.id}`}
+                      isLoading={filterOptionsLoading}
+                      formatOption={formatVesselOption}
+                      prefillOnFocus={false}
+                      clearOnEmptySearch={false}
+                      serverSideSearch
+                      onSearchChange={(q) => scheduleFilterSearch("vessel", q)}
                       {...searchableSelectProps}
                     />
                   </Box>

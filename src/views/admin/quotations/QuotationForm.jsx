@@ -54,6 +54,7 @@ import {
   strOrNull,
   m2oId,
   m2oName,
+  normalizeClientOptions,
   normalizeLocationOptions,
   normalizeOptions,
   normalizeRateItems,
@@ -227,7 +228,7 @@ export default function QuotationForm() {
         const result = await getNarviQuotationOptions(payload);
         setClientOptions(
           ensureSelectedOption(
-            normalizeOptions(result.client_options),
+            normalizeClientOptions(result.client_options),
             payload.client_id,
             (id) =>
               editOptionLabels.current.client.name
