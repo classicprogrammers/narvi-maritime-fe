@@ -1802,17 +1802,6 @@ const SoNumberTab = () => {
             >
               Copy link
             </Button>
-            <Button
-              as="a"
-              href={packageLinkData.url ? `${packageLinkData.url}${packageLinkData.url.includes("?") ? "&" : "?"}download=true` : undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="outline"
-              mr={3}
-              isDisabled={!packageLinkData.url}
-            >
-              Download
-            </Button>
             <Button variant="ghost" onClick={packageLinkDisclosure.onClose}>
               Close
             </Button>

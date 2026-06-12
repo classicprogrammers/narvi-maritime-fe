@@ -1561,9 +1561,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const docTitle = isShippingAdvise
       ? `Shipping Advise - ${formData.vessel || "-"}`
       : isDeliveryConfirmation
-        ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel || "-"}`
+        ? `DELIVERY CONFIRMATION ${formData.vessel || "-"}`
         : isDeliveryForm
-          ? `POD FOR M/V ${formData.vessel || "-"}`
+          ? `POD ${formData.vessel || "-"}`
           : `Shipping Instruction - ${formData.vessel || "-"}`;
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
