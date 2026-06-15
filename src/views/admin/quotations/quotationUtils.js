@@ -345,6 +345,50 @@ export function mergeLineFromApi(currentLine, apiLine) {
   };
 }
 
+export function reconcileQuotationLines(currentLines, savedLines) {
+  if (!Array.isArray(savedLines) || savedLines.length === 0) {
+    return Array.isArray(currentLines) ? currentLines : [];
+  }
+  if (!Array.isArray(currentLines) || currentLines.length === 0) {
+    return savedLines.map((apiLine) => lineFromApi(apiLine));
+  }
+
+  const matchedApiIds = new Set();
+
+  const reconciled = currentLines.map((line, index) => {
+    if (line.id) {
+      const apiLine = savedLines.find((sl) => String(sl.id) === String(line.id));
+      if (apiLine) {
+        matchedApiIds.add(String(apiLine.id));
+        return mergeLineFromApi(line, apiLine);
+      }
+    }
+
+    const apiLineByIndex = savedLines[index];
+    if (apiLineByIndex && !matchedApiIds.has(String(apiLineByIndex.id))) {
+      matchedApiIds.add(String(apiLineByIndex.id));
+      return mergeLineFromApi(line, apiLineByIndex);
+    }
+
+    const unmatched = savedLines.find((sl) => !matchedApiIds.has(String(sl.id)));
+    if (unmatched) {
+      matchedApiIds.add(String(unmatched.id));
+      return mergeLineFromApi(line, unmatched);
+    }
+
+    return line;
+  });
+
+  savedLines.forEach((apiLine) => {
+    if (!matchedApiIds.has(String(apiLine.id))) {
+      matchedApiIds.add(String(apiLine.id));
+      reconciled.push(mergeLineFromApi(emptyLine(), apiLine));
+    }
+  });
+
+  return reconciled;
+}
+
 export function buildLineSavePayload(line) {
   const row = {
     is_client_specific: Boolean(line.is_client_specific),

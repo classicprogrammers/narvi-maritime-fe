@@ -62,6 +62,7 @@ import {
   normalizeRateItems,
   normalizeStatusOptions,
   QUOTATION_LINE_STATUS_OPTIONS,
+  reconcileQuotationLines,
 } from "./quotationUtils";
 
 function LabelCell({ children, bordered = true, bg: bgProp, accentLabel = false, ...props }) {
@@ -605,11 +606,7 @@ export default function QuotationForm() {
     const savedLines = q.quotation_lines;
     if (!Array.isArray(savedLines) || !savedLines.length) return;
 
-    const next = linesRef.current.map((line) => {
-      const apiLine = savedLines.find((sl) => line.id && String(sl.id) === String(line.id));
-      if (!apiLine) return line;
-      return mergeLineFromApi(line, apiLine);
-    });
+    const next = reconcileQuotationLines(linesRef.current, savedLines);
     linesRef.current = next;
     setLines(next);
   }, []);
@@ -620,6 +617,40 @@ export default function QuotationForm() {
       applyQuotationFromApi(saved);
     },
     [applyQuotationFromApi]
+  );
+
+  const ensureLineOptionsForIndex = useCallback(
+    async (lineIndex) => {
+      let line = linesRef.current[lineIndex];
+      if (!line) return;
+
+      if (!line.id && quotationIdRef.current) {
+        try {
+          const full = await getNarviQuotation(quotationIdRef.current);
+          applyQuotationFromApi(full);
+          line = linesRef.current[lineIndex];
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: extractNarviQuotationError(error, "Failed to refresh quotation lines."),
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+          return;
+        }
+      }
+
+      if (!line?.id || !quotationIdRef.current) return;
+
+      Object.keys(lastLineOptionsKeyRef.current).forEach((key) => {
+        if (key.startsWith(`${lineIndex}:`)) {
+          delete lastLineOptionsKeyRef.current[key];
+        }
+      });
+      await loadLineOptions(lineIndex, line);
+    },
+    [applyQuotationFromApi, loadLineOptions, toast]
   );
 
   const buildPayload = useCallback((qId) => {
@@ -861,14 +892,20 @@ export default function QuotationForm() {
   };
 
   const addLine = async () => {
-    const newLine = emptyLine();
+    const template =
+      linesRef.current.find((line) => line.locationOptions?.length) || linesRef.current[0];
+    const newLine = {
+      ...emptyLine(),
+      statusOptions: template?.statusOptions?.length
+        ? template.statusOptions
+        : QUOTATION_LINE_STATUS_OPTIONS,
+      currencyOptions: template?.currencyOptions?.length ? template.currencyOptions : [],
+    };
     const newIndex = linesRef.current.length;
     syncLines((prev) => [...prev, newLine]);
+
     await runPersistThenOptions(async () => {
-      const savedLine = linesRef.current[newIndex];
-      if (savedLine?.id) {
-        await loadLineOptions(newIndex, savedLine);
-      }
+      await ensureLineOptionsForIndex(newIndex);
     });
   };
 
