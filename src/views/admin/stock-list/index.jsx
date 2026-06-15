@@ -649,8 +649,11 @@ export default function StockList() {
                     aVal = a.origin_text || a.origin || getDisplayName(a.origin_id);
                     bVal = b.origin_text || b.origin || getDisplayName(b.origin_id);
                 } else if (sortField === 'ap_destination_id' || sortField === 'ap_destination') {
-                    aVal = String(a.ap_destination_new || a.ap_destination_id || a.ap_destination || "");
-                    bVal = String(b.ap_destination_new || b.ap_destination_id || b.ap_destination || "");
+                    aVal = formatStockDestinationDisplay(a, "ap");
+                    bVal = formatStockDestinationDisplay(b, "ap");
+                } else if (sortField === 'destination_id' || sortField === 'destination') {
+                    aVal = formatStockDestinationDisplay(a, "destination");
+                    bVal = formatStockDestinationDisplay(b, "destination");
                 } else if (sortField === 'days_on_stock') {
                     // Handle numeric sorting for days_on_stock
                     aVal = Number(a.days_on_stock) || 0;

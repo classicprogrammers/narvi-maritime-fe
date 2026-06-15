@@ -2146,8 +2146,8 @@ export default function Stocks() {
             item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
             item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
             item.via_hub_2 || item.via_hub2 || "-",
-            item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-",
-            item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+            formatStockDestinationDisplay(item, "ap"),
+            formatStockDestinationDisplay(item, "destination"),
             getStatusLabel(item.stock_status) || "-",
             formatDate(item.date_on_stock) || "-",
             item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
@@ -5235,8 +5235,8 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub2)}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-"}</Text></Td>
-                                                                <Td {...cellProps}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
+                                                                <Td {...cellProps}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{item.warehouse_new || item.warehouse_id || item.stock_warehouse || "-"}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{formatDate(item.exp_ready_in_stock)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{formatDate(item.date_on_stock)}</Text></Td>
@@ -5839,7 +5839,7 @@ export default function Stocks() {
                                                                                 {getStatusLabel(item.stock_status)}
                                                                             </Badge>
                                                                         </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <IconButton
                                                                                 aria-label="Print row"
@@ -5873,7 +5873,7 @@ export default function Stocks() {
                                                                         </Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
@@ -5904,8 +5904,8 @@ export default function Stocks() {
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_1 || item.via_hub1 || item.via_hub)}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.ap_destination || item.ap_destination_id)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.destination_new || item.destination_id || item.destination || item.stock_destination || "-"}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
+                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
                                                                         <Td {...cellProps} bg={rowBg}>
                                                                             <Badge
                                                                                 colorScheme={statusStyle.color}

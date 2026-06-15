@@ -18,21 +18,34 @@ export const normalizeStockDestinationOptions = (raw) => {
     .filter(Boolean);
 };
 
-export const getStockM2OId = (field) => {
+const unwrapStockM2OField = (field) => {
   if (field == null || field === false || field === "") return null;
-  if (typeof field === "object" && field.id != null) {
-    const id = Number(field.id);
+  if (Array.isArray(field)) return field.length > 0 ? field[0] : null;
+  return field;
+};
+
+export const getStockM2OId = (field) => {
+  const value = unwrapStockM2OField(field);
+  if (value == null || value === false || value === "") return null;
+  if (typeof value === "object" && value.id != null) {
+    const id = Number(value.id);
     return Number.isFinite(id) ? id : null;
   }
-  const id = Number(field);
+  const id = Number(value);
   return Number.isFinite(id) ? id : null;
 };
 
 export const getStockM2OName = (field) => {
-  if (field == null || field === false || field === "") return "";
-  if (typeof field === "object" && field.name != null && field.name !== false) {
-    return String(field.name);
+  const value = unwrapStockM2OField(field);
+  if (value == null || value === false || value === "") return "";
+  if (typeof value === "object") {
+    const name = value.name ?? value.label;
+    if (name != null && name !== false && String(name).trim() !== "") {
+      return String(name);
+    }
+    return "";
   }
+  if (typeof value === "string") return value.trim();
   return "";
 };
 
@@ -74,14 +87,25 @@ export const formatStockDestinationDisplay = (item, kind = "destination") => {
   if (kind === "ap") {
     const m2oName = getStockM2OName(item.ap_destination_ids);
     if (m2oName) return m2oName;
+    const m2oId = getStockM2OId(item.ap_destination_ids);
+    if (m2oId != null) return String(m2oId);
     const text =
-      item.ap_destination_new || item.ap_destination_id || item.ap_destination || "";
+      (item.ap_destination_new && item.ap_destination_new !== false
+        ? String(item.ap_destination_new)
+        : "") ||
+      item.ap_destination_id ||
+      item.ap_destination ||
+      "";
     return text || "-";
   }
   const m2oName = getStockM2OName(item.destination_ids);
   if (m2oName) return m2oName;
+  const m2oId = getStockM2OId(item.destination_ids);
+  if (m2oId != null) return String(m2oId);
   const text =
-    item.destination_new ||
+    (item.destination_new && item.destination_new !== false
+      ? String(item.destination_new)
+      : "") ||
     item.destination_id ||
     item.destination ||
     item.stock_destination ||
