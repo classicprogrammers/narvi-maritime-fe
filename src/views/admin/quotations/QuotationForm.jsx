@@ -194,6 +194,10 @@ export default function QuotationForm() {
   const headerSelectProps = { ...selectProps, bg: "transparent" };
   const lineCellFont = { fontSize: "xs", lineHeight: "short" };
   const lineCell = { py: 2, px: 2, verticalAlign: "middle" };
+  const LINE_FIELD_MIN_W = "100px";
+  const LINE_SEARCH_FIELD_MIN_W = "150px";
+  const lineDataCell = { ...lineCell, minW: LINE_FIELD_MIN_W };
+  const lineSearchDataCell = { ...lineCell, minW: LINE_SEARCH_FIELD_MIN_W };
   const lineSelectProps = {
     ...selectProps,
     fontSize: "xs",
@@ -206,6 +210,7 @@ export default function QuotationForm() {
   const lineAutoSelectProps = {
     ...lineSelectProps,
     w: "auto",
+    minW: LINE_SEARCH_FIELD_MIN_W,
     autoWidth: true,
     autoWidthMin: 10,
     autoWidthMax: 0,
@@ -220,15 +225,17 @@ export default function QuotationForm() {
     borderRadius: "md",
     px: 2,
     h: "28px",
+    w: "100%",
+    minW: LINE_FIELD_MIN_W,
     _hover: { borderColor: "blue.300" },
     _focus: {
       borderColor: "blue.400",
       boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
     },
   };
-  const lineInputWidth = (value, placeholder = "", minCh = 6) => ({
+  const lineInputWidth = (value, placeholder = "") => ({
     w: fieldWidthCh(value, placeholder),
-    minW: `${minCh}ch`,
+    minW: LINE_FIELD_MIN_W,
     maxW: "max-content",
   });
   const lineReadOnlyCell = { whiteSpace: "nowrap" };
@@ -259,6 +266,12 @@ export default function QuotationForm() {
     "GroupFree text",
     "Status",
   ];
+  const LINE_SEARCHABLE_COLUMNS = new Set([
+    "Location ID",
+    "Vendor",
+    "Rate Item Name",
+    "Status",
+  ]);
 
   const loadHeaderOptions = useCallback(
     async (overrides = {}) => {
@@ -1182,6 +1195,11 @@ export default function QuotationForm() {
                     {LINE_TABLE_COLUMNS.map((col) => (
                       <Th
                         key={col}
+                        minW={
+                          LINE_SEARCHABLE_COLUMNS.has(col)
+                            ? LINE_SEARCH_FIELD_MIN_W
+                            : LINE_FIELD_MIN_W
+                        }
                         fontSize="xs"
                         fontWeight="600"
                         textTransform="none"
@@ -1214,7 +1232,7 @@ export default function QuotationForm() {
                             }
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           <SimpleSearchableSelect
                             value={line.location}
                             onChange={(val) => updateLineCascade(index, "location", val || "")}
@@ -1227,7 +1245,7 @@ export default function QuotationForm() {
                             {...lineAutoSelectProps}
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           {line.is_client_specific ? (
                             <SimpleSearchableSelect
                               value={line.agent_id}
@@ -1246,7 +1264,7 @@ export default function QuotationForm() {
                             </Text>
                           )}
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           <SimpleSearchableSelect
                             value={line.rate_list_id}
                             onChange={(val) => updateLineCascade(index, "rate_list_id", val || "")}
@@ -1261,74 +1279,74 @@ export default function QuotationForm() {
                             {...lineAutoSelectProps}
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText} title={line.rate_remark || undefined}>
                             {line.rate_remark || "—"}
                           </Text>
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText}>
                             {formatQuotationNumber(line.cost_sum)}
                           </Text>
                         </Td>
-                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                           <Input
                             {...lineEditableInputProps}
-                            {...lineInputWidth(line.roe, "ROE", 5)}
+                            {...lineInputWidth(line.roe, "ROE")}
                             type="number"
                             value={line.roe}
                             onChange={(e) => updateLineField(index, "roe", e.target.value)}
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText}>
                             {formatQuotationNumber(line.cost_usd)}
                           </Text>
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Input
                             {...lineEditableInputProps}
-                            {...lineInputWidth(line.mu_percent, "MU %", 5)}
+                            {...lineInputWidth(line.mu_percent, "MU %")}
                             type="number"
                             value={line.mu_percent}
                             onChange={(e) => updateLineField(index, "mu_percent", e.target.value)}
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText}>
                             {formatQuotationNumber(line.mu_amount)}
                           </Text>
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText}>
                             {formatQuotationNumber(line.qt_rate)}
                           </Text>
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Input
                             {...lineEditableInputProps}
-                            {...lineInputWidth(line.amended_value, "Amended", 6)}
+                            {...lineInputWidth(line.amended_value, "Amended")}
                             type="number"
                             value={line.amended_value}
                             onChange={(e) => updateLineField(index, "amended_value", e.target.value)}
                           />
                         </Td>
-                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                           <Text {...lineReadOnlyText}>
                             {formatQuotationNumber(line.rate_to_client)}
                           </Text>
                         </Td>
-                        <Td {...lineCell} {...lineReadOnlyCell}>
+                        <Td {...lineDataCell} {...lineReadOnlyCell}>
                           <Input
                             {...lineEditableInputProps}
-                            {...lineInputWidth(line.group_free_text, "GroupFree text", 12)}
+                            {...lineInputWidth(line.group_free_text, "GroupFree text")}
                             value={line.group_free_text}
                             onChange={(e) =>
                               updateLineField(index, "group_free_text", e.target.value)
                             }
                           />
                         </Td>
-                        <Td {...lineCell} {...lineReadOnlyCell}>
+                        <Td {...lineSearchDataCell} {...lineReadOnlyCell}>
                           <SimpleSearchableSelect
                             value={line.status}
                             onChange={(val) => updateLineField(index, "status", val || "quote_current")}
@@ -1336,7 +1354,6 @@ export default function QuotationForm() {
                             placeholder="Status"
                             formatOption={(opt) => opt.name || opt.id}
                             {...lineAutoSelectProps}
-                            autoWidthMin={12}
                           />
                         </Td>
                         <Td {...lineCell} textAlign="center" px={1}>
