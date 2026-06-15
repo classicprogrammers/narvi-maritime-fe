@@ -51,6 +51,15 @@ export function SidebarLinks(props) {
     /\/shipping-orders\/edit\/\d+/.test(pathname);
   const isStockListEditMode = pathname.includes("/stock-list/edit-stock");
 
+  const isQuotationFormPath = (path = pathname) => {
+    const p = (path || "").toLowerCase().replace(/\/$/, "") || "/";
+    return (
+      p === "/admin/quotations/create" ||
+      p.startsWith("/admin/quotations/create/") ||
+      /^\/admin\/quotations\/edit\/\d+/.test(p)
+    );
+  };
+
   const isCurrentPath = (targetPath) => {
     const normalized = (targetPath || "").replace(/\/$/, "") || "/";
     return pathname === normalized;
@@ -87,7 +96,14 @@ export function SidebarLinks(props) {
             // Check if any submenu item matches current location
             const hasActiveSubmenu = route.submenu.some((subItem) => {
               const subPath = route.layout + subItem.path;
-              return location.pathname.includes(subPath.toLowerCase());
+              const currentPath = location.pathname.toLowerCase();
+              if (currentPath.includes(subPath.toLowerCase())) {
+                return true;
+              }
+              if (subItem.path === "/quotations/list" && isQuotationFormPath(currentPath)) {
+                return true;
+              }
+              return false;
             });
             
             if (hasActiveSubmenu) {
@@ -129,6 +145,11 @@ export function SidebarLinks(props) {
       }
       // If on edit page but no source page specified, don't highlight anything
       return false;
+    }
+
+    // Quotation create/edit pages should highlight the Quotations list tab
+    if (isQuotationFormPath(pathname)) {
+      return normalizedRoute === "/quotations/list";
     }
     
     // Check for exact match

@@ -972,6 +972,24 @@ export default function QuotationForm() {
             formatOption={(c) => c.name || `Currency ${c.id}`}
             {...selectProps}
           />
+        ) : key === "general_mu" || key === "caf" ? (
+          <HStack spacing={1} w="100%">
+            <Input
+              type="text"
+              size="sm"
+              variant="unstyled"
+              bg="transparent"
+              flex={1}
+              value={header[key]}
+              onChange={(e) => {
+                syncHeader((p) => ({ ...p, [key]: e.target.value }));
+                schedulePersist(null, 800);
+              }}
+            />
+            <Text fontSize="sm" color={textColor} fontWeight="600" flexShrink={0}>
+              %
+            </Text>
+          </HStack>
         ) : (
           <Input
             type={type === "date" ? "date" : "text"}

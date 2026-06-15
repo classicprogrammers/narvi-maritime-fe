@@ -62,8 +62,19 @@ export default function Dashboard(props) {
     const basePath = full.replace(/\/:[^/]*/g, '');
     return pathname === basePath || pathname.startsWith(basePath + '/');
   };
+  const isQuotationFormPath = (pathname) => {
+    const p = (pathname || "").toLowerCase().replace(/\/$/, "") || "/";
+    return (
+      p === "/admin/quotations/create" ||
+      p.startsWith("/admin/quotations/create/") ||
+      /^\/admin\/quotations\/edit\/\d+/.test(p)
+    );
+  };
   const getActiveRoute = (routes) => {
     const pathname = window.location.pathname;
+    if (isQuotationFormPath(pathname)) {
+      return "Quotations";
+    }
     let activeRoute = "Dashboard";
     for (let i = 0; i < routes.length; i++) {
       if (routes[i].collapse) {
