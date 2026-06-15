@@ -211,6 +211,44 @@ export function emptyHeader() {
   };
 }
 
+export const QUOTATION_LINE_STATUS_OPTIONS = [
+  { id: "quote_current", name: "Quote Current" },
+  { id: "quote_pending", name: "Quote Pending" },
+  { id: "order", name: "Order" },
+  { id: "toinvoice", name: "toinvoice" },
+  { id: "hold", name: "Hold" },
+  { id: "declined", name: "Declined" },
+  { id: "archive", name: "Archive" },
+];
+
+export function normalizeStatusOptions(list) {
+  if (!Array.isArray(list) || list.length === 0) return QUOTATION_LINE_STATUS_OPTIONS;
+  return list.map((item) => {
+    if (typeof item === "string") {
+      const fallback = QUOTATION_LINE_STATUS_OPTIONS.find((opt) => opt.id === item);
+      return { id: item, name: fallback?.name ?? item };
+    }
+    const id = item.value ?? item.id ?? item.status ?? "";
+    const name = item.label ?? item.name ?? item.status_label ?? id;
+    return { id, name };
+  });
+}
+
+export function formatQuotationNumber(value, fallback = "—") {
+  if (value == null || value === "") return fallback;
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function formatPercentDisplay(value) {
+  if (value == null || value === "") return "—";
+  if (typeof value === "string" && value.includes("%")) return value;
+  const n = Number(value);
+  if (Number.isNaN(n)) return String(value);
+  return `${n.toFixed(1)}%`;
+}
+
 export function emptyLine() {
   return {
     id: null,
@@ -221,14 +259,35 @@ export function emptyLine() {
     rate_id: "",
     rate_item_name: "",
     rate_remark: "",
+    quantity: "1",
+    cost_actual: "0",
+    roe: "",
+    mu_percent: "",
+    amended_value: "",
+    group_free_text: "",
+    status: "quote_current",
+    currency_override_id: "",
     free_text: "",
-    pre_text_rate_item_name: false,
     remark: "",
+    calculation: "",
+    fixed_sales_rate: "",
+    computed_currency_id: "",
+    computed_currency_name: "",
+    cost_sum: "",
+    cost_usd: "",
+    mu_amount: "",
+    qt_rate: "",
+    rate_to_client: "",
+    effective_mu_percent: "",
     locationOptions: [],
     agentOptions: [],
     rateItemOptions: [],
+    statusOptions: [],
+    currencyOptions: [],
     agent_required: false,
     rate_type_filter: "",
+    agent_name: "",
+    rate_list_name: "",
   };
 }
 
@@ -245,8 +304,79 @@ export function lineFromApi(line) {
     rate_id: apiString(line.rate_id),
     rate_item_name: apiString(line.rate_item_name),
     rate_remark: normalizeRemark(line.rate_remark),
+    quantity: line.quantity != null ? String(line.quantity) : "1",
+    cost_actual: line.cost_actual != null ? String(line.cost_actual) : "0",
+    roe: line.roe != null ? String(line.roe) : "",
+    mu_percent: line.mu_percent != null ? String(line.mu_percent) : "",
+    amended_value: line.amended_value != null ? String(line.amended_value) : "",
+    group_free_text: apiString(line.group_free_text),
+    status: apiString(line.status) || "quote_current",
+    currency_override_id: m2oId(line.currency_override_id),
     free_text: apiString(line.free_text),
-    pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
     remark: apiString(line.remark),
+    calculation: apiString(line.calculation),
+    fixed_sales_rate: line.fixed_sales_rate != null ? String(line.fixed_sales_rate) : "",
+    computed_currency_id: m2oId(line.currency_id),
+    computed_currency_name: m2oName(line.currency_id),
+    cost_sum: line.cost_sum != null ? String(line.cost_sum) : "",
+    cost_usd: line.cost_usd != null ? String(line.cost_usd) : "",
+    mu_amount: line.mu_amount != null ? String(line.mu_amount) : "",
+    qt_rate: line.qt_rate != null ? String(line.qt_rate) : "",
+    rate_to_client: line.rate_to_client != null ? String(line.rate_to_client) : "",
+    effective_mu_percent:
+      line.effective_mu_percent != null ? String(line.effective_mu_percent) : "",
+  };
+}
+
+export function mergeLineFromApi(currentLine, apiLine) {
+  const fromApi = lineFromApi(apiLine);
+  return {
+    ...currentLine,
+    ...fromApi,
+    locationOptions: currentLine.locationOptions,
+    agentOptions: currentLine.agentOptions,
+    rateItemOptions: currentLine.rateItemOptions,
+    statusOptions: currentLine.statusOptions?.length
+      ? currentLine.statusOptions
+      : fromApi.statusOptions,
+    currencyOptions: currentLine.currencyOptions?.length
+      ? currentLine.currencyOptions
+      : fromApi.currencyOptions,
+  };
+}
+
+export function buildLineSavePayload(line) {
+  const row = {
+    is_client_specific: Boolean(line.is_client_specific),
+    location: strOrNull(line.location),
+    rate_list_id: intOrNull(line.rate_list_id),
+    quantity: numOrNull(line.quantity),
+    cost_actual: numOrNull(line.cost_actual),
+    roe: numOrNull(line.roe),
+    mu_percent: numOrNull(line.mu_percent),
+    amended_value: numOrNull(line.amended_value),
+    group_free_text: strOrNull(line.group_free_text),
+    status: strOrNull(line.status) || "quote_current",
+    free_text: strOrNull(line.free_text),
+    remark: strOrNull(line.remark),
+    currency_override_id: intOrNull(line.currency_override_id),
+  };
+  if (line.id) row.id = line.id;
+  if (line.is_client_specific) {
+    row.agent_id = intOrNull(line.agent_id);
+  }
+  return row;
+}
+
+export function headerFromApi(q) {
+  return {
+    client_id: m2oId(q.client_id),
+    vessel_id: m2oId(q.vessel_id),
+    sale_order_id: m2oId(q.sale_order_id),
+    validity_date: apiString(q.validity_date),
+    currency_id: m2oId(q.currency_id),
+    usd_roe: q.usd_roe != null ? String(q.usd_roe) : "1",
+    general_mu: q.general_mu != null ? String(q.general_mu) : "",
+    caf: q.caf != null ? String(q.caf) : "",
   };
 }

@@ -534,11 +534,12 @@ export default function Quotations() {
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1} boxShadow="sm">
                 <Tr>
                   {[
-                    { label: "Client", w: "18%" },
-                    { label: "Vessel", w: "16%" },
-                    { label: "SO ID", w: "12%" },
-                    { label: "Rate Name", w: "28%" },
-                    { label: "Valid Date", w: "12%" },
+                    { label: "Quotation", w: "12%" },
+                    { label: "Client", w: "16%" },
+                    { label: "Vessel", w: "14%" },
+                    { label: "SO ID", w: "10%" },
+                    { label: "Rate Name", w: "24%" },
+                    { label: "Valid Date", w: "10%" },
                     { label: "", w: "90px" },
                   ].map((col) => (
                     <Th key={col.label || "actions"} w={col.w} {...thStyle}>
@@ -550,7 +551,7 @@ export default function Quotations() {
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={6} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={7} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading quotations...
                       </Text>
@@ -558,7 +559,7 @@ export default function Quotations() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={6} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={7} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         No quotations found.
                       </Text>
@@ -573,6 +574,14 @@ export default function Quotations() {
                       borderColor={tableBorderColor}
                       _hover={{ bg: hoverBg }}
                     >
+                      <TruncatedCell
+                        value={item.name || `QT/${item.id}`}
+                        maxW="120px"
+                        fontWeight="600"
+                        textColor={textColor}
+                        tdStyle={tdStyle}
+                        cellText={cellText}
+                      />
                       <TruncatedCell
                         value={item.client_name || m2oName(item.client_id, "-")}
                         maxW="220px"

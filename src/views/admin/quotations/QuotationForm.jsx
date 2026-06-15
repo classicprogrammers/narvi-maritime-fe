@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
-  Checkbox,
   Flex,
   Grid,
   HStack,
@@ -15,7 +14,6 @@ import {
   Tbody,
   Td,
   Text,
-  Textarea,
   Th,
   Thead,
   Tr,
@@ -38,26 +36,32 @@ import {
 import { useMasterData } from "../../../hooks/useMasterData";
 import {
   apiString,
+  buildLineSavePayload,
   emptyHeader,
   emptyLine,
   ensureSelectedOption,
+  fieldWidthCh,
   formatAgentOption,
   formatClientOption,
   formatLocationOption,
+  formatPercentDisplay,
+  formatQuotationNumber,
   formatRateItemOption,
   formatSoOption,
   formatVesselOption,
+  headerFromApi,
   intOrNull,
   intOrUndef,
   lineFromApi,
-  numOrNull,
-  strOrNull,
+  mergeLineFromApi,
   m2oId,
   m2oName,
   normalizeClientOptions,
   normalizeLocationOptions,
   normalizeOptions,
   normalizeRateItems,
+  normalizeStatusOptions,
+  QUOTATION_LINE_STATUS_OPTIONS,
 } from "./quotationUtils";
 
 function LabelCell({ children, bordered = true, bg: bgProp, accentLabel = false, ...props }) {
@@ -127,7 +131,13 @@ export default function QuotationForm() {
   const inputText = useColorModeValue("gray.700", "gray.100");
   const tableHeaderBg = useColorModeValue("orange.50", "orange.900");
   const tableHeaderText = useColorModeValue("orange.900", "orange.50");
-  const freeTextBg = useColorModeValue("green.50", "green.900");
+  const lineTableHeaderBg = useColorModeValue("gray.600", "gray.700");
+  const lineTableHeaderText = "white";
+  const lineInputCellBg = useColorModeValue("green.50", "green.900");
+  const lineCalcCellBg = useColorModeValue("blue.50", "blue.900");
+  const lineEditableBg = useColorModeValue("white", "gray.800");
+  const lineEditableBorder = useColorModeValue("gray.300", "gray.500");
+  const lineReadOnlyColor = useColorModeValue("gray.700", "gray.200");
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -140,8 +150,11 @@ export default function QuotationForm() {
   const [headerOptionsLoading, setHeaderOptionsLoading] = useState(false);
   const [lineOptionsLoading, setLineOptionsLoading] = useState({});
   const [deletedLineIds, setDeletedLineIds] = useState([]);
+  const [statusSummary, setStatusSummary] = useState([]);
+  const [quotationName, setQuotationName] = useState("");
 
   const autoSaveTimerRef = useRef(null);
+  const lineSearchTimerRef = useRef({});
   const headerSearchTimerRef = useRef(null);
   const saveQueueRef = useRef(Promise.resolve());
   const isReadyToSaveRef = useRef(false);
@@ -179,13 +192,49 @@ export default function QuotationForm() {
   const selectProps = { size: "sm", bg: inputBg, color: inputText, borderColor };
   const headerSelectProps = { ...selectProps, bg: "transparent" };
   const lineCellFont = { fontSize: "xs", lineHeight: "short" };
-  const lineCell = { py: 1.5, px: 2, verticalAlign: "middle" };
+  const lineCell = { py: 2, px: 2, verticalAlign: "middle" };
   const lineSelectProps = {
     ...selectProps,
     fontSize: "xs",
-    w: "100%",
     prefillOnFocus: false,
     clearOnEmptySearch: false,
+    bg: lineEditableBg,
+    borderColor: lineEditableBorder,
+    borderWidth: "1px",
+  };
+  const lineAutoSelectProps = {
+    ...lineSelectProps,
+    w: "auto",
+    autoWidth: true,
+    autoWidthMin: 10,
+    autoWidthMax: 0,
+    autoWidthPadding: 3,
+  };
+  const lineEditableInputProps = {
+    size: "sm",
+    variant: "outline",
+    fontSize: "xs",
+    bg: lineEditableBg,
+    borderColor: lineEditableBorder,
+    borderRadius: "md",
+    px: 2,
+    h: "28px",
+    _hover: { borderColor: "blue.300" },
+    _focus: {
+      borderColor: "blue.400",
+      boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
+    },
+  };
+  const lineInputWidth = (value, placeholder = "", minCh = 6) => ({
+    w: fieldWidthCh(value, placeholder),
+    minW: `${minCh}ch`,
+    maxW: "max-content",
+  });
+  const lineReadOnlyCell = { whiteSpace: "nowrap" };
+  const lineReadOnlyText = {
+    ...lineCellFont,
+    color: lineReadOnlyColor,
+    fontWeight: "600",
   };
   const headerDropdownProps = {
     ...headerSelectProps,
@@ -193,17 +242,21 @@ export default function QuotationForm() {
     clearOnEmptySearch: false,
     serverSideSearch: true,
   };
-  const lineColumnWidths = [
-    "72px",
-    "9%",
-    "13%",
-    "15%",
-    "14%",
-    "12%",
-    "10%",
-    "56px",
-    "12%",
-    "40px",
+  const LINE_TABLE_COLUMNS = [
+    "Location ID",
+    "Vendor",
+    "Rate Item Name",
+    "Rate Remark",
+    "Cost sum",
+    "ROE",
+    "Cost USD",
+    "MU %",
+    "MU Amount",
+    "QT Rate",
+    "Amended Rate",
+    "Rate to client",
+    "GroupFree text",
+    "Status",
   ];
 
   const loadHeaderOptions = useCallback(
@@ -279,30 +332,38 @@ export default function QuotationForm() {
     [toast]
   );
 
-  const buildLineOptionsPayload = (stage, lineState, quotationId) => {
+  const buildLineOptionsPayload = (lineState, search = {}) => {
+    const h = headerRef.current;
     const payload = {
-      quotation_id: intOrUndef(quotationId),
+      quotation_id: intOrUndef(quotationIdRef.current),
       line_id: intOrUndef(lineState.id),
       is_client_specific: Boolean(lineState.is_client_specific),
+      page: 1,
+      page_size: 50,
+      q_location: search.q_location ?? "",
+      q_agent: search.q_agent ?? "",
+      q_rate: search.q_rate ?? "",
     };
-    if (stage !== "location" && lineState.location) {
+    if (lineState.is_client_specific) {
+      payload.client_id = intOrUndef(h.client_id);
+    }
+    if (lineState.location) {
       payload.location = lineState.location;
     }
-    if (stage === "rate" && lineState.is_client_specific && intOrUndef(lineState.agent_id)) {
+    if (lineState.is_client_specific && intOrUndef(lineState.agent_id)) {
       payload.agent_id = intOrUndef(lineState.agent_id);
     }
     return payload;
   };
 
-  const getLineCascadeStage = (field, lineState) => {
-    if (field === "is_client_specific") return "location";
-    if (field === "location") return lineState.is_client_specific ? "agent" : "rate";
-    if (field === "agent_id") return "rate";
+  const getLineCascadeStage = (field) => {
+    if (field === "is_client_specific" || field === "location") return "filters";
+    if (field === "agent_id" || field === "rate_list_id") return "filters";
     return null;
   };
 
   const showLineOptionsWarnings = useCallback(
-    (result, stage) => {
+    (result) => {
       const warnings = result?.warnings ?? result?.warning;
       if (warnings) {
         const message = Array.isArray(warnings)
@@ -316,53 +377,26 @@ export default function QuotationForm() {
             duration: 4000,
             isClosable: true,
           });
-          return;
         }
-      }
-      const emptyLocations =
-        stage === "location" &&
-        (!Array.isArray(result?.location_options) || result.location_options.length === 0);
-      const emptyAgents =
-        stage === "agent" &&
-        (!Array.isArray(result?.agent_options) || result.agent_options.length === 0);
-      const emptyRates =
-        stage === "rate" &&
-        (!Array.isArray(result?.rate_item_options) || result.rate_item_options.length === 0);
-      if (emptyLocations || emptyAgents || emptyRates) {
-        toast({
-          title: "No options available",
-          description: "The server returned no matching options for this line. Check saved values and try again.",
-          status: "warning",
-          duration: 4000,
-          isClosable: true,
-        });
       }
     },
     [toast]
   );
 
-  const loadLineOptionsStage = useCallback(
-    async (lineIndex, lineState, stage) => {
+  const loadLineOptions = useCallback(
+    async (lineIndex, lineState, search = {}) => {
       const quotationId = quotationIdRef.current;
       if (!intOrUndef(quotationId) || !intOrUndef(lineState.id)) return;
 
-      if (stage === "agent") {
-        if (!lineState.is_client_specific || !lineState.location) return;
-      }
-      if (stage === "rate") {
-        if (!lineState.location) return;
-        if (lineState.is_client_specific && !intOrUndef(lineState.agent_id)) return;
-      }
-
-      const linePayload = buildLineOptionsPayload(stage, lineState, quotationId);
-      const requestKey = `${lineIndex}:${stage}:${JSON.stringify(linePayload)}`;
+      const linePayload = buildLineOptionsPayload(lineState, search);
+      const requestKey = `${lineIndex}:${JSON.stringify(linePayload)}`;
       if (lastLineOptionsKeyRef.current[requestKey]) return;
       lastLineOptionsKeyRef.current[requestKey] = true;
 
       setLineOptionsLoading((prev) => ({ ...prev, [lineIndex]: true }));
       try {
         const result = await getNarviQuotationLineOptions(linePayload);
-        showLineOptionsWarnings(result, stage);
+        showLineOptionsWarnings(result);
 
         const nextLines = linesRef.current.map((line, i) => {
           if (i !== lineIndex) return line;
@@ -373,37 +407,28 @@ export default function QuotationForm() {
           if (result.rate_type_filter != null) {
             updates.rate_type_filter = apiString(result.rate_type_filter);
           }
-          if (result.client_id != null && lineState.is_client_specific) {
-            updates.line_client_id = m2oId(result.client_id);
-          }
-          if (stage === "location" && result.location_options) {
+          if (result.location_options) {
             updates.locationOptions = ensureSelectedOption(
               normalizeLocationOptions(result.location_options),
               line.location,
               (loc) => (loc ? { id: loc, name: loc, location: loc } : null)
             );
           }
-          if (stage === "agent") {
-            updates.rateItemOptions = [];
-            if (result.agent_options) {
-              updates.agentOptions = ensureSelectedOption(
-                normalizeOptions(result.agent_options),
-                line.agent_id,
-                (agentId) =>
-                  agentId
-                    ? {
-                      id: agentId,
-                      name: line.agent_name || `Agent ${agentId}`,
-                      company_name: line.agent_name || "",
-                    }
-                    : null
-              );
-            }
+          if (result.agent_options) {
+            updates.agentOptions = ensureSelectedOption(
+              normalizeOptions(result.agent_options),
+              line.agent_id,
+              (agentId) =>
+                agentId
+                  ? {
+                    id: agentId,
+                    name: line.agent_name || `Agent ${agentId}`,
+                    company_name: line.agent_name || "",
+                  }
+                  : null
+            );
           }
-          if (stage === "rate" && !lineState.is_client_specific) {
-            updates.agentOptions = [];
-          }
-          if (stage === "rate" && result.rate_item_options) {
+          if (result.rate_item_options) {
             updates.rateItemOptions = ensureSelectedOption(
               normalizeRateItems(result.rate_item_options),
               line.rate_list_id,
@@ -411,13 +436,26 @@ export default function QuotationForm() {
                 rateId
                   ? {
                     id: rateId,
-                    name: line.rate_list_name || line.rate_id || line.rate_item_name || `Rate ${rateId}`,
+                    name:
+                      line.rate_list_name ||
+                      line.rate_id ||
+                      line.rate_item_name ||
+                      `Rate ${rateId}`,
                     rate_id: line.rate_id,
                     rate_item_name: line.rate_item_name,
                     rate_remark: line.rate_remark,
                   }
                   : null
             );
+          }
+          if (result.status_options) {
+            updates.statusOptions = normalizeStatusOptions(result.status_options);
+          }
+          if (result.currency_options) {
+            updates.currencyOptions = normalizeOptions(result.currency_options);
+          }
+          if (!lineState.is_client_specific) {
+            updates.agentOptions = [];
           }
           return updates;
         });
@@ -438,22 +476,21 @@ export default function QuotationForm() {
     [showLineOptionsWarnings, toast]
   );
 
-  const loadAllLineOptions = useCallback(
-    async (lineIndex, lineState) => {
-      if (!intOrUndef(quotationIdRef.current) || !intOrUndef(lineState.id)) return;
-      await loadLineOptionsStage(lineIndex, lineState, "location");
-      if (!lineState.location) return;
-      if (lineState.is_client_specific) {
-        await loadLineOptionsStage(lineIndex, lineState, "agent");
-        if (intOrUndef(lineState.agent_id)) {
-          await loadLineOptionsStage(lineIndex, lineState, "rate");
-        }
-      } else {
-        await loadLineOptionsStage(lineIndex, lineState, "rate");
-      }
-    },
-    [loadLineOptionsStage]
-  );
+  const scheduleLineSearch = (lineIndex, field, value) => {
+    const q = String(value ?? "").trim();
+    if (!q) return;
+    const timerKey = `${lineIndex}:${field}`;
+    if (lineSearchTimerRef.current[timerKey]) {
+      clearTimeout(lineSearchTimerRef.current[timerKey]);
+    }
+    lineSearchTimerRef.current[timerKey] = setTimeout(() => {
+      const lineState = linesRef.current[lineIndex];
+      if (!lineState) return;
+      const searchKey = field === "location" ? "q_location" : field === "agent" ? "q_agent" : "q_rate";
+      clearLineOptionsCache(lineIndex);
+      loadLineOptions(lineIndex, lineState, { [searchKey]: q });
+    }, 300);
+  };
 
   const scheduleHeaderSearch = (field, value) => {
     const q = String(value ?? "").trim();
@@ -492,6 +529,8 @@ export default function QuotationForm() {
       setLoading(true);
       try {
         const q = await getNarviQuotation(id);
+        setQuotationName(q.name || "");
+        setStatusSummary(Array.isArray(q.status_summary) ? q.status_summary : []);
         editOptionLabels.current = {
           client: {
             id: m2oId(q.client_id),
@@ -509,16 +548,7 @@ export default function QuotationForm() {
             name: m2oName(q.sale_order_id) || apiString(q.so_id) || apiString(q.so_number),
           },
         };
-        const nextHeader = {
-          client_id: m2oId(q.client_id),
-          vessel_id: m2oId(q.vessel_id),
-          sale_order_id: m2oId(q.sale_order_id),
-          validity_date: apiString(q.validity_date),
-          currency_id: m2oId(q.currency_id),
-          usd_roe: q.usd_roe != null ? String(q.usd_roe) : "1",
-          general_mu: q.general_mu != null ? String(q.general_mu) : "",
-          caf: q.caf != null ? String(q.caf) : "",
-        };
+        const nextHeader = headerFromApi(q);
         setHeader(nextHeader);
         const apiLines = Array.isArray(q.quotation_lines)
           ? q.quotation_lines.map(lineFromApi)
@@ -531,7 +561,7 @@ export default function QuotationForm() {
           vessel_id: nextHeader.vessel_id,
           sale_order_id: nextHeader.sale_order_id,
         });
-        await Promise.all(loadedLines.map((line, index) => loadAllLineOptions(index, line)));
+        await Promise.all(loadedLines.map((line, index) => loadLineOptions(index, line)));
         setQuotationId(id);
         quotationIdRef.current = id;
         isReadyToSaveRef.current = true;
@@ -552,26 +582,45 @@ export default function QuotationForm() {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       if (headerSearchTimerRef.current) clearTimeout(headerSearchTimerRef.current);
+      Object.values(lineSearchTimerRef.current).forEach((timer) => clearTimeout(timer));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isEdit]);
 
   const extractSavedQuotationId = (result) =>
-    result?.id ?? result?.data?.id ?? result?.quotation?.id ?? null;
+    result?.data?.id ?? result?.id ?? result?.quotation?.id ?? null;
 
-  const applySaveResponse = useCallback((result) => {
-    const saved = result?.quotation ?? result?.data ?? result;
-    const savedLines = saved?.quotation_lines;
+  const applyQuotationFromApi = useCallback((q) => {
+    if (!q || typeof q !== "object") return;
+
+    if (q.name) setQuotationName(q.name);
+    setStatusSummary(Array.isArray(q.status_summary) ? q.status_summary : []);
+
+    if (q.client_id != null || q.validity_date != null) {
+      const nextHeader = headerFromApi(q);
+      headerRef.current = nextHeader;
+      setHeader(nextHeader);
+    }
+
+    const savedLines = q.quotation_lines;
     if (!Array.isArray(savedLines) || !savedLines.length) return;
 
-    const next = linesRef.current.map((line, index) => {
-      const apiLine = savedLines[index];
+    const next = linesRef.current.map((line) => {
+      const apiLine = savedLines.find((sl) => line.id && String(sl.id) === String(line.id));
       if (!apiLine) return line;
-      return { ...line, id: apiLine.id ?? line.id };
+      return mergeLineFromApi(line, apiLine);
     });
     linesRef.current = next;
     setLines(next);
   }, []);
+
+  const applySaveResponse = useCallback(
+    (result) => {
+      const saved = result?.data ?? result?.quotation ?? result;
+      applyQuotationFromApi(saved);
+    },
+    [applyQuotationFromApi]
+  );
 
   const buildPayload = useCallback((qId) => {
     const h = headerRef.current;
@@ -582,27 +631,13 @@ export default function QuotationForm() {
       client_id: intOrNull(h.client_id),
       vessel_id: intOrNull(h.vessel_id),
       sale_order_id: intOrNull(h.sale_order_id),
-      validity_date: strOrNull(h.validity_date),
+      validity_date: h.validity_date?.trim() ? h.validity_date : null,
       currency_id: intOrNull(h.currency_id),
-      usd_roe: numOrNull(h.usd_roe),
-      general_mu: numOrNull(h.general_mu),
-      caf: numOrNull(h.caf),
+      usd_roe: h.usd_roe !== "" && h.usd_roe != null ? Number(h.usd_roe) : null,
+      general_mu: h.general_mu !== "" && h.general_mu != null ? Number(h.general_mu) : null,
+      caf: h.caf !== "" && h.caf != null ? Number(h.caf) : null,
       quotation_lines: [
-        ...ls.map((line) => {
-          const row = {
-            id: line.id ?? null,
-            is_client_specific: Boolean(line.is_client_specific),
-            location: strOrNull(line.location),
-            rate_list_id: intOrNull(line.rate_list_id),
-            free_text: strOrNull(line.free_text),
-            pre_text_rate_item_name: Boolean(line.pre_text_rate_item_name),
-            remark: strOrNull(line.remark),
-          };
-          if (line.is_client_specific) {
-            row.agent_id = intOrNull(line.agent_id);
-          }
-          return row;
-        }),
+        ...ls.map((line) => buildLineSavePayload(line)),
         ...dels.map((lineId) => ({ id: lineId, delete: true })),
       ],
     };
@@ -636,6 +671,10 @@ export default function QuotationForm() {
           history.replace(`/admin/quotations/edit/${newId}`);
         }
         applySaveResponse(result);
+        if (newId && !result?.data?.quotation_lines) {
+          const full = await getNarviQuotation(newId);
+          applyQuotationFromApi(full);
+        }
       } else {
         const result = await updateNarviQuotation(payload);
         applySaveResponse(result);
@@ -661,7 +700,7 @@ export default function QuotationForm() {
     } finally {
       setSaving(false);
     }
-  }, [applySaveResponse, buildPayload, canAutoSave, history, toast]);
+  }, [applyQuotationFromApi, applySaveResponse, buildPayload, canAutoSave, history, toast]);
 
   const runPersistThenOptions = useCallback(
     async (optionsFn) => {
@@ -690,8 +729,8 @@ export default function QuotationForm() {
     [runPersistThenOptions]
   );
 
-  const clearLineOptionsCache = (lineIndex, stage) => {
-    const lineKeyPrefix = `${lineIndex}:${stage}:`;
+  const clearLineOptionsCache = (lineIndex) => {
+    const lineKeyPrefix = `${lineIndex}:`;
     Object.keys(lastLineOptionsKeyRef.current).forEach((key) => {
       if (key.startsWith(lineKeyPrefix)) {
         delete lastLineOptionsKeyRef.current[key];
@@ -734,7 +773,7 @@ export default function QuotationForm() {
       lastLineOptionsKeyRef.current = {};
       await Promise.all(
         linesRef.current.map((line, index) =>
-          intOrUndef(line.id) ? loadLineOptionsStage(index, line, "location") : Promise.resolve()
+          intOrUndef(line.id) ? loadLineOptions(index, line) : Promise.resolve()
         )
       );
     });
@@ -802,15 +841,23 @@ export default function QuotationForm() {
     );
 
     const lineState = linesRef.current[index];
-    const cascadeStage = lineState ? getLineCascadeStage(field, lineState) : null;
+    const cascadeStage = getLineCascadeStage(field);
 
     await runPersistThenOptions(async () => {
       if (!cascadeStage) return;
-      clearLineOptionsCache(index, cascadeStage);
+      clearLineOptionsCache(index);
       const currentLine = linesRef.current[index];
       if (!currentLine) return;
-      await loadLineOptionsStage(index, currentLine, cascadeStage);
+      await loadLineOptions(index, currentLine);
     });
+  };
+
+  const updateLineField = (index, field, value) => {
+    syncLines((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, [field]: value } : line))
+    );
+    const delay = ["remark", "group_free_text", "free_text"].includes(field) ? 800 : 500;
+    schedulePersist(null, delay);
   };
 
   const addLine = async () => {
@@ -820,7 +867,7 @@ export default function QuotationForm() {
     await runPersistThenOptions(async () => {
       const savedLine = linesRef.current[newIndex];
       if (savedLine?.id) {
-        await loadLineOptionsStage(newIndex, savedLine, "location");
+        await loadLineOptions(newIndex, savedLine);
       }
     });
   };
@@ -907,7 +954,8 @@ export default function QuotationForm() {
               Back
             </Button>
             <Text color={textColor} fontSize="xl" fontWeight="700">
-              {quotationId ? `Edit Quotation #${quotationId}` : "New Quotation"}
+              {quotationName ||
+                (quotationId ? `Edit Quotation #${quotationId}` : "New Quotation")}
             </Text>
           </HStack>
           <HStack spacing={3}>
@@ -987,7 +1035,7 @@ export default function QuotationForm() {
               </Grid>
 
               <Grid
-                templateColumns={{ base: "130px 1fr", lg: "140px minmax(160px, 440px)" }}
+                templateColumns={{ base: "130px 1fr", lg: "140px minmax(160px, 240px)" }}
                 gap={0}
                 flexShrink={0}
                 alignContent="start"
@@ -996,11 +1044,75 @@ export default function QuotationForm() {
               >
                 {worksheetFields.map(renderWorksheetField)}
               </Grid>
-            </Flex>
 
+              <Grid
+                gap={0}
+                flexShrink={0}
+                w={{ base: "100%", lg: "auto" }}
+              >
+                {statusSummary.length > 0 && (
+                  <Box w="100%">
+                    <Box
+                      w={{ base: "100%", lg: "fit-content" }}
+                      ml={{ base: 0, lg: "auto" }}
+                      overflowX="auto"
+                      borderWidth="1px"
+                      borderColor={borderColor}
+                      borderRadius="md"
+                    >
+                      <Table size="sm" variant="simple" minW="480px">
+                        <Thead bg={tableHeaderBg}>
+                          <Tr>
+                            {["Status", "Cost", "Markup", "Sale", "Profit Rate"].map((col) => (
+                              <Th
+                                key={col}
+                                fontSize="10px"
+                                textTransform="uppercase"
+                                color={tableHeaderText}
+                                py={3}
+                                px={3}
+                                whiteSpace="nowrap"
+                              >
+                                {col}
+                              </Th>
+                            ))}
+                          </Tr>
+                        </Thead>
+                        <Tbody>
+                          {statusSummary.map((row) => (
+                            <Tr key={row.status}>
+                              <Td {...lineCell}>
+                                <Text {...lineCellFont} fontWeight="600">
+                                  {row.status_label || row.status}
+                                </Text>
+                              </Td>
+                              <Td {...lineCell}>
+                                <Text {...lineCellFont}>{formatQuotationNumber(row.cost)}</Text>
+                              </Td>
+                              <Td {...lineCell}>
+                                <Text {...lineCellFont}>{formatQuotationNumber(row.markup)}</Text>
+                              </Td>
+                              <Td {...lineCell}>
+                                <Text {...lineCellFont}>{formatQuotationNumber(row.sale)}</Text>
+                              </Td>
+                              <Td {...lineCell}>
+                                <Text {...lineCellFont}>
+                                  {row.profit_rate_display ||
+                                    formatPercentDisplay(row.profit_rate)}
+                                </Text>
+                              </Td>
+                            </Tr>
+                          ))}
+                        </Tbody>
+                      </Table>
+                    </Box>
+                  </Box>
+                )}
+              </Grid>
+            </Flex>
             <Box mt={6} />
 
-            <Flex justify="space-between" align="center" mb={3}>
+            <Flex justify="space-between" align="center" mb={3} flexWrap="wrap" gap={3}>
               <Text fontWeight="700" color={textColor}>
                 Quotation Lines
               </Text>
@@ -1010,171 +1122,200 @@ export default function QuotationForm() {
             </Flex>
 
             <Box w="100%" overflowX="auto" borderWidth="1px" borderColor={borderColor} borderRadius="md">
-              <Table size="sm" variant="simple" w="100%" sx={{ tableLayout: "fixed" }}>
-                <colgroup>
-                  {lineColumnWidths.map((width, i) => (
-                    <col key={i} style={{ width }} />
-                  ))}
-                </colgroup>
-                <Thead bg={tableHeaderBg}>
+              <Table
+                size="sm"
+                variant="simple"
+                sx={{ tableLayout: "auto", width: "max-content", minWidth: "100%" }}
+              >
+                <Thead bg={lineTableHeaderBg}>
                   <Tr>
-                    {[
-                      "Client Specific",
-                      "Location ID",
-                      "Vendor",
-                      "Rate Item",
-                      "Rate Item Name",
-                      "Rate Remark",
-                      "Free Text",
-                      "Pre-text",
-                      "Remark",
-                      "",
-                    ].map((col) => (
+                    <Th
+                      w="100px"
+                      py={2}
+                      px={1}
+                      borderColor="whiteAlpha.300"
+                      fontSize="10px"
+                      fontWeight="600"
+                      textTransform="none"
+                      color={lineTableHeaderText}
+                      title="Client specific"
+                    >
+                      Client Specific
+                    </Th>
+                    {LINE_TABLE_COLUMNS.map((col) => (
                       <Th
-                        key={col || "actions"}
-                        fontSize="10px"
-                        textTransform="uppercase"
-                        color={tableHeaderText}
+                        key={col}
+                        fontSize="xs"
+                        fontWeight="600"
+                        textTransform="none"
+                        color={lineTableHeaderText}
                         whiteSpace="nowrap"
-                        py={1.5}
+                        py={2}
                         px={2}
+                        borderColor="whiteAlpha.300"
                       >
                         {col}
                       </Th>
                     ))}
+                    <Th w="40px" py={2} px={1} borderColor="whiteAlpha.300" />
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {lines.map((line, index) => (
-                    <Tr key={line.id ?? `line-${index}`}>
-                      <Td {...lineCell} textAlign="center">
-                        <Switch
-                          size="sm"
-                          isChecked={line.is_client_specific}
-                          onChange={(e) =>
-                            updateLineCascade(index, "is_client_specific", e.target.checked)
-                          }
-                        />
-                      </Td>
-                      <Td {...lineCell}>
-                        <SimpleSearchableSelect
-                          value={line.location}
-                          onChange={(val) => updateLineCascade(index, "location", val || "")}
-                          options={line.locationOptions}
-                          placeholder="Location"
-                          isLoading={lineOptionsLoading[index]}
-                          formatOption={formatLocationOption}
-                          {...lineSelectProps}
-                        />
-                      </Td>
-                      <Td {...lineCell}>
-                        {line.is_client_specific ? (
-                          <SimpleSearchableSelect
-                            value={line.agent_id}
-                            onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
-                            options={line.agentOptions}
-                            placeholder="Vendor"
-                            isLoading={lineOptionsLoading[index]}
-                            formatOption={formatAgentOption}
-                            {...lineSelectProps}
+                  {lines.map((line, index) => {
+                    const statusOptions = line.statusOptions?.length
+                      ? line.statusOptions
+                      : QUOTATION_LINE_STATUS_OPTIONS;
+                    return (
+                      <Tr key={line.id ?? `line-${index}`}>
+                        <Td {...lineCell} textAlign="center" px={1} title="Client specific">
+                          <Switch
+                            size="sm"
+                            colorScheme="blue"
+                            isChecked={line.is_client_specific}
+                            onChange={(e) =>
+                              updateLineCascade(index, "is_client_specific", e.target.checked)
+                            }
                           />
-                        ) : (
-                          <Text {...lineCellFont} color="gray.500">
-                            —
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          <SimpleSearchableSelect
+                            value={line.location}
+                            onChange={(val) => updateLineCascade(index, "location", val || "")}
+                            options={line.locationOptions}
+                            placeholder="Location"
+                            isLoading={lineOptionsLoading[index]}
+                            formatOption={formatLocationOption}
+                            serverSideSearch
+                            onSearchChange={(q) => scheduleLineSearch(index, "location", q)}
+                            {...lineAutoSelectProps}
+                          />
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          {line.is_client_specific ? (
+                            <SimpleSearchableSelect
+                              value={line.agent_id}
+                              onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
+                              options={line.agentOptions}
+                              placeholder="Vendor"
+                              isLoading={lineOptionsLoading[index]}
+                              formatOption={formatAgentOption}
+                              serverSideSearch
+                              onSearchChange={(q) => scheduleLineSearch(index, "agent", q)}
+                              {...lineAutoSelectProps}
+                            />
+                          ) : (
+                            <Text {...lineCellFont} color="gray.500">
+                              —
+                            </Text>
+                          )}
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          <SimpleSearchableSelect
+                            value={line.rate_list_id}
+                            onChange={(val) => updateLineCascade(index, "rate_list_id", val || "")}
+                            options={line.rateItemOptions}
+                            placeholder="Rate item"
+                            isLoading={lineOptionsLoading[index]}
+                            formatOption={(item) =>
+                              item.rate_item_name || item.name || formatRateItemOption(item)
+                            }
+                            serverSideSearch
+                            onSearchChange={(q) => scheduleLineSearch(index, "rate", q)}
+                            {...lineAutoSelectProps}
+                          />
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText} title={line.rate_remark || undefined}>
+                            {line.rate_remark || "—"}
                           </Text>
-                        )}
-                      </Td>
-                      <Td {...lineCell}>
-                        <SimpleSearchableSelect
-                          value={line.rate_list_id}
-                          onChange={(val) => updateLineCascade(index, "rate_list_id", val || "")}
-                          options={line.rateItemOptions}
-                          placeholder="Rate item"
-                          isLoading={lineOptionsLoading[index]}
-                          formatOption={formatRateItemOption}
-                          {...lineSelectProps}
-                        />
-                      </Td>
-                      <Td {...lineCell}>
-                        <Text {...lineCellFont} noOfLines={2}>
-                          {line.rate_item_name || "—"}
-                        </Text>
-                      </Td>
-                      <Td {...lineCell}>
-                        <Text {...lineCellFont} noOfLines={2} color={textColor}>
-                          {line.rate_remark || "—"}
-                        </Text>
-                      </Td>
-                      <Td {...lineCell} bg={freeTextBg}>
-                        <Input
-                          size="sm"
-                          variant="unstyled"
-                          px={1}
-                          w="100%"
-                          fontSize="xs"
-                          value={line.free_text}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            syncLines((prev) =>
-                              prev.map((l, i) =>
-                                i === index ? { ...l, free_text: value } : l
-                              )
-                            );
-                            schedulePersist(null, 800);
-                          }}
-                        />
-                      </Td>
-                      <Td {...lineCell} textAlign="center">
-                        <Checkbox
-                          size="sm"
-                          isChecked={line.pre_text_rate_item_name}
-                          onChange={(e) => {
-                            const { checked } = e.target;
-                            syncLines((prev) =>
-                              prev.map((l, i) =>
-                                i === index
-                                  ? { ...l, pre_text_rate_item_name: checked }
-                                  : l
-                              )
-                            );
-                            schedulePersist();
-                          }}
-                        />
-                      </Td>
-                      <Td {...lineCell}>
-                        <Textarea
-                          size="sm"
-                          rows={1}
-                          resize="none"
-                          px={1}
-                          py={0}
-                          w="100%"
-                          fontSize="xs"
-                          value={line.remark}
-                          onChange={(e) => {
-                            const { value } = e.target;
-                            syncLines((prev) =>
-                              prev.map((l, i) =>
-                                i === index ? { ...l, remark: value } : l
-                              )
-                            );
-                            schedulePersist(null, 800);
-                          }}
-                        />
-                      </Td>
-                      <Td {...lineCell} textAlign="center">
-                        <IconButton
-                          aria-label="Remove line"
-                          size="xs"
-                          variant="ghost"
-                          colorScheme="red"
-                          icon={<MdDelete />}
-                          isDisabled={lines.length <= 1}
-                          onClick={() => removeLine(index)}
-                        />
-                      </Td>
-                    </Tr>
-                  ))}
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText}>
+                            {formatQuotationNumber(line.cost_sum)}
+                          </Text>
+                        </Td>
+                        <Td {...lineCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                          <Input
+                            {...lineEditableInputProps}
+                            {...lineInputWidth(line.roe, "ROE", 5)}
+                            type="number"
+                            value={line.roe}
+                            onChange={(e) => updateLineField(index, "roe", e.target.value)}
+                          />
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText}>
+                            {formatQuotationNumber(line.cost_usd)}
+                          </Text>
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Input
+                            {...lineEditableInputProps}
+                            {...lineInputWidth(line.mu_percent, "MU %", 5)}
+                            type="number"
+                            value={line.mu_percent}
+                            onChange={(e) => updateLineField(index, "mu_percent", e.target.value)}
+                          />
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText}>
+                            {formatQuotationNumber(line.mu_amount)}
+                          </Text>
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText}>
+                            {formatQuotationNumber(line.qt_rate)}
+                          </Text>
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Input
+                            {...lineEditableInputProps}
+                            {...lineInputWidth(line.amended_value, "Amended", 6)}
+                            type="number"
+                            value={line.amended_value}
+                            onChange={(e) => updateLineField(index, "amended_value", e.target.value)}
+                          />
+                        </Td>
+                        <Td {...lineCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
+                          <Text {...lineReadOnlyText}>
+                            {formatQuotationNumber(line.rate_to_client)}
+                          </Text>
+                        </Td>
+                        <Td {...lineCell} {...lineReadOnlyCell}>
+                          <Input
+                            {...lineEditableInputProps}
+                            {...lineInputWidth(line.group_free_text, "GroupFree text", 12)}
+                            value={line.group_free_text}
+                            onChange={(e) =>
+                              updateLineField(index, "group_free_text", e.target.value)
+                            }
+                          />
+                        </Td>
+                        <Td {...lineCell} {...lineReadOnlyCell}>
+                          <SimpleSearchableSelect
+                            value={line.status}
+                            onChange={(val) => updateLineField(index, "status", val || "quote_current")}
+                            options={statusOptions}
+                            placeholder="Status"
+                            formatOption={(opt) => opt.name || opt.id}
+                            {...lineAutoSelectProps}
+                            autoWidthMin={12}
+                          />
+                        </Td>
+                        <Td {...lineCell} textAlign="center" px={1}>
+                          <IconButton
+                            aria-label="Remove line"
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="red"
+                            icon={<MdDelete />}
+                            isDisabled={lines.length <= 1}
+                            onClick={() => removeLine(index)}
+                          />
+                        </Td>
+                      </Tr>
+                    );
+                  })}
                 </Tbody>
               </Table>
             </Box>
