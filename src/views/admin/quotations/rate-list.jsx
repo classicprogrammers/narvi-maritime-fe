@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
   Box,
@@ -50,7 +50,7 @@ const DEFAULT_FORM = {
   rate_type: "general",
   client_id: "",
   location_text: "",
-  agent_text: "",
+  agent_id: "",
   currency_id: "",
   rate_name: "",
   rate_text: "",
@@ -80,6 +80,12 @@ function intFilterToParam(value) {
   if (value === "" || value == null) return undefined;
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function emptyToNull(value) {
+  if (value == null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  return value;
 }
 
 function formatAgentOption(agent) {
@@ -186,6 +192,7 @@ export default function RateList() {
   const [saving, setSaving] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [formData, setFormData] = useState(DEFAULT_FORM);
+  const [editAgentOption, setEditAgentOption] = useState(null);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -283,18 +290,30 @@ export default function RateList() {
 
   const openCreate = () => {
     setIsEdit(false);
+    setEditAgentOption(null);
     setFormData(DEFAULT_FORM);
     onOpen();
   };
 
   const openEdit = (item) => {
     setIsEdit(true);
+    const agentId = item.agent_id?.id ?? item.agent_id ?? "";
+    const agentName = item.agent_id?.name || item.agent || item.agent_text || "";
+    setEditAgentOption(
+      agentId
+        ? {
+            id: agentId,
+            name: agentName,
+            company_name: agentName,
+          }
+        : null
+    );
     setFormData({
       id: item.id,
       rate_type: item.rate_type || "general",
       client_id: item.client_id?.id || item.client_id || "",
       location_text: item.location_text || item.location || "",
-      agent_text: item.agent_text || item.agent || "",
+      agent_id: agentId,
       currency_id: item.currency_id?.id || item.currency_id || "",
       rate_name: item.rate_name || "",
       rate_text: item.rate_text || "",
@@ -342,7 +361,13 @@ export default function RateList() {
         ...formData,
         client_id: formData.rate_type === "client_specific" ? Number(formData.client_id) : null,
         currency_id: Number(formData.currency_id),
+        agent_id: formData.agent_id ? Number(formData.agent_id) : null,
+        // Backend expects date-like nullable fields as null, not empty string.
+        valid_until: emptyToNull(formData.valid_until),
+        last_update: emptyToNull(formData.last_update),
       };
+
+      delete payload.agent_text;
 
       if (!isEdit) {
         delete payload.id;
@@ -362,9 +387,15 @@ export default function RateList() {
       setPage(1);
       await loadData();
     } catch (error) {
+      const backendMessage =
+        error?.response?.data?.result?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "";
       toast({
         title: "Error",
-        description: isEdit ? "Failed to update rate." : "Failed to create rate.",
+        description:
+          backendMessage || (isEdit ? "Failed to update rate." : "Failed to create rate."),
         status: "error",
         duration: 3000,
         isClosable: true,
@@ -401,6 +432,12 @@ export default function RateList() {
     color: inputText,
     borderColor: borderColor,
   };
+
+  const modalAgentOptions = useMemo(() => {
+    if (!editAgentOption) return agents;
+    const exists = agents.some((agent) => String(agent.id) === String(editAgentOption.id));
+    return exists ? agents : [editAgentOption, ...agents];
+  }, [agents, editAgentOption]);
 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
@@ -966,10 +1003,14 @@ export default function RateList() {
                   />
                 </FormControl>
                 <FormControl>
-                  <FormLabel>Agent Text</FormLabel>
-                  <Input
-                    value={formData.agent_text}
-                    onChange={(e) => setFormData((p) => ({ ...p, agent_text: e.target.value }))}
+                  <FormLabel>Agent</FormLabel>
+                  <SimpleSearchableSelect
+                    value={formData.agent_id}
+                    onChange={(value) => setFormData((p) => ({ ...p, agent_id: value || "" }))}
+                    options={modalAgentOptions}
+                    placeholder="Select agent"
+                    formatOption={formatAgentOption}
+                    {...searchableSelectProps}
                   />
                 </FormControl>
               </HStack>
