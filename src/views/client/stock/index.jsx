@@ -46,11 +46,12 @@ import clientStockApi from "api/clientStock";
 import clientHubApi from "api/clientHub";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
-import { normalizeStockStatusKey } from "constants/stockStatus";
+import { FALLBACK_ACTIVE_STATUS_OPTIONS, normalizeStockStatusKey } from "constants/stockStatus";
 import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachmentsUi";
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
+import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
 /**
@@ -366,16 +367,15 @@ function ClientStock() {
   useEffect(() => {
     const selectedVessel = location?.state?.selectedVessel;
     const selectedHubLocation = location?.state?.selectedHubLocation;
-    if (selectedVessel || selectedHubLocation) {
+    const stockStatus = location?.state?.dashboardFilter?.stockStatus;
+    if (selectedVessel || selectedHubLocation || stockStatus) {
       setFilters((prev) => ({
         ...prev,
-        vessel: selectedVessel || "",
-        location: selectedHubLocation || "",
+        vessel: selectedVessel || prev.vessel,
+        location: selectedHubLocation || prev.location,
+        status: stockStatus || prev.status,
       }));
-      // Clear route state after applying, so refresh/back won't re-apply unexpectedly
-      if (window.history?.replaceState) {
-        window.history.replaceState({}, document.title);
-      }
+      clearClientNavigationState();
     }
   }, [location]);
 
@@ -800,7 +800,11 @@ function ClientStock() {
           <GridItem>
             <Text fontSize="xs" mb={1} color={muted}>Status</Text>
             <Select size="sm" placeholder="All statuses" value={filters.status} onChange={(e) => handleFilterChange("status", e.target.value)}>
-              <option value="stock">Stock</option>
+              {FALLBACK_ACTIVE_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
               <option value="delivered">Delivered</option>
               <option value="returned">Returned</option>
               <option value="lost">Lost</option>

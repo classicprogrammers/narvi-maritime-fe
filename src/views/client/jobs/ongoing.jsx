@@ -21,13 +21,16 @@ import {
   Tr,
   useColorModeValue,
 } from "@chakra-ui/react";
+import { useLocation } from "react-router-dom";
 import { MdFileDownload, MdRefresh, MdSearch } from "react-icons/md";
 import clientJobsApi from "api/clientJobs";
 import clientVesselApi from "api/clientVessel";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
+import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
 function ClientOngoingJobs() {
+  const location = useLocation();
   const [filters, setFilters] = useState({
     fromDate: "",
     toDate: "",
@@ -111,6 +114,14 @@ function ClientOngoingJobs() {
   useEffect(() => {
     fetchVessels();
   }, [fetchVessels]);
+
+  useEffect(() => {
+    const jobStatus = location?.state?.dashboardFilter?.jobStatus;
+    if (jobStatus) {
+      setFilters((prev) => ({ ...prev, status: jobStatus }));
+      clearClientNavigationState();
+    }
+  }, [location]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
