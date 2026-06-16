@@ -1048,7 +1048,6 @@ export default function QuotationForm() {
             nextLine.rate_item_name = item.rate_item_name ?? "";
             nextLine.rate_remark = item.rate_remark ?? item.remarks ?? "";
             nextLine.buy_rate = item.buy_rate ?? "";
-            nextLine.quantity = item.quantity || nextLine.quantity || "1";
             nextLine.calculation = item.calculation ?? "";
             nextLine.fixed_sales_rate = item.fixed_sales_rate ?? "";
             nextLine.computed_currency_id = item.currency_id ?? "";
@@ -1533,10 +1532,14 @@ export default function QuotationForm() {
                                   {...lineAutoSelectProps}
                                 />
                               </Td>
-                              <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
-                                <Text {...lineReadOnlyText}>
-                                  {formatLineDisplayValue(line.quantity)}
-                                </Text>
+                              <Td {...lineDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
+                                <Input
+                                  {...lineEditableInputProps}
+                                  {...lineInputWidth(line.quantity, "Quantity")}
+                                  type="number"
+                                  value={line.quantity}
+                                  onChange={(e) => updateLineField(index, "quantity", e.target.value)}
+                                />
                               </Td>
                               <Td {...lineDataCell} bg={lineCalcCellBg} {...lineReadOnlyCell}>
                                 <Text {...lineReadOnlyText}>
