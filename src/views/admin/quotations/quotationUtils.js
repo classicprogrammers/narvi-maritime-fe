@@ -123,14 +123,63 @@ export function normalizeRateItems(list) {
     rate_id: item.rate_id ?? "",
     rate_item_name: item.rate_name || item.rate_item_name || item.name || "",
     rate_remark: normalizeRemark(item.rate_remark ?? item.remarks),
+    buy_rate:
+      item.buy_rate != null && item.buy_rate !== false
+        ? String(item.buy_rate)
+        : item.rate_float != null && item.rate_float !== false
+          ? String(item.rate_float)
+          : "",
+    quantity: item.quantity != null ? String(item.quantity) : "",
+    calculation: apiString(item.calculation) || apiString(item.rate_calculation),
+    fixed_sales_rate:
+      item.fixed_sales_rate != null && item.fixed_sales_rate !== false
+        ? String(item.fixed_sales_rate)
+        : item.fixed_sale_rate != null && item.fixed_sale_rate !== false
+          ? String(item.fixed_sale_rate)
+          : "",
+    currency_id: m2oId(item.currency_id),
+    currency_name: apiString(item.currency) || m2oName(item.currency_id),
   }));
 }
 
-export function ensureSelectedOption(options, value, buildOption) {
+export function normalizeVesselOptions(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => {
+    if (typeof item === "string") return { id: item, name: item };
+    const id = item.id ?? item.vessel_id;
+    const name = item.name ?? item.vessel_name ?? String(id ?? "");
+    return {
+      ...item,
+      id,
+      name,
+      imo: apiString(item.imo ?? item.imo_number ?? item.vessel_imo),
+    };
+  });
+}
+
+export function normalizeSoOptions(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => {
+    if (typeof item === "string") return { id: item, name: item };
+    const name = apiString(item.so_id) || item.name || item.so_number || String(item.id ?? "");
+    return {
+      ...item,
+      id: item.id,
+      name,
+      so_id: apiString(item.so_id),
+    };
+  });
+}
+
+export function ensureSelectedOption(options, value, buildOption, previousOptions = []) {
   if (value == null || value === "") return options;
   if (options.some((opt) => String(opt.id) === String(value))) return options;
   const fallback = buildOption?.(value);
-  return fallback ? [fallback, ...options] : options;
+  if (fallback) return [fallback, ...options];
+  const fromPrevious = Array.isArray(previousOptions)
+    ? previousOptions.find((opt) => String(opt.id) === String(value))
+    : null;
+  return fromPrevious ? [fromPrevious, ...options] : options;
 }
 
 export function formatClientOption(client) {
@@ -148,6 +197,7 @@ export function formatVesselOption(vessel) {
 
 export function formatSoOption(so) {
   if (!so) return "";
+  if (so.so_id) return String(so.so_id);
   return so.name || so.so_number || so.display_name || `SO ${so.id}`;
 }
 
@@ -234,6 +284,25 @@ export function normalizeStatusOptions(list) {
   });
 }
 
+export function resolveLineStatus(status) {
+  const value = apiString(status).trim();
+  return value || "quote_current";
+}
+
+export function resolveLineStatusOptions(options, selectedStatus = "quote_current") {
+  const status = resolveLineStatus(selectedStatus);
+  const normalized = normalizeStatusOptions(options);
+  return ensureSelectedOption(
+    normalized,
+    status,
+    (id) => {
+      const known = QUOTATION_LINE_STATUS_OPTIONS.find((opt) => String(opt.id) === String(id));
+      return known || { id, name: String(id) };
+    },
+    QUOTATION_LINE_STATUS_OPTIONS
+  );
+}
+
 export function formatQuotationNumber(value, fallback = "—") {
   if (value == null || value === "") return fallback;
   const n = Number(value);
@@ -249,6 +318,11 @@ export function formatPercentDisplay(value) {
   return `${n.toFixed(1)}%`;
 }
 
+export function formatLineDisplayValue(value, fallback = "—") {
+  if (value === false || value == null || value === "") return fallback;
+  return String(value);
+}
+
 export function emptyLine() {
   return {
     id: null,
@@ -259,6 +333,7 @@ export function emptyLine() {
     rate_id: "",
     rate_item_name: "",
     rate_remark: "",
+    buy_rate: "",
     quantity: "1",
     cost_actual: "0",
     roe: "",
@@ -304,20 +379,31 @@ export function lineFromApi(line) {
     rate_id: apiString(line.rate_id),
     rate_item_name: apiString(line.rate_item_name),
     rate_remark: normalizeRemark(line.rate_remark),
+    buy_rate:
+      line.buy_rate != null && line.buy_rate !== false
+        ? String(line.buy_rate)
+        : line.rate_float != null && line.rate_float !== false
+          ? String(line.rate_float)
+          : "",
     quantity: line.quantity != null ? String(line.quantity) : "1",
     cost_actual: line.cost_actual != null ? String(line.cost_actual) : "0",
     roe: line.roe != null ? String(line.roe) : "",
     mu_percent: line.mu_percent != null ? String(line.mu_percent) : "",
     amended_value: line.amended_value != null ? String(line.amended_value) : "",
     group_free_text: apiString(line.group_free_text),
-    status: apiString(line.status) || "quote_current",
+    status: resolveLineStatus(line.status),
     currency_override_id: m2oId(line.currency_override_id),
     free_text: apiString(line.free_text),
     remark: apiString(line.remark),
-    calculation: apiString(line.calculation),
-    fixed_sales_rate: line.fixed_sales_rate != null ? String(line.fixed_sales_rate) : "",
+    calculation: apiString(line.calculation) || apiString(line.rate_calculation),
+    fixed_sales_rate:
+      line.fixed_sales_rate != null && line.fixed_sales_rate !== false
+        ? String(line.fixed_sales_rate)
+        : line.fixed_sale_rate != null && line.fixed_sale_rate !== false
+          ? String(line.fixed_sale_rate)
+          : "",
     computed_currency_id: m2oId(line.currency_id),
-    computed_currency_name: m2oName(line.currency_id),
+    computed_currency_name: apiString(line.currency) || m2oName(line.currency_id),
     cost_sum: line.cost_sum != null ? String(line.cost_sum) : "",
     cost_usd: line.cost_usd != null ? String(line.cost_usd) : "",
     mu_amount: line.mu_amount != null ? String(line.mu_amount) : "",
@@ -423,4 +509,17 @@ export function headerFromApi(q) {
     general_mu: q.general_mu != null ? String(q.general_mu) : "",
     caf: q.caf != null ? String(q.caf) : "",
   };
+}
+
+export function mergeHeaderFromApi(current, q) {
+  const next = { ...(current || emptyHeader()) };
+  if (q.client_id != null) next.client_id = m2oId(q.client_id);
+  if (q.vessel_id != null) next.vessel_id = m2oId(q.vessel_id);
+  if (q.sale_order_id != null) next.sale_order_id = m2oId(q.sale_order_id);
+  if (q.validity_date != null) next.validity_date = apiString(q.validity_date);
+  if (q.currency_id != null) next.currency_id = m2oId(q.currency_id);
+  if (q.usd_roe != null) next.usd_roe = String(q.usd_roe);
+  if (q.general_mu != null) next.general_mu = String(q.general_mu);
+  if (q.caf != null) next.caf = String(q.caf);
+  return next;
 }

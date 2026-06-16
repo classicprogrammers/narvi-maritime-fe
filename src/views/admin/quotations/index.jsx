@@ -39,7 +39,7 @@ import {
   intOrUndef,
   m2oName,
   normalizeClientOptions,
-  normalizeOptions,
+  normalizeVesselOptions,
   quotationRateNames,
   quotationSoDisplay,
   quotationVesselName,
@@ -183,17 +183,21 @@ export default function Quotations() {
       setFilterOptionsLoading(true);
       try {
         const current = filtersRef.current;
+        const clientId = intOrUndef(overrides.client_id ?? current.client_id);
+        const vesselId = intOrUndef(overrides.vessel_id ?? current.vessel_id);
         const result = await getNarviQuotationOptions({
           page: 1,
           page_size: 50,
-          client_id: intOrUndef(overrides.client_id ?? current.client_id),
-          vessel_id: intOrUndef(overrides.vessel_id ?? current.vessel_id),
+          client_id: clientId,
+          vessel_id: vesselId,
           q_client: overrides.q_client ?? "",
           q_vessel: overrides.q_vessel ?? "",
           q_so: "",
         });
-        setClientOptions(normalizeClientOptions(result.client_options));
-        setVesselOptions(normalizeOptions(result.vessel_options));
+        setClientOptions(normalizeClientOptions(result.client_options ?? []));
+        setVesselOptions(
+          clientId ? normalizeVesselOptions(result.vessel_options ?? []) : []
+        );
       } catch (error) {
         toast({
           title: "Error",
@@ -214,11 +218,25 @@ export default function Quotations() {
     if (!q) return;
     if (filterSearchTimer.current) clearTimeout(filterSearchTimer.current);
     filterSearchTimer.current = setTimeout(() => {
+      const current = filtersRef.current;
       loadFilterOptions({
+        client_id: current.client_id || undefined,
+        vessel_id: current.vessel_id || undefined,
         q_client: field === "client" ? q : "",
         q_vessel: field === "vessel" ? q : "",
       });
     }, 300);
+  };
+
+  const handleFilterFieldFocus = (field) => {
+    const current = filtersRef.current;
+    if (field === "vessel" && !current.client_id) return;
+    loadFilterOptions({
+      client_id: current.client_id || undefined,
+      vessel_id: current.vessel_id || undefined,
+      q_client: "",
+      q_vessel: "",
+    });
   };
 
   useEffect(() => {
@@ -285,9 +303,13 @@ export default function Quotations() {
     });
     setPage(1);
     if (field === "client_id") {
+      setVesselOptions([]);
       loadFilterOptions({ client_id: value || undefined, vessel_id: undefined });
     } else if (field === "vessel_id") {
-      loadFilterOptions({ vessel_id: value || undefined });
+      loadFilterOptions({
+        client_id: filtersRef.current.client_id || undefined,
+        vessel_id: value || undefined,
+      });
     }
   };
 
@@ -295,7 +317,9 @@ export default function Quotations() {
     setSearch("");
     setDebouncedSearch("");
     setFilters(DEFAULT_FILTERS);
+    setVesselOptions([]);
     setPage(1);
+    loadFilterOptions();
   };
 
   const handleDelete = async (quotationId) => {
@@ -481,12 +505,14 @@ export default function Quotations() {
                       value={filters.vessel_id}
                       onChange={(value) => handleFilterChange("vessel_id", value || "")}
                       options={vesselOptions}
-                      placeholder="All Vessels"
+                      placeholder={filters.client_id ? "All Vessels" : "Select client first"}
                       isLoading={filterOptionsLoading}
+                      isDisabled={!filters.client_id}
                       formatOption={formatVesselOption}
                       prefillOnFocus={false}
                       clearOnEmptySearch={false}
                       serverSideSearch
+                      onFocus={() => handleFilterFieldFocus("vessel")}
                       onSearchChange={(q) => scheduleFilterSearch("vessel", q)}
                       {...searchableSelectProps}
                     />

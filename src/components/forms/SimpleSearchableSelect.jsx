@@ -73,7 +73,7 @@ const SimpleSearchableSelect = ({
   })();
 
   // Pull layout props so we can apply them to the wrapper too
-  const { w, minW, maxW, ...inputProps } = props;
+  const { w, minW, maxW, onFocus: onFocusProp, ...inputProps } = props;
 
   const filteredOptions = useMemo(() => {
     if (serverSideSearch || !isOpen) return options;
@@ -169,7 +169,8 @@ const SimpleSearchableSelect = ({
     if (typeof onSearchChange === "function") onSearchChange(newValue);
   };
 
-  const handleFocus = () => {
+  const handleFocus = (e) => {
+    onFocusProp?.(e);
     openDropdown(prefillOnFocus && value ? displayValue : "");
   };
 
