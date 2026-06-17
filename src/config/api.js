@@ -39,6 +39,11 @@ export const API_CONFIG = {
     SHIPPING_ORDER_UPDATE: "/api/shipping/order/update",
     SHIPPING_ORDER_PACKAGE_CHECK: "/api/shipping/order/package/check",
     SHIPPING_ORDER_PACKAGE_MERGE: "/api/shipping/order/package/merge",
+    // Carbon calculator
+    CARBON_EMISSION_FACTORS: "/api/carbon/emission-factors",
+    CARBON_EMISSION_FACTORS_UPDATE: "/api/carbon/emission-factors/update",
+    CARBON_STOCK_EMISSIONS: "/api/carbon/stock-emissions",
+    CARBON_CALCULATE: "/api/carbon/calculate",
   },
 
   // Request timeout in milliseconds

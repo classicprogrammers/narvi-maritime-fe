@@ -28,6 +28,7 @@ import {
   MdAdd,
   MdStorage,
   MdHistory,
+  MdCloud,
 } from "react-icons/md";
 
 // Admin Imports
@@ -88,6 +89,9 @@ import SignUp from "views/auth/signUp";
 // Users
 import Users from "views/admin/users";
 import HistoryLogs from "views/admin/history-logs";
+
+// Carbon Calculator
+import CarbonCalculator from "views/admin/carbon-calculator";
 
 const routes = [
   {
@@ -168,6 +172,14 @@ const routes = [
       <Icon as={MdLocalShipping} width="20px" height="20px" color="inherit" />
     ),
     component: ShippingOrder,
+  },
+  {
+    name: "Carbon Calculator",
+    layout: "/admin",
+    path: "/carbon-calculator",
+    exact: true,
+    icon: <Icon as={MdCloud} width="20px" height="20px" color="inherit" />,
+    component: CarbonCalculator,
   },
   {
     name: "Stock List",
