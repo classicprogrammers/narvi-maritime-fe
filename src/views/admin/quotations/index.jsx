@@ -1,26 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Box,
-    Button,
+  Box,
+  Button,
   Flex,
   HStack,
   Icon,
   IconButton,
-    Input,
+  Input,
   InputGroup,
   InputLeftElement,
   InputRightElement,
   Select,
-    Table,
-    Tbody,
+  Table,
+  Tbody,
   Td,
   Text,
   Th,
   Thead,
   Tooltip,
   Tr,
-    useColorModeValue,
-    useToast,
+  useColorModeValue,
+  useToast,
   VStack,
 } from "@chakra-ui/react";
 import { MdAdd, MdClose, MdDelete, MdEdit, MdFilterList, MdSearch } from "react-icons/md";
@@ -55,7 +55,7 @@ const DEFAULT_FILTERS = {
 
 function TruncatedCell({ value, maxW = "200px", fontWeight, textColor, tdStyle, cellText }) {
   const text = value || "-";
-    return (
+  return (
     <Td
       maxW={maxW}
       isTruncated
@@ -71,8 +71,8 @@ function TruncatedCell({ value, maxW = "200px", fontWeight, textColor, tdStyle, 
 }
 
 export default function Quotations() {
-    const history = useHistory();
-    const toast = useToast();
+  const history = useHistory();
+  const toast = useToast();
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -154,10 +154,10 @@ export default function Quotations() {
 
   const hasAnyAdvanceFilter = Boolean(
     filters.client_id ||
-      filters.vessel_id ||
-      filters.sale_order_id ||
-      filters.rate_name.trim() ||
-      filters.validity_date
+    filters.vessel_id ||
+    filters.sale_order_id ||
+    filters.rate_name.trim() ||
+    filters.validity_date
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -273,19 +273,19 @@ export default function Quotations() {
       setTotalCount(0);
       setHasNext(false);
       setHasPrevious(false);
-            toast({
-                title: "Error",
+      toast({
+        title: "Error",
         description: extractNarviQuotationError(error, "Failed to load quotations."),
-                status: "error",
+        status: "error",
         duration: 3000,
-                isClosable: true,
-            });
-        } finally {
+        isClosable: true,
+      });
+    } finally {
       setLoading(false);
     }
   }, [page, pageSize, debouncedSearch, filters, toast]);
 
-    useEffect(() => {
+  useEffect(() => {
     loadList();
   }, [loadList]);
 
@@ -327,42 +327,43 @@ export default function Quotations() {
       await deleteNarviQuotation(quotationId);
       toast({ title: "Quotation deleted", status: "success", duration: 2000, isClosable: true });
       await loadList();
-        } catch (error) {
-            toast({
-                title: "Error",
+    } catch (error) {
+      toast({
+        title: "Error",
         description: extractNarviQuotationError(error, "Failed to delete quotation."),
-                status: "error",
-                duration: 3000,
-                isClosable: true,
-            });
-        }
-    };
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
 
-    return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
-            <VStack spacing={6} align="stretch">
+  return (
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
+      <VStack spacing={6} align="stretch">
         <Card direction="column" w="100%" px="0px" overflowX={{ sm: "scroll", lg: "hidden" }}>
           <Flex px="25px" justify="space-between" mb="20px" align="center">
             <Text color={textColor} fontSize="22px" fontWeight="700" lineHeight="100%">
-                            Quotations
-                        </Text>
-                                <Button
+              Quotations
+            </Text>
+            <Button
               leftIcon={<Icon as={MdAdd} />}
               colorScheme="blue"
-                                    size="sm"
+              size="sm"
               onClick={() => history.push("/admin/quotations/create")}
-                                >
+            >
               New Quotation
-                                </Button>
+            </Button>
           </Flex>
 
           <Box
             px="25px"
             mb="20px"
             bg={inputBg}
-                            borderRadius="16px"
+            borderRadius="16px"
             p="24px"
-                            border="1px"
+            border="1px"
+            mx="15px"
             borderColor={borderColor}
           >
             <HStack spacing={6} justify="space-between" align="center" flexWrap="wrap" mb={4}>
@@ -384,10 +385,10 @@ export default function Quotations() {
                   />
                   {search && (
                     <InputRightElement width="32px">
-                                                            <IconButton
+                      <IconButton
                         aria-label="Clear search"
                         size="xs"
-                                                                variant="ghost"
+                        variant="ghost"
                         icon={<Icon as={MdClose} />}
                         onClick={() => setSearch("")}
                         _hover={{ bg: "gray.200" }}
@@ -395,16 +396,16 @@ export default function Quotations() {
                     </InputRightElement>
                   )}
                 </InputGroup>
-                        </Box>
+              </Box>
 
               <Box>
                 <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                   &nbsp;
                 </Text>
                 {hasAnyFilter && (
-                                    <Button
+                  <Button
                     size="md"
-                                        variant="outline"
+                    variant="outline"
                     onClick={clearFilters}
                     colorScheme="red"
                     _hover={{ bg: "red.50" }}
@@ -412,15 +413,15 @@ export default function Quotations() {
                     border="2px"
                   >
                     Clear All
-                                    </Button>
+                  </Button>
                 )}
               </Box>
 
               <Box>
                 <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
                   Advanced Filters
-                                                </Text>
-                                    <Button
+                </Text>
+                <Button
                   size="md"
                   variant={hasAnyAdvanceFilter ? "solid" : "outline"}
                   colorScheme={hasAnyAdvanceFilter ? "blue" : "gray"}
@@ -431,8 +432,8 @@ export default function Quotations() {
                   borderColor={borderColor}
                 >
                   {showFilterFields ? "Hide Filters" : "Show Filters"}
-                                    </Button>
-                    </Box>
+                </Button>
+              </Box>
 
               <Box>
                 <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
@@ -450,7 +451,7 @@ export default function Quotations() {
                   borderRadius="8px"
                   border="2px"
                   borderColor={borderColor}
-                                        _focus={{
+                  _focus={{
                     borderColor: "blue.400",
                     boxShadow: "0 0 0 1px rgba(66, 153, 225, 0.6)",
                   }}
@@ -461,7 +462,7 @@ export default function Quotations() {
                   <option value={20}>20 per page</option>
                   <option value={50}>50 per page</option>
                   <option value={100}>100 per page</option>
-                                    </Select>
+                </Select>
               </Box>
             </HStack>
 
@@ -477,12 +478,12 @@ export default function Quotations() {
               >
                 <Text fontSize="sm" fontWeight="600" color={textColor} mb={4}>
                   Filter by Specific Fields
-                                                </Text>
+                </Text>
                 <HStack spacing={6} flexWrap="wrap" align="flex-start">
                   <Box minW="220px" flex="1">
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
                       Client
-                                                        </Text>
+                    </Text>
                     <SimpleSearchableSelect
                       value={filters.client_id}
                       onChange={(value) => handleFilterChange("client_id", value || "")}
@@ -596,7 +597,7 @@ export default function Quotations() {
                     <Tr
                       key={item.id}
                       bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
-                                                        border="1px"
+                      border="1px"
                       borderColor={tableBorderColor}
                       _hover={{ bg: hoverBg }}
                     >
@@ -648,7 +649,7 @@ export default function Quotations() {
                           <Tooltip label="Edit">
                             <IconButton
                               aria-label="Edit quotation"
-                                                        size="sm"
+                              size="sm"
                               variant="ghost"
                               colorScheme="blue"
                               icon={<MdEdit />}
@@ -658,7 +659,7 @@ export default function Quotations() {
                           <Tooltip label="Delete">
                             <IconButton
                               aria-label="Delete quotation"
-                                                        size="sm"
+                              size="sm"
                               variant="ghost"
                               colorScheme="red"
                               icon={<MdDelete />}
@@ -672,7 +673,7 @@ export default function Quotations() {
                 )}
               </Tbody>
             </Table>
-                        </Box>
+          </Box>
 
           <Flex px="25px" justify="space-between" align="center" py="20px" flexWrap="wrap" gap={4}>
             <Text fontSize="sm" color={tableTextColorSecondary}>
@@ -682,26 +683,26 @@ export default function Quotations() {
             <HStack spacing={1}>
               <Button size="sm" variant="outline" isDisabled={!hasPrevious} onClick={() => setPage(1)}>
                 ««
-                        </Button>
-                        <Button
+              </Button>
+              <Button
                 size="sm"
                 variant="outline"
                 isDisabled={!hasPrevious}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 «
-                        </Button>
+              </Button>
               <Text fontSize="sm" color={tableTextColorSecondary} px={2}>
                 Page {page} of {totalPages}
               </Text>
-                        <Button
+              <Button
                 size="sm"
                 variant="outline"
                 isDisabled={!hasNext}
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               >
                 »
-                        </Button>
+              </Button>
               <Button size="sm" variant="outline" isDisabled={!hasNext} onClick={() => setPage(totalPages)}>
                 »»
               </Button>
@@ -709,6 +710,6 @@ export default function Quotations() {
           </Flex>
         </Card>
       </VStack>
-        </Box>
-    );
+    </Box>
+  );
 }

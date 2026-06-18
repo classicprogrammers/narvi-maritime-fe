@@ -4495,7 +4495,7 @@ export default function Stocks() {
                             <TabPanel px="0" pt="20px">
                                 {/* Basic Filters Section */}
                                 <Collapse in={showFilters} animateOpacity>
-                                    <Box px="25px" mb="20px">
+                                    <Box mb="20px">
                                         <Card bg={cardBg} p="4" border="1px" borderColor={borderColor}>
                                             <VStack spacing="4" align="stretch">
                                                 {/* Basic Filters */}

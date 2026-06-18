@@ -745,6 +745,7 @@ export default function VendorsTable(props) {
         <Box
           px="25px"
           mb="20px"
+          mx="15px"
           bg={inputBg}
           borderRadius="16px"
           p="24px"

@@ -149,7 +149,7 @@ const HistoryLogs = () => {
     }
 
     return (
-        <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px="25px">
+        <Box pt={{ base: "130px", md: "80px", xl: "80px" }}>
             <Flex justify="space-between" align="center" mb="4">
                 <Box>
                     <Text fontSize="xl" fontWeight="700" color={textColor}>

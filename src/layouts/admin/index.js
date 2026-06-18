@@ -22,7 +22,7 @@ export default function Dashboard(props) {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const history = useHistory();
   const { user, checkAuth } = useUser();
-  
+
   // Check auth on mount to ensure user data is loaded from localStorage
   // Run this ONLY once on mount to avoid update loops
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function Dashboard(props) {
     hasPreloadedRef.current = true;
     preloadAll().catch((err) => console.warn("Master data preload failed:", err));
   }, [user]);
-  
+
   // Filter routes based on user type - use useMemo to recalculate when user changes
   const filteredRoutes = useMemo(() => {
     const userType = user?.user_type || "user";
@@ -268,15 +268,13 @@ export default function Dashboard(props) {
             {getRoute() ? (
               <Box
                 mx="auto"
-                p={{ base: "20px", md: "30px" }}
+                pl="15px"
+                pt={{ base: "20px", md: "30px" }}
+                pb={{ base: "20px", md: "30px" }}
                 pe="20px"
                 minH="90vh"
-                pt="50px"
                 position="relative"
                 zIndex="1000"
-                pl={{ base: "20px", xl: "0px" }}
-                pr={{ base: "20px", xl: "40px" }}
-                pb="40px"
               >
                 <Switch>
                   {getRoutes(filteredRoutes)}

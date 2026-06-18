@@ -27,6 +27,7 @@ import {
   Textarea,
   Th,
   Thead,
+  Spinner,
   Tooltip,
   Tr,
   useColorModeValue,
@@ -34,11 +35,27 @@ import {
   useToast,
   VStack,
 } from "@chakra-ui/react";
-import { MdAdd, MdClose, MdDelete, MdEdit, MdFilterList, MdSearch } from "react-icons/md";
+import {
+  MdAdd,
+  MdClose,
+  MdDelete,
+  MdEdit,
+  MdFilterList,
+  MdPictureAsPdf,
+  MdPrint,
+  MdSearch,
+} from "react-icons/md";
 import Card from "components/card/Card";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import api from "../../../api/axios";
 import { useMasterData } from "../../../hooks/useMasterData";
+import {
+  buildRateListPdf,
+  buildRateListPdfModel,
+  fetchRatesForAgentPdf,
+  getRateListPdfFilename,
+  RATE_LIST_PDF_TYPES,
+} from "./rateListPdf";
 
 const RATE_TYPE_FILTER_OPTIONS = [
   { id: "general", name: "General" },
@@ -127,6 +144,13 @@ export default function RateList() {
   const toast = useToast();
   const { clients, agents, currencies } = useMasterData();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const {
+    isOpen: isPdfPreviewOpen,
+    onOpen: onPdfPreviewOpen,
+    onClose: onPdfPreviewClose,
+  } = useDisclosure();
+  const pdfPreviewIframeRef = useRef(null);
+  const pdfPreviewBlobUrlRef = useRef(null);
 
   const textColor = useColorModeValue("secondaryGray.900", "white");
   const borderColor = useColorModeValue("gray.200", "whiteAlpha.100");
@@ -215,6 +239,17 @@ export default function RateList() {
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   const [showFilterFields, setShowFilterFields] = useState(false);
+  const [showPdfExport, setShowPdfExport] = useState(false);
+
+  const [pdfAgentId, setPdfAgentId] = useState("");
+  const [pdfModel, setPdfModel] = useState(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+
+  const pdfAgentName = useMemo(() => {
+    const agent = agents.find((a) => String(a.id) === String(pdfAgentId));
+    return agent ? formatAgentOption(agent) : "";
+  }, [agents, pdfAgentId]);
 
   useEffect(() => {
     if (hasAnyAdvanceFilter) setShowFilterFields(true);
@@ -427,6 +462,108 @@ export default function RateList() {
     }
   };
 
+  const handleClosePdfPreview = useCallback(() => {
+    if (pdfPreviewBlobUrlRef.current) {
+      URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+      pdfPreviewBlobUrlRef.current = null;
+    }
+    setPdfPreviewUrl(null);
+    onPdfPreviewClose();
+  }, [onPdfPreviewClose]);
+
+  const handleGeneratePdf = useCallback(
+    async (reportType) => {
+      if (!pdfAgentId) {
+        toast({
+          title: "Select an agent",
+          description: "Choose an agent before generating a PDF.",
+          status: "warning",
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
+
+      setIsPdfLoading(true);
+      try {
+        const agentRates = await fetchRatesForAgentPdf(api, pdfAgentId);
+        if (!agentRates.length) {
+          toast({
+            title: "No rates found",
+            description: `No rate records found for ${pdfAgentName || "this agent"}.`,
+            status: "info",
+            duration: 3500,
+            isClosable: true,
+          });
+          return;
+        }
+
+        const model = buildRateListPdfModel({
+          items: agentRates,
+          reportType,
+          agentName: pdfAgentName,
+        });
+        setPdfModel(model);
+
+        const doc = await buildRateListPdf(model);
+        const blob = doc.output("blob");
+        if (pdfPreviewBlobUrlRef.current) {
+          URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+          pdfPreviewBlobUrlRef.current = null;
+        }
+        const url = URL.createObjectURL(blob);
+        pdfPreviewBlobUrlRef.current = url;
+        setPdfPreviewUrl(url);
+        onPdfPreviewOpen();
+      } catch (error) {
+        console.error("Failed to build rate list PDF:", error);
+        toast({
+          title: "PDF failed",
+          description: "Could not generate rate list PDF.",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        setIsPdfLoading(false);
+      }
+    },
+    [onPdfPreviewOpen, pdfAgentId, pdfAgentName, toast]
+  );
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!pdfModel) return;
+    try {
+      const doc = await buildRateListPdf(pdfModel);
+      doc.save(getRateListPdfFilename(pdfModel));
+    } catch (error) {
+      console.error("Failed to download rate list PDF:", error);
+      toast({
+        title: "Download failed",
+        description: "Could not download rate list PDF.",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  }, [pdfModel, toast]);
+
+  const handlePrintFromPdfPreview = useCallback(() => {
+    const win = pdfPreviewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (pdfPreviewBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+      }
+    },
+    []
+  );
+
   const searchableSelectProps = {
     size: "md",
     bg: inputBg,
@@ -456,6 +593,7 @@ export default function RateList() {
           <Box
             px="25px"
             mb="20px"
+            mx="15px"
             bg={inputBg}
             borderRadius="16px"
             p="24px"
@@ -528,6 +666,24 @@ export default function RateList() {
                   borderColor={borderColor}
                 >
                   {showFilterFields ? "Hide Filters" : "Show Filters"}
+                </Button>
+              </Box>
+
+              <Box>
+                <Text fontSize="sm" fontWeight="600" color={textColor} mb={2}>
+                  Export PDF
+                </Text>
+                <Button
+                  size="md"
+                  variant={showPdfExport || pdfAgentId ? "solid" : "outline"}
+                  colorScheme={showPdfExport || pdfAgentId ? "teal" : "gray"}
+                  leftIcon={<Icon as={MdPictureAsPdf} />}
+                  onClick={() => setShowPdfExport(!showPdfExport)}
+                  borderRadius="10px"
+                  border="2px"
+                  borderColor={borderColor}
+                >
+                  {showPdfExport ? "Hide PDF Export" : "Show PDF Export"}
                 </Button>
               </Box>
 
@@ -663,6 +819,65 @@ export default function RateList() {
               </Box>
             )}
           </Box>
+
+          {showPdfExport && (
+            <Box
+              px="25px"
+              mb="20px"
+              mx="15px"
+              bg={expandableFilterBg}
+              borderRadius="16px"
+              p="24px"
+              border="1px"
+              borderColor={borderColor}
+            >
+              <Text fontSize="sm" fontWeight="600" color={textColor} mb={3}>
+                Export PDF
+              </Text>
+              <HStack spacing={4} align="flex-end" flexWrap="wrap">
+                <Box minW="260px" flex="1" maxW="360px">
+                  <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
+                    Agent
+                  </Text>
+                  <SimpleSearchableSelect
+                    value={pdfAgentId}
+                    onChange={(value) => setPdfAgentId(value || "")}
+                    options={agents}
+                    placeholder="Select agent for PDF export..."
+                    displayKey="name"
+                    valueKey="id"
+                    formatOption={formatAgentOption}
+                    {...searchableSelectProps}
+                  />
+                </Box>
+                <Button
+                  colorScheme="blue"
+                  leftIcon={<Icon as={MdPictureAsPdf} />}
+                  onClick={() => handleGeneratePdf(RATE_LIST_PDF_TYPES.COST_AND_FIXED)}
+                  isLoading={isPdfLoading}
+                  loadingText="Generating..."
+                  isDisabled={!pdfAgentId}
+                >
+                  PDF Cost + Fixed
+                </Button>
+                <Button
+                  colorScheme="teal"
+                  variant="outline"
+                  leftIcon={<Icon as={MdPictureAsPdf} />}
+                  onClick={() => handleGeneratePdf(RATE_LIST_PDF_TYPES.CLIENT_TARIFF)}
+                  isLoading={isPdfLoading}
+                  loadingText="Generating..."
+                  isDisabled={!pdfAgentId}
+                >
+                  PDF Client Tariffs
+                </Button>
+              </HStack>
+              <Text fontSize="xs" color={tableTextColorSecondary} mt={3}>
+                Exports all rate records for the selected agent (not limited to the current table page
+                or filters).
+              </Text>
+            </Box>
+          )}
 
           <Box
             px="15px"
@@ -1112,6 +1327,49 @@ export default function RateList() {
             </Button>
             <Button colorScheme="blue" onClick={saveRate} isLoading={saving}>
               {isEdit ? "Update" : "Create"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent m={4} maxH="calc(100vh - 2rem)">
+          <ModalHeader>
+            {pdfModel?.title || "Rate List PDF"}
+            {pdfModel?.agentName ? ` — ${pdfModel.agentName}` : ""}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody p={0} display="flex" flexDirection="column" flex="1" minH={0}>
+            {pdfPreviewUrl ? (
+              <Box flex="1" minH={0} bg={tableHeaderBg}>
+                <iframe
+                  ref={pdfPreviewIframeRef}
+                  title="Rate list PDF preview"
+                  src={pdfPreviewUrl}
+                  style={{ width: "100%", height: "100%", minHeight: "70vh", border: "none" }}
+                />
+              </Box>
+            ) : (
+              <Flex align="center" justify="center" minH="50vh">
+                <Spinner size="lg" />
+              </Flex>
+            )}
+          </ModalBody>
+          <ModalFooter gap={2} flexWrap="wrap">
+            <Button leftIcon={<Icon as={MdPrint} />} onClick={handlePrintFromPdfPreview} isDisabled={!pdfPreviewUrl}>
+              Print
+            </Button>
+            <Button
+              colorScheme="blue"
+              leftIcon={<Icon as={MdPictureAsPdf} />}
+              onClick={handleDownloadPdf}
+              isDisabled={!pdfModel}
+            >
+              Download
+            </Button>
+            <Button variant="ghost" onClick={handleClosePdfPreview}>
+              Close
             </Button>
           </ModalFooter>
         </ModalContent>

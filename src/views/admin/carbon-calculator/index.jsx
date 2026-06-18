@@ -323,7 +323,7 @@ export default function CarbonCalculator() {
   const manualFactor = factorMap[manualForm.mode] ?? "—";
 
   return (
-    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} px={{ base: "16px", md: "24px" }} pb="40px">
+    <Box pt={{ base: "130px", md: "80px", xl: "80px" }} pb="40px">
       <Flex justify="space-between" align={{ base: "start", md: "center" }} direction={{ base: "column", md: "row" }} gap="4" mb="6">
         <Box>
           <HStack spacing="3">
