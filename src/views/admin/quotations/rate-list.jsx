@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Badge,
   Box,
   Button,
   Flex,
@@ -113,13 +112,15 @@ function TruncatedCell({ value, maxW = "180px", fontWeight, textColor, cellText,
   );
 }
 
-function formatRateWithCurrency(item) {
+function formatRateCost(item) {
   const rate = item.rate_float;
-  const currency = item.currency_id?.name;
-  if (rate && currency) return `${rate} ${currency}`;
-  if (rate) return String(rate);
-  if (currency) return currency;
-  return "-";
+  if (rate === false || rate == null || String(rate).trim() === "") return "-";
+  return String(rate);
+}
+
+function displayText(value) {
+  if (value === false || value == null || String(value).trim() === "") return "-";
+  return String(value);
 }
 
 export default function RateList() {
@@ -148,9 +149,9 @@ export default function RateList() {
   const scrollbarThumbHover = useColorModeValue("#a8a8a8", "#718096");
 
   const cellText = {
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    // overflow: "hidden",
+    // textOverflow: "ellipsis",
+    whiteSpace: "wrap",
     display: "block",
   };
   const thStyle = {
@@ -206,11 +207,11 @@ export default function RateList() {
 
   const hasAnyAdvanceFilter = Boolean(
     filters.rate_type ||
-      filters.client_id ||
-      filters.agent_id ||
-      filters.currency_id ||
-      filters.rate_name ||
-      filters.rate_id
+    filters.client_id ||
+    filters.agent_id ||
+    filters.currency_id ||
+    filters.rate_name ||
+    filters.rate_id
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -302,10 +303,10 @@ export default function RateList() {
     setEditAgentOption(
       agentId
         ? {
-            id: agentId,
-            name: agentName,
-            company_name: agentName,
-          }
+          id: agentId,
+          name: agentName,
+          company_name: agentName,
+        }
         : null
     );
     setFormData({
@@ -686,47 +687,38 @@ export default function RateList() {
               },
             }}
           >
-            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1200px">
+            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1250px">
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                 <Tr>
-                  <Th w="60px" {...thStyle} />
-                  <Th w="200px" {...thStyle}>
+                  <Th w="30px" {...thStyle} />
+                  <Th w="250px" {...thStyle}>
                     Rate ID
                   </Th>
-                  <Th w="240px" {...thStyle}>
-                    Rate Name
-                  </Th>
-                  <Th w="130px" {...thStyle}>
-                    Rate Type
-                  </Th>
-                  <Th w="160px" {...thStyle}>
-                    Client
-                  </Th>
-                  <Th w="160px" {...thStyle}>
+                  <Th w="100px" {...thStyle}>
                     Location
                   </Th>
-                  <Th w="140px" {...thStyle}>
+                  <Th w="180px" {...thStyle}>
                     Agent
                   </Th>
-                  <Th w="140px" {...thStyle}>
-                    Rate
+                  <Th w="250px" {...thStyle}>
+                    Rate Name
                   </Th>
-                  <Th w="120px" {...thStyle}>
-                    Fixed Sales Rate
+                  <Th w="300px" {...thStyle}>
+                    Rate Text
                   </Th>
-                  <Th w="100px" {...thStyle}>
-                    Incl Tariff
+                  <Th w="85px" {...thStyle}>
+                    Rate Cost
                   </Th>
                   <Th w="90px" {...thStyle}>
-                    Active
+                    Rate Fixed
                   </Th>
-                  <Th w="60px" {...thStyle} />
+                  <Th w="30px" {...thStyle} />
                 </Tr>
               </Thead>
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={9} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading rates...
                       </Text>
@@ -734,7 +726,7 @@ export default function RateList() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={12} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={9} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         {hasAnyFilter ? "No rates match your search criteria." : "No rates available."}
                       </Text>
@@ -749,7 +741,7 @@ export default function RateList() {
                       border="1px"
                       borderColor={tableBorderColor}
                     >
-                      <Td {...tdStyle}>
+                      <Td {...tdStyle} p="2px" >
                         <Tooltip label="Edit Rate">
                           <IconButton
                             aria-label="Edit rate"
@@ -763,66 +755,56 @@ export default function RateList() {
                       </Td>
                       <TruncatedCell
                         value={item.rate_id}
-                        maxW="200px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <TruncatedCell
-                        value={item.rate_name}
-                        maxW="240px"
-                        textColor={textColor}
-                        cellText={cellText}
-                        tdStyle={tdStyle}
-                      />
-                      <Td {...tdStyle}>
-                        <Badge colorScheme={item.rate_type === "client_specific" ? "purple" : "blue"}>
-                          {item.rate_type}
-                        </Badge>
-                      </Td>
-                      <TruncatedCell
-                        value={item.client_id?.name}
+                        maxW="170px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
                       />
                       <TruncatedCell
                         value={item.location_text || item.location}
+                        maxW="100px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
                       />
                       <TruncatedCell
                         value={item.agent_id?.name || item.agent_text || item.agent}
-                        maxW="140px"
+                        maxW="180px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
                       />
                       <TruncatedCell
-                        value={formatRateWithCurrency(item)}
-                        maxW="140px"
+                        value={item.rate_name}
+                        maxW="220px"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <TruncatedCell
+                        value={displayText(item.rate_text)}
+                        maxW="300px"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <TruncatedCell
+                        value={formatRateCost(item)}
+                        maxW="85px"
                         fontWeight="bold"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
                       />
-                      <Td fontWeight="bold" {...tdStyle}>
-                        <Text color={textColor} fontSize="sm">
-                          {item.fixed_sales_rate || "-"}
-                        </Text>
-                      </Td>
-                      <Td {...tdStyle}>
-                        <Badge colorScheme={item.incl_in_tariff ? "blue" : "gray"}>
-                          {item.incl_in_tariff ? "Yes" : "No"}
-                        </Badge>
-                      </Td>
-                      <Td {...tdStyle}>
-                        <Badge colorScheme={item.active !== false ? "green" : "gray"}>
-                          {item.active !== false ? "Yes" : "No"}
-                        </Badge>
-                      </Td>
-                      <Td {...tdStyle}>
+                      <TruncatedCell
+                        value={displayText(item.fixed_sales_rate)}
+                        maxW="90px"
+                        fontWeight="bold"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <Td {...tdStyle} p="2px" >
                         <Tooltip label="Delete Rate">
                           <IconButton
                             aria-label="Delete rate"
