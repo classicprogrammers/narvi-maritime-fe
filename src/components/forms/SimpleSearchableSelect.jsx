@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Input,
@@ -39,6 +39,7 @@ const SimpleSearchableSelect = ({
   autoWidthPadding = 2,
   ...props
 }) => {
+  const fieldName = useId();
   const [isOpen, setIsOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -73,7 +74,16 @@ const SimpleSearchableSelect = ({
   })();
 
   // Pull layout props so we can apply them to the wrapper too
-  const { w, minW, maxW, onFocus: onFocusProp, ...inputProps } = props;
+  const {
+    w,
+    minW,
+    maxW,
+    onFocus: onFocusProp,
+    list: _ignoredList,
+    autoComplete: _ignoredAutoComplete,
+    name: nameProp,
+    ...inputProps
+  } = props;
 
   const filteredOptions = useMemo(() => {
     if (serverSideSearch || !isOpen) return options;
@@ -341,6 +351,14 @@ const SimpleSearchableSelect = ({
             boxShadow: "0 0 0 1px #1c4a95",
           }}
           {...inputProps}
+          name={nameProp || fieldName}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
         />
       </Box>
       {typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}

@@ -37,9 +37,10 @@ import {
   Spinner,
   useDisclosure,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday, MdPictureAsPdf, MdDownload } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
+import DmyDateInput, { formatIsoToDisplayDate } from "../../../../components/forms/DmyDateInput";
 import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import {
@@ -170,7 +171,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const consignBlockUserEditedRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
-  const deadlinePickerRef = useRef(null);
   const lastSubmittedHeaderRef = useRef({
     to_be_shipped_by: "",
     from_text: "",
@@ -847,37 +847,41 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
             ? (Number.isFinite(Number(form.siform_to_id)) ? Number(form.siform_to_id) : null)
             : null,
-      deadline: isShippingAdvise
-        ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
-        : isDeliveryConfirmation
-          ? (form.delivery_date != null && form.delivery_date !== false
-            ? String(form.delivery_date)
-            : form.deadline_text != null && form.deadline_text !== false
-              ? String(form.deadline_text)
-              : "")
-          : isDeliveryForm
-            ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
-            : (form.deadline_text && form.deadline_text !== false
-              ? String(form.deadline_text)
-              : String(lastSubmittedHeaderRef.current.deadline_text || "")),
+      deadline: formatIsoToDisplayDate(
+        isShippingAdvise
+          ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
+          : isDeliveryConfirmation
+            ? (form.delivery_date != null && form.delivery_date !== false
+              ? String(form.delivery_date)
+              : form.deadline_text != null && form.deadline_text !== false
+                ? String(form.deadline_text)
+                : "")
+            : isDeliveryForm
+              ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
+              : (form.deadline_text && form.deadline_text !== false
+                ? String(form.deadline_text)
+                : String(lastSubmittedHeaderRef.current.deadline_text || ""))
+      ),
       pic: isShippingAdvise
         ? ""
         : isDeliveryLike
           ? resolvedPicId
           : resolvedPicId,
-      date: isShippingAdvise
-        ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
-          ? String(form.date)
-          : todayIso)
-        : isDeliveryLike
-          ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
-            ? String(form.header_date)
+      date: formatIsoToDisplayDate(
+        isShippingAdvise
+          ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
+            ? String(form.date)
             : todayIso)
-          : (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
-            ? String(form.header_date)
-            : form.date != null && form.date !== false && String(form.date).trim() !== ""
-              ? String(form.date)
-              : ""),
+          : isDeliveryLike
+            ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
+              ? String(form.header_date)
+              : todayIso)
+            : (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
+              ? String(form.header_date)
+              : form.date != null && form.date !== false && String(form.date).trim() !== ""
+                ? String(form.date)
+                : "")
+      ),
       totalPackedQuantity: hasPackedQty ? Number(form.total_packed_quantity) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(form.total_packed_weight) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
@@ -2651,13 +2655,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         >
                           DATE:
                         </FormLabel>
-                        <Input
+                        <DmyDateInput
                           id="date"
-                          type="date"
                           value={formData.date}
-                          onChange={(e) => {
+                          onChange={(nextValue) => {
                             headerUserEditedRef.current = true;
-                            handleInputChange("date", e.target.value);
+                            handleInputChange("date", nextValue);
                           }}
                           size="sm"
                           fontWeight="medium"
@@ -2815,13 +2818,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <FormLabel htmlFor="date-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                             DATE :
                           </FormLabel>
-                          <Input
+                          <DmyDateInput
                             id="date-delivery"
-                            type="date"
                             value={formData.date}
-                            onChange={(e) => {
+                            onChange={(nextValue) => {
                               headerUserEditedRef.current = true;
-                              handleInputChange("date", e.target.value);
+                              handleInputChange("date", nextValue);
                             }}
                             size="sm"
                             fontWeight="semibold"
@@ -2834,65 +2836,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <FormLabel htmlFor="deadline-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                             {isDeliveryConfirmation ? "DELIVERY DATE :" : "DEADLINE :"}
                           </FormLabel>
-                          <Box position="relative">
-                            <Input
-                              id="deadline-delivery"
-                              type="text"
-                              value={formData.deadline}
-                              onChange={(e) => {
-                                headerUserEditedRef.current = true;
-                                handleInputChange("deadline", e.target.value);
-                              }}
-                              size="sm"
-                              fontWeight="semibold"
-                              variant="unstyled"
-                              bg="transparent"
-                              color="white"
-                              pr="28px"
-                              placeholder={isDeliveryConfirmation ? "Type delivery date or pick a date" : "Type deadline or pick a date"}
-                              _placeholder={{ color: "whiteAlpha.800" }}
-                            />
-                            <Input
-                              ref={deadlinePickerRef}
-                              type="date"
-                              value={formData.deadline}
-                              onChange={(e) => {
-                                headerUserEditedRef.current = true;
-                                handleInputChange("deadline", e.target.value);
-                              }}
-                              position="absolute"
-                              opacity={0}
-                              pointerEvents="none"
-                              h="1px"
-                              w="1px"
-                              p={0}
-                              border={0}
-                              overflow="hidden"
-                              aria-hidden="true"
-                              tabIndex={-1}
-                            />
-                            <IconButton
-                              aria-label="Open delivery deadline calendar"
-                              icon={<Icon as={MdCalendarToday} />}
-                              size="xs"
-                              variant="ghost"
-                              color="whiteAlpha.900"
-                              position="absolute"
-                              right="0"
-                              top="50%"
-                              transform="translateY(-50%)"
-                              onClick={() => {
-                                const pickerEl = deadlinePickerRef.current;
-                                if (!pickerEl) return;
-                                if (typeof pickerEl.showPicker === "function") {
-                                  pickerEl.showPicker();
-                                } else {
-                                  pickerEl.focus();
-                                  pickerEl.click();
-                                }
-                              }}
-                            />
-                          </Box>
+                          <DmyDateInput
+                            id="deadline-delivery"
+                            value={formData.deadline}
+                            onChange={(nextValue) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("deadline", nextValue);
+                            }}
+                            size="sm"
+                            fontWeight="semibold"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                          />
                         </FormControl>
                         <FormControl display="contents">
                           <FormLabel htmlFor="location-delivery" fontWeight="bold" textTransform="uppercase" m={0}>

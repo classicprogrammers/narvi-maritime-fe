@@ -56,6 +56,7 @@ import {
 } from "utils/contactJobTitle";
 import { mergeM2OOptions } from "utils/m2oFieldOptions";
 import SearchableSelect from "components/forms/SearchableSelect";
+import LongTextModalField from "components/forms/LongTextModalField";
 import { useVendor } from "redux/hooks/useVendor";
 
 // Constants
@@ -421,6 +422,7 @@ function VendorRegistration() {
 
     const [peopleRows, setPeopleRows] = React.useState([]);
     const [originalChildren, setOriginalChildren] = React.useState([]);
+    const [focusPersonRowIndex, setFocusPersonRowIndex] = React.useState(null);
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const { isOpen: isCneeTextModalOpen, onOpen: onCneeTextModalOpen, onClose: onCneeTextModalClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
@@ -463,6 +465,19 @@ function VendorRegistration() {
             ),
         [peopleRows]
     );
+
+    React.useEffect(() => {
+        if (focusPersonRowIndex === null) return undefined;
+        const timer = window.setTimeout(() => {
+            const el = document.getElementById(`agent-person-first-name-${focusPersonRowIndex}`);
+            if (el) {
+                el.focus();
+                el.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+            setFocusPersonRowIndex(null);
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [focusPersonRowIndex, peopleRows.length]);
 
     const addMoreAddress = () => {
         if (visibleAddressFields < 7) {
@@ -821,9 +836,11 @@ function VendorRegistration() {
     };
 
     const addPersonRow = () => {
-        if (!hasIncompletePersonRow) {
-            setPeopleRows(prev => [...prev, { ...emptyPersonRow, company_name: formData.name || "" }]);
-        }
+        if (hasIncompletePersonRow) return;
+        setPeopleRows((prev) => {
+            setFocusPersonRowIndex(prev.length);
+            return [...prev, { ...emptyPersonRow, company_name: formData.name || "" }];
+        });
     };
 
     const deletePersonRow = (rowIndex, row) => {
@@ -1681,17 +1698,14 @@ function VendorRegistration() {
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
-                                        <Textarea
-                                            name="remarks"
+                                        <LongTextModalField
                                             value={formData.remarks}
-                                            onChange={(e) => handleInputChange('remarks', e.target.value)}
-                                            onKeyDown={createNumberedListHandler((newValue) => {
-                                                handleInputChange('remarks', newValue);
-                                            })}
-                                            placeholder="Type and press Enter to create numbered list..."
-                                            size="sm"
-                                            w={gridInputWidth}
-                                            rows={3}
+                                            onChange={(newValue) => handleInputChange("remarks", newValue)}
+                                            numberedListHandler={createNumberedListHandler}
+                                            placeholder="Click to enter remarks..."
+                                            modalTitle="Remarks"
+                                            textareaPlaceholder="Type and press Enter to create numbered list..."
+                                            boxWidth={gridInputWidth}
                                         />
                                     </Box>
 
@@ -1737,14 +1751,13 @@ function VendorRegistration() {
                                     </Box>
                                     <Box px={4} py={2} borderColor={borderLight} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Warnings</Text>
-                                        <Textarea
+                                        <LongTextModalField
                                             value={formData.warnings || ""}
-                                            onChange={(e) => handleInputChange("warnings", e.target.value)}
-                                            placeholder="Enter any warnings or notes"
-                                            size="sm"
-                                            w={gridInputWidth}
-                                            rows={3}
-                                            resize="vertical"
+                                            onChange={(newValue) => handleInputChange("warnings", newValue)}
+                                            placeholder="Click to enter warnings..."
+                                            modalTitle="Warnings"
+                                            textareaPlaceholder="Enter any warnings or notes"
+                                            boxWidth={gridInputWidth}
                                         />
                                     </Box>
 
@@ -1981,14 +1994,13 @@ function VendorRegistration() {
                                                     >
                                                         Warnings
                                                     </Text>
-                                                    <Textarea
+                                                    <LongTextModalField
                                                         value={row.warnings || ""}
-                                                        onChange={(e) => updateCneeRow(rowIndex, "warnings", e.target.value)}
-                                                        placeholder="Enter warnings for this CNEE type"
-                                                        size="sm"
-                                                        w={gridInputWidth}
-                                                        rows={3}
-                                                        resize="vertical"
+                                                        onChange={(newValue) => updateCneeRow(rowIndex, "warnings", newValue)}
+                                                        placeholder="Click to enter warnings..."
+                                                        modalTitle={`Warnings (CNEE ${rowIndex + 1})`}
+                                                        textareaPlaceholder="Enter warnings for this CNEE type"
+                                                        boxWidth={gridInputWidth}
                                                     />
                                                 </Box>
 
@@ -2381,6 +2393,7 @@ function VendorRegistration() {
                                                             openDelay={200}
                                                         >
                                                             <Input
+                                                                id={column.key === "first_name" ? `agent-person-first-name-${rowIndex}` : undefined}
                                                                 value={row[column.key] || ""}
                                                                 onChange={(e) => updatePeopleRow(rowIndex, column.key, e.target.value)}
                                                                 type={column.key === "email" || column.key === "email2" ? "email" : undefined}

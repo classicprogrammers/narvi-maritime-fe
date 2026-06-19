@@ -34,9 +34,10 @@ import {
   Spinner,
   useDisclosure,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline, MdCalendarToday, MdPictureAsPdf, MdDownload } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
+import DmyDateInput, { formatIsoToDisplayDate } from "../../../../components/forms/DmyDateInput";
 import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
@@ -180,7 +181,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const includeInLiasonWithUserControlledRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
-  const deadlinePickerRef = useRef(null);
   const lastSubmittedHeaderRef = useRef({
     to_be_shipped_by: "",
     from_text: "",
@@ -647,8 +647,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         form.total_packed_quantity !== ""
         ? form.total_packed_quantity
         : form.total_boxes != null &&
-            form.total_boxes !== false &&
-            form.total_boxes !== ""
+          form.total_boxes !== false &&
+          form.total_boxes !== ""
           ? form.total_boxes
           : packedAs?.boxes;
     const packedWeightValue =
@@ -657,8 +657,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         form.total_packed_weight !== ""
         ? form.total_packed_weight
         : form.total_kgs != null &&
-            form.total_kgs !== false &&
-            form.total_kgs !== ""
+          form.total_kgs !== false &&
+          form.total_kgs !== ""
           ? form.total_kgs
           : packedAs?.kg;
     const hasPackedQty =
@@ -799,33 +799,37 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
             ? (Number.isFinite(Number(form.siform_to_id)) ? Number(form.siform_to_id) : null)
             : null,
-      deadline: isShippingAdvise
-        ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
-        : isDeliveryConfirmation
-          ? (form.delivery_date != null && form.delivery_date !== false
-            ? String(form.delivery_date)
-            : form.deadline_text != null && form.deadline_text !== false
-              ? String(form.deadline_text)
-              : "")
-          : isDeliveryForm
-            ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
-            : (form.deadline_text && form.deadline_text !== false
-              ? String(form.deadline_text)
-              : String(lastSubmittedHeaderRef.current.deadline_text || "")),
+      deadline: formatIsoToDisplayDate(
+        isShippingAdvise
+          ? (form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "")
+          : isDeliveryConfirmation
+            ? (form.delivery_date != null && form.delivery_date !== false
+              ? String(form.delivery_date)
+              : form.deadline_text != null && form.deadline_text !== false
+                ? String(form.deadline_text)
+                : "")
+            : isDeliveryForm
+              ? (form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "")
+              : (form.deadline_text && form.deadline_text !== false
+                ? String(form.deadline_text)
+                : String(lastSubmittedHeaderRef.current.deadline_text || ""))
+      ),
       pic: isShippingAdvise
         ? ""
         : isDeliveryLike
           ? resolvedPicId
           : resolvedPicId,
-      date: isShippingAdvise
-        ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
-          ? String(form.date)
-          : "")
-        : isDeliveryLike
-          ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
-            ? String(form.header_date)
+      date: formatIsoToDisplayDate(
+        isShippingAdvise
+          ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
+            ? String(form.date)
             : "")
-          : (form.header_date && form.header_date !== false ? String(form.header_date) : ""),
+          : isDeliveryLike
+            ? (form.header_date != null && form.header_date !== false && String(form.header_date).trim() !== ""
+              ? String(form.header_date)
+              : "")
+            : (form.header_date && form.header_date !== false ? String(form.header_date) : "")
+      ),
       totalPackedQuantity: hasPackedQty ? Number(packedQtyValue) : stockTotals.quantity,
       totalPackedWeight: hasPackedWeight ? Number(packedWeightValue) : stockTotals.weight,
       totalPackedVw: hasPackedVw ? Number(form.total_packed_vw) : stockTotals.vw,
@@ -1342,7 +1346,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           buildSavePayloadWithId(currentId, {
             ...packedChanged,
             ...(Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_quantity") ||
-            Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
+              Object.prototype.hasOwnProperty.call(packedChanged, "total_packed_weight")
               ? {
                 packed_as: {
                   boxes: Number(formData.totalPackedQuantity || 0),
@@ -1523,10 +1527,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       sicOptions.find((o) => Number(o.id) === Number(formData.sicNo))?.name ||
       "";
     const selectedIdentifierLabel = formData.siNo
-      ? ["SI NUMBER", siNoLabel || "-"]
+      ? ["SI NO", siNoLabel || "-"]
       : formData.sicNo
         ? ["SIC NO", sicNoLabel || "-"]
-        : ["SI NUMBER", "-"];
+        : ["SI NO", "-"];
     const picLabel =
       picOptions.find((o) => Number(o.id) === Number(formData.pic))?.name || formData.pic || "";
     const doc = new jsPDF({
@@ -1616,13 +1620,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     const summaryRows = isShippingAdvise
       ? [
-        selectedIdentifierLabel,
+        ["SI NO", siNoLabel || "-"],
+        ["SIC NO", sicNoLabel || "-"],
         ["JOB NO", formData.jobNo || "-"],
-        ["AWB NUMBER", formData.shippedBy || "-"],
+        ["AWB NO", formData.shippedBy || "-"],
+        ["TRANSPORT DETAILS", formData.transportDetails || "-"],
+        ["ETA", formData.deadline || "-"],
         ["FROM", formData.from || "-"],
         ["DESTINATION", formData.to || "-"],
-        ["ETA", formData.deadline || "-"],
-        ["TRANSPORT DETAILS", formData.transportDetails || "-"],
       ]
       : isDeliveryConfirmation
         ? [
@@ -1673,7 +1678,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     let cargoRows;
     let shippingInstructionPackedAsRowIndex = -1;
     if (usesStocklistCargoLayout) {
-      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH", "ORIGIN", "STOCKLIST ID"];
+      cargoHead = ["SUPPLIER", "PO NUMBER", "BOXES", "KG", "CBM", "LWH", "ORIGIN", "WAREHOUSE ID"];
       cargoRows = (cargoItems || []).map((item) => [
         item.supplier || "-",
         item.poNumber || "-",
@@ -1682,7 +1687,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
         item.lwh || "-",
         item.origin || "-",
-        item.stockItemId || "-",
+        item.warehouseId || "-",
       ]);
       cargoRows.push([
         "CARGO TO BE SHIPPED",
@@ -2036,7 +2041,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         textTransform="uppercase"
                         m={0}
                       >
-                        {isDeliveryForm ? "JOB NO :" : (isShippingAdvise ? "SI NUMBER:" : "SI NO:")}
+                        {isDeliveryForm ? "JOB NO :" : "SI NO:"}
                       </FormLabel>
                       {isDeliveryForm ? (
                         <Input
@@ -2114,7 +2119,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           style={{
                             color: "white",
                           }}
-                          placeholder="Select SI number..."
+                          placeholder="Select SI no..."
                           _placeholder={{ color: "whiteAlpha.800" }}
                         />
                       )}
@@ -2266,7 +2271,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         textTransform="uppercase"
                         m={0}
                       >
-                        {isShippingAdvise ? "AWB NUMBER:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
+                        {isShippingAdvise ? "AWB NO:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
                       </FormLabel>
                       <DeletableOptionCombobox
                         id="shipped-by-field"
@@ -2288,40 +2293,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         placeholder="Select or type shipped by..."
                         _placeholder={{ color: "whiteAlpha.800" }}
                         {...getDeleteSelectProps("shippedBy", handleDeletedShippedByOption)}
-                      />
-                    </FormControl>
-                  )}
-
-                  {!isDeliveryLike && (
-                    <FormControl display="contents">
-                      <FormLabel
-                        htmlFor="from-origin-field"
-                        fontWeight="bold"
-                        textTransform="uppercase"
-                        m={0}
-                      >
-                        FROM:
-                      </FormLabel>
-                      <DeletableOptionCombobox
-                        id="from-origin-field"
-                        value={formData.from}
-                        onChange={(nextVal) => {
-                          headerUserEditedRef.current = true;
-                          handleInputChange("from", nextVal);
-                          handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
-                          setQFrom(nextVal);
-                        }}
-                        onSearchChange={setQFrom}
-                        options={fromOptions}
-                        isLoading={isOptionsLoading || isSiFormLoading}
-                        size="sm"
-                        fontWeight="medium"
-                        variant="unstyled"
-                        bg="transparent"
-                        color="white"
-                        placeholder="Select or type origin..."
-                        _placeholder={{ color: "whiteAlpha.800" }}
-                        {...getDeleteSelectProps("from", handleDeletedFromOption)}
                       />
                     </FormControl>
                   )}
@@ -2354,114 +2325,183 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     </FormControl>
                   )}
 
-                  {!isDeliveryLike && (
-                    <FormControl display="contents">
-                      <FormLabel
-                        htmlFor="to"
-                        fontWeight="bold"
-                        textTransform="uppercase"
-                        m={0}
-                      >
-                        {isShippingAdvise
-                          ? "DESTINATION:"
-                          : isDeliveryForm
-                            ? "LOCATION:"
-                            : "TO:"}
-                      </FormLabel>
-                      <DeletableOptionCombobox
-                        id="destination-field"
-                        value={formData.to}
-                        onChange={(nextVal) => {
-                          headerUserEditedRef.current = true;
-                          handleInputChange("to", nextVal);
-                          handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
-                          setQTo(nextVal);
-                        }}
-                        onSearchChange={setQTo}
-                        options={toOptions}
-                        isLoading={isOptionsLoading || isSiFormLoading}
-                        size="sm"
-                        fontWeight="medium"
-                        variant="unstyled"
-                        bg="transparent"
-                        color="white"
-                        placeholder="Select or type destination..."
-                        _placeholder={{ color: "whiteAlpha.800" }}
-                        {...getDeleteSelectProps("to", handleDeletedToOption)}
-                      />
-                    </FormControl>
-                  )}
-
-                  {!isDeliveryLike && (
-                    <FormControl display="contents">
-                      <FormLabel
-                        htmlFor="deadline-text"
-                        fontWeight="bold"
-                        textTransform="uppercase"
-                        m={0}
-                      >
-                        {isShippingAdvise ? "ETA:" : "DEADLINE:"}
-                      </FormLabel>
-                      <Box position="relative">
-                        <Input
+                  {isShippingAdvise ? (
+                    <>
+                      <FormControl display="contents">
+                        <FormLabel
+                          htmlFor="deadline-text"
+                          fontWeight="bold"
+                          textTransform="uppercase"
+                          m={0}
+                        >
+                          ETA:
+                        </FormLabel>
+                        <DmyDateInput
                           id="deadline-text"
-                          type="text"
                           value={formData.deadline}
-                          onChange={(e) => {
+                          onChange={(nextValue) => {
                             headerUserEditedRef.current = true;
-                            handleInputChange("deadline", e.target.value);
+                            handleInputChange("deadline", nextValue);
                           }}
                           size="sm"
                           fontWeight="medium"
                           variant="unstyled"
                           bg="transparent"
                           color="white"
-                          pr="28px"
-                          placeholder="Type deadline or pick a date"
-                          _placeholder={{ color: "whiteAlpha.800" }}
                         />
-                        <Input
-                          ref={deadlinePickerRef}
-                          type="date"
-                          value={formData.deadline}
-                          onChange={(e) => {
+                      </FormControl>
+
+                      <FormControl display="contents">
+                        <FormLabel
+                          htmlFor="from-origin-field"
+                          fontWeight="bold"
+                          textTransform="uppercase"
+                          m={0}
+                        >
+                          FROM:
+                        </FormLabel>
+                        <DeletableOptionCombobox
+                          id="from-origin-field"
+                          value={formData.from}
+                          onChange={(nextVal) => {
                             headerUserEditedRef.current = true;
-                            handleInputChange("deadline", e.target.value);
+                            handleInputChange("from", nextVal);
+                            handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
+                            setQFrom(nextVal);
                           }}
-                          position="absolute"
-                          opacity={0}
-                          pointerEvents="none"
-                          h="1px"
-                          w="1px"
-                          p={0}
-                          border={0}
-                          overflow="hidden"
-                          aria-hidden="true"
-                          tabIndex={-1}
+                          onSearchChange={setQFrom}
+                          options={fromOptions}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          size="sm"
+                          fontWeight="medium"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="Select or type origin..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                          {...getDeleteSelectProps("from", handleDeletedFromOption)}
                         />
-                        <IconButton
-                          aria-label="Open deadline calendar"
-                          icon={<Icon as={MdCalendarToday} />}
-                          size="xs"
-                          variant="ghost"
-                          color="whiteAlpha.900"
-                          position="absolute"
-                          right="0"
-                          top="50%"
-                          transform="translateY(-50%)"
-                          onClick={() => {
-                            const pickerEl = deadlinePickerRef.current;
-                            if (!pickerEl) return;
-                            if (typeof pickerEl.showPicker === "function") {
-                              pickerEl.showPicker();
-                            } else {
-                              pickerEl.focus();
-                              pickerEl.click();
-                            }
+                      </FormControl>
+
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="to" fontWeight="bold" textTransform="uppercase" m={0}>
+                          DESTINATION:
+                        </FormLabel>
+                        <DeletableOptionCombobox
+                          id="destination-field"
+                          value={formData.to}
+                          onChange={(nextVal) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("to", nextVal);
+                            handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                            setQTo(nextVal);
                           }}
+                          onSearchChange={setQTo}
+                          options={toOptions}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          size="sm"
+                          fontWeight="medium"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="Select or type destination..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                          {...getDeleteSelectProps("to", handleDeletedToOption)}
                         />
-                      </Box>
-                    </FormControl>
+                      </FormControl>
+                    </>
+                  ) : (
+                    !isDeliveryLike && (
+                      <>
+                        <FormControl display="contents">
+                          <FormLabel
+                            htmlFor="from-origin-field"
+                            fontWeight="bold"
+                            textTransform="uppercase"
+                            m={0}
+                          >
+                            FROM:
+                          </FormLabel>
+                          <DeletableOptionCombobox
+                            id="from-origin-field"
+                            value={formData.from}
+                            onChange={(nextVal) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("from", nextVal);
+                              handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
+                              setQFrom(nextVal);
+                            }}
+                            onSearchChange={setQFrom}
+                            options={fromOptions}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            size="sm"
+                            fontWeight="medium"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                            placeholder="Select or type origin..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                            {...getDeleteSelectProps("from", handleDeletedFromOption)}
+                          />
+                        </FormControl>
+
+                        <FormControl display="contents">
+                          <FormLabel
+                            htmlFor="to"
+                            fontWeight="bold"
+                            textTransform="uppercase"
+                            m={0}
+                          >
+                            TO:
+                          </FormLabel>
+                          <DeletableOptionCombobox
+                            id="destination-field"
+                            value={formData.to}
+                            onChange={(nextVal) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("to", nextVal);
+                              handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                              setQTo(nextVal);
+                            }}
+                            onSearchChange={setQTo}
+                            options={toOptions}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            size="sm"
+                            fontWeight="medium"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                            placeholder="Select or type destination..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                            {...getDeleteSelectProps("to", handleDeletedToOption)}
+                          />
+                        </FormControl>
+
+                        <FormControl display="contents">
+                          <FormLabel
+                            htmlFor="deadline-text"
+                            fontWeight="bold"
+                            textTransform="uppercase"
+                            m={0}
+                          >
+                            DEADLINE:
+                          </FormLabel>
+                          <DmyDateInput
+                            id="deadline-text"
+                            value={formData.deadline}
+                            onChange={(nextValue) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("deadline", nextValue);
+                            }}
+                            size="sm"
+                            fontWeight="medium"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                          />
+                        </FormControl>
+                      </>
+                    )
                   )}
 
                   {!isShippingAdvise && !isDeliveryLike && (
@@ -2512,13 +2552,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       >
                         DATE:
                       </FormLabel>
-                      <Input
+                      <DmyDateInput
                         id="date"
-                        type="date"
                         value={formData.date}
-                        onChange={(e) => {
+                        onChange={(nextValue) => {
                           headerUserEditedRef.current = true;
-                          handleInputChange("date", e.target.value);
+                          handleInputChange("date", nextValue);
                         }}
                         size="sm"
                         fontWeight="medium"
@@ -2638,13 +2677,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="date-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           DATE :
                         </FormLabel>
-                        <Input
+                        <DmyDateInput
                           id="date-delivery"
-                          type="date"
                           value={formData.date}
-                          onChange={(e) => {
+                          onChange={(nextValue) => {
                             headerUserEditedRef.current = true;
-                            handleInputChange("date", e.target.value);
+                            handleInputChange("date", nextValue);
                           }}
                           size="sm"
                           fontWeight="semibold"
@@ -2657,65 +2695,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="deadline-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           {isDeliveryConfirmation ? "DELIVERY DATE :" : "DEADLINE :"}
                         </FormLabel>
-                        <Box position="relative">
-                          <Input
-                            id="deadline-delivery"
-                            type="text"
-                            value={formData.deadline}
-                            onChange={(e) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("deadline", e.target.value);
-                            }}
-                            size="sm"
-                            fontWeight="semibold"
-                            variant="unstyled"
-                            bg="transparent"
-                            color="white"
-                            pr="28px"
-                            placeholder={isDeliveryConfirmation ? "Type delivery date or pick a date" : "Type deadline or pick a date"}
-                            _placeholder={{ color: "whiteAlpha.800" }}
-                          />
-                          <Input
-                            ref={deadlinePickerRef}
-                            type="date"
-                            value={formData.deadline}
-                            onChange={(e) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("deadline", e.target.value);
-                            }}
-                            position="absolute"
-                            opacity={0}
-                            pointerEvents="none"
-                            h="1px"
-                            w="1px"
-                            p={0}
-                            border={0}
-                            overflow="hidden"
-                            aria-hidden="true"
-                            tabIndex={-1}
-                          />
-                          <IconButton
-                            aria-label="Open delivery deadline calendar"
-                            icon={<Icon as={MdCalendarToday} />}
-                            size="xs"
-                            variant="ghost"
-                            color="whiteAlpha.900"
-                            position="absolute"
-                            right="0"
-                            top="50%"
-                            transform="translateY(-50%)"
-                            onClick={() => {
-                              const pickerEl = deadlinePickerRef.current;
-                              if (!pickerEl) return;
-                              if (typeof pickerEl.showPicker === "function") {
-                                pickerEl.showPicker();
-                              } else {
-                                pickerEl.focus();
-                                pickerEl.click();
-                              }
-                            }}
-                          />
-                        </Box>
+                        <DmyDateInput
+                          id="deadline-delivery"
+                          value={formData.deadline}
+                          onChange={(nextValue) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("deadline", nextValue);
+                          }}
+                          size="sm"
+                          fontWeight="semibold"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                        />
                       </FormControl>
                       <FormControl display="contents">
                         <FormLabel htmlFor="location-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
@@ -2771,6 +2763,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
                           <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">ORIGIN</Th>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
                           <Th py={2} px={2} fontSize="xs" fontWeight="bold">STOCKLIST ID</Th>
                         </Tr>
                       </Thead>
@@ -2785,6 +2778,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh || "-"}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin || "-"}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || "-"}</Td>
                             <Td py={2} px={2} fontSize="xs">{item.stockItemId || "-"}</Td>
                           </Tr>
                         ))}
@@ -2796,6 +2790,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td py={2} px={2} fontSize="xs"></Td>
@@ -2855,6 +2850,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td py={2} px={2} fontSize="xs"></Td>
                         </Tr>
                         <Tr bg="gray.100">
@@ -2864,164 +2860,127 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
                             DG / UN NUMBER
                           </Td>
-                          <Td colSpan={7} py={2} px={2} fontSize="xs"></Td>
+                          <Td colSpan={8} py={2} px={2} fontSize="xs"></Td>
                         </Tr>
                         {shippingInstructionDgRows(cargoItems).map((item, index) => (
                           <Tr key={`dg-${item.id}`} bg={index % 2 === 0 ? "white" : "gray.50"}>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{getDgUnFromItem(item) || "-"}</Td>
-                            <Td colSpan={7} py={2} px={2} fontSize="xs"></Td>
+                            <Td colSpan={8} py={2} px={2} fontSize="xs"></Td>
                           </Tr>
                         ))}
                       </Tbody>
                     </Table>
                   </VStack>
                 ) : (
-                <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
-                  <Thead bg="gray.100">
-                    <Tr>
-                      {isDeliveryForm && (
-                        <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
-                        </>
-                      )}
-                      {isDeliveryConfirmation && (
-                        <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
-                        </>
-                      )}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
-                        {isDeliveryLike ? "FROM" : "ORIGIN"}
-                      </Th>
-                      {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                      {!isDeliveryLike && (
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
-                      )}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
-                      {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
-                      <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
-                      {!isDeliveryLike && (
-                        <>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
-                        </>
-                      )}
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {cargoItems.map((item, index) => (
-                      <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                  <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
+                    <Thead bg="gray.100">
+                      <Tr>
                         {isDeliveryForm && (
                           <>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                           </>
                         )}
                         {isDeliveryConfirmation && (
                           <>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                           </>
                         )}
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                        {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                          {item.warehouseId || ""}
-                        </Td>}
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
+                          {isDeliveryLike ? "FROM" : "ORIGIN"}
+                        </Th>
+                        {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
                         {!isDeliveryLike && (
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
+                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
                         )}
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                        {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
+                        {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
+                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
                         {!isDeliveryLike && (
                           <>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
                           </>
                         )}
                       </Tr>
-                    ))}
-                    <Tr bg="gray.100" fontWeight="bold">
-                      <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
-                        CARGO TO BE SHIPPED:
-                      </Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
-                      {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
-                      <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                      {!isDeliveryLike && (
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
-                      )}
-                      {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
-                    </Tr>
-                    {!isShippingAdvise && (
-                      <Tr bg="gray.50">
-                        <Td
-                          colSpan={isDeliveryLike ? 6 : 5}
-                          borderRight="1px"
-                          borderColor="gray.300"
-                          py={2}
-                          px={4}
-                          fontSize="xs"
-                          fontWeight="bold"
-                        >
-                          PACKED AS:
+                    </Thead>
+                    <Tbody>
+                      {cargoItems.map((item, index) => (
+                        <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                          {isDeliveryForm && (
+                            <>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                            </>
+                          )}
+                          {isDeliveryConfirmation && (
+                            <>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                            </>
+                          )}
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
+                          {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                            {item.warehouseId || ""}
+                          </Td>}
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                          {!isDeliveryLike && (
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
+                          )}
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                          {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                          {!isDeliveryLike && (
+                            <>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                            </>
+                          )}
+                        </Tr>
+                      ))}
+                      <Tr bg="gray.100" fontWeight="bold">
+                        <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                          CARGO TO BE SHIPPED:
                         </Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
-                          <Input
-                            id="totalPackedQuantity"
-                            type="number"
-                            value={formData.totalPackedQuantity}
-                            onChange={(e) => {
-                              packedTotalsUserEditedRef.current = true;
-                              handleInputChange("totalPackedQuantity", e.target.value);
-                            }}
-                            size="xs"
-                            variant="unstyled"
-                            bg="transparent"
-                            fontWeight="semibold"
-                          />
-                        </Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
-                          <Input
-                            id="totalPackedWeight"
-                            type="number"
-                            step="0.01"
-                            value={formData.totalPackedWeight}
-                            onChange={(e) => {
-                              packedTotalsUserEditedRef.current = true;
-                              handleInputChange("totalPackedWeight", e.target.value);
-                            }}
-                            size="xs"
-                            variant="unstyled"
-                            bg="transparent"
-                            fontWeight="semibold"
-                          />
-                        </Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                        {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                         {!isDeliveryLike && (
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
                         )}
-                        {!isDeliveryLike && (
-                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
+                        {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
+                      </Tr>
+                      {!isShippingAdvise && (
+                        <Tr bg="gray.50">
+                          <Td
+                            colSpan={isDeliveryLike ? 6 : 5}
+                            borderRight="1px"
+                            borderColor="gray.300"
+                            py={2}
+                            px={4}
+                            fontSize="xs"
+                            fontWeight="bold"
+                          >
+                            PACKED AS:
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
                             <Input
-                              id="totalPackedVw"
+                              id="totalPackedQuantity"
                               type="number"
-                              step="0.01"
-                              value={formData.totalPackedVw}
+                              value={formData.totalPackedQuantity}
                               onChange={(e) => {
                                 packedTotalsUserEditedRef.current = true;
-                                handleInputChange("totalPackedVw", e.target.value);
+                                handleInputChange("totalPackedQuantity", e.target.value);
                               }}
                               size="xs"
                               variant="unstyled"
@@ -3029,11 +2988,48 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               fontWeight="semibold"
                             />
                           </Td>
-                        )}
-                      </Tr>
-                    )}
-                  </Tbody>
-                </Table>
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                            <Input
+                              id="totalPackedWeight"
+                              type="number"
+                              step="0.01"
+                              value={formData.totalPackedWeight}
+                              onChange={(e) => {
+                                packedTotalsUserEditedRef.current = true;
+                                handleInputChange("totalPackedWeight", e.target.value);
+                              }}
+                              size="xs"
+                              variant="unstyled"
+                              bg="transparent"
+                              fontWeight="semibold"
+                            />
+                          </Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          {!isDeliveryLike && (
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          )}
+                          {!isDeliveryLike && (
+                            <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="yellow.100">
+                              <Input
+                                id="totalPackedVw"
+                                type="number"
+                                step="0.01"
+                                value={formData.totalPackedVw}
+                                onChange={(e) => {
+                                  packedTotalsUserEditedRef.current = true;
+                                  handleInputChange("totalPackedVw", e.target.value);
+                                }}
+                                size="xs"
+                                variant="unstyled"
+                                bg="transparent"
+                                fontWeight="semibold"
+                              />
+                            </Td>
+                          )}
+                        </Tr>
+                      )}
+                    </Tbody>
+                  </Table>
                 )}
               </Box>
             </Box>

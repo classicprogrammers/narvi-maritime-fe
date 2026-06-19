@@ -58,6 +58,10 @@ import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
+import {
+  VESSEL_TYPE_SELEC_OPTIONS,
+  normalizeVesselTypeSelec,
+} from "../../../constants/vesselTypeSelectOptions";
 
 export default function Vessels() {
   const history = useHistory();
@@ -67,6 +71,8 @@ export default function Vessels() {
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [clientFilter, setClientFilter] = useState("");
+  const [vesselTypeFilter, setVesselTypeFilter] = useState("");
+  const [vesselTypeSelecOptions, setVesselTypeSelecOptions] = useState(VESSEL_TYPE_SELEC_OPTIONS);
   const [page, setPage] = useState(1);
   const pageSize = 80;
   const [totalCount, setTotalCount] = useState(0);
@@ -124,6 +130,19 @@ export default function Vessels() {
     whiteSpace: "nowrap",
     display: "block",
   };
+  const teamTableCellProps = {
+    maxW: "320px",
+    minW: "200px",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflow: "visible",
+  };
+  const teamCellText = {
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflow: "visible",
+    display: "block",
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -132,6 +151,7 @@ export default function Vessels() {
     status: "active",
     imo: "",
     vessel_type: "",
+    vessel_type_selec: "",
     procurement_person_id: "",
     procurement_email: "",
     vessel_email: "",
@@ -199,9 +219,13 @@ export default function Vessels() {
         sort_order: sortOrder,
         search: searchQuery,
         client_id: clientFilter || undefined,
+        vessel_type_selec: vesselTypeFilter || undefined,
       });
       if (response.vessels && Array.isArray(response.vessels)) {
         setVessels(response.vessels);
+        if (Array.isArray(response.vessel_type_selec_options) && response.vessel_type_selec_options.length > 0) {
+          setVesselTypeSelecOptions(response.vessel_type_selec_options);
+        }
         setTotalCount(response.total_count || 0);
         setTotalPages(response.total_pages || 0);
         setHasNext(response.has_next || false);
@@ -229,7 +253,7 @@ export default function Vessels() {
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, searchQuery, clientFilter, toast]);
+  }, [page, pageSize, sortBy, sortOrder, searchQuery, clientFilter, vesselTypeFilter, toast]);
 
   useEffect(() => {
     fetchVessels();
@@ -237,7 +261,7 @@ export default function Vessels() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchQuery, clientFilter]);
+  }, [searchQuery, clientFilter, vesselTypeFilter]);
 
   // Search on change (debounced) – skip initial mount
   const isFirstSearchRun = useRef(true);
@@ -257,6 +281,7 @@ export default function Vessels() {
     setSearchValue("");
     setSearchQuery("");
     setClientFilter("");
+    setVesselTypeFilter("");
     setPage(1);
   };
 
@@ -296,6 +321,7 @@ export default function Vessels() {
       status: "active",
       imo: "",
       vessel_type: "",
+      vessel_type_selec: "",
       procurement_person_id: "",
       procurement_email: "",
       vessel_email: "",
@@ -349,6 +375,7 @@ export default function Vessels() {
         status: vesselInfo.status || "active",
         imo: vesselInfo.imo || "",
         vessel_type: vesselInfo.vessel_type || "",
+        vessel_type_selec: normalizeVesselTypeSelec(vesselInfo.vessel_type_selec),
         procurement_person_id:
           vesselInfo.procurement_person && typeof vesselInfo.procurement_person === "object"
             ? String(vesselInfo.procurement_person.id || "")
@@ -383,7 +410,11 @@ export default function Vessels() {
         }))
         .filter((person) => person.id);
       setProcurementPeopleOptions(options);
-      setEditingVessel({ ...vessel, ...vesselInfo });
+      setEditingVessel({
+        ...vessel,
+        ...vesselInfo,
+        vessel_type_selec: normalizeVesselTypeSelec(vesselInfo.vessel_type_selec),
+      });
       clientChangeUserControlledRef.current = false;
       lastSavedSignatureRef.current = "";
       createdVesselIdRef.current = vesselInfo?.id || vessel?.id || null;
@@ -408,6 +439,7 @@ export default function Vessels() {
     status: formData.status || "active",
     imo: formData.imo || "",
     vessel_type: formData.vessel_type || "",
+    vessel_type_selec: formData.vessel_type_selec || false,
     procurement_person_id: formData.procurement_person_id || "",
     procurement_email: formData.procurement_email || "",
     vessel_email: formData.vessel_email || "",
@@ -794,7 +826,25 @@ export default function Vessels() {
                 }}
               />
             </Box>
-            {(searchQuery || clientFilter) && (
+            <Box minW={{ base: "100%", md: "260px" }} maxW={{ base: "100%", md: "300px" }}>
+              <Select
+                size="md"
+                value={vesselTypeFilter}
+                onChange={(e) => setVesselTypeFilter(e.target.value)}
+                bg={inputBg}
+                color={inputText}
+                borderRadius="8px"
+                placeholder="All vessel types"
+              >
+                <option value="">All vessel types</option>
+                {vesselTypeSelecOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Box>
+            {(searchQuery || clientFilter || vesselTypeFilter) && (
               <Button
                 variant="outline"
                 onClick={handleClearSearch}
@@ -856,7 +906,7 @@ export default function Vessels() {
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
                     Vessel Email
                   </Th>
-                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
+                  <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...teamTableCellProps}>
                     Team
                   </Th>
                   <Th py="12px" px="16px" fontSize="12px" fontWeight="700" color="gray.600" textTransform="uppercase" {...tableHeaderCellProps}>
@@ -902,7 +952,9 @@ export default function Vessels() {
                       </Td>
                       <Td py="12px" px="16px" {...tableCellProps}>
                         <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
-                          {vessel.vessel_type || "-"}
+                          {vessel.vessel_type_selec_label
+                            || vessel.vessel_type
+                            || "-"}
                         </Text>
                       </Td>
                       <Td py="12px" px="16px" {...tableCellProps}>
@@ -931,8 +983,8 @@ export default function Vessels() {
                           {vessel.vessel_email || "-"}
                         </Text>
                       </Td>
-                      <Td py="12px" px="16px" {...tableCellProps}>
-                        <Text color={textColor} fontSize="sm" fontWeight="500" {...cellText}>
+                      <Td py="12px" px="16px" {...teamTableCellProps}>
+                        <Text color={textColor} fontSize="sm" fontWeight="500" {...teamCellText}>
                           {vessel.team || "-"}
                         </Text>
                       </Td>
@@ -1207,11 +1259,30 @@ export default function Vessels() {
                 <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
                   Vessel Type
                 </FormLabel>
+                <Select
+                  size="md"
+                  value={formData.vessel_type_selec}
+                  onChange={(e) => handleInputChange("vessel_type_selec", e.target.value)}
+                  borderRadius="md"
+                >
+                  <option value="">Select vessel type</option>
+                  {vesselTypeSelecOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm" fontWeight="medium" color="gray.700">
+                  Vessel Type (Text)
+                </FormLabel>
                 <Input
                   size="md"
                   value={formData.vessel_type}
                   onChange={(e) => handleInputChange("vessel_type", e.target.value)}
-                  placeholder="Enter Vessel Type"
+                  placeholder="Enter additional vessel type text"
                   borderRadius="md"
                 />
               </FormControl>

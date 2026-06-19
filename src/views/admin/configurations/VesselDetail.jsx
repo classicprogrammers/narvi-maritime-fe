@@ -400,7 +400,14 @@ const VesselDetail = () => {
                   alignItems="center"
                 >
                   <Text fontSize="sm" color={valueColor} fontWeight="500">
-                    {prettyValue(vessel.vessel_type)}
+                    {[
+                      vessel.vessel_type_selec_label && vessel.vessel_type_selec_label !== false
+                        ? String(vessel.vessel_type_selec_label)
+                        : "",
+                      vessel.vessel_type && vessel.vessel_type !== false
+                        ? String(vessel.vessel_type)
+                        : "",
+                    ].filter(Boolean).join(" — ") || "-"}
                   </Text>
                 </GridItem>
                 <GridItem

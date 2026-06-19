@@ -45,6 +45,7 @@ import { refreshMasterData, MASTER_KEYS } from "utils/masterDataCache";
 import { useMasterData } from "hooks/useMasterData";
 import { getVesselTypes } from "api/vessels";
 import SearchableSelect from "components/forms/SearchableSelect";
+import LongTextModalField from "components/forms/LongTextModalField";
 import JobTitleSelect from "components/forms/JobTitleSelect";
 import useJobTitleOptions from "hooks/useJobTitleOptions";
 import { applyJobTitleIdsToPayload, mapJobTitleFieldsFromContact } from "utils/contactJobTitle";
@@ -145,6 +146,39 @@ function CustomerRegistration() {
 
     const [peopleRows, setPeopleRows] = React.useState([]);
     const [originalChildren, setOriginalChildren] = React.useState([]);
+    const [focusPersonRowIndex, setFocusPersonRowIndex] = React.useState(null);
+
+    const hasIncompletePersonRow = React.useMemo(
+        () =>
+            peopleRows.some(
+                (row) =>
+                    !String(row.first_name || "").trim() ||
+                    (String(row.email || "").trim() !== "" && !isValidEmail(row.email)) ||
+                    (String(row.email2 || "").trim() !== "" && !isValidEmail(row.email2))
+            ),
+        [peopleRows]
+    );
+
+    React.useEffect(() => {
+        if (focusPersonRowIndex === null) return undefined;
+        const timer = window.setTimeout(() => {
+            const el = document.getElementById(`client-person-first-name-${focusPersonRowIndex}`);
+            if (el) {
+                el.focus();
+                el.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+            setFocusPersonRowIndex(null);
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [focusPersonRowIndex, peopleRows.length]);
+
+    const addPersonRow = () => {
+        if (hasIncompletePersonRow) return;
+        setPeopleRows((prev) => {
+            setFocusPersonRowIndex(prev.length);
+            return [...prev, { ...emptyPersonRow, company_name: formData.name || "" }];
+        });
+    };
 
     const { isOpen: isDeleteDialogOpen, onOpen: onDeleteDialogOpen, onClose: onDeleteDialogClose } = useDisclosure();
     const [rowToDelete, setRowToDelete] = React.useState(null);
@@ -501,14 +535,6 @@ function CustomerRegistration() {
             }
         };
     };
-
-    // Handle remarks field with numbered list on Enter
-    const handleRemarksKeyDown = createNumberedListHandler((newValue) => {
-        setFormData(prev => ({
-            ...prev,
-            remarks: newValue
-        }));
-    });
 
     const handleClientInvoicingKeyDown = createNumberedListHandler((newValue) => {
         setFormData(prev => ({
@@ -1549,15 +1575,14 @@ function CustomerRegistration() {
                                                     </Box>
                                                     <Box px={4} py={2} borderColor={borderColor} display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
                                                         <Text fontSize="sm" fontWeight="600" textTransform="uppercase" color={textColorSecondary} mt={1}>Remarks</Text>
-                                                        <Textarea
-                                                            name="remarks"
+                                                        <LongTextModalField
                                                             value={formData.remarks}
-                                                            onChange={handleInputChange}
-                                                            onKeyDown={handleRemarksKeyDown}
-                                                            placeholder="Type and press Enter to create numbered list..."
-                                                            size="sm"
-                                                            w={gridInputWidth}
-                                                            rows={3}
+                                                            onChange={(newValue) => setFormData((prev) => ({ ...prev, remarks: newValue }))}
+                                                            numberedListHandler={createNumberedListHandler}
+                                                            placeholder="Click to enter remarks..."
+                                                            modalTitle="Remarks"
+                                                            textareaPlaceholder="Type and press Enter to create numbered list..."
+                                                            boxWidth={gridInputWidth}
                                                         />
                                                     </Box>
 
@@ -1739,26 +1764,8 @@ function CustomerRegistration() {
                                         </Heading>
                                         <Button
                                             colorScheme="blue"
-                                            onClick={() => {
-                                                const required = ["first_name"];
-                                                const hasIncomplete = peopleRows.some(
-                                                    (row) =>
-                                                        required.some((f) => !String(row[f] || "").trim()) ||
-                                                        (String(row.email || "").trim() !== "" && !isValidEmail(row.email)) ||
-                                                        (String(row.email2 || "").trim() !== "" && !isValidEmail(row.email2))
-                                                );
-                                                if (hasIncomplete) return;
-                                                setPeopleRows((prev) => [
-                                                    ...prev,
-                                                    { ...emptyPersonRow, company_name: formData.name || "" },
-                                                ]);
-                                            }}
-                                            isDisabled={peopleRows.some(
-                                                (row) =>
-                                                    ["first_name"].some((f) => !String(row[f] || "").trim()) ||
-                                                    (String(row.email || "").trim() !== "" && !isValidEmail(row.email)) ||
-                                                    (String(row.email2 || "").trim() !== "" && !isValidEmail(row.email2))
-                                            )}
+                                            onClick={addPersonRow}
+                                            isDisabled={hasIncompletePersonRow}
                                         >
                                             Add Client Person
                                         </Button>
@@ -1984,6 +1991,7 @@ function CustomerRegistration() {
                                                                             openDelay={200}
                                                                         >
                                                                             <Input
+                                                                                id={column.key === "first_name" ? `client-person-first-name-${rowIndex}` : undefined}
                                                                                 value={row[column.key]}
                                                                                 onChange={(e) => {
                                                                                     const value = e.target.value;

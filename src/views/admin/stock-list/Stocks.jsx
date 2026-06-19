@@ -65,11 +65,11 @@ import api from "../../../api/axios";
 import locationsAPI from "../../../api/locations";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import {
-  buildStockSoIdM2O,
-  resolveStockSoIdForForm,
-  buildStockSoIdPayloadValue,
-  stockSoIdPayloadValuesEqual,
-  normalizeStockFormSoId,
+    buildStockSoIdM2O,
+    resolveStockSoIdForForm,
+    buildStockSoIdPayloadValue,
+    stockSoIdPayloadValuesEqual,
+    normalizeStockFormSoId,
 } from "../../../utils/shippingOrderListState";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
@@ -97,6 +97,62 @@ import StockListAttachmentsCell from "../../../components/stock-list/StockListAt
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
+
+const CLIENT_VIEW_TABLE_COLUMNS = {
+    filter1: [
+        { key: "client", label: "CLIENT" },
+        { key: "vessel", label: "VESSEL" },
+        { key: "supplier", label: "SUPPLIER" },
+        { key: "po", label: "PO #", type: "po" },
+        { key: "stock_status", label: "STOCK STATUS", type: "status" },
+        { key: "boxes", label: "BOXES" },
+        { key: "kg", label: "KG" },
+        { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+        { key: "via_hub_1", label: "VIA HUB 1" },
+        { key: "via_hub_2", label: "VIA HUB 2" },
+        { key: "destination", label: "DESTINATION" },
+        { key: "dg_un", label: "DG/UN" },
+    ],
+    filter2: [
+        { key: "client", label: "CLIENT" },
+        { key: "vessel", label: "VESSEL" },
+        { key: "supplier", label: "SUPPLIER" },
+        { key: "po", label: "PO #", type: "po" },
+        { key: "so_number", label: "SO NUMBER" },
+        { key: "destination", label: "DESTINATION" },
+        { key: "warehouse_id", label: "WAREHOUSE ID" },
+        { key: "shipping_docs", label: "SHIPPING DOCS" },
+        { key: "export_doc_1", label: "EXPORT DOCS 1" },
+        { key: "export_doc_2", label: "EXPORT DOCS 2" },
+        { key: "boxes", label: "BOXES" },
+        { key: "kg", label: "KG" },
+        { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+    ],
+    filter3: [
+        { key: "client", label: "CLIENT" },
+        { key: "vessel", label: "VESSEL" },
+        { key: "supplier", label: "SUPPLIER" },
+        { key: "po", label: "PO #", type: "po" },
+        { key: "stock_status", label: "STOCK STATUS", type: "status" },
+        { key: "cur", label: "CUR" },
+        { key: "value", label: "VALUE" },
+        { key: "date_on_stock", label: "DATE ON STOCK" },
+        { key: "boxes", label: "BOXES" },
+        { key: "kg", label: "KG" },
+        { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
+        { key: "origin", label: "ORIGIN" },
+        { key: "hub1", label: "HUB1" },
+        { key: "hub2", label: "HUB2" },
+        { key: "ap_destination", label: "AP DESTINATION" },
+        { key: "destination", label: "DESTINATION" },
+        { key: "dg_un", label: "DG/UN" },
+        { key: "so_number", label: "SO NUMBER" },
+        { key: "cur_2", label: "CUR" },
+        { key: "value_2", label: "VALUE" },
+        { key: "warehouse_id", label: "WAREHOUSE ID" },
+    ],
+};
+
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
 const STATUS_CONFIG = {
@@ -1694,6 +1750,115 @@ export default function Stocks() {
     };
 
     // Copy selected rows as HTML table
+    const getClientViewExportRow = (item, viewType) => {
+        const vessel = getDisplayName(item.vessel_id || item.vessel) || "-";
+        const supplier = getDisplayName(item.supplier_id || item.supplier) || "-";
+        const poNumber = (item.po_text || "-").replace(/\n/g, " ");
+        const stockStatus = getStatusLabel(item.stock_status) || "-";
+        const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
+        const kg = item.weight_kg ?? item.weight_kgs ?? "-";
+        const lwhText = item.lwh_text || "-";
+        const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || "-";
+        const viaHub2 = item.via_hub_2 || item.via_hub2 || "-";
+        const destination = formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
+        const dgUn = item.dg_un || "-";
+        const soNumber = item.so_id
+            ? getSoNumberName(item.so_id)
+            : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+        const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-";
+        const shippingDocs = item.shipping_doc || "-";
+        const exportDoc1 = item.export_doc || "-";
+        const exportDoc2 = item.export_doc_2 || "-";
+        const currency = getDisplayName(item.currency_id || item.currency) || "-";
+        const value = item.value ?? "-";
+        const dateOnStock = formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-";
+        const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
+        const apDestination = formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-";
+
+        if (viewType === "filter1") {
+            return [vessel, supplier, poNumber, stockStatus, boxes, kg, lwhText, viaHub1, viaHub2, destination, dgUn];
+        }
+        if (viewType === "filter2") {
+            return [vessel, supplier, poNumber, soNumber, destination, warehouseId, shippingDocs, exportDoc1, exportDoc2, boxes, kg, lwhText];
+        }
+        if (viewType === "filter3") {
+            return [
+                vessel, supplier, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
+                origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, currency, value, warehouseId,
+            ];
+        }
+        return [];
+    };
+
+    const CLIENT_VIEW_EXPORT_HEADERS = {
+        filter1: ["VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "VIA HUB 1", "VIA HUB 2", "DESTINATION", "DG/UN"],
+        filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "BOXES", "KG", "LWH TEXT"],
+        filter3: [
+            "VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
+            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "CUR", "VALUE", "WAREHOUSE ID",
+        ],
+    };
+
+    const buildExportDataByView = (items, viewType = clientViewFilterType) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+
+        if (viewType === "filter1" || viewType === "filter2" || viewType === "filter3") {
+            const headers = CLIENT_VIEW_EXPORT_HEADERS[viewType];
+            const rows = items.map((item) => getClientViewExportRow(item, viewType));
+            return { headers, rows };
+        }
+
+        if (viewType === "all") {
+            const headers = [
+                "CLIENT",
+                "VESSEL",
+                "WAREHOUSE ID",
+                "SUPPLIER",
+                "PO#",
+                "DG/UN NUMBER",
+                "BOXES",
+                "WEIGHT",
+                "TOTAL VOLUME CBN (THE EYE)",
+                "ORIGIN",
+                "VIA HUB 1",
+                "VIA HUB 2",
+                "AP DESTINATION",
+                "DESTINATION",
+                "STOCK STATUS",
+                "DATE ON STOCK",
+                "SO NUMBER",
+                "CURRENCY",
+                "VALUE",
+            ];
+            const rows = items.map((item) => [
+                getDisplayName(item.client_id || item.client) || "-",
+                getDisplayName(item.vessel_id || item.vessel) || "-",
+                item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
+                getDisplayName(item.supplier_id || item.supplier) || "-",
+                (item.po_text || "-").replace(/\n/g, " "),
+                item.dg_un || "-",
+                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+                item.weight_kg ?? item.weight_kgs ?? "-",
+                item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
+                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+                item.via_hub_2 || item.via_hub2 || "-",
+                formatStockDestinationDisplay(item, "ap"),
+                formatStockDestinationDisplay(item, "destination"),
+                getStatusLabel(item.stock_status) || "-",
+                formatDate(item.date_on_stock) || "-",
+                item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
+                getDisplayName(item.currency_id || item.currency) || "-",
+                item.value || "-",
+            ]);
+            return { headers, rows };
+        }
+
+        return { headers: [], rows: [] };
+    };
+
     const handleCopySelectedRows = async () => {
         if (clientViewSelectedRows.size === 0) return;
 
@@ -1701,234 +1866,38 @@ export default function Stocks() {
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
 
-        // Build email-friendly HTML table (inline styles so mail clients keep borders)
+        const { headers, rows } = buildExportDataByView(selectedItems, clientViewFilterType);
+        if (!headers.length) return;
+
         const thStyle = 'border:1px solid #333;padding:6px 8px;background:#f0f0f0;font-weight:700;text-align:left;vertical-align:top;';
         const tdStyle = 'border:1px solid #333;padding:6px 8px;text-align:left;vertical-align:top;';
+        const escapeHtml = (value) => String(value ?? "-")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+
         let htmlTable = '<table style="border-collapse:collapse;font-family:Arial,sans-serif;border:1px solid #333;"><thead><tr>';
-
-        // Add header row based on filter type
-        if (clientViewFilterType === 'filter1') {
-            htmlTable += `<th style="${thStyle}">CLIENT</th>`;
-            htmlTable += `<th style="${thStyle}">VESSEL</th>`;
-            htmlTable += `<th style="${thStyle}">SUPPLIER</th>`;
-            htmlTable += `<th style="${thStyle}">PO NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">DG/UN NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">VIA HUB</th>`;
-            htmlTable += `<th style="${thStyle}">BOXES</th>`;
-            htmlTable += `<th style="${thStyle}">WEIGHT KGS</th>`;
-            htmlTable += `<th style="${thStyle}">STOCK STATUS</th>`;
-            htmlTable += `<th style="${thStyle}">DESTINATION</th>`;
-        } else if (clientViewFilterType === 'filter2') {
-            htmlTable += `<th style="${thStyle}">CLIENT</th>`;
-            htmlTable += `<th style="${thStyle}">VESSEL</th>`;
-            htmlTable += `<th style="${thStyle}">SUPPLIER</th>`;
-            htmlTable += `<th style="${thStyle}">PO NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">DG/UN NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">STOCK STATUS</th>`;
-            htmlTable += `<th style="${thStyle}">ORIGIN</th>`;
-            htmlTable += `<th style="${thStyle}">VIA HUB</th>`;
-            htmlTable += `<th style="${thStyle}">DESTINATION</th>`;
-            htmlTable += `<th style="${thStyle}">SHIPPING DOCS</th>`;
-            htmlTable += `<th style="${thStyle}">EXPORT DOC 1</th>`;
-            htmlTable += `<th style="${thStyle}">EXPORT DOC 2</th>`;
-            htmlTable += `<th style="${thStyle}">BOXES</th>`;
-            htmlTable += `<th style="${thStyle}">WEIGHT KGS</th>`;
-        } else {
-            htmlTable += `<th style="${thStyle}">CLIENT</th>`;
-            htmlTable += `<th style="${thStyle}">VESSEL</th>`;
-            htmlTable += `<th style="${thStyle}">WAREHOUSE ID</th>`;
-            htmlTable += `<th style="${thStyle}">SUPPLIER</th>`;
-            htmlTable += `<th style="${thStyle}">PO#</th>`;
-            htmlTable += `<th style="${thStyle}">DG/UN NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">BOXES</th>`;
-            htmlTable += `<th style="${thStyle}">WEIGHT</th>`;
-            htmlTable += `<th style="${thStyle}">TOTAL VOLUME CBN (THE EYE)</th>`;
-            htmlTable += `<th style="${thStyle}">ORIGIN</th>`;
-            htmlTable += `<th style="${thStyle}">VIA HUB 1</th>`;
-            htmlTable += `<th style="${thStyle}">VIA HUB 2</th>`;
-            htmlTable += `<th style="${thStyle}">AP DESTINATION</th>`;
-            htmlTable += `<th style="${thStyle}">DESTINATION</th>`;
-            htmlTable += `<th style="${thStyle}">STOCK STATUS</th>`;
-            htmlTable += `<th style="${thStyle}">DATE ON STOCK</th>`;
-            htmlTable += `<th style="${thStyle}">SO NUMBER</th>`;
-            htmlTable += `<th style="${thStyle}">CURRENCY</th>`;
-            htmlTable += `<th style="${thStyle}">VALUE</th>`;
-        }
-
+        headers.forEach((header) => {
+            htmlTable += `<th style="${thStyle}">${escapeHtml(header)}</th>`;
+        });
         htmlTable += '</tr></thead><tbody>';
 
-        // Add data rows
-        selectedItems.forEach(item => {
+        rows.forEach((row) => {
             htmlTable += '<tr>';
-
-            if (clientViewFilterType === 'filter1') {
-                const client = getDisplayName(item.client_id || item.client) || '-';
-                const vessel = getDisplayName(item.vessel_id || item.vessel);
-                const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
-                const dgUn = item.dg_un || '-';
-                const viaHub = item.via_hub || '-';
-                const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                const status = getStatusLabel(item.stock_status);
-                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-
-                htmlTable += `<td style="${tdStyle}">${client}</td>`;
-                htmlTable += `<td style="${tdStyle}">${vessel}</td>`;
-                htmlTable += `<td style="${tdStyle}">${supplier}</td>`;
-                htmlTable += `<td style="${tdStyle}">${poNumber}</td>`;
-                htmlTable += `<td style="${tdStyle}">${dgUn}</td>`;
-                htmlTable += `<td style="${tdStyle}">${viaHub}</td>`;
-                htmlTable += `<td style="${tdStyle}">${boxes}</td>`;
-                htmlTable += `<td style="${tdStyle}">${weight}</td>`;
-                htmlTable += `<td style="${tdStyle}">${status}</td>`;
-                htmlTable += `<td style="${tdStyle}">${destination}</td>`;
-            } else if (clientViewFilterType === 'filter2') {
-                const client = getDisplayName(item.client_id || item.client) || '-';
-                const vessel = getDisplayName(item.vessel_id || item.vessel);
-                const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
-                const dgUn = item.dg_un || '-';
-                const status = getStatusLabel(item.stock_status);
-                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
-                const viaHub = item.via_hub || '-';
-                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                const shippingDoc = item.shipping_doc || '-';
-                const exportDoc = item.export_doc || '-';
-                const exportDoc2 = item.export_doc_2 || '-';
-                const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-
-                htmlTable += `<td style="${tdStyle}">${client}</td>`;
-                htmlTable += `<td style="${tdStyle}">${vessel}</td>`;
-                htmlTable += `<td style="${tdStyle}">${supplier}</td>`;
-                htmlTable += `<td style="${tdStyle}">${poNumber}</td>`;
-                htmlTable += `<td style="${tdStyle}">${dgUn}</td>`;
-                htmlTable += `<td style="${tdStyle}">${status}</td>`;
-                htmlTable += `<td style="${tdStyle}">${origin}</td>`;
-                htmlTable += `<td style="${tdStyle}">${viaHub}</td>`;
-                htmlTable += `<td style="${tdStyle}">${destination}</td>`;
-                htmlTable += `<td style="${tdStyle}">${shippingDoc}</td>`;
-                htmlTable += `<td style="${tdStyle}">${exportDoc}</td>`;
-                htmlTable += `<td style="${tdStyle}">${exportDoc2}</td>`;
-                htmlTable += `<td style="${tdStyle}">${boxes}</td>`;
-                htmlTable += `<td style="${tdStyle}">${weight}</td>`;
-            } else {
-                const client = getDisplayName(item.client_id || item.client) || '-';
-                const vessel = getDisplayName(item.vessel_id || item.vessel);
-                const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
-                const supplier = getDisplayName(item.supplier_id || item.supplier);
-                const poNumber = (item.po_text || '-').replace(/\n/g, '<br>');
-                const dgUn = item.dg_un || '-';
-                const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
-                const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
-                const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || '-';
-                const viaHub2 = item.via_hub_2 || item.via_hub2 || '-';
-                const apDestination = item.ap_destination || item.ap_destination_id || '-';
-                const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                const status = getStatusLabel(item.stock_status);
-                const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
-                const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
-                const currency = getDisplayName(item.currency_id || item.currency) || '-';
-                const value = item.value || '-';
-
-                htmlTable += `<td style="${tdStyle}">${client}</td>`;
-                htmlTable += `<td style="${tdStyle}">${vessel}</td>`;
-                htmlTable += `<td style="${tdStyle}">${warehouseId}</td>`;
-                htmlTable += `<td style="${tdStyle}">${supplier}</td>`;
-                htmlTable += `<td style="${tdStyle}">${poNumber}</td>`;
-                htmlTable += `<td style="${tdStyle}">${dgUn}</td>`;
-                htmlTable += `<td style="${tdStyle}">${boxes}</td>`;
-                htmlTable += `<td style="${tdStyle}">${weight}</td>`;
-                htmlTable += `<td style="${tdStyle}">${totalVolume}</td>`;
-                htmlTable += `<td style="${tdStyle}">${origin}</td>`;
-                htmlTable += `<td style="${tdStyle}">${viaHub1}</td>`;
-                htmlTable += `<td style="${tdStyle}">${viaHub2}</td>`;
-                htmlTable += `<td style="${tdStyle}">${apDestination}</td>`;
-                htmlTable += `<td style="${tdStyle}">${destination}</td>`;
-                htmlTable += `<td style="${tdStyle}">${status}</td>`;
-                htmlTable += `<td style="${tdStyle}">${dateOnStock}</td>`;
-                htmlTable += `<td style="${tdStyle}">${soNumber}</td>`;
-                htmlTable += `<td style="${tdStyle}">${currency}</td>`;
-                htmlTable += `<td style="${tdStyle}">${value}</td>`;
-            }
-
+            row.forEach((cell) => {
+                const cellHtml = escapeHtml(cell).replace(/\n/g, '<br>');
+                htmlTable += `<td style="${tdStyle}">${cellHtml}</td>`;
+            });
             htmlTable += '</tr>';
         });
-
         htmlTable += '</tbody></table>';
 
-        // Generate plain text version with headers and proper formatting
         const generatePlainText = () => {
-            let plainText = '';
-
-            // Add header row
-            if (clientViewFilterType === 'filter1') {
-                plainText += 'CLIENT\tVESSEL\tSUPPLIER\tPO NUMBER\tDG/UN NUMBER\tVIA HUB\tBOXES\tWEIGHT KGS\tSTOCK STATUS\tDESTINATION\n';
-            } else if (clientViewFilterType === 'filter2') {
-                plainText += 'CLIENT\tVESSEL\tSUPPLIER\tPO NUMBER\tDG/UN NUMBER\tSTOCK STATUS\tORIGIN\tVIA HUB\tDESTINATION\tSHIPPING DOCS\tEXPORT DOC 1\tEXPORT DOC 2\tBOXES\tWEIGHT KGS\n';
-            } else {
-                plainText += 'CLIENT\tVESSEL\tWAREHOUSE ID\tSUPPLIER\tPO#\tDG/UN NUMBER\tBOXES\tWEIGHT\tTOTAL VOLUME CBN\tORIGIN\tVIA HUB 1\tVIA HUB 2\tAP DESTINATION\tDESTINATION\tSTOCK STATUS\tDATE ON STOCK\tSO NUMBER\tCURRENCY\tVALUE\n';
-            }
-
-            // Add data rows
-            selectedItems.forEach(item => {
-                if (clientViewFilterType === 'filter1') {
-                    const client = getDisplayName(item.client_id || item.client) || '-';
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const vessel = getDisplayName(item.vessel_id || item.vessel);
-                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
-                    const dgUn = item.dg_un || '-';
-                    const viaHub = item.via_hub || '-';
-                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                    const status = getStatusLabel(item.stock_status);
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-
-                    plainText += `${client}\t${vessel}\t${supplier}\t${poNumber}\t${dgUn}\t${viaHub}\t${boxes}\t${weight}\t${status}\t${destination}\n`;
-                } else if (clientViewFilterType === 'filter2') {
-                    const client = getDisplayName(item.client_id || item.client) || '-';
-                    const vessel = getDisplayName(item.vessel_id || item.vessel);
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
-                    const dgUn = item.dg_un || '-';
-                    const status = getStatusLabel(item.stock_status);
-                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
-                    const viaHub = item.via_hub || '-';
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                    const shippingDoc = item.shipping_doc || '-';
-                    const exportDoc = item.export_doc || '-';
-                    const exportDoc2 = item.export_doc_2 || '-';
-                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-
-                    plainText += `${client}\t${vessel}\t${supplier}\t${poNumber}\t${dgUn}\t${status}\t${origin}\t${viaHub}\t${destination}\t${shippingDoc}\t${exportDoc}\t${exportDoc2}\t${boxes}\t${weight}\n`;
-                } else {
-                    const client = getDisplayName(item.client_id || item.client) || '-';
-                    const vessel = getDisplayName(item.vessel_id || item.vessel);
-                    const warehouseId = getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || '-';
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || '-').replace(/\n/g, ' ');
-                    const dgUn = item.dg_un || '-';
-                    const boxes = item.item || item.items || item.item_id || item.stock_items_quantity || '-';
-                    const weight = (item.weight_kg ?? item.weight_kgs) || '-';
-                    const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? '-';
-                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || '-';
-                    const viaHub1 = item.via_hub_1 || item.via_hub1 || item.via_hub || '-';
-                    const viaHub2 = item.via_hub_2 || item.via_hub2 || '-';
-                    const apDestination = item.ap_destination || item.ap_destination_id || '-';
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || '-';
-                    const status = getStatusLabel(item.stock_status);
-                    const dateOnStock = item.date_on_stock || item.stock_date || item.create_date || '-';
-                    const soNumber = item.so_number || item.so_no || item.sale_order_no || item.sale_order || '-';
-                    const currency = getDisplayName(item.currency_id || item.currency) || '-';
-                    const value = item.value || '-';
-                    plainText += `${client}\t${vessel}\t${warehouseId}\t${supplier}\t${poNumber}\t${dgUn}\t${boxes}\t${weight}\t${totalVolume}\t${origin}\t${viaHub1}\t${viaHub2}\t${apDestination}\t${destination}\t${status}\t${dateOnStock}\t${soNumber}\t${currency}\t${value}\n`;
-                }
+            let plainText = `${headers.join('\t')}\n`;
+            rows.forEach((row) => {
+                plainText += `${row.map((cell) => String(cell ?? "-").replace(/\n/g, " ")).join('\t')}\n`;
             });
-
             return plainText;
         };
 
@@ -2069,94 +2038,6 @@ export default function Stocks() {
         }
     };
 
-    const buildExportDataByView = (items, viewType = clientViewFilterType) => {
-        if (!Array.isArray(items) || items.length === 0) {
-            return { headers: [], rows: [] };
-        }
-
-        if (viewType === "filter1") {
-            const headers = ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"];
-            const rows = items.map((item) => [
-                getDisplayName(item.client_id || item.client) || "-",
-                getDisplayName(item.vessel_id || item.vessel) || "-",
-                getDisplayName(item.supplier_id || item.supplier) || "-",
-                (item.po_text || "-").replace(/\n/g, " "),
-                item.dg_un || "-",
-                item.via_hub || "-",
-                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-                item.weight_kg ?? item.weight_kgs ?? "-",
-                getStatusLabel(item.stock_status) || "-",
-                item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
-            ]);
-            return { headers, rows };
-        }
-
-        if (viewType === "filter2") {
-            const headers = ["CLIENT", "VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"];
-            const rows = items.map((item) => [
-                getDisplayName(item.client_id || item.client) || "-",
-                getDisplayName(item.vessel_id || item.vessel) || "-",
-                getDisplayName(item.supplier_id || item.supplier) || "-",
-                (item.po_text || "-").replace(/\n/g, " "),
-                item.dg_un || "-",
-                getStatusLabel(item.stock_status) || "-",
-                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-                item.via_hub || "-",
-                item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
-                item.shipping_doc || "-",
-                item.export_doc || "-",
-                item.export_doc_2 || "-",
-                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-                item.weight_kg ?? item.weight_kgs ?? "-",
-            ]);
-            return { headers, rows };
-        }
-
-        const headers = [
-            "CLIENT",
-            "VESSEL",
-            "WAREHOUSE ID",
-            "SUPPLIER",
-            "PO#",
-            "DG/UN NUMBER",
-            "BOXES",
-            "WEIGHT",
-            "TOTAL VOLUME CBN (THE EYE)",
-            "ORIGIN",
-            "VIA HUB 1",
-            "VIA HUB 2",
-            "AP DESTINATION",
-            "DESTINATION",
-            "STOCK STATUS",
-            "DATE ON STOCK",
-            "SO NUMBER",
-            "CURRENCY",
-            "VALUE",
-        ];
-        const rows = items.map((item) => [
-            getDisplayName(item.client_id || item.client) || "-",
-            getDisplayName(item.vessel_id || item.vessel) || "-",
-            item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
-            getDisplayName(item.supplier_id || item.supplier) || "-",
-            (item.po_text || "-").replace(/\n/g, " "),
-            item.dg_un || "-",
-            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-            item.weight_kg ?? item.weight_kgs ?? "-",
-            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
-            item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
-            item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
-            item.via_hub_2 || item.via_hub2 || "-",
-            formatStockDestinationDisplay(item, "ap"),
-            formatStockDestinationDisplay(item, "destination"),
-            getStatusLabel(item.stock_status) || "-",
-            formatDate(item.date_on_stock) || "-",
-            item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)),
-            getDisplayName(item.currency_id || item.currency) || "-",
-            item.value || "-",
-        ]);
-        return { headers, rows };
-    };
-
     const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType) => {
         const { headers, rows } = buildExportDataByView(items, viewType);
         if (headers.length === 0 || rows.length === 0) {
@@ -2251,27 +2132,18 @@ export default function Stocks() {
     const buildClientViewPrintHtml = (items, viewType = clientViewFilterType) => {
         if (!items || items.length === 0) return "";
 
-        let headerRow = "<tr>";
-        if (viewType === "filter1") {
-            ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "VIA HUB", "BOXES", "WEIGHT KGS", "STOCK STATUS", "DESTINATION"].forEach(h => {
-                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
-            });
-        } else if (viewType === "filter2") {
-            ["VESSEL", "SUPPLIER", "PO NUMBER", "DG/UN NUMBER", "STOCK STATUS", "ORIGIN", "VIA HUB", "DESTINATION", "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "BOXES", "WEIGHT KGS"].forEach(h => {
-                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
-            });
-        } else {
-            [
-                "STOCK ITEM ID", "VESSEL", "SUPPLIER", "PO#", "SO NUMBER", "SI NUMBER", "SI COMBINED", "DI NUMBER",
-                "STOCK STATUS", "ORIGIN", "VIA HUB 1", "AP DESTINATION", "DESTINATION", "WAREHOUSE ID",
-                "EXP READY IN STOCK", "DATE ON STOCK", "DAYS ON STOCK", "SHIPPED DATE", "DELIVERED DATE", "DG/UN",
-                "SHIPPING DOCS", "EXPORT DOC 1", "EXPORT DOC 2", "REMARKS", "BOXES", "WEIGHT KGS", "LWH",
-                "TOTAL VOLUME CBM", "TOTAL CW AIR FREIGHT", "CURRENCY", "VALUE", "CLIENT", "INTERNAL REMARK", "ATTACHMENTS"
-            ].forEach(h => {
-                headerRow += `<th style="border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;">${h}</th>`;
-            });
-        }
-        headerRow += "</tr>";
+        const exportViewType = viewType === "filter1" || viewType === "filter2" || viewType === "filter3"
+            ? viewType
+            : clientViewFilterType;
+        const { headers } = buildExportDataByView(items, exportViewType);
+        const thStyle = "border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;";
+        const tdStyle = "border:1px solid #333;padding:6px 8px;";
+        const escapeHtml = (value) => String(value ?? "-")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        const headerRow = `<tr>${headers.map((header) => `<th style="${thStyle}">${escapeHtml(header)}</th>`).join("")}</tr>`;
 
         // Group items by vessel so each vessel has its own table.
         const groups = new Map();
@@ -2287,125 +2159,13 @@ export default function Stocks() {
         groups.forEach((groupItems, vesselName) => {
             let bodyRows = "";
             groupItems.forEach(item => {
-                const statusStyle = getStatusStyle(item.stock_status);
-                bodyRows += "<tr>";
-                if (viewType === "filter1") {
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
-                    const dgUn = item.dg_un || "-";
-                    const viaHub = item.via_hub || "-";
-                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
-                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                    const status = getStatusLabel(item.stock_status);
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                } else if (viewType === "filter2") {
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
-                    const dgUn = item.dg_un || "-";
-                    const status = getStatusLabel(item.stock_status);
-                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
-                    const viaHub = item.via_hub || "-";
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                    const shippingDoc = item.shipping_doc || "-";
-                    const exportDoc = item.export_doc || "-";
-                    const exportDoc2 = item.export_doc_2 || "-";
-                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
-                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${exportDoc2}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
-                } else {
-                    const stockItemId = item.stock_item_id || item.stock_id || "-";
-                    const supplier = getDisplayName(item.supplier_id || item.supplier);
-                    const poNumber = (item.po_text || "-").replace(/\n/g, "<br/>");
-                    const soNumber = item.so_id ? getSoNumberName(item.so_id) : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number));
-                    const siNumber = item.si_number || "-";
-                    const siCombined = item.si_combined || "-";
-                    const diNumber = item.di_no || "-";
-                    const status = getStatusLabel(item.stock_status);
-                    const origin = item.origin_text || item.origin || getDisplayName(item.origin_id) || "-";
-                    const viaHub1 = item.via_hub || "-";
-                    const apDestination = item.ap_destination_new || item.ap_destination_id || item.ap_destination || "-";
-                    const destination = item.destination_new || item.destination_id || item.destination || item.stock_destination || "-";
-                    const warehouseId = item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-";
-                    const expReadyInStock = formatDate(item.exp_ready_in_stock || item.ready_ex_supplier) || "-";
-                    const dateOnStock = formatDate(item.date_on_stock) || "-";
-                    const daysOnStock = item.days_on_stock || "-";
-                    const shippedDate = formatDate(item.shipped_date) || "-";
-                    const deliveredDate = formatDate(item.delivered_date) || "-";
-                    const dgUn = item.dg_un || "-";
-                    const shippingDoc = item.shipping_doc || "-";
-                    const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
-                    const weight = item.weight_kg ?? item.weight_kgs ?? "-";
-                    const lwh = item.lwh_text || "-";
-                    const totalVolume = item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-";
-                    const totalCwAirFreight = item.total_cw_air_freight || "-";
-                    const currency = getDisplayName(item.currency_id || item.currency) || "-";
-                    const value = item.value || "-";
-                    const client = getDisplayName(item.client_id || item.client) || "-";
-                    const internalRemark = item.internal_remark || "-";
-                    const attachmentNames = getInlineAttachmentDisplayNames(item.attachments);
-                    const attachments = attachmentNames?.length ? attachmentNames.join("<br/>") : "-";
-
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${stockItemId}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${vesselName}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${supplier}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${poNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${soNumber || "-"}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${siNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${siCombined}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${diNumber}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${status}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${origin}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${viaHub1}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${apDestination}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${destination}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${warehouseId}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${expReadyInStock}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dateOnStock}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${daysOnStock}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippedDate}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${deliveredDate}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${dgUn}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${shippingDoc}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.export_doc || "-"}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.export_doc_2 || "-"}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${item.remarks || "-"}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${boxes}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${weight}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${lwh}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalVolume}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${totalCwAirFreight}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${currency}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${value}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${client}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${internalRemark}</td>`;
-                    bodyRows += `<td style="border:1px solid #333;padding:6px 8px;">${attachments}</td>`;
-                }
-                bodyRows += "</tr>";
+                const { rows } = buildExportDataByView([item], exportViewType);
+                const row = rows[0] || [];
+                bodyRows += `<tr>${row.map((cell) => `<td style="${tdStyle}">${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`;
             });
 
             vesselTables += `
-                <h3 style="margin:16px 0 6px;font-size:14px;color:#1c4a95;">Vessel: ${vesselName}</h3>
+                <h3 style="margin:16px 0 6px;font-size:14px;color:#1c4a95;">Vessel: ${escapeHtml(vesselName)}</h3>
                 <table>
                     <thead>${headerRow}</thead>
                     <tbody>${bodyRows}</tbody>
@@ -2924,9 +2684,9 @@ export default function Stocks() {
         const originalDestinationIds = buildStockDestinationIdsPayload(
             getStockM2OId(originalItem.destination_ids),
             getStockM2OName(originalItem.destination_ids) ||
-                (originalItem.destination_new && originalItem.destination_new !== false
-                    ? String(originalItem.destination_new)
-                    : ""),
+            (originalItem.destination_new && originalItem.destination_new !== false
+                ? String(originalItem.destination_new)
+                : ""),
             stockDestinationOptions
         );
         if (!valuesAreEqual(
@@ -2945,9 +2705,9 @@ export default function Stocks() {
         const originalApDestinationIds = buildStockDestinationIdsPayload(
             getStockM2OId(originalItem.ap_destination_ids),
             getStockM2OName(originalItem.ap_destination_ids) ||
-                (originalItem.ap_destination_new && originalItem.ap_destination_new !== false
-                    ? String(originalItem.ap_destination_new)
-                    : ""),
+            (originalItem.ap_destination_new && originalItem.ap_destination_new !== false
+                ? String(originalItem.ap_destination_new)
+                : ""),
             stockApDestinationOptions
         );
         if (!valuesAreEqual(
@@ -3073,6 +2833,111 @@ export default function Stocks() {
             return "-";
         }
         return value;
+    };
+
+    const getClientViewFieldValues = (item) => {
+        const currency = getDisplayName(item.currency_id || item.currency) || "-";
+        const value = item.value ?? "-";
+        const soNumber = item.so_id
+            ? getSoNumberName(item.so_id)
+            : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+
+        return {
+            client: getDisplayName(item.client_id || item.client) || "-",
+            vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
+            supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
+            po: item.po_text || "-",
+            stock_status: getStatusLabel(item.stock_status) || "-",
+            boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            kg: item.weight_kg ?? item.weight_kgs ?? "-",
+            lwh_text: item.lwh_text || "-",
+            via_hub_1: item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+            via_hub_2: item.via_hub_2 || item.via_hub2 || "-",
+            destination: formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+            dg_un: item.dg_un || "-",
+            so_number: soNumber,
+            warehouse_id: getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            shipping_docs: item.shipping_doc || "-",
+            export_doc_1: item.export_doc || "-",
+            export_doc_2: item.export_doc_2 || "-",
+            cur: currency,
+            value,
+            cur_2: currency,
+            value_2: value,
+            date_on_stock: formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
+            origin: item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+            hub1: item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+            hub2: item.via_hub_2 || item.via_hub2 || "-",
+            ap_destination: formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+        };
+    };
+
+    const renderClientViewTableCell = (item, column, statusStyle, rowBg) => {
+        if (column.type === "status") {
+            return (
+                <Badge
+                    colorScheme={statusStyle.color}
+                    size="sm"
+                    borderRadius="full"
+                    px="3"
+                    py="1"
+                    bg={statusStyle.bgColor}
+                    color={statusStyle.textColor}
+                >
+                    {getStatusLabel(item.stock_status)}
+                </Badge>
+            );
+        }
+        if (column.type === "po") {
+            return renderMultiLineLabels(item.po_text);
+        }
+        if (column.type === "multiline") {
+            const fieldValue = getClientViewFieldValues(item)[column.key];
+            return (
+                <Text color={tableTextColor} fontSize="sm" whiteSpace="pre-wrap" wordBreak="break-word">
+                    {renderText(fieldValue)}
+                </Text>
+            );
+        }
+        return (
+            <Text {...cellText}>
+                {renderText(getClientViewFieldValues(item)[column.key])}
+            </Text>
+        );
+    };
+
+    const activeClientViewTableColumns = CLIENT_VIEW_TABLE_COLUMNS[clientViewFilterType] || CLIENT_VIEW_TABLE_COLUMNS.filter1;
+    const clientViewTableColSpan = activeClientViewTableColumns.length + 2;
+
+    const getClientViewColumnHeaderProps = (column) => {
+        if (column.key === "lwh_text") {
+            return {
+                ...headerProps,
+                minW: "200px",
+                w: "200px",
+                maxW: "300px",
+                whiteSpace: "normal",
+                overflow: "visible",
+                textOverflow: "unset",
+            };
+        }
+        return headerProps;
+    };
+
+    const getClientViewColumnCellProps = (column, rowBg) => {
+        if (column.key === "lwh_text") {
+            return {
+                ...cellProps,
+                bg: rowBg,
+                minW: "200px",
+                w: "200px",
+                maxW: "300px",
+                whiteSpace: "normal",
+                overflow: "visible",
+                textOverflow: "unset",
+            };
+        }
+        return { ...cellProps, bg: rowBg };
     };
 
     // Note: Loading state is now shown inside the tables instead of blocking the entire page
@@ -5733,68 +5598,16 @@ export default function Stocks() {
                                                             colorScheme="blue"
                                                         />
                                                     </Th>
-                                                    {clientViewFilterType === 'filter1' ? (
-                                                        <>
-                                                            <Th {...headerProps}>CLIENT</Th>
-                                                            <Th {...headerProps}>VESSEL</Th>
-                                                            <Th {...headerProps}>SUPPLIER</Th>
-                                                            <Th {...headerProps}>PO NUMBER</Th>
-                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                            <Th {...headerProps}>VIA HUB</Th>
-                                                            <Th {...headerProps}>BOXES</Th>
-                                                            <Th {...headerProps}>WEIGHT KGS</Th>
-                                                            <Th {...headerProps}>STOCK STATUS</Th>
-                                                            <Th {...headerProps}>DESTINATION</Th>
-                                                            <Th {...headerProps}>ACTION</Th>
-                                                        </>
-                                                    ) : clientViewFilterType === 'filter2' ? (
-                                                        <>
-                                                            <Th {...headerProps}>CLIENT</Th>
-                                                            <Th {...headerProps}>VESSEL</Th>
-                                                            <Th {...headerProps}>SUPPLIER</Th>
-                                                            <Th {...headerProps}>PO NUMBER</Th>
-                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                            <Th {...headerProps}>STOCK STATUS</Th>
-                                                            <Th {...headerProps}>ORIGIN</Th>
-                                                            <Th {...headerProps}>VIA HUB</Th>
-                                                            <Th {...headerProps}>DESTINATION</Th>
-                                                            <Th {...headerProps}>SHIPPING DOCS</Th>
-                                                            <Th {...headerProps}>EXPORT DOC 1</Th>
-                                                            <Th {...headerProps}>EXPORT DOC 2</Th>
-                                                            <Th {...headerProps}>BOXES</Th>
-                                                            <Th {...headerProps}>WEIGHT KGS</Th>
-                                                            <Th {...headerProps}>ACTION</Th>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Th {...headerProps}>CLIENT</Th>
-                                                            <Th {...headerProps}>VESSEL</Th>
-                                                            <Th {...headerProps}>WAREHOUSE ID</Th>
-                                                            <Th {...headerProps}>SUPPLIER</Th>
-                                                            <Th {...headerProps}>PO#</Th>
-                                                            <Th {...headerProps}>DG/UN NUMBER</Th>
-                                                            <Th {...headerProps}>BOXES</Th>
-                                                            <Th {...headerProps}>WEIGHT</Th>
-                                                            <Th {...headerProps}>TOTAL VOLUME CBN (THE EYE)</Th>
-                                                            <Th {...headerProps}>ORIGIN</Th>
-                                                            <Th {...headerProps}>VIA HUB 1</Th>
-                                                            <Th {...headerProps}>VIA HUB 2</Th>
-                                                            <Th {...headerProps}>AP DESTINATION</Th>
-                                                            <Th {...headerProps}>DESTINATION</Th>
-                                                            <Th {...headerProps}>STOCK STATUS</Th>
-                                                            <Th {...headerProps}>DATE ON STOCK</Th>
-                                                            <Th {...headerProps}>SO NUMBER</Th>
-                                                            <Th {...headerProps}>CURRENCY</Th>
-                                                            <Th {...headerProps}>VALUE</Th>
-                                                            <Th {...headerProps}>ACTION</Th>
-                                                        </>
-                                                    )}
+                                                    {activeClientViewTableColumns.map((column) => (
+                                                        <Th key={column.key} {...getClientViewColumnHeaderProps(column)}>{column.label}</Th>
+                                                    ))}
+                                                    <Th {...headerProps}>ACTION</Th>
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
                                                 {isLoading && stockList.length === 0 ? (
                                                     <Tr>
-                                                        <Td colSpan={clientViewFilterType === 'filter1' ? 12 : (clientViewFilterType === 'filter2' ? 16 : 21)} textAlign="center" py="40px">
+                                                        <Td colSpan={clientViewTableColSpan} textAlign="center" py="40px">
                                                             <Box visibility="hidden" h="100px" />
                                                         </Td>
                                                     </Tr>
@@ -5816,125 +5629,21 @@ export default function Stocks() {
                                                                         colorScheme="blue"
                                                                     />
                                                                 </Td>
-                                                                {clientViewFilterType === 'filter1' ? (
-                                                                    <>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <Badge
-                                                                                colorScheme={statusStyle.color}
-                                                                                size="sm"
-                                                                                borderRadius="full"
-                                                                                px="3"
-                                                                                py="1"
-                                                                                bg={statusStyle.bgColor}
-                                                                                color={statusStyle.textColor}
-                                                                            >
-                                                                                {getStatusLabel(item.stock_status)}
-                                                                            </Badge>
-                                                                        </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <IconButton
-                                                                                aria-label="Print row"
-                                                                                icon={<MdPrint />}
-                                                                                size="sm"
-                                                                                variant="ghost"
-                                                                                colorScheme="blue"
-                                                                                onClick={() => handlePrintClientViewRow(item)}
-                                                                            />
-                                                                        </Td>
-                                                                    </>
-                                                                ) : clientViewFilterType === 'filter2' ? (
-                                                                    <>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <Badge
-                                                                                colorScheme={statusStyle.color}
-                                                                                size="sm"
-                                                                                borderRadius="full"
-                                                                                px="3"
-                                                                                py="1"
-                                                                                bg={statusStyle.bgColor}
-                                                                                color={statusStyle.textColor}
-                                                                            >
-                                                                                {getStatusLabel(item.stock_status)}
-                                                                            </Badge>
-                                                                        </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.shipping_doc)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.export_doc_2)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <IconButton
-                                                                                aria-label="Print row"
-                                                                                icon={<MdPrint />}
-                                                                                size="sm"
-                                                                                variant="ghost"
-                                                                                colorScheme="blue"
-                                                                                onClick={() => handlePrintClientViewRow(item)}
-                                                                            />
-                                                                        </Td>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.client_id || item.client)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-"}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>{renderMultiLineLabels(item.po_text)}</Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.dg_un)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.item || item.items || item.item_id || item.stock_items_quantity)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.total_volume_cbm ?? item.cbm_total ?? item.cbm)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_1 || item.via_hub1 || item.via_hub)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.via_hub_2 || item.via_hub2)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "ap"))}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(formatStockDestinationDisplay(item, "destination"))}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <Badge
-                                                                                colorScheme={statusStyle.color}
-                                                                                size="sm"
-                                                                                borderRadius="full"
-                                                                                px="3"
-                                                                                py="1"
-                                                                                bg={statusStyle.bgColor}
-                                                                                color={statusStyle.textColor}
-                                                                            >
-                                                                                {getStatusLabel(item.stock_status)}
-                                                                            </Badge>
-                                                                        </Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.date_on_stock || item.stock_date || item.create_date)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.so_number || item.so_no || item.sale_order_no || item.sale_order)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}><Text {...cellText}>{renderText(item.value)}</Text></Td>
-                                                                        <Td {...cellProps} bg={rowBg}>
-                                                                            <IconButton
-                                                                                aria-label="Print row"
-                                                                                icon={<MdPrint />}
-                                                                                size="sm"
-                                                                                variant="ghost"
-                                                                                colorScheme="blue"
-                                                                                onClick={() => handlePrintClientViewRow(item)}
-                                                                            />
-                                                                        </Td>
-                                                                    </>
-                                                                )}
+                                                                {activeClientViewTableColumns.map((column) => (
+                                                                    <Td key={column.key} {...getClientViewColumnCellProps(column, rowBg)}>
+                                                                        {renderClientViewTableCell(item, column, statusStyle, rowBg)}
+                                                                    </Td>
+                                                                ))}
+                                                                <Td {...cellProps} bg={rowBg}>
+                                                                    <IconButton
+                                                                        aria-label="Print row"
+                                                                        icon={<MdPrint />}
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        colorScheme="blue"
+                                                                        onClick={() => handlePrintClientViewRow(item)}
+                                                                    />
+                                                                </Td>
                                                             </Tr>
                                                         );
                                                     })

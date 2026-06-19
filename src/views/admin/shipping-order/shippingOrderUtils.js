@@ -254,3 +254,40 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
 
   return payload;
 }
+
+/** Coerce M2O / id field to a string id (or ""). */
+export function resolveRelationId(value) {
+  if (value == null || value === "" || value === false) return "";
+  if (typeof value === "object" && value.id != null && value.id !== false) {
+    return String(value.id);
+  }
+  return String(value);
+}
+
+/** Filter cached vessels to those linked to the given client. */
+export function getVesselsForClient(vessels = [], clientId) {
+  const normalizedClientId = resolveRelationId(clientId);
+  if (!normalizedClientId) return [];
+  return (Array.isArray(vessels) ? vessels : []).filter(
+    (vessel) => resolveRelationId(vessel.client_id) === normalizedClientId
+  );
+}
+
+/** Keep the currently selected vessel visible when editing, even if not yet in the fetched list. */
+export function mergeSelectedVesselOption(vesselList = [], selectedVesselId, allVessels = [], formData = {}) {
+  const options = Array.isArray(vesselList) ? [...vesselList] : [];
+  const selectedId = resolveRelationId(selectedVesselId);
+  if (!selectedId) return options;
+  if (options.some((vessel) => String(vessel.id) === selectedId)) return options;
+
+  const fromCache = (Array.isArray(allVessels) ? allVessels : []).find(
+    (vessel) => String(vessel.id) === selectedId
+  );
+  if (fromCache) return [...options, fromCache];
+
+  const fallbackName = formData.vessel_name || formData.vessel || "";
+  if (fallbackName) {
+    return [...options, { id: Number(selectedId) || selectedId, name: String(fallbackName) }];
+  }
+  return options;
+}

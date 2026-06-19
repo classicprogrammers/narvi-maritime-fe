@@ -33,6 +33,10 @@ export const getVessels = async (params = {}) => {
     if (clientId != null && clientId !== "") {
       requestParams.client_id = clientId;
     }
+    const vesselTypeSelec = params.vessel_type_selec;
+    if (vesselTypeSelec != null && vesselTypeSelec !== "") {
+      requestParams.vessel_type_selec = String(vesselTypeSelec).trim();
+    }
     requestParams.is_client = true;
 
     const response = await axios.get('/api/vessels', { params: requestParams });
@@ -54,6 +58,9 @@ export const getVessels = async (params = {}) => {
         total_pages: data.total_pages ?? 1,
         has_next: data.has_next ?? false,
         has_previous: data.has_previous ?? false,
+        vessel_type_selec_options: Array.isArray(data.vessel_type_selec_options)
+          ? data.vessel_type_selec_options
+          : [],
         success: true,
         message: data.message || 'Vessels retrieved successfully',
       };
@@ -68,6 +75,9 @@ export const getVessels = async (params = {}) => {
       total_pages: 1,
       has_next: false,
       has_previous: false,
+      vessel_type_selec_options: Array.isArray(data.vessel_type_selec_options)
+        ? data.vessel_type_selec_options
+        : [],
       success: true,
       message: 'Vessels retrieved successfully',
     };
@@ -185,6 +195,7 @@ export const createVessel = async (vesselData) => {
       is_client: true,
       imo: vesselData.imo || "",
       vessel_type: vesselData.vessel_type || "",
+      vessel_type_selec: vesselData.vessel_type_selec || false,
       // Ensure status is always sent; default to "active" if missing
       status: vesselData.status || "active",
       procurement_person_id:
@@ -283,6 +294,10 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
         payload.vessel_type = vesselData.vessel_type || "";
       }
 
+      if (hasChanged(vesselData.vessel_type_selec, originalVesselData.vessel_type_selec)) {
+        payload.vessel_type_selec = vesselData.vessel_type_selec || false;
+      }
+
       if (hasChanged(vesselData.status, originalVesselData.status)) {
         payload.status = vesselData.status || "active";
       }
@@ -319,6 +334,7 @@ export const updateVessel = async (idOrData, maybeData, originalVesselData) => {
       payload.client_id = vesselData.client_id;
       payload.imo = vesselData.imo || "";
       payload.vessel_type = vesselData.vessel_type || "";
+      payload.vessel_type_selec = vesselData.vessel_type_selec || false;
       payload.status = vesselData.status || "active";
       payload.procurement_person_id =
         vesselData.procurement_person_id != null && vesselData.procurement_person_id !== ""

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useId } from 'react';
 import {
   Box,
   Button,
@@ -32,6 +32,7 @@ const SearchableSelect = ({
   borderColor,
   ...props
 }) => {
+  const fieldName = useId();
   const defaultBg = useColorModeValue("white", "gray.800");
   const defaultColor = useColorModeValue("gray.700", "gray.100");
   const defaultBorderColor = useColorModeValue("gray.300", "gray.600");
@@ -200,6 +201,7 @@ const SearchableSelect = ({
         <PopoverBody p={0}>
           <Input
             ref={inputRef}
+            name={fieldName}
             placeholder="Search..."
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
@@ -212,6 +214,13 @@ const SearchableSelect = ({
             px={3}
             py={2}
             fontSize="sm"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
           />
           <List spacing={0}>
             {filteredOptions.map((option, index) => (
