@@ -60,6 +60,120 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { snapshotValue, pickChangedFields, toIdOrNull } from "../../../../utils/shippingFormAutosave";
 
+const resolveApiText = (value) => {
+  if (value == null || value === false) return "";
+  const text = String(value).trim();
+  return text === "" ? "" : text;
+};
+
+const resolveMany2oneLabel = (value, options = []) => {
+  if (value == null || value === false) return "";
+  if (typeof value === "object") {
+    const name = value.name;
+    if (name != null && name !== false && String(name).trim() !== "") {
+      return String(name).trim();
+    }
+    const id = value.id;
+    if (id != null && id !== false && Number.isFinite(Number(id))) {
+      const match = Array.isArray(options) ? options.find((o) => Number(o.id) === Number(id)) : null;
+      if (match?.name) return String(match.name);
+    }
+    return "";
+  }
+  if (Number.isFinite(Number(value))) {
+    const match = Array.isArray(options) ? options.find((o) => Number(o.id) === Number(value)) : null;
+    return match?.name ? String(match.name) : "";
+  }
+  return resolveApiText(value);
+};
+
+const resolveDeliveryHeaderText = ({
+  form,
+  textKey,
+  idKey,
+  options = [],
+  prevValue = "",
+  extraFallback = "",
+}) => {
+  const hasTextKey = Object.prototype.hasOwnProperty.call(form, textKey);
+  const hasIdKey = idKey ? Object.prototype.hasOwnProperty.call(form, idKey) : false;
+  const resolved =
+    resolveApiText(form[textKey]) ||
+    (idKey ? resolveMany2oneLabel(form[idKey], options) : "") ||
+    resolveApiText(extraFallback);
+  if (resolved) return resolved;
+  if (!hasTextKey && !hasIdKey) return prevValue;
+  return "";
+};
+
+const buildFormResetPayload = () => ({
+  vessel_id: null,
+  vessel_name: null,
+  agent_id: null,
+  agent_cnee_id: null,
+  agent_contact_id: null,
+  agent_partner_id: null,
+  si_shipped_by_id: null,
+  to_be_shipped_by: null,
+  siform_from_id: null,
+  from_text: null,
+  siform_to_id: null,
+  to_text: null,
+  deadline_text: null,
+  delivery_date: null,
+  header_pic_id: null,
+  header_date: null,
+  header_pic: null,
+  eta_text: null,
+  date: null,
+  transport_details: null,
+  destination_text: null,
+  awb_number: null,
+  company: null,
+  address1: null,
+  address2: null,
+  postcode: null,
+  city: null,
+  country_id: null,
+  reg_no: null,
+  email1: null,
+  phone1: null,
+  phone2: null,
+  web: null,
+  cnee1: null,
+  cnee2: null,
+  cnee3: null,
+  cnee4: null,
+  cnee5: null,
+  cnee6: null,
+  cnee7: null,
+  cnee8: null,
+  cnee9: null,
+  cnee10: null,
+  cnee11: null,
+  cnee12: null,
+  cnee_text: null,
+  in_liason_with: null,
+  total_packed_quantity: null,
+  total_packed_weight: null,
+  packed_as: null,
+  total_packed_vw: null,
+  total_vw: null,
+  agents_pic: null,
+  warnings: null,
+  si_number_id: null,
+  sic_number_id: null,
+  di_number_id: null,
+  si_number: null,
+  so_number_id: null,
+  so_number: null,
+  job_ref_id: null,
+  job_no: null,
+  delivery_to_at: null,
+  location_text: null,
+  stock_list: null,
+});
+
 const INITIAL_FORM_DATA = {
   vessel: "",
   deliveryToAt: "",
@@ -68,6 +182,9 @@ const INITIAL_FORM_DATA = {
   sicNo: "",
   jobNo: "",
   soNo: "",
+  siNumber: "",
+  siNumberId: null,
+  soNumberId: null,
   shippedBy: "",
   shippedById: null,
   from: "",
@@ -161,6 +278,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const [isLoading, setIsLoading] = useState(true);
   const [isOptionsLoading, setIsOptionsLoading] = useState(false);
   const [siOptions, setSiOptions] = useState([]);
+  const [soOptions, setSoOptions] = useState([]);
+  const [diOptions, setDiOptions] = useState([]);
   const [sicOptions, setSicOptions] = useState([]);
   const [agentOptions, setAgentOptions] = useState([]);
   const [consigneeOptions, setConsigneeOptions] = useState([]);
@@ -192,6 +311,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     cneeText: null,
     packed: {},
   });
+  const lastDeliveryHeaderRef = useRef({ siNumber: "", soNumber: "" });
 
   // Color mode values
   const textColor = useColorModeValue("gray.700", "white");
@@ -232,6 +352,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       vw: 0,
       stockItemId: "",
       awbNumber: "",
+      siNumber: "",
     },
     {
       id: 2,
@@ -247,6 +368,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       vw: 0,
       stockItemId: "",
       awbNumber: "",
+      siNumber: "",
     },
   ]);
 
@@ -257,6 +379,26 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     cbm: cargoItems.reduce((sum, item) => sum + item.cbm, 0),
     vw: cargoItems.reduce((sum, item) => sum + item.vw, 0),
   };
+
+  const deliverySiNumberDisplay = isDeliveryForm
+    ? (
+      resolveApiText(formData.siNumber) ||
+      resolveMany2oneLabel(formData.siNumberId, siOptions) ||
+      cargoItems.map((it) => resolveApiText(it.siNumber)).find(Boolean) ||
+      lastDeliveryHeaderRef.current.siNumber ||
+      ""
+    )
+    : formData.siNumber;
+
+  const deliverySoNumberDisplay = isDeliveryForm
+    ? (
+      resolveApiText(formData.soNo) ||
+      resolveMany2oneLabel(formData.soNumberId, soOptions) ||
+      resolveApiText(formData.jobNo) ||
+      lastDeliveryHeaderRef.current.soNumber ||
+      ""
+    )
+    : formData.soNo;
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -275,6 +417,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const getOptionNameById = (list, id) => {
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
     return match?.name ? String(match.name) : "";
+  };
+  const mergeSelectedIdOption = (prev, selectedId, selectedName, normalizedOptions) => {
+    if (selectedId !== "" && Number.isFinite(Number(selectedId))) {
+      const idNum = Number(selectedId);
+      if (!normalizedOptions.some((o) => Number(o.id) === idNum)) {
+        const keep = Array.isArray(prev) ? prev.find((o) => Number(o.id) === idNum) : null;
+        if (keep) return [keep, ...normalizedOptions];
+        if (selectedName && String(selectedName).trim() !== "") {
+          return [{ id: idNum, name: String(selectedName) }, ...normalizedOptions];
+        }
+      }
+    }
+    return normalizedOptions;
   };
   const getTextOptionIdByValue = (list, value) => {
     if (!Array.isArray(list) || value == null) return null;
@@ -376,7 +531,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
             ? Number(data.siNo)
             : null,
-        so_number: toNullIfEmpty(data.soNo),
         in_liason_with: String(data.consignBlock ?? ""),
         header_pic_id:
           data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
@@ -540,6 +694,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       vw: 0,
       stockItemId: "",
       awbNumber: "",
+      siNumber: "",
     },
     {
       id: 2,
@@ -555,6 +710,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       vw: 0,
       stockItemId: "",
       awbNumber: "",
+      siNumber: "",
     },
   ]);
 
@@ -632,6 +788,37 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ? (hasInLiasonWithField ? form.in_liason_with !== false : false)
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
+    const headerSiFromStock = stockList
+      .map((it) => (it.si_number != null && it.si_number !== false ? String(it.si_number).trim() : ""))
+      .find((value) => value !== "") || "";
+    const resolvedDeliverySiNumber = isDeliveryForm
+      ? resolveDeliveryHeaderText({
+        form,
+        textKey: "si_number",
+        idKey: "si_number_id",
+        options: siOptions,
+        prevValue: "",
+        extraFallback: headerSiFromStock,
+      })
+      : "";
+    const resolvedDeliverySoNumber = isDeliveryForm
+      ? resolveDeliveryHeaderText({
+        form,
+        textKey: "so_number",
+        idKey: "so_number_id",
+        options: soOptions,
+        prevValue: "",
+        extraFallback:
+          resolveApiText(form.job_no) ||
+          resolveMany2oneLabel(form.job_ref_id, soOptions),
+      })
+      : "";
+    if (isDeliveryForm) {
+      lastDeliveryHeaderRef.current = {
+        siNumber: resolvedDeliverySiNumber,
+        soNumber: resolvedDeliverySoNumber,
+      };
+    }
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes || 0), 0),
       weight: stockList.reduce((sum, it) => sum + Number(it?.kg ?? it?.weight_kg ?? 0), 0),
@@ -756,6 +943,30 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? String(form.so_number)
               : "")
           : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
+      soNo: isDeliveryForm
+        ? resolveDeliveryHeaderText({
+          form,
+          textKey: "so_number",
+          idKey: "so_number_id",
+          options: soOptions,
+          prevValue: prev.soNo,
+          extraFallback:
+            resolveApiText(form.job_no) ||
+            resolveMany2oneLabel(form.job_ref_id, soOptions),
+        })
+        : prev.soNo,
+      soNumberId: isDeliveryForm ? toIdOrNull(form.so_number_id) : prev.soNumberId,
+      siNumber: isDeliveryForm
+        ? resolveDeliveryHeaderText({
+          form,
+          textKey: "si_number",
+          idKey: "si_number_id",
+          options: siOptions,
+          prevValue: prev.siNumber,
+          extraFallback: headerSiFromStock,
+        })
+        : prev.siNumber,
+      siNumberId: isDeliveryForm ? toIdOrNull(form.si_number_id) : prev.siNumberId,
       shippedBy: isShippingAdvise
         ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
         : (shippedByName ||
@@ -886,13 +1097,52 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         return [...(Array.isArray(prev) ? prev : []), { id: Number(agentId), name: String(agentName) }];
       });
     }
-    // Keep selected SI number visible even when options are paged/filtered.
+    // Keep selected DI/SI number visible even when options are paged/filtered.
     if (siId !== "" && Number.isFinite(Number(siId)) && siName) {
-      setSiOptions((prev) => {
+      const mergeSelected = (prev) => {
         const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(siId));
         if (exists) return prev;
         return [...(Array.isArray(prev) ? prev : []), { id: Number(siId), name: String(siName) }];
-      });
+      };
+      if (isDeliveryLike) {
+        setDiOptions(mergeSelected);
+      } else {
+        setSiOptions(mergeSelected);
+      }
+    }
+    if (isDeliveryForm) {
+      const siNumberIdVal = toIdOrNull(form.si_number_id);
+      const siNumberLabel = resolvedDeliverySiNumber;
+      if (siNumberIdVal && siNumberLabel) {
+        setSiOptions((prev) => {
+          const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(siNumberIdVal));
+          if (exists) return prev;
+          return [...(Array.isArray(prev) ? prev : []), { id: Number(siNumberIdVal), name: String(siNumberLabel) }];
+        });
+      } else if (resolveApiText(form.si_number)) {
+        setSiOptions((prev) => {
+          const label = String(form.si_number);
+          const exists = Array.isArray(prev) && prev.some((o) => String(o.name) === label);
+          if (exists) return prev;
+          return [...(Array.isArray(prev) ? prev : []), { id: siNumberIdVal ?? label, name: label }];
+        });
+      }
+      const soNumberIdVal = toIdOrNull(form.so_number_id);
+      const soNumberLabel = resolvedDeliverySoNumber;
+      if (soNumberIdVal && soNumberLabel) {
+        setSoOptions((prev) => {
+          const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(soNumberIdVal));
+          if (exists) return prev;
+          return [...(Array.isArray(prev) ? prev : []), { id: Number(soNumberIdVal), name: String(soNumberLabel) }];
+        });
+      } else if (resolveApiText(form.so_number) || resolveApiText(form.job_no)) {
+        const label = resolveApiText(form.so_number) || resolveApiText(form.job_no);
+        setSoOptions((prev) => {
+          const exists = Array.isArray(prev) && prev.some((o) => String(o.name) === label);
+          if (exists) return prev;
+          return [...(Array.isArray(prev) ? prev : []), { id: soNumberIdVal ?? label, name: label }];
+        });
+      }
     }
     if (sicId !== "" && Number.isFinite(Number(sicId)) && sicName) {
       setSicOptions((prev) => {
@@ -930,8 +1180,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : typeof it.supplier === "string"
               ? it.supplier
               : "";
-      const originVal =
-        it.from != null && it.from !== false
+      const originVal = isDeliveryLike
+        ? (it.from != null && it.from !== false ? String(it.from) : "")
+        : it.from != null && it.from !== false
           ? String(it.from)
           : it.from_si_advise != null && it.from_si_advise !== false
             ? String(it.from_si_advise)
@@ -951,14 +1202,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         origin: originVal,
         warehouseId,
         supplier: supplierName,
-        awbNumber:
-          it.awb_number != null && it.awb_number !== false
+        awbNumber: isDeliveryLike
+          ? (it.awb != null && it.awb !== false ? String(it.awb) : "")
+          : it.awb_number != null && it.awb_number !== false
             ? String(it.awb_number)
             : it.awb_si_advise != null && it.awb_si_advise !== false
               ? String(it.awb_si_advise)
               : it.awb != null && it.awb !== false
                 ? String(it.awb)
                 : "",
+        siNumber:
+          isDeliveryForm && it.si_number != null && it.si_number !== false
+            ? String(it.si_number)
+            : "",
         poNumber:
           it.po_number != null && it.po_number !== false
             ? String(it.po_number)
@@ -1000,11 +1256,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   };
 
   /** Shipping Advise may omit id so backend updates latest record. */
+  const buildDiNumberChangePayload = (diId) => {
+    const payload = { di_number_id: Number(diId) };
+    if (consignBlockUserEditedRef.current) {
+      payload.in_liason_with = String(formData.consignBlock ?? "");
+    } else {
+      payload.in_liason_with = "";
+    }
+    return payload;
+  };
+
   const buildSavePayloadWithId = (currentId, fields) => {
     const normalizedFields = { ...(fields || {}) };
     if (
       isDeliveryLike &&
-      !Object.prototype.hasOwnProperty.call(normalizedFields, "in_liason_with")
+      !Object.prototype.hasOwnProperty.call(normalizedFields, "in_liason_with") &&
+      !Object.prototype.hasOwnProperty.call(normalizedFields, "di_number_id")
     ) {
       normalizedFields.in_liason_with = String(formData.consignBlock ?? "");
     }
@@ -1054,11 +1321,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : data?.data && typeof data.data === "object"
               ? data.data
               : result;
+        const diNos = Array.isArray(optionsSource?.di_number_options)
+          ? optionsSource.di_number_options
+          : [];
         const siNos = Array.isArray(optionsSource?.si_number_options)
           ? optionsSource.si_number_options
-          : Array.isArray(optionsSource?.di_number_options)
-            ? optionsSource.di_number_options
-            : [];
+          : [];
+        const soNos = Array.isArray(optionsSource?.so_number_options)
+          ? optionsSource.so_number_options
+          : [];
         const sicNos = Array.isArray(optionsSource?.sic_number_options)
           ? optionsSource.sic_number_options
           : [];
@@ -1107,22 +1378,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           return uniq;
         };
 
+        const normalizedDiNos = normalizeOptions(diNos);
         const normalizedSiNos = normalizeOptions(siNos);
+        const normalizedSoNos = normalizeOptions(soNos);
         const normalizedSicNos = normalizeOptions(sicNos);
-        setSiOptions((prev) => {
-          const sid = formData.siNo;
-          if (sid !== "" && Number.isFinite(Number(sid))) {
-            const idNum = Number(sid);
-            if (!normalizedSiNos.some((o) => Number(o.id) === idNum)) {
-              const keep = Array.isArray(prev) ? prev.find((o) => Number(o.id) === idNum) : null;
-              if (keep) return [keep, ...normalizedSiNos];
-              if (selectedSiName && String(selectedSiName).trim() !== "") {
-                return [{ id: idNum, name: String(selectedSiName) }, ...normalizedSiNos];
-              }
-            }
-          }
-          return normalizedSiNos;
-        });
+        if (isDeliveryLike) {
+          setDiOptions((prev) =>
+            mergeSelectedIdOption(prev, formData.siNo, selectedSiName, normalizedDiNos)
+          );
+          setSiOptions((prev) =>
+            mergeSelectedIdOption(prev, formData.siNumberId, formData.siNumber, normalizedSiNos)
+          );
+          setSoOptions((prev) =>
+            mergeSelectedIdOption(prev, formData.soNumberId, formData.soNo, normalizedSoNos)
+          );
+        } else {
+          setSiOptions((prev) =>
+            mergeSelectedIdOption(prev, formData.siNo, selectedSiName, normalizedSiNos)
+          );
+        }
         setSicOptions((prev) => {
           const sid = formData.sicNo;
           if (sid !== "" && Number.isFinite(Number(sid))) {
@@ -1168,7 +1442,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, selectedSiName, isShippingAdvise, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
+  }, [qCnee, qSi, qSic, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, selectedSiName, isShippingAdvise, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -1390,87 +1664,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       }
       if (!isShippingAdvise && !currentId) return;
 
-      // Full reset: send explicit empty/null keys (as requested)
+      // Full reset: send null on all fields (as requested)
       const updated = await saveForm(
-        buildSavePayloadWithId(currentId, {
-          vessel_id: null,
-          vessel_name: "",
-          agent_id: null,
-          agent_cnee_id: null,
-          agent_contact_id: null,
-          agent_partner_id: null,
-
-          si_shipped_by_id: null,
-          to_be_shipped_by: null,
-          siform_from_id: null,
-          from_text: null,
-          siform_to_id: null,
-          to_text: null,
-          deadline_text: null,
-          delivery_date: null,
-          header_pic_id: null,
-          header_date: null,
-
-          // Shipping Advise header fields (autosave uses these keys, not deadline_text/header_date)
-          eta_text: null,
-          date: null,
-          transport_details: null,
-          destination_text: null,
-          awb_number: null,
-
-          company: "",
-          address1: "",
-          address2: "",
-          postcode: "",
-          city: "",
-          country_id: null,
-          reg_no: "",
-          email1: "",
-          phone1: "",
-          phone2: "",
-          web: "",
-
-          cnee1: null,
-          cnee2: null,
-          cnee3: null,
-          cnee4: null,
-          cnee5: null,
-          cnee6: null,
-          cnee7: null,
-          cnee8: null,
-          cnee9: null,
-          cnee10: null,
-          cnee11: null,
-          cnee12: null,
-          cnee_text: "",
-          in_liason_with: "",
-          total_packed_quantity: 0,
-          total_packed_weight: 0,
-          packed_as: {
-            boxes: 0,
-            kg: 0,
-          },
-          total_packed_vw: 0,
-          total_vw: 0,
-
-          agents_pic: null,
-          warnings: "",
-
-          si_number_id: null,
-          sic_number_id: null,
-          di_number_id: null,
-          job_no: "",
-          so_number: null,
-          delivery_to_at: null,
-          location_text: null,
-
-          stock_list: [],
-        })
+        buildSavePayloadWithId(currentId, buildFormResetPayload())
       );
       if (updated?.id != null) setSiFormId(updated.id);
-      setFormData(getInitialFormData());
-      setCargoItems(blankCargoRows());
-      setSelectedSiName("");
+      if (updated) {
+        applySiFormResponse(updated);
+      } else {
+        lastDeliveryHeaderRef.current = { siNumber: "", soNumber: "" };
+        setFormData(getInitialFormData());
+        setCargoItems(blankCargoRows());
+        setSelectedSiName("");
+      }
       lastSubmittedHeaderRef.current = {
         to_be_shipped_by: "",
         from_text: "",
@@ -1519,8 +1725,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   /** Builds PDF for preview, download, and print (VW column excluded) */
   const buildShippingFormPdf = async () => {
+    const numberOptions = isDeliveryLike ? diOptions : siOptions;
     const siNoLabel =
-      siOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
+      numberOptions.find((o) => Number(o.id) === Number(formData.siNo))?.name ||
       selectedSiName ||
       "";
     const sicNoLabel =
@@ -1639,7 +1846,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : isDeliveryForm
           ? [
             ["JOB NO", formData.jobNo || "-"],
-            ["SO NO", formData.soNo || "-"],
+            ["SI NO", deliverySiNumberDisplay || "-"],
+            ["SO NO", deliverySoNumberDisplay || "-"],
             ["PIC", formData.pic || "-"],
             ["DEADLINE", formData.deadline || "-"],
             ["LOCATION", formData.to || "-"],
@@ -1739,7 +1947,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
         item.warehouseId || "-",
-        item.awbNumber || formData.shippedBy || "-",
+        item.awbNumber || "-",
         item.origin || "-",
         item.supplier || "-",
         item.poNumber || "-",
@@ -1775,6 +1983,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     } else if (isDeliveryForm) {
       cargoHead = [
         "STOKITEM ID",
+        "SI NUMBER",
         "AWB",
         "FROM",
         "Warehouse",
@@ -1787,7 +1996,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ];
       cargoRows = (cargoItems || []).map((item) => [
         item.stockItemId || "-",
-        item.awbNumber || formData.shippedBy || "-",
+        item.siNumber || "-",
+        item.awbNumber || "-",
         item.origin || "-",
         item.warehouseId || "-",
         item.supplier || "-",
@@ -1805,12 +2015,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
+        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         "",
       ]);
       cargoRows.push([
         "PACKED AS",
+        "",
         "",
         "",
         "",
@@ -2108,7 +2320,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                                 buildSavePayloadWithId(
                                   currentId,
                                   isDeliveryForm
-                                    ? { di_number_id: Number(v) }
+                                    ? buildDiNumberChangePayload(v)
                                     : { si_number_id: Number(v), sic_number_id: null }
                                 )
                               );
@@ -2605,7 +2817,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             onChange={async (val) => {
                               const v = val ?? "";
                               handleInputChange("siNo", v);
-                              const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                              const selectedName = v !== "" ? getOptionNameById(diOptions, v) : "";
                               setQSi(selectedName);
                               if (v === "") return;
                               packedTotalsUserEditedRef.current = false;
@@ -2613,20 +2825,20 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                                 setIsSiFormLoading(true);
                                 const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
                                 if (!currentId) return;
-                                const updated = await saveForm(
-                                  buildSavePayloadWithId(currentId, { di_number_id: Number(v) })
-                                );
-                                if (updated?.id != null) setSiFormId(updated.id);
-                                applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
-                              } catch (e) {
-                                console.error("Failed to update DI number:", e);
+                              const updated = await saveForm(
+                                buildSavePayloadWithId(currentId, buildDiNumberChangePayload(v))
+                              );
+                              if (updated?.id != null) setSiFormId(updated.id);
+                              applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
+                            } catch (e) {
+                              console.error("Failed to update DI number:", e);
                               } finally {
                                 setIsSiFormLoading(false);
                               }
                             }}
                             onSearchChange={(txt) => setQSi(txt ?? "")}
                             prefillOnFocus={false}
-                            options={siOptions}
+                            options={diOptions}
                             displayKey="name"
                             valueKey="id"
                             size="sm"
@@ -2645,26 +2857,36 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         }
                       </FormControl>
                       {isDeliveryForm && (
-                        <FormControl display="contents">
-                          <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
-                            SO NO:
-                          </FormLabel>
-                          <Input
-                            id="so-delivery"
-                            value={formData.soNo}
-                            onChange={(e) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("soNo", e.target.value);
-                            }}
-                            size="sm"
-                            fontWeight="semibold"
-                            variant="unstyled"
-                            bg="transparent"
-                            color="white"
-                            placeholder="SO number"
-                            _placeholder={{ color: "whiteAlpha.800" }}
-                          />
-                        </FormControl>
+                        <>
+                          <FormControl display="contents">
+                            <FormLabel htmlFor="si-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                              SI NO:
+                            </FormLabel>
+                            <Text
+                              id="si-number-delivery"
+                              size="sm"
+                              fontWeight="semibold"
+                              color="white"
+                              minH="24px"
+                            >
+                              {deliverySiNumberDisplay || "-"}
+                            </Text>
+                          </FormControl>
+                          <FormControl display="contents">
+                            <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                              SO NO:
+                            </FormLabel>
+                            <Text
+                              id="so-delivery"
+                              size="sm"
+                              fontWeight="semibold"
+                              color="white"
+                              minH="24px"
+                            >
+                              {deliverySoNumberDisplay || "-"}
+                            </Text>
+                          </FormControl>
+                        </>
                       )}
                       <FormControl display="contents">
                         <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
@@ -2903,6 +3125,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         {isDeliveryForm && (
                           <>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI NUMBER</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
                           </>
                         )}
@@ -2940,14 +3163,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           {isDeliveryForm && (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.siNumber || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
                             </>
                           )}
                           {isDeliveryConfirmation && (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
                             </>
                           )}
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
@@ -2972,7 +3196,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         </Tr>
                       ))}
                       <Tr bg="gray.100" fontWeight="bold">
-                        <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                        <Td colSpan={isDeliveryForm ? 7 : isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                           {isDeliveryLike ? "CARGO TO BE DELIVERED:" : "CARGO TO BE SHIPPED:"}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
@@ -2987,7 +3211,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       {!isShippingAdvise && (
                         <Tr bg="gray.50">
                           <Td
-                            colSpan={isDeliveryLike ? 6 : 5}
+                            colSpan={isDeliveryForm ? 7 : isDeliveryLike ? 6 : 5}
                             borderRight="1px"
                             borderColor="gray.300"
                             py={2}

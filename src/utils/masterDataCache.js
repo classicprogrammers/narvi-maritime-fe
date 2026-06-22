@@ -64,6 +64,11 @@ export function getCached(key) {
   return null;
 }
 
+/** Alias for getCached; returns empty array when missing (matches useMasterData helper). */
+export function getMasterData(key) {
+  return getCached(key) ?? [];
+}
+
 /**
  * Store data in memory and localStorage.
  */
