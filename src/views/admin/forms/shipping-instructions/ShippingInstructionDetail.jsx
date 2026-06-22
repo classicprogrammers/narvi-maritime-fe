@@ -1749,6 +1749,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.lwh || "-",
       ]);
       cargoRows.push([
+        "CARGO TO BE DELIVERED",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        String(totals.boxes ?? 0),
+        Number(totals.kg || 0).toFixed(2),
+        "",
+      ]);
+      cargoRows.push([
         "PACKED AS",
         "",
         "",
@@ -1784,6 +1796,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
+      ]);
+      cargoRows.push([
+        "CARGO TO BE DELIVERED",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        String(totals.boxes ?? 0),
+        Number(totals.kg || 0).toFixed(2),
+        "",
       ]);
       cargoRows.push([
         "PACKED AS",
@@ -1838,9 +1862,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       },
     });
     const cargoTableEndY = doc.lastAutoTable?.finalY || (twoColEndY + 14);
-    if (isDeliveryForm) {
+    if (isDeliveryLike) {
       const warningText =
-        "!! ALWAYS CHECK IF CARGO UPON DELIVERY IS IN GOOD CONDITION AND IF NOT - IF ANY IRREGULARITIES WE ARE TO BE INFORMED UPON DELIVERY COMPLETED";
+        "ALWAYS CHECK IF CARGO UPON DELIVERY IS IN GOOD CONDITION AND IF NOT - IF ANY IRREGULARITIES WE ARE TO BE INFORMED UPON DELIVERY COMPLETED";
       const warningY = cargoTableEndY + 20;
       doc.setFontSize(9);
       doc.setTextColor(220, 38, 38);
@@ -1943,7 +1967,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             : isDeliveryConfirmation
               ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel}`
               : isDeliveryForm
-                ? `POD FOR M/V ${formData.vessel}`
+                ? `POD / DELIVERY NOTE FOR MV ${formData.vessel}`
                 : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
         </Text>
 
@@ -2949,7 +2973,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       ))}
                       <Tr bg="gray.100" fontWeight="bold">
                         <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
-                          CARGO TO BE SHIPPED:
+                          {isDeliveryLike ? "CARGO TO BE DELIVERED:" : "CARGO TO BE SHIPPED:"}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
