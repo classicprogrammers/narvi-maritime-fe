@@ -15,6 +15,9 @@ export const normalizeToIsoDate = (value) => {
   return text;
 };
 
+/** Convert UI date (dd/mm/yyyy) to API format (yyyy-mm-dd). */
+export const formatDateForApi = (value) => normalizeToIsoDate(value);
+
 export const formatIsoToDisplayDate = (value) => {
   if (value == null || value === false) return "";
   const text = String(value).trim();

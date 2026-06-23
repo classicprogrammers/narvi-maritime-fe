@@ -122,7 +122,6 @@ export default function CiPlArchivedList() {
                 <Tr>
                   <Th>ID</Th>
                   <Th>STATE</Th>
-                  <Th>VESSEL</Th>
                   <Th>AGENT</Th>
                   <Th>SI NUMBER</Th>
                   <Th>DATE</Th>
@@ -140,7 +139,6 @@ export default function CiPlArchivedList() {
                   >
                     <Td>{form.id ?? "-"}</Td>
                     <Td>{form.state || "archived"}</Td>
-                    <Td>{form.vessel_name || resolveLabel(form.vessel_id) || "-"}</Td>
                     <Td>{resolveLabel(form.agent_id)}</Td>
                     <Td>{resolveLabel(form.si_number_id)}</Td>
                     <Td>{form.date || form.header_date || "-"}</Td>

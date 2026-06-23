@@ -37,7 +37,8 @@ import {
 import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
-import DmyDateInput, { formatIsoToDisplayDate } from "../../../../components/forms/DmyDateInput";
+import DmyDateInput, { formatIsoToDisplayDate, formatDateForApi } from "../../../../components/forms/DmyDateInput";
+import { showFormSaveError } from "../../../../utils/formApiErrors";
 import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
@@ -498,8 +499,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         from_text: toNullIfEmpty(data.from),
         destination_text: toNullIfEmpty(data.to),
         awb_number: toNullIfEmpty(data.shippedBy),
-        eta_text: data.deadline ?? "",
-        date: data.date ?? "",
+        eta_text: formatDateForApi(data.deadline),
+        date: formatDateForApi(data.date),
         job_no: toNullIfEmpty(data.jobNo),
         transport_details: toNullIfEmpty(data.transportDetails),
       };
@@ -515,8 +516,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
             ? Number(data.pic)
             : null,
-        header_date: data.date ?? "",
-        delivery_date: data.deadline ?? "",
+        header_date: formatDateForApi(data.date),
+        delivery_date: formatDateForApi(data.deadline),
         delivery_to_at: toNullIfEmpty(data.deliveryToAt),
         siform_to_id:
           data.toId != null && Number.isFinite(Number(data.toId))
@@ -536,8 +537,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
             ? Number(data.pic)
             : null,
-        header_date: data.date ?? "",
-        deadline_text: data.deadline ?? "",
+        header_date: formatDateForApi(data.date),
+        deadline_text: formatDateForApi(data.deadline),
         delivery_to_at: toNullIfEmpty(data.deliveryToAt),
         siform_to_id:
           data.toId != null && Number.isFinite(Number(data.toId))
@@ -570,12 +571,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       from_text: toNullIfEmpty(data.from),
       to_text: toNullIfEmpty(data.to),
       to_be_shipped_by: toNullIfEmpty(data.shippedBy),
-      deadline_text: data.deadline ?? "",
+      deadline_text: formatDateForApi(data.deadline),
       header_pic_id:
-        data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
+        data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic)) && Number(data.pic) > 0
           ? Number(data.pic)
           : null,
-      header_date: data.date ?? "",
+      header_date: formatDateForApi(data.date),
     };
   };
   const buildHeaderSnapshotFromApi = (form) => {
@@ -589,8 +590,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         from_text: toNullIfEmpty(form.from_text),
         destination_text: toNullIfEmpty(form.destination_text),
         awb_number: toNullIfEmpty(form.awb_number),
-        eta_text: form.eta_text != null && form.eta_text !== false ? String(form.eta_text) : "",
-        date: form.date != null && form.date !== false ? String(form.date) : "",
+        eta_text: formatDateForApi(form.eta_text),
+        date: formatDateForApi(form.date),
         job_no: toNullIfEmpty(form.job_no),
         transport_details: toNullIfEmpty(form.transport_details),
       };
@@ -603,8 +604,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(form.in_liason_with ?? "")
             : "",
         header_pic_id: toIdOrNull(form.header_pic_id),
-        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
-        delivery_date: form.delivery_date != null && form.delivery_date !== false ? String(form.delivery_date) : "",
+        header_date: formatDateForApi(form.header_date),
+        delivery_date: formatDateForApi(form.delivery_date),
         delivery_to_at: toNullIfEmpty(form.delivery_to_at),
         siform_to_id: toIdOrNull(form.siform_to_id),
         location_text: toNullIfEmpty(form.location_text),
@@ -619,8 +620,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(form.in_liason_with ?? "")
             : "",
         header_pic_id: toIdOrNull(form.header_pic_id),
-        header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
-        deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+        header_date: formatDateForApi(form.header_date),
+        deadline_text: formatDateForApi(form.deadline_text),
         delivery_to_at: toNullIfEmpty(form.delivery_to_at),
         siform_to_id: toIdOrNull(form.siform_to_id),
         location_text: toNullIfEmpty(form.location_text),
@@ -635,9 +636,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       from_text: toNullIfEmpty(form.from_text),
       to_text: toNullIfEmpty(form.to_text),
       to_be_shipped_by: toNullIfEmpty(form.to_be_shipped_by),
-      deadline_text: form.deadline_text != null && form.deadline_text !== false ? String(form.deadline_text) : "",
+      deadline_text: formatDateForApi(form.deadline_text),
       header_pic_id: toIdOrNull(form.header_pic_id),
-      header_date: form.header_date != null && form.header_date !== false ? String(form.header_date) : "",
+      header_date: formatDateForApi(form.header_date),
     };
   };
   const syncAutosaveSnapshotsFromApi = (form) => {
@@ -1521,6 +1522,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
       } catch (e) {
         console.error("Failed to autosave SI header fields:", e);
+        showFormSaveError(toast, e, "Failed to save form");
       } finally {
         setIsSiFormLoading(false);
       }
@@ -1574,6 +1576,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
       } catch (e) {
         console.error("Failed to autosave cnee_text:", e);
+        showFormSaveError(toast, e, "Failed to save form");
       } finally {
         setIsSiFormLoading(false);
       }
@@ -1637,6 +1640,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         };
       } catch (e) {
         console.error("Failed to autosave packed totals:", e);
+        showFormSaveError(toast, e, "Failed to save form");
       } finally {
         setIsSiFormLoading(false);
       }
@@ -1704,6 +1708,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setRequiredAgentCneeId(null);
     } catch (e) {
       console.error("Failed to reset SI form:", e);
+      showFormSaveError(toast, e, "Failed to reset form");
     } finally {
       setIsSiFormLoading(false);
       setTimeout(() => {
@@ -2319,6 +2324,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               });
                             } catch (e) {
                               console.error("Failed to load SI form by SI number:", e);
+                              showFormSaveError(toast, e, "Failed to save form");
                             } finally {
                               setIsSiFormLoading(false);
                             }
@@ -2385,6 +2391,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             });
                           } catch (e) {
                             console.error("Failed to load SI form by SIC number:", e);
+                            showFormSaveError(toast, e, "Failed to save form");
                           } finally {
                             setIsSiFormLoading(false);
                           }
@@ -2445,6 +2452,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
                             } catch (e) {
                               console.error("Failed to update SO number:", e);
+                              showFormSaveError(toast, e, "Failed to save form");
                             } finally {
                               setIsSiFormLoading(false);
                             }
@@ -2820,6 +2828,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
                             } catch (e) {
                               console.error("Failed to update DI number:", e);
+                              showFormSaveError(toast, e, "Failed to save form");
                               } finally {
                                 setIsSiFormLoading(false);
                               }
@@ -3334,6 +3343,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         applySiFormResponse(updated, { lockedConsigneeId: "" });
                       } catch (e) {
                         console.error("Failed to update SI form by agent:", e);
+                        showFormSaveError(toast, e, "Failed to save form");
                       } finally {
                         setIsSiFormLoading(false);
                       }
@@ -3398,6 +3408,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         });
                       } catch (e) {
                         console.error("Failed to load SI form by consignee:", e);
+                        showFormSaveError(toast, e, "Failed to save form");
                       } finally {
                         setIsSiFormLoading(false);
                       }
