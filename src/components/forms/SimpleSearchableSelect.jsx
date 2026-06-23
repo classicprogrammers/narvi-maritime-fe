@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Input,
+  InputGroup,
+  InputRightElement,
   Box,
   Flex,
   IconButton,
@@ -25,6 +27,7 @@ const SimpleSearchableSelect = ({
   valueKey = "id",
   formatOption = (option) => option[displayKey] || option.name || `Option ${option[valueKey]}`,
   isLoading = false,
+  isClearable = true,
   canDeleteOption,
   onDeleteOption,
   isDeletingOptionId = null,
@@ -256,6 +259,19 @@ const SimpleSearchableSelect = ({
   }, [isOpen, filteredOptions.length, isLoading]);
 
   const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
+  const hasClearableContent =
+    (value != null && value !== "") || (isOpen && String(searchValue).length > 0);
+
+  const handleClear = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSearchValue("");
+    onChange("");
+    setIsOpen(true);
+    setHighlightedIndex(0);
+    if (typeof onSearchChange === "function") onSearchChange("");
+  };
+
   const dropdownContent = showDropdown ? (
     <Box
       ref={dropdownRef}
@@ -330,36 +346,52 @@ const SimpleSearchableSelect = ({
         minW={minW}
         maxW={maxW}
       >
-        <Input
-          value={inputValue}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          size={size}
-          bg={bg || defaultBg}
-          color={color || defaultColor}
-          borderColor={borderColor || defaultBorderColor}
-          title={displayValue}
-          w={autoWidth ? "auto" : w}
-          minW={minW}
-          maxW={maxW}
-          htmlSize={inputProps.htmlSize ?? computedHtmlSize}
-          _focus={{
-            borderColor: "#1c4a95",
-            boxShadow: "0 0 0 1px #1c4a95",
-          }}
-          {...inputProps}
-          name={nameProp || fieldName}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={isOpen}
-        />
+        <InputGroup size={size} w={autoWidth ? "auto" : (w || "100%")} minW={minW} maxW={maxW}>
+          <Input
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={handleFocus}
+            onClick={handleClick}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            size={size}
+            bg={bg || defaultBg}
+            color={color || defaultColor}
+            borderColor={borderColor || defaultBorderColor}
+            title={displayValue}
+            w={autoWidth ? "auto" : w}
+            minW={minW}
+            maxW={maxW}
+            pr={isClearable && hasClearableContent ? "2rem" : undefined}
+            htmlSize={inputProps.htmlSize ?? computedHtmlSize}
+            _focus={{
+              borderColor: "#1c4a95",
+              boxShadow: "0 0 0 1px #1c4a95",
+            }}
+            {...inputProps}
+            name={nameProp || fieldName}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+          />
+          {isClearable && hasClearableContent ? (
+            <InputRightElement width="2rem" h="100%">
+              <IconButton
+                aria-label="Clear selection"
+                icon={<CloseIcon boxSize={2.5} />}
+                size="xs"
+                variant="ghost"
+                colorScheme="gray"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleClear}
+              />
+            </InputRightElement>
+          ) : null}
+        </InputGroup>
       </Box>
       {typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </>

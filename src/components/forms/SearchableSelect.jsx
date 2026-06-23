@@ -3,6 +3,9 @@ import {
   Box,
   Button,
   Input,
+  InputGroup,
+  InputRightElement,
+  IconButton,
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -14,6 +17,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { MdKeyboardArrowDown } from 'react-icons/md';
+import { CloseIcon } from '@chakra-ui/icons';
 
 const SearchableSelect = ({
   value,
@@ -24,6 +28,7 @@ const SearchableSelect = ({
   valueKey = "id",
   formatOption = (option) => `${option[valueKey]} - ${option[displayKey]}`,
   isLoading = false,
+  isClearable = true,
   onSearch,
   error,
   label,
@@ -97,6 +102,27 @@ const SearchableSelect = ({
     onChange(option[valueKey]);
     setSearchValue("");
     setIsOpen(false);
+  };
+
+  const handleClearValue = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onChange("");
+    setSearchValue("");
+    setFilteredOptions(options);
+    setIsOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+    if (typeof onSearch === "function") onSearch("");
+  };
+
+  const handleClearSearch = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSearchValue("");
+    setFilteredOptions(options);
+    setHighlightedIndex(0);
+    if (typeof onSearch === "function") onSearch("");
+    inputRef.current?.focus();
   };
 
   const handleKeyDown = (e) => {
@@ -182,6 +208,18 @@ const SearchableSelect = ({
           >
             {selectedOption ? formatOption(selectedOption) : placeholder}
           </Box>
+          {isClearable && selectedOption ? (
+            <IconButton
+              aria-label="Clear selection"
+              icon={<CloseIcon boxSize={2.5} />}
+              size="xs"
+              variant="ghost"
+              colorScheme="gray"
+              mr={1}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClearValue}
+            />
+          ) : null}
           {isLoading ? (
             <Spinner size="xs" />
           ) : (
@@ -199,29 +237,45 @@ const SearchableSelect = ({
         borderRadius="md"
       >
         <PopoverBody p={0}>
-          <Input
-            ref={inputRef}
-            name={fieldName}
-            placeholder="Search..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            border="none"
-            borderRadius="0"
-            borderBottom="1px"
-            borderColor="gray.200"
-            _focus={{ borderColor: "#1c4a95" }}
-            px={3}
-            py={2}
-            fontSize="sm"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={isOpen}
-          />
+          <InputGroup size="sm">
+            <Input
+              ref={inputRef}
+              name={fieldName}
+              placeholder="Search..."
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              border="none"
+              borderRadius="0"
+              borderBottom="1px"
+              borderColor="gray.200"
+              _focus={{ borderColor: "#1c4a95" }}
+              px={3}
+              py={2}
+              pr={isClearable && searchValue ? "2rem" : 3}
+              fontSize="sm"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
+            />
+            {isClearable && searchValue ? (
+              <InputRightElement width="2rem" h="100%">
+                <IconButton
+                  aria-label="Clear search"
+                  icon={<CloseIcon boxSize={2.5} />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="gray"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleClearSearch}
+                />
+              </InputRightElement>
+            ) : null}
+          </InputGroup>
           <List spacing={0}>
             {filteredOptions.map((option, index) => (
               <ListItem

@@ -5,6 +5,8 @@ import {
   Flex,
   IconButton,
   Input,
+  InputGroup,
+  InputRightElement,
   List,
   ListItem,
   Spinner,
@@ -24,6 +26,7 @@ export default function DeletableOptionCombobox({
   placeholder = "Select or type...",
   formatOption = (option) => option.name || "",
   isLoading = false,
+  isClearable = true,
   canDeleteOption,
   onDeleteOption,
   isDeletingOptionId = null,
@@ -200,6 +203,19 @@ export default function DeletableOptionCombobox({
   };
 
   const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
+  const hasClearableContent =
+    String(value || "").length > 0 || (isOpen && String(searchValue).length > 0);
+
+  const handleClear = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSearchValue("");
+    onChange?.("", null);
+    onSearchChange?.("");
+    setIsOpen(true);
+    setHighlightedIndex(0);
+  };
+
   const dropdownContent = showDropdown ? (
     <Box
       ref={dropdownRef}
@@ -267,28 +283,44 @@ export default function DeletableOptionCombobox({
   return (
     <>
       <Box position="relative" ref={containerRef} w={props.w || "100%"}>
-        <Input
-          id={inputId}
-          name={fieldName}
-          value={inputValue}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          size={size}
-          bg={bg || defaultBg}
-          color={color || defaultColor}
-          borderColor={borderColor || defaultBorderColor}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={isOpen}
-          {...props}
-        />
+        <InputGroup size={size} w={props.w || "100%"}>
+          <Input
+            id={inputId}
+            name={fieldName}
+            value={inputValue}
+            onChange={handleInputChange}
+            onFocus={handleFocus}
+            onClick={handleClick}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            size={size}
+            bg={bg || defaultBg}
+            color={color || defaultColor}
+            borderColor={borderColor || defaultBorderColor}
+            pr={isClearable && hasClearableContent ? "2rem" : undefined}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            {...props}
+          />
+          {isClearable && hasClearableContent ? (
+            <InputRightElement width="2rem" h="100%">
+              <IconButton
+                aria-label="Clear selection"
+                icon={<CloseIcon boxSize={2.5} />}
+                size="xs"
+                variant="ghost"
+                colorScheme="gray"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={handleClear}
+              />
+            </InputRightElement>
+          ) : null}
+        </InputGroup>
       </Box>
       {typeof document !== "undefined" && createPortal(dropdownContent, document.body)}
     </>
