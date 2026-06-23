@@ -57,10 +57,25 @@ export default function Dashboard(props) {
     return window.location.pathname !== "/admin/full-screen-maps";
   };
   // Match pathname to route path (handles dynamic segments like :id?)
-  const pathMatchesRoute = (pathname, layout, path) => {
-    const full = (layout || '') + (path || '');
-    const basePath = full.replace(/\/:[^/]*/g, '');
-    return pathname === basePath || pathname.startsWith(basePath + '/');
+  const pathMatchesRoute = (pathname, layout, path, exact = false) => {
+    const full = ((layout || "") + (path || "")).replace(/\/:[^/]*/g, "");
+    const basePath = full.replace(/\/$/, "") || "/";
+    const normalizedPath = (pathname || "").replace(/\/$/, "") || "/";
+    if (exact) {
+      return normalizedPath === basePath;
+    }
+    return normalizedPath === basePath || normalizedPath.startsWith(`${basePath}/`);
+  };
+  const findBestSubmenuMatch = (pathname, layout, submenu = []) => {
+    let bestMatch = null;
+    submenu.forEach((subItem) => {
+      if (!pathMatchesRoute(pathname, layout, subItem.path, subItem.exact)) return;
+      const matchLength = `${layout || ""}${subItem.path || ""}`.length;
+      if (!bestMatch || matchLength > bestMatch.matchLength) {
+        bestMatch = { name: subItem.name, matchLength };
+      }
+    });
+    return bestMatch?.name ?? null;
   };
   const isQuotationFormPath = (pathname) => {
     const p = (pathname || "").toLowerCase().replace(/\/$/, "") || "/";
@@ -88,10 +103,9 @@ export default function Dashboard(props) {
           return categoryActiveRoute;
         }
       } else if (routes[i].submenu) {
-        for (let j = 0; j < routes[i].submenu.length; j++) {
-          if (pathMatchesRoute(pathname, routes[i].layout, routes[i].submenu[j].path)) {
-            return routes[i].submenu[j].name;
-          }
+        const submenuMatch = findBestSubmenuMatch(pathname, routes[i].layout, routes[i].submenu);
+        if (submenuMatch) {
+          return submenuMatch;
         }
       } else {
         if (pathMatchesRoute(pathname, routes[i].layout, routes[i].path)) {

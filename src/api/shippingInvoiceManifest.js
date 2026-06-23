@@ -135,18 +135,6 @@ const postUpdate = async (url, payload = {}, fallbackMessage) => {
   return extractForm(response.data, fallbackMessage);
 };
 
-export const getCiplSimpleFormOptionsApi = async (params = {}) =>
-  postOptions("/api/cipl/form/options", params, "Failed to fetch CIPL simple form options");
-
-export const postCiplSimpleFormApi = async (params = {}) =>
-  postForm("/api/cipl/form", params, "Failed to fetch CIPL simple form");
-
-export const postCiplSimpleFormCreateApi = async (payload = {}) =>
-  postCreate("/api/cipl/form/create", payload, "Failed to create CIPL simple form");
-
-export const postCiplSimpleFormUpdateApi = async (payload = {}) =>
-  postUpdate("/api/cipl/form/update", payload, "Failed to update CIPL simple form");
-
 const extractArchiveResponse = (data, fallbackMessage) => {
   assertSuccess(data, fallbackMessage);
   const root = data?.result && typeof data.result === "object" ? data.result : data;
@@ -157,43 +145,39 @@ const extractArchiveResponse = (data, fallbackMessage) => {
   };
 };
 
-export const postCiplSimpleFormArchiveApi = async (payload = {}) => {
-  const response = await api.post("/api/cipl/form/archive", sanitizeUpdatePayload(payload));
-  return extractArchiveResponse(response.data, "Failed to archive CIPL simple form");
+const FORM_BASE = "/api/shipping/invoice/manifest/form";
+
+export const getShippingInvoiceManifestFormOptionsApi = async (params = {}) =>
+  postOptions(`${FORM_BASE}/options`, params, "Failed to fetch shipping invoice manifest form options");
+
+export const postShippingInvoiceManifestFormApi = async (params = {}) =>
+  postForm(FORM_BASE, params, "Failed to fetch shipping invoice manifest form");
+
+export const postShippingInvoiceManifestFormCreateApi = async (payload = {}) =>
+  postCreate(`${FORM_BASE}/create`, payload, "Failed to create shipping invoice manifest form");
+
+export const postShippingInvoiceManifestFormUpdateApi = async (payload = {}) =>
+  postUpdate(`${FORM_BASE}/update`, payload, "Failed to update shipping invoice manifest form");
+
+export const postShippingInvoiceManifestFormArchiveApi = async (payload = {}) => {
+  const response = await api.post(`${FORM_BASE}/archive`, sanitizeUpdatePayload(payload));
+  return extractArchiveResponse(response.data, "Failed to archive shipping invoice manifest form");
 };
 
-export const listCiplSimpleArchivedFormsApi = async (params = {}) =>
-  postFormList("/api/cipl/form", { archived_only: true, ...params }, "Failed to list archived CIPL forms");
+export const listShippingInvoiceManifestArchivedFormsApi = async (params = {}) =>
+  postFormList(FORM_BASE, { archived_only: true, ...params }, "Failed to list archived shipping invoice manifest forms");
 
-export const getCiplSimpleFormByIdApi = async (id) => {
-  const response = await api.post("/api/cipl/form", buildFormLoadPayload({ id }));
-  const form = extractForm(response.data, "Failed to fetch CIPL simple form");
+export const getShippingInvoiceManifestFormByIdApi = async (id) => {
+  const response = await api.post(FORM_BASE, buildFormLoadPayload({ id }));
+  const form = extractForm(response.data, "Failed to fetch shipping invoice manifest form");
   if (form) return form;
   const list = extractFormList(response.data);
   if (list.length > 0) return list[0];
-  throw new Error("Failed to fetch CIPL simple form");
+  throw new Error("Failed to fetch shipping invoice manifest form");
 };
 
-export const postCiplSimpleFormDeleteApi = async (payload = {}) => {
-  const response = await api.post("/api/cipl/form/delete", sanitizeUpdatePayload(payload));
-  assertSuccess(response.data, "Failed to delete CIPL simple form");
+export const postShippingInvoiceManifestFormDeleteApi = async (payload = {}) => {
+  const response = await api.post(`${FORM_BASE}/delete`, sanitizeUpdatePayload(payload));
+  assertSuccess(response.data, "Failed to delete shipping invoice manifest form");
   return response.data;
 };
-
-export const getCiplPerUnitFormOptionsApi = async (params = {}) =>
-  postOptions("/api/cipl/perunit/form/options", params, "Failed to fetch CIPL per-unit form options");
-
-export const postCiplPerUnitFormApi = async (params = {}) =>
-  postForm("/api/cipl/perunit/form", params, "Failed to fetch CIPL per-unit form");
-
-export const postCiplPerUnitFormCreateApi = async (payload = {}) =>
-  postCreate("/api/cipl/perunit/form/create", payload, "Failed to create CIPL per-unit form");
-
-export const postCiplPerUnitFormUpdateApi = async (payload = {}) =>
-  postUpdate("/api/cipl/perunit/form/update", payload, "Failed to update CIPL per-unit form");
-
-export const postCiplPerUnitFormArchiveApi = async (payload = {}) => {
-  const response = await api.post("/api/cipl/perunit/form/archive", sanitizeUpdatePayload(payload));
-  return extractArchiveResponse(response.data, "Failed to archive CIPL per-unit form");
-};
-

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useHistory, useParams } from "react-router-dom";
+import { useHistory, useLocation, useParams } from "react-router-dom";
 import {
   Box,
   Flex,
@@ -36,8 +36,9 @@ import {
   ModalCloseButton,
   Spinner,
   useDisclosure,
+  useToast,
 } from "@chakra-ui/react";
-import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
+import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload, MdArchive, MdAdd, MdDelete } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
 import DmyDateInput, { formatIsoToDisplayDate } from "../../../../components/forms/DmyDateInput";
@@ -61,13 +62,23 @@ import {
 import {
   getCiplSimpleFormOptionsApi,
   getCiplPerUnitFormOptionsApi,
+  getCiplSimpleFormByIdApi,
   postCiplSimpleFormApi,
   postCiplSimpleFormCreateApi,
   postCiplSimpleFormUpdateApi,
+  postCiplSimpleFormArchiveApi,
   postCiplPerUnitFormApi,
   postCiplPerUnitFormCreateApi,
   postCiplPerUnitFormUpdateApi,
+  postCiplPerUnitFormArchiveApi,
 } from "../../../../api/cipl";
+import {
+  getShippingInvoiceManifestFormOptionsApi,
+  postShippingInvoiceManifestFormApi,
+  postShippingInvoiceManifestFormCreateApi,
+  postShippingInvoiceManifestFormUpdateApi,
+  postShippingInvoiceManifestFormArchiveApi,
+} from "../../../../api/shippingInvoiceManifest";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -127,12 +138,56 @@ const formatLwhWithLineBreaks = (value) => {
     .join("\n");
 };
 
-export default function ShippingInstructionDetail({ formType = "instruction" }) {
+/** Multiple inputs per stock line field are stored in one API string, joined by RS. */
+const CI_PL_MULTI_FIELD_SEP = "\x1e";
+
+const parseCiPlMultiFieldLines = (value) => {
+  if (value == null || value === false) return [""];
+  const text = String(value);
+  if (!text) return [""];
+  if (text.includes(CI_PL_MULTI_FIELD_SEP)) {
+    return text.split(CI_PL_MULTI_FIELD_SEP);
+  }
+  return [text];
+};
+
+const serializeCiPlMultiFieldLines = (lines) => {
+  if (!Array.isArray(lines)) return "";
+  return lines.map((line) => String(line ?? "")).join(CI_PL_MULTI_FIELD_SEP);
+};
+
+const formatCiPlMultiFieldDisplay = (value) => {
+  const lines = parseCiPlMultiFieldLines(value)
+    .map((line) => String(line ?? "").trim())
+    .filter(Boolean);
+  return lines.length ? lines.join("\n") : "";
+};
+
+const sumCiPlNumericFieldLines = (value) =>
+  parseCiPlMultiFieldLines(value).reduce((sum, line) => {
+    const n = Number(String(line).trim());
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
+
+const parseCiPlDescriptionLines = parseCiPlMultiFieldLines;
+const serializeCiPlDescriptionLines = serializeCiPlMultiFieldLines;
+const formatCiPlDescriptionDisplay = formatCiPlMultiFieldDisplay;
+const parseCiPlValueLines = parseCiPlMultiFieldLines;
+const serializeCiPlValueLines = serializeCiPlMultiFieldLines;
+const formatCiPlValueDisplay = formatCiPlMultiFieldDisplay;
+
+export default function ShippingInstructionDetail({ formType = "instruction", archivedFormId: archivedFormIdProp = null }) {
+  const { id: routeArchivedId } = useParams();
+  const location = useLocation();
+  const archivedFormId =
+    archivedFormIdProp ??
+    (/\/forms\/ci-pl\/archived\/[^/]+/.test(location.pathname) ? routeArchivedId : null);
   const isShippingAdvise = formType === "advise";
   const isDeliveryForm = formType === "delivery";
   const isDeliveryConfirmation = formType === "deliveryConfirmation";
   const isDeliveryLike = isDeliveryForm || isDeliveryConfirmation;
   const isCiPlForm = !isShippingAdvise && !isDeliveryLike;
+  const isCiPlArchivedView = isCiPlForm && archivedFormId != null && String(archivedFormId).trim() !== "";
   const ciPlTotalDescriptionLabel = "VALUE FOR CUSTOMS PURPOSE ONLY";
   const todayIso = new Date().toISOString().slice(0, 10);
   const resolveFormApis = () => {
@@ -160,12 +215,22 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         createForm: async () => null,
       };
     }
-    if (ciPlTabIndex === 1) {
+    if (ciPlTabIndex === 2 && !isCiPlArchivedView) {
+      return {
+        loadFormLatest: postShippingInvoiceManifestFormApi,
+        loadOptions: getShippingInvoiceManifestFormOptionsApi,
+        saveForm: postShippingInvoiceManifestFormUpdateApi,
+        createForm: postShippingInvoiceManifestFormCreateApi,
+        archiveForm: postShippingInvoiceManifestFormArchiveApi,
+      };
+    }
+    if (ciPlTabIndex === 1 && !isCiPlArchivedView) {
       return {
         loadFormLatest: postCiplPerUnitFormApi,
         loadOptions: getCiplPerUnitFormOptionsApi,
         saveForm: postCiplPerUnitFormUpdateApi,
         createForm: postCiplPerUnitFormCreateApi,
+        archiveForm: postCiplPerUnitFormArchiveApi,
       };
     }
     return {
@@ -173,6 +238,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       loadOptions: getCiplSimpleFormOptionsApi,
       saveForm: postCiplSimpleFormUpdateApi,
       createForm: postCiplSimpleFormCreateApi,
+      archiveForm: postCiplSimpleFormArchiveApi,
     };
   };
   const loadFormLatest = (...args) => resolveFormApis().loadFormLatest(...args);
@@ -180,7 +246,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const saveForm = (...args) => resolveFormApis().saveForm(...args);
   const createForm = (...args) => resolveFormApis().createForm(...args);
   const history = useHistory();
-  const { id } = useParams();
+  const toast = useToast();
   const {
     isOpen: isPdfPreviewOpen,
     onOpen: onPdfPreviewOpen,
@@ -191,10 +257,23 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     onOpen: onDescriptionModalOpen,
     onClose: onDescriptionModalClose,
   } = useDisclosure();
+  const {
+    isOpen: isValueModalOpen,
+    onOpen: onValueModalOpen,
+    onClose: onValueModalClose,
+  } = useDisclosure();
+  const {
+    isOpen: isArchiveModalOpen,
+    onOpen: onArchiveModalOpen,
+    onClose: onArchiveModalClose,
+  } = useDisclosure();
+  const [archiveResponse, setArchiveResponse] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
   const [editingDescriptionIndex, setEditingDescriptionIndex] = useState(null);
-  const [editingDescriptionValue, setEditingDescriptionValue] = useState("");
+  const [editingDescriptionLines, setEditingDescriptionLines] = useState([""]);
+  const [editingValueIndex, setEditingValueIndex] = useState(null);
+  const [editingValueLines, setEditingValueLines] = useState([""]);
   const pdfPreviewBlobUrlRef = useRef(null);
   const pdfPreviewIframeRef = useRef(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -219,6 +298,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
+  const [ciPlFormMeta, setCiPlFormMeta] = useState({ state: null, archived_at: null });
   // Backend requires agent_cnee_id; keep last valid id even if UI is cleared
   const [requiredAgentCneeId, setRequiredAgentCneeId] = useState(null);
   const isApplyingFormRef = useRef(false);
@@ -337,6 +417,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   ]);
 
   const isCiPlPerUnitTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 1;
+  const isCiPlManifestTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 2;
+  const isCiPlDraftTab = isCiPlForm && !isCiPlArchivedView;
 
   // Calculate totals
   const totals = {
@@ -370,10 +452,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             const v = Number(item.valueUsd);
             return sum + (Number.isFinite(v) ? v : 0);
           }, 0)
-          : cargoItems.reduce((sum, item) => {
-            const v = Number(item.valueUsd);
-            return sum + (Number.isFinite(v) ? v : 0);
-          }, 0),
+          : cargoItems.reduce((sum, item) => sum + sumCiPlNumericFieldLines(item.valueUsd), 0),
   };
   const formatStockListTotal = (value, fractionDigits = 2) => {
     if (!Number.isFinite(value)) return "-";
@@ -393,16 +472,71 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   };
   const openDescriptionEditor = (index) => {
     setEditingDescriptionIndex(index);
-    setEditingDescriptionValue(String(cargoItems[index]?.details || ""));
+    setEditingDescriptionLines(parseCiPlDescriptionLines(cargoItems[index]?.details));
     onDescriptionModalOpen();
+  };
+  const handleCloseDescriptionModal = () => {
+    onDescriptionModalClose();
+    setEditingDescriptionIndex(null);
+    setEditingDescriptionLines([""]);
   };
   const handleSaveDescription = () => {
     if (editingDescriptionIndex != null) {
-      updateCargoItem(editingDescriptionIndex, "details", editingDescriptionValue);
+      updateCargoItem(
+        editingDescriptionIndex,
+        "details",
+        serializeCiPlDescriptionLines(editingDescriptionLines)
+      );
     }
-    onDescriptionModalClose();
-    setEditingDescriptionIndex(null);
-    setEditingDescriptionValue("");
+    handleCloseDescriptionModal();
+  };
+  const updateDescriptionLine = (lineIndex, value) => {
+    setEditingDescriptionLines((prev) =>
+      prev.map((line, idx) => (idx === lineIndex ? value : line))
+    );
+  };
+  const addDescriptionLine = () => {
+    setEditingDescriptionLines((prev) => [...prev, ""]);
+  };
+  const removeDescriptionLine = (lineIndex) => {
+    setEditingDescriptionLines((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, idx) => idx !== lineIndex);
+    });
+  };
+  const openValueEditor = (index) => {
+    setEditingValueIndex(index);
+    setEditingValueLines(parseCiPlValueLines(cargoItems[index]?.valueUsd));
+    onValueModalOpen();
+  };
+  const handleCloseValueModal = () => {
+    onValueModalClose();
+    setEditingValueIndex(null);
+    setEditingValueLines([""]);
+  };
+  const handleSaveValue = () => {
+    if (editingValueIndex != null) {
+      updateCargoItem(
+        editingValueIndex,
+        "valueUsd",
+        serializeCiPlValueLines(editingValueLines)
+      );
+    }
+    handleCloseValueModal();
+  };
+  const updateValueLine = (lineIndex, value) => {
+    setEditingValueLines((prev) =>
+      prev.map((line, idx) => (idx === lineIndex ? value : line))
+    );
+  };
+  const addValueLine = () => {
+    setEditingValueLines((prev) => [...prev, ""]);
+  };
+  const removeValueLine = (lineIndex) => {
+    setEditingValueLines((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, idx) => idx !== lineIndex);
+    });
   };
 
   const getPerUnitLineValueUsd = (item) => {
@@ -728,6 +862,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     if (!form) return;
     isApplyingFormRef.current = true;
     setSiFormId(form.id ?? null);
+    if (isCiPlForm && isCiPlDraftTab) {
+      setCiPlFormMeta({
+        state: form.state ?? null,
+        archived_at:
+          form.archived_at != null && form.archived_at !== false ? form.archived_at : null,
+      });
+    }
 
     const countryName =
       form.country_id && typeof form.country_id === "object" ? (form.country_id.name || "") : "";
@@ -1232,9 +1373,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   const ensureFormId = async () => {
     if (siFormId) return siFormId;
+    if (isCiPlArchivedView) {
+      const archivedId = Number(archivedFormId);
+      if (Number.isFinite(archivedId)) {
+        setSiFormId(archivedId);
+        return archivedId;
+      }
+      return null;
+    }
     const latest = await loadFormLatest({ latest_only: true });
     let id = latest?.id ?? null;
-    if (!id && !isShippingAdvise && !isDeliveryLike) {
+    if (!id && !isShippingAdvise && !isDeliveryLike && !isCiPlArchivedView) {
       const created = await createForm({});
       id = created?.id ?? null;
       if (created) applySiFormResponse(created);
@@ -1243,9 +1392,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return id;
   };
 
-  /** Shipping Advise may omit id so backend updates latest record. */
+  /** CI PL draft tabs may omit id — backend updates the current draft. */
   const buildSavePayloadWithId = (currentId, fields) => {
-    if (isShippingAdvise) {
+    const isCiPlDraftWithOptionalId = isCiPlDraftTab;
+    if (isShippingAdvise || isCiPlDraftWithOptionalId) {
       if (currentId != null && currentId !== "") {
         return { id: Number(currentId), ...fields };
       }
@@ -1452,8 +1602,47 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     );
   }, [isCiPlForm, formData.currencyId, formData.currencyName]);
 
-  // On page load: fetch latest saved SI form
+  // Archived CI PL: load one record by id
   useEffect(() => {
+    if (!isCiPlForm || !isCiPlArchivedView) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        setIsSiFormLoading(true);
+        const form = await getCiplSimpleFormByIdApi(archivedFormId);
+        if (cancelled) return;
+        if (!form) {
+          toast({
+            title: "Error",
+            description: "Archived CI PL form not found",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+          return;
+        }
+        applySiFormResponse(form);
+      } catch (e) {
+        console.error("Failed to load archived CI PL form:", e);
+        toast({
+          title: "Error",
+          description: e?.message || "Failed to load archived CI PL form",
+          status: "error",
+          duration: 3000,
+          isClosable: true,
+        });
+      } finally {
+        if (!cancelled) setIsSiFormLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCiPlForm, isCiPlArchivedView, archivedFormId]);
+
+  // Active draft (or per-unit tab): load latest working copy
+  useEffect(() => {
+    if (!isCiPlForm || isCiPlArchivedView) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -1462,8 +1651,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         if (cancelled) return;
         applySiFormResponse(form);
       } catch (e) {
-        // If backend has no "latest" yet or rejects, keep page usable
-        console.error("Failed to load latest SI form:", e);
+        console.error("Failed to load CI PL form:", e);
       } finally {
         if (!cancelled) setIsSiFormLoading(false);
       }
@@ -1471,7 +1659,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return () => {
       cancelled = true;
     };
-  }, [isShippingAdvise, isDeliveryLike, ciPlTabIndex]);
+  }, [isCiPlForm, isCiPlArchivedView, ciPlTabIndex]);
 
   // Autosave CIPL editable stock notebook line fields.
   useEffect(() => {
@@ -1694,6 +1882,55 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
 
   // Button handlers
+  const handleArchiveCiPlDraft = async () => {
+    if (!isCiPlForm || isCiPlArchivedView || !isCiPlDraftTab) return;
+
+    const { archiveForm, loadFormLatest: loadDraftForm } = resolveFormApis();
+    if (!archiveForm) return;
+
+    try {
+      isResettingRef.current = true;
+      setIsSiFormLoading(true);
+      const currentId =
+        siFormId ?? (await loadDraftForm({ latest_only: true }))?.id ?? null;
+      const archivePayload =
+        currentId != null && currentId !== "" ? { id: Number(currentId) } : {};
+
+      const result = await archiveForm(archivePayload);
+
+      headerUserEditedRef.current = false;
+      consignBlockUserEditedRef.current = false;
+      packedTotalsUserEditedRef.current = false;
+      setRequiredAgentCneeId(null);
+
+      const nextDraft = await loadDraftForm({ latest_only: true });
+      if (nextDraft) {
+        applySiFormResponse(nextDraft);
+      }
+
+      setArchiveResponse({
+        ...result,
+        draftForm: nextDraft ?? result.draftForm,
+      });
+
+      onArchiveModalOpen();
+    } catch (e) {
+      console.error("Failed to archive CI PL form:", e);
+      toast({
+        title: "Error",
+        description: e?.message || "Failed to archive form",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsSiFormLoading(false);
+      setTimeout(() => {
+        isResettingRef.current = false;
+      }, 0);
+    }
+  };
+
   const handleResetShippingInstruction = async () => {
     try {
       isResettingRef.current = true;
@@ -1961,9 +2198,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         return Number.isInteger(n) ? String(n) : n.toFixed(2);
       };
       const formatCiPlDescriptionCell = (value) => {
-        doc.setFontSize(7);
-        const text = formatCiPlPdfText(value) || "-";
-        return doc.splitTextToSize(text, ciPlDescriptionColWidth - 6);
+        const text = formatCiPlDescriptionDisplay(value);
+        return formatCiPlPdfText(text) || "-";
+      };
+      const formatCiPlValueCell = (value) => {
+        const text = formatCiPlValueDisplay(value);
+        return formatCiPlPdfText(text) || "-";
       };
       const formatCiPlPdfLwh = (value) => {
         const text = formatLwhWithLineBreaks(value);
@@ -1987,7 +2227,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             formatCiPlPdfNumber(item.kg),
             formatCiPlPdfLwh(item.lwh),
             formatCiPlDescriptionCell(item.details),
-            formatCiPlPdfText(item.valueUsd),
+            formatCiPlValueCell(item.valueUsd),
           ]
       ));
       const ciPlTotalRow = isCiPlPerUnitTab
@@ -2347,8 +2587,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         dgUnPdf(item),
-        item.details || "-",
-        item.valueUsd || "-",
+        formatCiPlDescriptionDisplay(item.details) || "-",
+        formatCiPlValueDisplay(item.valueUsd) || "-",
       ]);
     }
 
@@ -2446,21 +2686,56 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   return (
     <Box pt={{ base: "130px", md: "80px", xl: "80px" }} bg={bgColor} minH="100vh">
       <Box px={{ base: "4", md: "6", lg: "8" }} pt={0} pb={6} mx="auto">
-        <Tabs variant="enclosed" colorScheme="orange" isLazy index={ciPlTabIndex} onChange={setCiPlTabIndex}>
+        <Tabs
+          variant="enclosed"
+          colorScheme="orange"
+          isLazy
+          index={isCiPlArchivedView ? 0 : ciPlTabIndex}
+          onChange={isCiPlArchivedView ? undefined : setCiPlTabIndex}
+        >
           <Flex justify="space-between" align="center" mb={4} flexWrap="wrap" gap={3}>
             <TabList>
               <Tab fontWeight="semibold">Simple</Tab>
-              <Tab fontWeight="semibold">Per unit</Tab>
+              {!isCiPlArchivedView ? <Tab fontWeight="semibold">Per unit</Tab> : null}
+              {!isCiPlArchivedView ? (
+                <Tab fontWeight="semibold" whiteSpace="nowrap">
+                  Shipping invoice / Cargo Manifest
+                </Tab>
+              ) : null}
             </TabList>
             <HStack spacing={3}>
-              <Button
-                variant="outline"
-                size="sm"
-                isLoading={isSiFormLoading}
-                onClick={handleResetShippingInstruction}
-              >
-                Reset
-              </Button>
+              {isCiPlArchivedView ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => history.push("/admin/forms/ci-pl/archived")}
+                >
+                  Back to Archived List
+                </Button>
+              ) : (
+                <>
+                  {isCiPlDraftTab ? (
+                    <Button
+                      leftIcon={<Icon as={MdArchive} />}
+                      colorScheme="orange"
+                      variant="outline"
+                      size="sm"
+                      isLoading={isSiFormLoading}
+                      onClick={handleArchiveCiPlDraft}
+                    >
+                      Archive
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={isSiFormLoading}
+                    onClick={handleResetShippingInstruction}
+                  >
+                    Reset
+                  </Button>
+                </>
+              )}
               <Button
                 leftIcon={<Icon as={MdPictureAsPdf} />}
                 variant="outline"
@@ -2474,10 +2749,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             </HStack>
           </Flex>
 
+          {isCiPlArchivedView ? (
+            <Text fontSize="sm" color="orange.600" fontWeight="semibold" mb={3}>
+              Archived CI PL #{archivedFormId}
+              {ciPlFormMeta.state ? ` (${ciPlFormMeta.state})` : ""}
+              {ciPlFormMeta.archived_at
+                ? ` — archived ${new Date(ciPlFormMeta.archived_at).toLocaleString()}`
+                : ""}
+              {formData.vessel ? ` — ${formData.vessel}` : ""}
+            </Text>
+          ) : null}
+
           <Text fontSize="2xl" fontWeight="bold" mb={6}>
-            {isCiPlPerUnitTab
-              ? `INVOICE / PACKING LIST (PER UNIT)${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
-              : `INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`}
+            {isCiPlArchivedView
+              ? `ARCHIVED INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
+              : isCiPlManifestTab
+                ? `SHIPPING INVOICE / CARGO MANIFEST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
+                : isCiPlPerUnitTab
+                  ? `INVOICE / PACKING LIST (PER UNIT)${formData.vessel ? ` FOR ${formData.vessel}` : ""}`
+                  : `INVOICE / PACKING LIST${formData.vessel ? ` FOR ${formData.vessel}` : ""}`}
           </Text>
 
           <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6}>
@@ -3300,23 +3590,40 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                                 bg="#f1f3f5"
                                 minW={isCiPlPerUnitTab ? "260px" : "280px"}
                                 w={isCiPlPerUnitTab ? "28%" : "42%"}
+                                verticalAlign="top"
                               >
-                                <Box
-                                  w="100%"
-                                  minH="32px"
-                                  cursor="pointer"
-                                  whiteSpace="pre-wrap"
-                                  wordBreak="break-word"
-                                  px={2}
-                                  py={2}
-                                  borderRadius="sm"
-                                  bg="#f1f3f5"
-                                  border="1px solid"
-                                  borderColor="gray.300"
-                                  onClick={() => openDescriptionEditor(index)}
-                                >
-                                  {item.details || "Free text"}
-                                </Box>
+                                {isCiPlForm ? (
+                                  <Box
+                                    w="100%"
+                                    minH="32px"
+                                    cursor="pointer"
+                                    whiteSpace="pre-wrap"
+                                    wordBreak="break-word"
+                                    px={2}
+                                    py={2}
+                                    borderRadius="sm"
+                                    bg="#f1f3f5"
+                                    border="1px solid"
+                                    borderColor="gray.300"
+                                    onClick={() => openDescriptionEditor(index)}
+                                  >
+                                    {formatCiPlDescriptionDisplay(item.details) || "Free text"}
+                                  </Box>
+                                ) : (
+                                  <Input
+                                    value={item.details || ""}
+                                    onChange={(e) => updateCargoItem(index, "details", e.target.value)}
+                                    size="xs"
+                                    variant="unstyled"
+                                    bg="#f1f3f5"
+                                    px={2}
+                                    py={2}
+                                    borderRadius="sm"
+                                    border="1px solid"
+                                    borderColor="gray.300"
+                                    placeholder="Free text"
+                                  />
+                                )}
                               </Td>
                               {isCiPlPerUnitTab && (
                                 <>
@@ -3357,6 +3664,23 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                                   <Text px={2} py={2} fontSize="xs">
                                     {getPerUnitLineValueUsd(item) || "-"}
                                   </Text>
+                                ) : isCiPlForm ? (
+                                  <Box
+                                    w="100%"
+                                    minH="32px"
+                                    cursor="pointer"
+                                    whiteSpace="pre-wrap"
+                                    wordBreak="break-word"
+                                    px={2}
+                                    py={2}
+                                    borderRadius="sm"
+                                    bg="#f1f3f5"
+                                    border="1px solid"
+                                    borderColor="gray.300"
+                                    onClick={() => openValueEditor(index)}
+                                  >
+                                    {formatCiPlValueDisplay(item.valueUsd) || "Free text"}
+                                  </Box>
                                 ) : (
                                   <Input
                                     value={item.valueUsd || ""}
@@ -3873,25 +4197,146 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           </ModalFooter>
         </ModalContent>
       </Modal>
-      <Modal isOpen={isDescriptionModalOpen} onClose={onDescriptionModalClose} size="xl">
+      <Modal isOpen={isDescriptionModalOpen} onClose={handleCloseDescriptionModal} size="xl" scrollBehavior="inside">
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Edit Description</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Textarea
-              value={editingDescriptionValue}
-              onChange={(e) => setEditingDescriptionValue(e.target.value)}
-              rows={10}
-              placeholder="Enter description..."
-            />
+            <VStack align="stretch" spacing={3}>
+              {editingDescriptionLines.map((line, lineIndex) => (
+                <HStack key={`desc-line-${lineIndex}`} align="start" spacing={2}>
+                  <Textarea
+                    flex={1}
+                    value={line}
+                    onChange={(e) => updateDescriptionLine(lineIndex, e.target.value)}
+                    rows={3}
+                    placeholder={`Description ${lineIndex + 1}`}
+                  />
+                  <IconButton
+                    aria-label="Remove description field"
+                    icon={<Icon as={MdDelete} />}
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="red"
+                    mt={1}
+                    isDisabled={editingDescriptionLines.length <= 1}
+                    onClick={() => removeDescriptionLine(lineIndex)}
+                  />
+                </HStack>
+              ))}
+              <Button
+                leftIcon={<Icon as={MdAdd} />}
+                size="sm"
+                variant="outline"
+                alignSelf="flex-start"
+                onClick={addDescriptionLine}
+              >
+                Add description field
+              </Button>
+            </VStack>
           </ModalBody>
           <ModalFooter gap={2}>
-            <Button variant="ghost" onClick={onDescriptionModalClose}>
+            <Button variant="ghost" onClick={handleCloseDescriptionModal}>
               Cancel
             </Button>
             <Button colorScheme="blue" onClick={handleSaveDescription}>
               Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isValueModalOpen} onClose={handleCloseValueModal} size="xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Edit {valueInCurrencyLabel}</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={3}>
+              {editingValueLines.map((line, lineIndex) => (
+                <HStack key={`value-line-${lineIndex}`} align="start" spacing={2}>
+                  <Input
+                    flex={1}
+                    value={line}
+                    onChange={(e) => updateValueLine(lineIndex, e.target.value)}
+                    placeholder={`Value ${lineIndex + 1}`}
+                  />
+                  <IconButton
+                    aria-label="Remove value field"
+                    icon={<Icon as={MdDelete} />}
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="red"
+                    isDisabled={editingValueLines.length <= 1}
+                    onClick={() => removeValueLine(lineIndex)}
+                  />
+                </HStack>
+              ))}
+              <Button
+                leftIcon={<Icon as={MdAdd} />}
+                size="sm"
+                variant="outline"
+                alignSelf="flex-start"
+                onClick={addValueLine}
+              >
+                Add value field
+              </Button>
+            </VStack>
+          </ModalBody>
+          <ModalFooter gap={2}>
+            <Button variant="ghost" onClick={handleCloseValueModal}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleSaveValue}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={isArchiveModalOpen} onClose={onArchiveModalClose} size="lg" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>CI PL Archived</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={3}>
+              <Text>
+                The current form has been archived. A new empty draft is ready for the next entry.
+              </Text>
+              {archiveResponse?.archivedForm?.id != null ? (
+                <Text fontSize="sm">
+                  <strong>Archived record:</strong> ID #{archiveResponse.archivedForm.id}
+                  {archiveResponse.archivedForm.state ? ` (${archiveResponse.archivedForm.state})` : ""}
+                  {archiveResponse.archivedForm.archived_at
+                    ? ` — archived at ${new Date(archiveResponse.archivedForm.archived_at).toLocaleString()}`
+                    : ""}
+                </Text>
+              ) : null}
+              {archiveResponse?.draftForm?.id != null ? (
+                <Text fontSize="sm">
+                  <strong>New draft:</strong> ID #{archiveResponse.draftForm.id}
+                  {archiveResponse.draftForm.state ? ` (${archiveResponse.draftForm.state})` : ""}
+                </Text>
+              ) : null}
+              <Box
+                as="pre"
+                p={3}
+                bg="gray.50"
+                borderRadius="md"
+                fontSize="xs"
+                overflowX="auto"
+                maxH="320px"
+                overflowY="auto"
+                whiteSpace="pre-wrap"
+                wordBreak="break-word"
+              >
+                {JSON.stringify(archiveResponse?.raw ?? archiveResponse, null, 2)}
+              </Box>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="orange" onClick={onArchiveModalClose}>
+              Continue with new draft
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -241,8 +241,22 @@ const routes = [
         component: ShippingInstructions,
       },
       {
-        name: "CI PL",
+        name: "New CI PL",
         path: "/forms/ci-pl",
+        exact: true,
+        icon: (
+          <Icon
+            as={MdDescription}
+            width="20px"
+            height="20px"
+            color="inherit"
+          />
+        ),
+        component: CiPl,
+      },
+      {
+        name: "Archived CI PL",
+        path: "/forms/ci-pl/archived",
         icon: (
           <Icon
             as={MdDescription}

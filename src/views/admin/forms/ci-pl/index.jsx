@@ -1,8 +1,22 @@
 import React from "react";
+import { Route, Switch } from "react-router-dom";
 import CiPlDetail from "./CiPlDetail";
+import CiPlArchivedList from "./CiPlArchivedList";
+
+const CI_PL_BASE = "/admin/forms/ci-pl";
 
 export default function CiPl() {
-  // CI PL starts as a dedicated copy of the Shipping Instructions form
-  // so future changes can diverge without affecting the original screen.
-  return <CiPlDetail />;
+  return (
+    <Switch>
+      <Route exact path={`${CI_PL_BASE}/archived/:id`}>
+        <CiPlDetail />
+      </Route>
+      <Route exact path={`${CI_PL_BASE}/archived`}>
+        <CiPlArchivedList />
+      </Route>
+      <Route exact path={CI_PL_BASE}>
+        <CiPlDetail />
+      </Route>
+    </Switch>
+  );
 }

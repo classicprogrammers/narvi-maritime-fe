@@ -151,6 +151,14 @@ export function SidebarLinks(props) {
     if (isQuotationFormPath(pathname)) {
       return normalizedRoute === "/quotations/list";
     }
+
+    // New CI PL vs Archived CI PL — only one should be active
+    if (normalizedRoute === "/forms/ci-pl/archived") {
+      return pathname === "/admin/forms/ci-pl/archived" || pathname.startsWith("/admin/forms/ci-pl/archived/");
+    }
+    if (normalizedRoute === "/forms/ci-pl") {
+      return pathname === "/admin/forms/ci-pl" || pathname === "/admin/forms/ci-pl/";
+    }
     
     // Check for exact match
     if (pathname === fullRoute || pathname === fullRoute + '/') {
