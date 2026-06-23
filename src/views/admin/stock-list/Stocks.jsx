@@ -147,11 +147,65 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "destination", label: "DESTINATION" },
         { key: "dg_un", label: "DG/UN" },
         { key: "so_number", label: "SO NUMBER" },
-        { key: "cur_2", label: "CUR" },
-        { key: "value_2", label: "VALUE" },
         { key: "warehouse_id", label: "WAREHOUSE ID" },
     ],
 };
+
+/** Stock view/edit — Copy to clipboard column set */
+const CLIPBOARD_COPY_HEADERS = [
+    "VESSEL",
+    "SUPPLIER",
+    "PO #",
+    "STOCK STATUS",
+    "BOXES",
+    "KG",
+    "LWH TEXT",
+    "TOTAL VOLUME CBM",
+    "WAREHOUSE ID",
+    "DG/UN",
+];
+
+/** Stock view/edit — Export PDF column set */
+const PDF_EXPORT_HEADERS = [
+    "VESSEL",
+    "SUPPLIER",
+    "PO #",
+    "STOCK STATUS",
+    "CUR",
+    "VALUE",
+    "BOXES",
+    "KG",
+    "LWH TEXT",
+    "ORIGIN",
+    "HUB1",
+    "HUB2",
+    "AP DESTINATION",
+    "DESTINATION",
+    "DG/UN",
+    "SO NUMBER",
+];
+
+/** Stock view/edit — Export Excel column set */
+const EXCEL_EXPORT_HEADERS = [
+    "VESSEL",
+    "SUPPLIER",
+    "PO #",
+    "STOCK STATUS",
+    "CUR",
+    "VALUE",
+    "DATE ON STOCK",
+    "BOXES",
+    "KG",
+    "LWH TEXT",
+    "ORIGIN",
+    "HUB1",
+    "HUB2",
+    "AP DESTINATION",
+    "DESTINATION",
+    "DG/UN",
+    "SO NUMBER",
+    "WAREHOUSE ID",
+];
 
 // Status definitions matching backend status keys exactly
 // Colors matched to status filter UI design with exact hex colors
@@ -1784,10 +1838,101 @@ export default function Stocks() {
         if (viewType === "filter3") {
             return [
                 vessel, supplier, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
-                origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, currency, value, warehouseId,
+                origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, warehouseId,
             ];
         }
         return [];
+    };
+
+    const buildClipboardCopyData = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+
+        const rows = items.map((item) => [
+            getDisplayName(item.vessel_id || item.vessel) || "-",
+            getDisplayName(item.supplier_id || item.supplier) || "-",
+            (item.po_text || "-").replace(/\n/g, " "),
+            getStatusLabel(item.stock_status) || "-",
+            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+            item.weight_kg ?? item.weight_kgs ?? "-",
+            item.lwh_text || "-",
+            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
+            getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            item.dg_un || "-",
+        ]);
+
+        return { headers: CLIPBOARD_COPY_HEADERS, rows };
+    };
+
+    const buildPdfExportData = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+
+        const rows = items.map((item) => {
+            const soNumber = item.so_id
+                ? getSoNumberName(item.so_id)
+                : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+
+            return [
+                getDisplayName(item.vessel_id || item.vessel) || "-",
+                getDisplayName(item.supplier_id || item.supplier) || "-",
+                (item.po_text || "-").replace(/\n/g, " "),
+                getStatusLabel(item.stock_status) || "-",
+                getDisplayName(item.currency_id || item.currency) || "-",
+                item.value ?? "-",
+                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+                item.weight_kg ?? item.weight_kgs ?? "-",
+                item.lwh_text || "-",
+                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+                item.via_hub_2 || item.via_hub2 || "-",
+                formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+                formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+                item.dg_un || "-",
+                soNumber,
+            ];
+        });
+
+        return { headers: PDF_EXPORT_HEADERS, rows };
+    };
+
+    const buildExcelExportData = (items) => {
+        if (!Array.isArray(items) || items.length === 0) {
+            return { headers: [], rows: [] };
+        }
+
+        const rows = items.map((item) => {
+            const soNumber = item.so_id
+                ? getSoNumberName(item.so_id)
+                : (item.stock_so_number ? getSoNumberNameFromNumber(item.stock_so_number) : ensureSoPrefix(item.so_number)) || "-";
+            const currency = getDisplayName(item.currency_id || item.currency) || "-";
+            const value = item.value ?? "-";
+
+            return [
+                getDisplayName(item.vessel_id || item.vessel) || "-",
+                getDisplayName(item.supplier_id || item.supplier) || "-",
+                (item.po_text || "-").replace(/\n/g, " "),
+                getStatusLabel(item.stock_status) || "-",
+                currency,
+                value,
+                formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
+                item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
+                item.weight_kg ?? item.weight_kgs ?? "-",
+                item.lwh_text || "-",
+                item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
+                item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
+                item.via_hub_2 || item.via_hub2 || "-",
+                formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-",
+                formatStockDestinationDisplay(item, "destination") || item.destination_new || item.destination_id || item.destination || item.stock_destination || "-",
+                item.dg_un || "-",
+                soNumber,
+                getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
+            ];
+        });
+
+        return { headers: EXCEL_EXPORT_HEADERS, rows };
     };
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
@@ -1795,7 +1940,7 @@ export default function Stocks() {
         filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "BOXES", "KG", "LWH TEXT"],
         filter3: [
             "VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
-            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "CUR", "VALUE", "WAREHOUSE ID",
+            "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "WAREHOUSE ID",
         ],
     };
 
@@ -1859,14 +2004,10 @@ export default function Stocks() {
         return { headers: [], rows: [] };
     };
 
-    const handleCopySelectedRows = async () => {
-        if (clientViewSelectedRows.size === 0) return;
+    const copyItemsToClipboard = async (selectedItems, buildData = buildClipboardCopyData) => {
+        if (!Array.isArray(selectedItems) || selectedItems.length === 0) return;
 
-        const selectedItems = filteredAndSortedStock.filter(item =>
-            clientViewSelectedRows.has(item.id || item.stock_item_id)
-        );
-
-        const { headers, rows } = buildExportDataByView(selectedItems, clientViewFilterType);
+        const { headers, rows } = buildData(selectedItems);
         if (!headers.length) return;
 
         const thStyle = 'border:1px solid #333;padding:6px 8px;background:#f0f0f0;font-weight:700;text-align:left;vertical-align:top;';
@@ -1902,7 +2043,7 @@ export default function Stocks() {
         };
 
         const renderTableImageBlob = async () => {
-            const { headers, rows } = buildExportDataByView(selectedItems, clientViewFilterType);
+            const { headers, rows } = buildData(selectedItems);
             if (!headers.length) return null;
 
             const normalizedRows = [headers, ...rows].map((row) =>
@@ -2021,7 +2162,7 @@ export default function Stocks() {
 
             toast({
                 title: "Copied!",
-                description: `${clientViewSelectedRows.size} row(s) copied to clipboard`,
+                description: `${selectedItems.length} row(s) copied to clipboard`,
                 status: "success",
                 duration: 2000,
                 isClosable: true,
@@ -2038,8 +2179,30 @@ export default function Stocks() {
         }
     };
 
-    const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType) => {
-        const { headers, rows } = buildExportDataByView(items, viewType);
+    const handleCopyClientViewSelectedRows = async () => {
+        if (clientViewSelectedRows.size === 0) return;
+        const selectedItems = filteredAndSortedStock.filter((item) =>
+            clientViewSelectedRows.has(item.id || item.stock_item_id)
+        );
+        await copyItemsToClipboard(selectedItems, buildClipboardCopyData);
+    };
+
+    const handleCopyStockViewSelectedRows = async () => {
+        if (selectedRows.size === 0) return;
+        const selectedItems = allFilteredItems.filter((item) => selectedRows.has(item.id));
+        if (selectedItems.length === 0) {
+            toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+        await copyItemsToClipboard(selectedItems, buildClipboardCopyData);
+    };
+
+    const handleCopySelectedRows = handleCopyClientViewSelectedRows;
+
+    const downloadExcelCsv = (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
+        const { headers, rows } = buildDataOverride
+            ? buildDataOverride(items)
+            : buildExportDataByView(items, viewType);
         if (headers.length === 0 || rows.length === 0) {
             toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
             return;
@@ -2060,8 +2223,10 @@ export default function Stocks() {
         XLSX.writeFile(workbook, `${filePrefix}-${dateTag}.xlsx`);
     };
 
-    const downloadPdfFile = async (items, filePrefix, viewType = clientViewFilterType) => {
-        const { headers, rows } = buildExportDataByView(items, viewType);
+    const downloadPdfFile = async (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
+        const { headers, rows } = buildDataOverride
+            ? buildDataOverride(items)
+            : buildExportDataByView(items, viewType);
         if (headers.length === 0 || rows.length === 0) {
             toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
             return;
@@ -2307,7 +2472,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        downloadPdfFile(selectedItems, "stocklist-view-edit", "all");
+        downloadPdfFile(selectedItems, "stocklist-view-edit", "all", buildPdfExportData);
         toast({ title: "PDF export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
@@ -2321,7 +2486,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        downloadExcelCsv(selectedItems, "stocklist-view-edit", "all");
+        downloadExcelCsv(selectedItems, "stocklist-view-edit", "all", buildExcelExportData);
         toast({ title: "Excel export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
     };
 
@@ -2862,8 +3027,6 @@ export default function Stocks() {
             export_doc_2: item.export_doc_2 || "-",
             cur: currency,
             value,
-            cur_2: currency,
-            value_2: value,
             date_on_stock: formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
             origin: item.origin_text || item.origin || getDisplayName(item.origin_id) || "-",
             hub1: item.via_hub_1 || item.via_hub1 || item.via_hub || "-",
@@ -4874,6 +5037,15 @@ export default function Stocks() {
                                                 onClick={handleNavigateToEdit}
                                             >
                                                 Edit Selected
+                                            </Button>
+                                            <Button
+                                                leftIcon={<Icon as={MdContentCopy} />}
+                                                colorScheme="teal"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleCopyStockViewSelectedRows}
+                                            >
+                                                Copy Selected
                                             </Button>
                                             <Button
                                                 leftIcon={<Icon as={MdPrint} />}

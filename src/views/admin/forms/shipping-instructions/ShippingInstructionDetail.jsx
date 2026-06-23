@@ -1982,27 +1982,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ]);
     } else if (isDeliveryForm) {
       cargoHead = [
-        "STOKITEM ID",
-        "SI NUMBER",
-        "AWB",
+        "AWB NO",
         "FROM",
-        "Warehouse",
-        "SUPLIER",
-        "PO NUMBER",
-        "DG/UN",
+        "WAREHOUSE ID",
+        "SUPPLIER",
+        "PO#",
         "BOXES",
         "KG",
-        "LWH",
+        "LWH TEXT",
       ];
       cargoRows = (cargoItems || []).map((item) => [
-        item.stockItemId || "-",
-        item.siNumber || "-",
         item.awbNumber || "-",
         item.origin || "-",
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
-        dgUnPdf(item),
         String(item.boxes ?? "-"),
         item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
         item.lwh || "-",
@@ -2013,18 +2007,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
-        "",
-        "",
-        "",
         String(totals.boxes ?? 0),
         Number(totals.kg || 0).toFixed(2),
         "",
       ]);
       cargoRows.push([
         "PACKED AS",
-        "",
-        "",
-        "",
         "",
         "",
         "",
@@ -3122,37 +3110,47 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
                     <Thead bg="gray.100">
                       <Tr>
-                        {isDeliveryForm && (
+                        {isDeliveryForm ? (
                           <>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI NUMBER</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI NO</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB NO</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">FROM</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">WAREHOUSE ID</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO#</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH TEXT</Th>
+                            <Th py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
                           </>
-                        )}
-                        {isDeliveryConfirmation && (
+                        ) : (
                           <>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
-                          </>
-                        )}
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
-                          {isDeliveryLike ? "FROM" : "ORIGIN"}
-                        </Th>
-                        {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                        {!isDeliveryLike && (
-                          <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
-                        )}
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
-                        {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
-                        <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
-                        {!isDeliveryLike && (
-                          <>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
+                            {isDeliveryConfirmation && (
+                              <>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
+                              </>
+                            )}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
+                              {isDeliveryLike ? "FROM" : "ORIGIN"}
+                            </Th>
+                            {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
+                            {!isDeliveryLike && (
+                              <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
+                            )}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
+                            {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
+                            {!isDeliveryLike && (
+                              <>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
+                              </>
+                            )}
                           </>
                         )}
                       </Tr>
@@ -3160,49 +3158,60 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     <Tbody>
                       {cargoItems.map((item, index) => (
                         <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
-                          {isDeliveryForm && (
+                          {isDeliveryForm ? (
                             <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.siNumber || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.siNumber || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh || "-"}</Td>
+                              <Td py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || "-"}</Td>
                             </>
-                          )}
-                          {isDeliveryConfirmation && (
+                          ) : (
                             <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
-                            </>
-                          )}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                          {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                            {item.warehouseId || ""}
-                          </Td>}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
-                          {!isDeliveryLike && (
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
-                          )}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                          {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
-                          {!isDeliveryLike && (
-                            <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                              {isDeliveryConfirmation && (
+                                <>
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
+                                </>
+                              )}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
+                              {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                                {item.warehouseId || ""}
+                              </Td>}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                              {!isDeliveryLike && (
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
+                              )}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                              {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                              {!isDeliveryLike && (
+                                <>
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
+                                </>
+                              )}
                             </>
                           )}
                         </Tr>
                       ))}
                       <Tr bg="gray.100" fontWeight="bold">
-                        <Td colSpan={isDeliveryForm ? 7 : isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                        <Td colSpan={isDeliveryForm ? 6 : isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                           {isDeliveryLike ? "CARGO TO BE DELIVERED:" : "CARGO TO BE SHIPPED:"}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
                         {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                        {isDeliveryForm && <Td py={2} px={2} fontSize="xs"></Td>}
                         {!isDeliveryLike && (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
                         )}
@@ -3211,7 +3220,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       {!isShippingAdvise && (
                         <Tr bg="gray.50">
                           <Td
-                            colSpan={isDeliveryForm ? 7 : isDeliveryLike ? 6 : 5}
+                            colSpan={isDeliveryForm ? 6 : isDeliveryLike ? 6 : 5}
                             borderRight="1px"
                             borderColor="gray.300"
                             py={2}
@@ -3253,6 +3262,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             />
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
+                          {isDeliveryForm && <Td py={2} px={2} fontSize="xs"></Td>}
                           {!isDeliveryLike && (
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           )}
