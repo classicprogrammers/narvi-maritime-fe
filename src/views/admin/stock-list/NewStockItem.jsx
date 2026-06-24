@@ -67,6 +67,7 @@ import StockDestinationSelect from "../../../components/forms/StockDestinationSe
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
     buildStockDestinationIdsPayload,
+    buildStockDestinationNewPayload,
     getStockM2OId,
     getStockM2OName,
     mergeStockDestinationOptions,
@@ -1190,12 +1191,11 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             shipment_type: "", // Include shipment_type as empty string
             extra: rowData.extra2 || "",
-            destination_ids: buildStockDestinationIdsPayload(
+            destination_new: buildStockDestinationNewPayload(
                 rowData.destinationId,
                 rowData.destinationSelect,
                 destinationOptions
             ),
-            destination_new: "",
             warehouse_new: rowData.warehouseId || "", // Warehouse - Free text
             shipping_doc: rowData.shippingDoc || "",
             export_doc: rowData.exportDoc || "",

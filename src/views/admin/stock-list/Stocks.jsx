@@ -77,6 +77,7 @@ import StockDestinationSelect from "../../../components/forms/StockDestinationSe
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
     buildStockDestinationIdsPayload,
+    buildStockDestinationNewPayload,
     formatStockDestinationDisplay,
     getStockM2OId,
     getStockM2OName,
@@ -298,6 +299,68 @@ const STATUS_CONFIG = {
         lightBg: "#9a00fb82"
     },
 };
+
+function StatusFilterChip({ config, isChecked, onToggle, borderColor }) {
+    return (
+        <Box
+            px={2.5}
+            py={1.5}
+            bg={config.bgColor}
+            borderRadius="md"
+            border="1px"
+            borderColor={borderColor}
+            flex="0 0 auto"
+        >
+            <Checkbox
+                isChecked={isChecked}
+                onChange={onToggle}
+                size="sm"
+                colorScheme={config.color}
+                borderColor="gray.600"
+                sx={{
+                    "& .chakra-checkbox__control": {
+                        borderColor: "gray.600",
+                        _checked: {
+                            borderColor: `${config.color}.500`,
+                        },
+                    },
+                }}
+            >
+                <Text
+                    as="span"
+                    fontSize="xs"
+                    fontWeight="600"
+                    color={config.textColor}
+                    lineHeight="short"
+                >
+                    {config.label}
+                </Text>
+            </Checkbox>
+        </Box>
+    );
+}
+
+function StatusFilterRow({ statusEntries, isChecked, onToggle, borderColor, textColor }) {
+    if (!statusEntries.length) return null;
+    return (
+        <Box mt="3" pt="3" borderTop="1px" borderColor={borderColor}>
+            <Text fontSize="xs" fontWeight="600" color={textColor} mb="2" opacity={0.85}>
+                Show items with status
+            </Text>
+            <Flex flexWrap="wrap" gap="2">
+                {statusEntries.map(([statusKey, config]) => (
+                    <StatusFilterChip
+                        key={statusKey}
+                        config={config}
+                        isChecked={isChecked(statusKey)}
+                        onToggle={() => onToggle(statusKey)}
+                        borderColor={borderColor}
+                    />
+                ))}
+            </Flex>
+        </Box>
+    );
+}
 
 // Status mapping for backward compatibility with old status keys
 const STATUS_VARIATIONS = {
@@ -2841,12 +2904,12 @@ export default function Stocks() {
             payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrders);
         }
 
-        const currentDestinationIds = buildStockDestinationIdsPayload(
+        const currentDestinationNew = buildStockDestinationNewPayload(
             getEditedValue(["destination_ids_id"]),
             getEditedValue(["destination_select"]),
             stockDestinationOptions
         );
-        const originalDestinationIds = buildStockDestinationIdsPayload(
+        const originalDestinationNew = buildStockDestinationNewPayload(
             getStockM2OId(originalItem.destination_ids),
             getStockM2OName(originalItem.destination_ids) ||
             (originalItem.destination_new && originalItem.destination_new !== false
@@ -2854,12 +2917,8 @@ export default function Stocks() {
                 : ""),
             stockDestinationOptions
         );
-        if (!valuesAreEqual(
-            JSON.stringify(currentDestinationIds),
-            JSON.stringify(originalDestinationIds)
-        )) {
-            payload.destination_ids = currentDestinationIds;
-            payload.destination_new = "";
+        if (!valuesAreEqual(currentDestinationNew, originalDestinationNew)) {
+            payload.destination_new = currentDestinationNew;
         }
 
         const currentApDestinationIds = buildStockDestinationIdsPayload(
@@ -4055,6 +4114,13 @@ export default function Stocks() {
                                                         </Box>
                                                     )}
                                                 </Flex>
+                                                <StatusFilterRow
+                                                    statusEntries={Object.entries(STATUS_CONFIG)}
+                                                    isChecked={(statusKey) => vesselViewStatuses.has(statusKey)}
+                                                    onToggle={handleVesselViewStatusToggle}
+                                                    borderColor={borderColor}
+                                                    textColor={textColor}
+                                                />
                                             </Box>
                                         )}
 
@@ -4095,56 +4161,19 @@ export default function Stocks() {
                                                         </HStack>
                                                     )}
                                                 </VStack>
+                                                {vesselViewVesselData && vesselViewClientData ? (
+                                                    <StatusFilterRow
+                                                        statusEntries={Object.entries(STATUS_CONFIG)}
+                                                        isChecked={(statusKey) => vesselViewStatuses.has(statusKey)}
+                                                        onToggle={handleVesselViewStatusToggle}
+                                                        borderColor="whiteAlpha.400"
+                                                        textColor="white"
+                                                    />
+                                                ) : null}
                                             </Box>
                                         )}
 
 
-                                        {/* Right Side: Status Filter Boxes */}
-                                        <Box flex="1" minW="0">
-                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                                                <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                                    CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                                </Text>
-                                                <Flex flexWrap="wrap" gap="3" pb="2">
-                                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                                        <Box
-                                                            key={statusKey}
-                                                            p="4"
-                                                            minW="130px"
-                                                            flex="0 0 auto"
-                                                            bg={config.bgColor}
-                                                            borderRadius="md"
-                                                            border="1px"
-                                                            borderColor={borderColor}
-                                                        >
-                                                            <Text
-                                                                fontSize="xs"
-                                                                fontWeight="600"
-                                                                color={config.textColor}
-                                                                mb="8px"
-                                                            >
-                                                                {config.label}
-                                                            </Text>
-                                                            <Checkbox
-                                                                isChecked={vesselViewStatuses.has(statusKey)}
-                                                                onChange={() => handleVesselViewStatusToggle(statusKey)}
-                                                                size="md"
-                                                                colorScheme={config.color}
-                                                                borderColor="gray.600"
-                                                                sx={{
-                                                                    "& .chakra-checkbox__control": {
-                                                                        borderColor: "gray.600",
-                                                                        _checked: {
-                                                                            borderColor: `${config.color}.500`,
-                                                                        },
-                                                                    },
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                    ))}
-                                                </Flex>
-                                            </Box>
-                                        </Box>
                                     </Box>
                                 </TabPanel>
 
@@ -4162,7 +4191,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel) && (
+                                                            {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4173,6 +4202,7 @@ export default function Stocks() {
                                                                         setClientViewVesselFilter(null);
                                                                         setClientViewSearchClient("");
                                                                         setClientViewSearchVessel("");
+                                                                        setClientViewStatuses(new Set());
                                                                     }}
                                                                 >
                                                                     Clear All
@@ -4243,6 +4273,13 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
                                                     </Flex>
+                                                    <StatusFilterRow
+                                                        statusEntries={Object.entries(STATUS_CONFIG)}
+                                                        isChecked={(statusKey) => clientViewStatuses.has(statusKey)}
+                                                        onToggle={handleClientViewStatusToggle}
+                                                        borderColor={borderColor}
+                                                        textColor={textColor}
+                                                    />
                                                 </Box>
                                             </VStack>
                                         </Card>
@@ -4384,56 +4421,6 @@ export default function Stocks() {
                                                 </Flex>
                                             </Box>
                                         </Box>
-                                        {/* Right Side: Status Filter Boxes */}
-                                        <Box flex="1" minW="0">
-                                            <Box mb="20px" p="4" bg={cardBg} borderRadius="md" border="1px" borderColor={borderColor}>
-                                                <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                                    CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                                </Text>
-                                                <Flex direction="row" flexWrap="wrap" gap="3" pb="2">
-                                                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                                        <Box
-                                                            key={statusKey}
-                                                            p="4"
-                                                            minW="130px"
-                                                            flex="0 0 auto"
-                                                            bg={config.bgColor}
-                                                            borderRadius="md"
-                                                            border="1px"
-                                                            borderColor={borderColor}
-                                                        >
-                                                            <Text
-                                                                fontSize="xs"
-                                                                fontWeight="600"
-                                                                color={config.textColor}
-                                                                mb="8px"
-                                                            >
-                                                                {config.label}
-                                                            </Text>
-                                                            <Checkbox
-                                                                isChecked={clientViewStatuses.has(statusKey)}
-                                                                onChange={() => handleClientViewStatusToggle(statusKey)}
-                                                                size="md"
-                                                                colorScheme={config.color}
-                                                                borderColor="gray.600"
-                                                                sx={{
-                                                                    "& .chakra-checkbox__control": {
-                                                                        borderColor: "gray.600",
-                                                                        _checked: {
-                                                                            borderColor: `${config.color}.500`,
-                                                                        },
-                                                                    },
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                    ))}
-                                                </Flex>
-                                                {/* Sorting Order Text */}
-                                                <Text fontSize="xs" color={textColor} mt="12px" opacity={0.7}>
-                                                    Sorting order: AP Dest &gt; Via Hub &gt; Stock Status &gt; Date on Stock
-                                                </Text>
-                                            </Box>
-                                        </Box>
                                     </Flex>
                                 </TabPanel>
 
@@ -4534,7 +4521,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4558,6 +4545,7 @@ export default function Stocks() {
                                                                         setStockViewFilterDI("");
                                                                         setStockViewFilterPO("");
                                                                         setStockViewSearchFilter("");
+                                                                        setVesselViewStatuses(new Set());
                                                                     }}
                                                                 >
                                                                     Clear All
@@ -4888,6 +4876,18 @@ export default function Stocks() {
                                                             </HStack>
                                                         </Box>
                                                     </Flex>
+                                                    <StatusFilterRow
+                                                        statusEntries={Object.entries(STATUS_CONFIG).filter(([statusKey]) => {
+                                                            if (stockViewActiveFilter === "false") {
+                                                                return ARCHIVE_STOCK_STATUSES.includes(statusKey);
+                                                            }
+                                                            return !ARCHIVE_STOCK_STATUSES.includes(statusKey);
+                                                        })}
+                                                        isChecked={(statusKey) => vesselViewStatuses.has(statusKey)}
+                                                        onToggle={handleVesselViewStatusToggle}
+                                                        borderColor={borderColor}
+                                                        textColor={textColor}
+                                                    />
                                                 </Box>
 
                                                 {/* Sorting Info Box */}
@@ -4929,58 +4929,6 @@ export default function Stocks() {
                                         </Card>
                                     </Box>
                                 </Collapse>
-
-                                {/* Status Filter Checkboxes Section (options depend on Active items toggle) */}
-                                <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
-                                    <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                        CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                    </Text>
-                                    <Flex flexWrap="wrap" gap="3" pb="2">
-                                        {Object.entries(STATUS_CONFIG)
-                                            .filter(([statusKey]) => {
-                                                if (stockViewActiveFilter === "false") {
-                                                    return ARCHIVE_STOCK_STATUSES.includes(statusKey);
-                                                }
-                                                return !ARCHIVE_STOCK_STATUSES.includes(statusKey);
-                                            })
-                                            .map(([statusKey, config]) => (
-                                                <Box
-                                                    key={statusKey}
-                                                    p="4"
-                                                    minW="130px"
-                                                    flex="0 0 auto"
-                                                    bg={config.bgColor}
-                                                    borderRadius="md"
-                                                    border="1px"
-                                                    borderColor={borderColor}
-                                                >
-                                                    <Text
-                                                        fontSize="xs"
-                                                        fontWeight="600"
-                                                        color={config.textColor}
-                                                        mb="8px"
-                                                    >
-                                                        {config.label}
-                                                    </Text>
-                                                    <Checkbox
-                                                        isChecked={vesselViewStatuses.has(statusKey)}
-                                                        onChange={() => handleVesselViewStatusToggle(statusKey)}
-                                                        size="md"
-                                                        colorScheme={config.color}
-                                                        borderColor="gray.600"
-                                                        sx={{
-                                                            "& .chakra-checkbox__control": {
-                                                                borderColor: "gray.600",
-                                                                _checked: {
-                                                                    borderColor: `${config.color}.500`,
-                                                                },
-                                                            },
-                                                        }}
-                                                    />
-                                                </Box>
-                                            ))}
-                                    </Flex>
-                                </Card>
 
                                 {/* Active items toggle, Select All and Bulk Action Buttons */}
                                 <Flex px="25px" mb="20px" align="center" gap="4" flexWrap="wrap">
@@ -5513,7 +5461,7 @@ export default function Stocks() {
                                                             </MenuList>
                                                         </Menu>
 
-                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo) && (
+                                                        {(clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || createDateFrom || createDateTo || clientViewStatuses.size > 0) && (
                                                             <Button
                                                                 size="xs"
                                                                 leftIcon={<Icon as={MdClose} />}
@@ -5526,6 +5474,7 @@ export default function Stocks() {
                                                                     setClientViewSearchVessel("");
                                                                     setCreateDateFrom("");
                                                                     setCreateDateTo("");
+                                                                    setClientViewStatuses(new Set());
                                                                 }}
                                                             >
                                                                 Clear All
@@ -5613,55 +5562,17 @@ export default function Stocks() {
                                                     </Box>
 
                                                 </Flex>
+                                                <StatusFilterRow
+                                                    statusEntries={Object.entries(STATUS_CONFIG)}
+                                                    isChecked={(statusKey) => clientViewStatuses.has(statusKey)}
+                                                    onToggle={handleClientViewStatusToggle}
+                                                    borderColor={borderColor}
+                                                    textColor={textColor}
+                                                />
                                             </Box>
                                         </VStack>
                                     </Card>
                                 </Box>
-
-                                {/* Status Filter Checkboxes Section for Client View */}
-                                <Card bg={cardBg} p="4" border="1px" borderColor={borderColor} mb="20px">
-                                    <Text fontSize="sm" fontWeight="700" color={textColor} mb="12px">
-                                        CHECK THE BOX BELOW TO SELECT WHICH ITEMS TO SHOW
-                                    </Text>
-                                    <Flex flexWrap="wrap" gap="3" pb="2">
-                                        {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => (
-                                            <Box
-                                                key={statusKey}
-                                                p="4"
-                                                minW="130px"
-                                                flex="0 0 auto"
-                                                bg={config.bgColor}
-                                                borderRadius="md"
-                                                border="1px"
-                                                borderColor={borderColor}
-                                            >
-                                                <Text
-                                                    fontSize="xs"
-                                                    fontWeight="600"
-                                                    color={config.textColor}
-                                                    mb="8px"
-                                                >
-                                                    {config.label}
-                                                </Text>
-                                                <Checkbox
-                                                    isChecked={clientViewStatuses.has(statusKey)}
-                                                    onChange={() => handleClientViewStatusToggle(statusKey)}
-                                                    size="md"
-                                                    colorScheme={config.color}
-                                                    borderColor="gray.600"
-                                                    sx={{
-                                                        "& .chakra-checkbox__control": {
-                                                            borderColor: "gray.600",
-                                                            _checked: {
-                                                                borderColor: `${config.color}.500`,
-                                                            },
-                                                        },
-                                                    }}
-                                                />
-                                            </Box>
-                                        ))}
-                                    </Flex>
-                                </Card>
 
                                 {/* Selection Controls */}
                                 <Box px="25px" mb="4">

@@ -82,6 +82,26 @@ export const buildStockDestinationIdsPayload = (optionId, selectName, options = 
   return { name };
 };
 
+/** Build API payload for destination_new — text from selection or free text */
+export const buildStockDestinationNewPayload = (optionId, selectName, options = []) => {
+  const name = String(selectName ?? "").trim();
+  if (name) return name;
+
+  const id =
+    optionId != null && optionId !== "" && Number.isFinite(Number(optionId))
+      ? Number(optionId)
+      : null;
+
+  if (id != null) {
+    const match = Array.isArray(options)
+      ? options.find((opt) => Number(opt.id) === id)
+      : null;
+    if (match?.name) return String(match.name);
+  }
+
+  return "";
+};
+
 export const formatStockDestinationDisplay = (item, kind = "destination") => {
   if (!item) return "-";
   if (kind === "ap") {

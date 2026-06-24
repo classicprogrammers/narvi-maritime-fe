@@ -4,6 +4,7 @@
  */
 
 import { buildStockSoIdPayloadValue } from "./shippingOrderListState";
+import { buildStockDestinationNewPayload } from "./stockDestinationOptions";
 
 /** Keys accepted by the stock create API (line object). */
 export const STOCK_CREATE_LINE_KEYS = new Set([
@@ -261,7 +262,7 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     return String(removeDIPrefix(value));
   };
 
-  const destinationIds = buildStockDestinationIdsM2O(
+  const destinationNew = buildStockDestinationNewPayload(
     rowData.destinationId,
     rowData.destinationSelect || rowData.destination,
     destinationOptions
@@ -299,8 +300,7 @@ export const buildStockCreateLinePayload = (rowData, context = {}) => {
     lwh_text: rowData.lwhText || "",
     cw_air_freight_new: toNumber(rowData.cwAirfreight),
     value: toNumber(rowData.value),
-    destination_ids: destinationIds,
-    destination_new: rowData.destinationSelect || rowData.destination || "",
+    destination_new: destinationNew,
     ap_destination_ids: buildStockApDestinationIds(
       rowData.apDestinationId,
       apDestName,

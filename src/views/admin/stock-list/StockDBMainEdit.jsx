@@ -77,6 +77,7 @@ import StockDestinationSelect from "../../../components/forms/StockDestinationSe
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
     buildStockDestinationIdsPayload,
+    buildStockDestinationNewPayload,
     getStockM2OId,
     getStockM2OName,
     mergeStockDestinationOptions,
@@ -1547,24 +1548,20 @@ export default function StockDBMainEdit() {
             payload.so_id = buildStockSoIdPayloadValue(rowData.soId, shippingOrders);
         }
 
-        const currentDestinationIds = buildStockDestinationIdsPayload(
+        const currentDestinationNew = buildStockDestinationNewPayload(
             rowData.destinationId,
             rowData.destinationSelect,
             destinationOptions
         );
-        const originalDestinationIds = originalData
-            ? buildStockDestinationIdsPayload(
+        const originalDestinationNew = originalData
+            ? buildStockDestinationNewPayload(
                 originalData.destinationId,
                 originalData.destinationSelect,
                 destinationOptions
             )
-            : false;
-        if (!valuesAreEqual(
-            JSON.stringify(currentDestinationIds),
-            JSON.stringify(originalDestinationIds)
-        )) {
-            payload.destination_ids = currentDestinationIds;
-            payload.destination_new = "";
+            : "";
+        if (!valuesAreEqual(currentDestinationNew, originalDestinationNew)) {
+            payload.destination_new = currentDestinationNew;
         }
 
         const currentApDestinationIds = buildStockDestinationIdsPayload(

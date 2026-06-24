@@ -50,6 +50,7 @@ import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSe
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
 import {
     buildStockDestinationIdsPayload,
+    buildStockDestinationNewPayload,
     getStockM2OId,
     getStockM2OName,
 } from "../../../utils/stockDestinationOptions";
@@ -927,12 +928,11 @@ export default function StockForm() {
             value: toNumber(rowData.value) || 0,
             sl_create_datetime: new Date().toISOString().replace('T', ' ').slice(0, 19),
             extra: "",
-            destination_ids: buildStockDestinationIdsPayload(
+            destination_new: buildStockDestinationNewPayload(
                 rowData.destinationId,
                 rowData.destinationSelect,
                 destinationOptions
             ),
-            destination_new: "",
             warehouse_new: rowData.warehouseId || "",
             shipping_doc: rowData.shippingDoc || "",
             export_doc: "",
