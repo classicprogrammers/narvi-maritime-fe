@@ -259,8 +259,7 @@ const SimpleSearchableSelect = ({
   }, [isOpen, filteredOptions.length, isLoading]);
 
   const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
-  const hasClearableContent =
-    (value != null && value !== "") || (isOpen && String(searchValue).length > 0);
+  const hasClearableContent = String(inputValue ?? "").trim().length > 0;
 
   const handleClear = (e) => {
     e.preventDefault();

@@ -203,8 +203,7 @@ export default function DeletableOptionCombobox({
   };
 
   const showDropdown = isOpen && (isLoading || filteredOptions.length > 0);
-  const hasClearableContent =
-    String(value || "").length > 0 || (isOpen && String(searchValue).length > 0);
+  const hasClearableContent = String(inputValue ?? "").trim().length > 0;
 
   const handleClear = (event) => {
     event.preventDefault();

@@ -5085,7 +5085,7 @@ export default function Stocks() {
                                     overflowY="auto"
                                     position="relative"
                                     minH="400px"
-                                    maxH="600px"
+                                    maxH="800px"
                                     sx={{
                                         "&::-webkit-scrollbar": { width: "8px", height: "8px" },
                                         "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },
@@ -5722,7 +5722,7 @@ export default function Stocks() {
                                     overflowY="auto"
                                     position="relative"
                                     minH="400px"
-                                    maxH="600px"
+                                    maxH="calc(100vh - 280px)"
                                     sx={{
                                         "&::-webkit-scrollbar": { width: "8px", height: "8px" },
                                         "&::-webkit-scrollbar-track": { background: "gray.100", borderRadius: "4px" },

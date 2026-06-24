@@ -410,6 +410,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   const [qSi, setQSi] = useState("");
   const [qSic, setQSic] = useState("");
+  const [qDeliverySi, setQDeliverySi] = useState("");
+  const [qDeliverySo, setQDeliverySo] = useState("");
   const [qAgent, setQAgent] = useState("");
   const [qCnee, setQCnee] = useState("");
   const [qShipBy, setQShipBy] = useState("");
@@ -532,6 +534,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
             ? Number(data.siNo)
             : null,
+        si_number_id:
+          data.siNumberId != null && data.siNumberId !== "" && Number.isFinite(Number(data.siNumberId))
+            ? Number(data.siNumberId)
+            : null,
+        so_number_id:
+          data.soNumberId != null && data.soNumberId !== "" && Number.isFinite(Number(data.soNumberId))
+            ? Number(data.soNumberId)
+            : null,
         in_liason_with: String(data.consignBlock ?? ""),
         header_pic_id:
           data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
@@ -614,6 +624,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     if (isDeliveryForm) {
       return {
         di_number_id: toIdOrNull(form.di_number_id),
+        si_number_id: toIdOrNull(form.si_number_id),
+        so_number_id: toIdOrNull(form.so_number_id),
         so_number: toNullIfEmpty(form.so_number),
         in_liason_with:
           Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
@@ -1303,6 +1315,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         if (isDeliveryLike) {
           optionsParams.q_di = qSi;
           optionsParams.q_pic = qShipBy;
+          if (isDeliveryForm) {
+            optionsParams.q_si = qDeliverySi;
+            optionsParams.q_so = qDeliverySo;
+          }
         } else {
           optionsParams.q_si = qSi;
           optionsParams.q_sic = qSic;
@@ -1443,7 +1459,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, selectedSiName, isShippingAdvise, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
+  }, [qCnee, qSi, qSic, qDeliverySi, qDeliverySo, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, selectedSiName, isShippingAdvise, isDeliveryForm, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -2859,29 +2875,103 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             <FormLabel htmlFor="si-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                               SI NO:
                             </FormLabel>
-                            <Text
+                            <SimpleSearchableSelect
                               id="si-number-delivery"
+                              value={formData.siNumberId ?? ""}
+                              onChange={async (val) => {
+                                const v = val ?? "";
+                                headerUserEditedRef.current = true;
+                                handleInputChange("siNumberId", v);
+                                const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
+                                handleInputChange("siNumber", selectedName);
+                                setQDeliverySi(selectedName);
+                                try {
+                                  setIsSiFormLoading(true);
+                                  const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                                  if (!currentId) return;
+                                  const updated = await saveForm(
+                                    buildSavePayloadWithId(currentId, {
+                                      si_number_id: v !== "" ? Number(v) : null,
+                                    })
+                                  );
+                                  if (updated?.id != null) setSiFormId(updated.id);
+                                  applySiFormResponse(updated, { lockedAgentId: formData.selectAgent });
+                                } catch (e) {
+                                  console.error("Failed to update SI number:", e);
+                                  showFormSaveError(toast, e, "Failed to save form");
+                                } finally {
+                                  setIsSiFormLoading(false);
+                                }
+                              }}
+                              onSearchChange={(txt) => setQDeliverySi(txt ?? "")}
+                              prefillOnFocus={false}
+                              options={siOptions}
+                              displayKey="name"
+                              valueKey="id"
                               size="sm"
-                              fontWeight="semibold"
-                              color="white"
-                              minH="24px"
-                            >
-                              {deliverySiNumberDisplay || "-"}
-                            </Text>
+                              bg="transparent"
+                              borderColor="transparent"
+                              variant="unstyled"
+                              px={0}
+                              py={0}
+                              _focus={{ boxShadow: "none", outline: "none" }}
+                              _focusVisible={{ boxShadow: "none", outline: "none" }}
+                              isLoading={isOptionsLoading || isSiFormLoading}
+                              style={{ color: "white" }}
+                              placeholder="Select SI number..."
+                              _placeholder={{ color: "whiteAlpha.800" }}
+                            />
                           </FormControl>
                           <FormControl display="contents">
                             <FormLabel htmlFor="so-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                               SO NO:
                             </FormLabel>
-                            <Text
+                            <SimpleSearchableSelect
                               id="so-delivery"
+                              value={formData.soNumberId ?? ""}
+                              onChange={async (val) => {
+                                const v = val ?? "";
+                                headerUserEditedRef.current = true;
+                                handleInputChange("soNumberId", v);
+                                const selectedName = v !== "" ? getOptionNameById(soOptions, v) : "";
+                                handleInputChange("soNo", selectedName);
+                                setQDeliverySo(selectedName);
+                                try {
+                                  setIsSiFormLoading(true);
+                                  const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                                  if (!currentId) return;
+                                  const updated = await saveForm(
+                                    buildSavePayloadWithId(currentId, {
+                                      so_number_id: v !== "" ? Number(v) : null,
+                                    })
+                                  );
+                                  if (updated?.id != null) setSiFormId(updated.id);
+                                  applySiFormResponse(updated, { lockedAgentId: formData.selectAgent });
+                                } catch (e) {
+                                  console.error("Failed to update SO number:", e);
+                                  showFormSaveError(toast, e, "Failed to save form");
+                                } finally {
+                                  setIsSiFormLoading(false);
+                                }
+                              }}
+                              onSearchChange={(txt) => setQDeliverySo(txt ?? "")}
+                              prefillOnFocus={false}
+                              options={soOptions}
+                              displayKey="name"
+                              valueKey="id"
                               size="sm"
-                              fontWeight="semibold"
-                              color="white"
-                              minH="24px"
-                            >
-                              {deliverySoNumberDisplay || "-"}
-                            </Text>
+                              bg="transparent"
+                              borderColor="transparent"
+                              variant="unstyled"
+                              px={0}
+                              py={0}
+                              _focus={{ boxShadow: "none", outline: "none" }}
+                              _focusVisible={{ boxShadow: "none", outline: "none" }}
+                              isLoading={isOptionsLoading || isSiFormLoading}
+                              style={{ color: "white" }}
+                              placeholder="Select SO number..."
+                              _placeholder={{ color: "whiteAlpha.800" }}
+                            />
                           </FormControl>
                         </>
                       )}
