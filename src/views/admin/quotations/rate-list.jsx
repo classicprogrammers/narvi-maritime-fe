@@ -129,6 +129,13 @@ function TruncatedCell({ value, maxW = "180px", fontWeight, textColor, cellText,
   );
 }
 
+function formatRateType(value) {
+  const match = RATE_TYPE_FILTER_OPTIONS.find((option) => option.id === value);
+  if (match) return match.name;
+  if (value === false || value == null || String(value).trim() === "") return "-";
+  return String(value);
+}
+
 function formatRateCost(item) {
   const rate = item.rate_float;
   if (rate === false || rate == null || String(rate).trim() === "") return "-";
@@ -906,8 +913,8 @@ export default function RateList() {
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                 <Tr>
                   <Th w="30px" {...thStyle} />
-                  <Th w="250px" {...thStyle}>
-                    Rate ID
+                  <Th w="140px" {...thStyle}>
+                    Rate Type
                   </Th>
                   <Th w="100px" {...thStyle}>
                     Location
@@ -969,8 +976,8 @@ export default function RateList() {
                         </Tooltip>
                       </Td>
                       <TruncatedCell
-                        value={item.rate_id}
-                        maxW="170px"
+                        value={formatRateType(item.rate_type)}
+                        maxW="140px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
