@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
     Box,
     Flex,
@@ -57,7 +57,7 @@ import {
     Switch,
 } from "@chakra-ui/react";
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
-import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdInventory2, MdDateRange } from "react-icons/md";
+import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdPictureAsPdf, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
@@ -527,6 +527,18 @@ export default function Stocks() {
     const [daysRangeTo, setDaysRangeTo] = useState("");
     const { isOpen: isCreateDateModalOpen, onOpen: onCreateDateModalOpen, onClose: onCreateDateModalClose } = useDisclosure();
     const { isOpen: isDaysRangeModalOpen, onOpen: onDaysRangeModalOpen, onClose: onDaysRangeModalClose } = useDisclosure();
+    const {
+        isOpen: isPdfPreviewOpen,
+        onOpen: onPdfPreviewOpen,
+        onClose: onPdfPreviewClose,
+    } = useDisclosure();
+    const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+    const [pdfPreviewTitle, setPdfPreviewTitle] = useState("");
+    const [pdfDownloadFilePrefix, setPdfDownloadFilePrefix] = useState("");
+    const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
+    const pdfPreviewBlobUrlRef = useRef(null);
+    const pdfPreviewIframeRef = useRef(null);
+    const pdfDocRef = useRef(null);
 
     // Stock View / Edit tab filters
     const [stockViewClient, setStockViewClient] = useState(savedState.stockViewClient);
@@ -2286,57 +2298,66 @@ export default function Stocks() {
         XLSX.writeFile(workbook, `${filePrefix}-${dateTag}.xlsx`);
     };
 
-    const downloadPdfFile = async (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
-        const { headers, rows } = buildDataOverride
-            ? buildDataOverride(items)
-            : buildExportDataByView(items, viewType);
-        if (headers.length === 0 || rows.length === 0) {
-            toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
-            return;
-        }
+    const buildStocklistPdfDocument = async (headers, rows) => {
+        const contentLeft = 30;
+        const contentTop = 160;
+        const contentRight = 24;
+        const tableStartY = contentTop + 24;
 
         const doc = new jsPDF({
             orientation: "portrait",
             unit: "pt",
-            format: "a3",
+            format: "a4",
             compress: true,
         });
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const contentLeft = 30;
-        const contentTop = 200;
+        const tableWidth = pageWidth - contentLeft - contentRight;
 
-        // Draw letterhead on each exported PDF page background.
+        let letterheadDataUrl = null;
+        const drawLetterhead = () => {
+            if (!letterheadDataUrl) return;
+            doc.addImage(letterheadDataUrl, "JPEG", 0, 0, pageWidth, pageHeight);
+        };
+
         try {
-            await new Promise((resolve, reject) => {
+            letterheadDataUrl = await new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => {
-                    doc.addImage(img, "JPEG", 0, 0, pageWidth, pageHeight);
-                    resolve();
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext("2d");
+                    if (!ctx) {
+                        reject(new Error("Canvas unavailable"));
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0);
+                    resolve(canvas.toDataURL("image/jpeg"));
                 };
                 img.onerror = reject;
                 img.src = narviLetterheadPrint;
             });
+            drawLetterhead();
         } catch (e) {
             console.error("Failed to load stocklist letterhead image for PDF:", e);
         }
 
-        const dateTag = new Date().toISOString().slice(0, 10);
         const generatedAt = new Date().toLocaleString();
 
         doc.setFontSize(12);
-        doc.text(`Narvi Stocklist Export (${rows.length} rows)`, contentLeft, contentTop);
+        doc.text(`Stocklist Export (${rows.length} row${rows.length === 1 ? "" : "s"})`, contentLeft, contentTop);
         doc.setFontSize(9);
         doc.text(`Generated: ${generatedAt}`, contentLeft, contentTop + 14);
 
         autoTable(doc, {
             head: [headers],
             body: rows.map((row) => row.map((cell) => String(cell ?? ""))),
-            startY: contentTop + 24,
-            margin: { top: contentTop + 24, right: 12, bottom: 12, left: contentLeft },
+            startY: tableStartY,
+            margin: { top: tableStartY, right: contentRight, bottom: 24, left: contentLeft },
             theme: "grid",
             styles: {
-                fontSize: 5,
+                fontSize: 7,
                 cellPadding: 2,
                 overflow: "linebreak",
                 valign: "top",
@@ -2345,16 +2366,97 @@ export default function Stocks() {
                 fillColor: [28, 74, 149],
                 textColor: 255,
                 fontStyle: "bold",
-                fontSize: 5,
             },
             alternateRowStyles: {
                 fillColor: [247, 250, 255],
             },
-            tableWidth: "wrap",
+            tableWidth,
+            showHead: "everyPage",
+            rowPageBreak: "avoid",
+            didDrawPage: (hookData) => {
+                if (hookData.pageNumber > 1) {
+                    drawLetterhead();
+                    hookData.settings.margin.top = tableStartY;
+                }
+            },
         });
 
-        doc.save(`${filePrefix}-${dateTag}.pdf`);
+        return doc;
     };
+
+    const handleClosePdfPreview = useCallback(() => {
+        if (pdfPreviewBlobUrlRef.current) {
+            URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+            pdfPreviewBlobUrlRef.current = null;
+        }
+        setPdfPreviewUrl(null);
+        pdfDocRef.current = null;
+        onPdfPreviewClose();
+    }, [onPdfPreviewClose]);
+
+    const handleDownloadFromPdfPreview = useCallback(() => {
+        const doc = pdfDocRef.current;
+        if (!doc || !pdfDownloadFilePrefix) return;
+        const dateTag = new Date().toISOString().slice(0, 10);
+        doc.save(`${pdfDownloadFilePrefix}-${dateTag}.pdf`);
+    }, [pdfDownloadFilePrefix]);
+
+    const handlePrintFromPdfPreview = useCallback(() => {
+        const win = pdfPreviewIframeRef.current?.contentWindow;
+        if (!win) return;
+        win.focus();
+        win.print();
+    }, []);
+
+    const openStocklistPdfPreview = async (items, filePrefix, viewType = clientViewFilterType, buildDataOverride) => {
+        const { headers, rows } = buildDataOverride
+            ? buildDataOverride(items)
+            : buildExportDataByView(items, viewType);
+        if (headers.length === 0 || rows.length === 0) {
+            toast({ title: "No data", description: "No rows available to export.", status: "warning", duration: 2200, isClosable: true });
+            return;
+        }
+
+        setIsPdfPreviewLoading(true);
+        try {
+            const doc = await buildStocklistPdfDocument(headers, rows);
+            pdfDocRef.current = doc;
+            setPdfPreviewTitle(`Stocklist Export (${rows.length} row${rows.length === 1 ? "" : "s"})`);
+            setPdfDownloadFilePrefix(filePrefix);
+
+            const blob = doc.output("blob");
+            if (pdfPreviewBlobUrlRef.current) {
+                URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+                pdfPreviewBlobUrlRef.current = null;
+            }
+            const url = URL.createObjectURL(blob);
+            pdfPreviewBlobUrlRef.current = url;
+            setPdfPreviewUrl(url);
+            onPdfPreviewOpen();
+        } catch (error) {
+            console.error("Failed to build stocklist PDF:", error);
+            toast({
+                title: "PDF failed",
+                description: "Could not generate stocklist PDF.",
+                status: "error",
+                duration: 3000,
+                isClosable: true,
+            });
+        } finally {
+            setIsPdfPreviewLoading(false);
+        }
+    };
+
+    useEffect(
+        () => () => {
+            if (pdfPreviewBlobUrlRef.current) {
+                URL.revokeObjectURL(pdfPreviewBlobUrlRef.current);
+            }
+        },
+        []
+    );
+
+    const downloadPdfFile = openStocklistPdfPreview;
 
     // Build print/PDF document HTML for client view items
     const buildClientViewPrintHtml = (items, viewType = clientViewFilterType) => {
@@ -2364,14 +2466,12 @@ export default function Stocks() {
             ? viewType
             : clientViewFilterType;
         const { headers } = buildExportDataByView(items, exportViewType);
-        const thStyle = "border:1px solid #333;padding:6px 8px;text-align:left;background:#f0f0f0;";
-        const tdStyle = "border:1px solid #333;padding:6px 8px;";
         const escapeHtml = (value) => String(value ?? "-")
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
 
-        const headerRow = `<tr>${headers.map((header) => `<th style="${thStyle}">${escapeHtml(header)}</th>`).join("")}</tr>`;
+        const headerRow = `<tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>`;
 
         // Group items by vessel so each vessel has its own table.
         const groups = new Map();
@@ -2389,11 +2489,11 @@ export default function Stocks() {
             groupItems.forEach(item => {
                 const { rows } = buildExportDataByView([item], exportViewType);
                 const row = rows[0] || [];
-                bodyRows += `<tr>${row.map((cell) => `<td style="${tdStyle}">${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`;
+                bodyRows += `<tr>${row.map((cell) => `<td>${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`;
             });
 
             vesselTables += `
-                <h3 style="margin:16px 0 6px;font-size:14px;color:#1c4a95;">Vessel: ${escapeHtml(vesselName)}</h3>
+                <h3>Vessel: ${escapeHtml(vesselName)}</h3>
                 <table>
                     <thead>${headerRow}</thead>
                     <tbody>${bodyRows}</tbody>
@@ -2403,77 +2503,84 @@ export default function Stocks() {
 
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stocklist - Client View</title>
 <style>
+    @page{
+        size:A4 portrait;
+        margin:0;
+    }
     body{
         font-family: Arial, sans-serif;
-        margin: 18px;
-        background-color: #ffffff;
-        position: relative;
-        background-image: url('${narviLetterheadPrint}');
-        background-size: cover;
-        background-repeat: no-repeat;
-        background-position: top left;
+        margin:0;
+        padding:160pt 24pt 24pt 30pt;
+        background-color:#ffffff;
+        position:relative;
+        background-image:url('${narviLetterheadPrint}');
+        background-size:100% 100%;
+        background-repeat:no-repeat;
+        background-position:top left;
     }
     .container{
-        margin:  auto ;
-        padding-left: 30px;
-        position: relative;
-        z-index: 2;
+        margin:0;
+        padding:0;
+        position:relative;
+        z-index:2;
     }
     table{
         border-collapse:collapse;
         width:100%;
-        table-layout: fixed;
+        table-layout:fixed;
         background:transparent;
-        box-shadow:0 1px 3px rgba(0,0,0,0.08);
-        font-size:12px;
+        font-size:7pt;
     }
     thead th{
-        background:#e6ecf7;
-        border:1px solid #c5d0e6;
-        padding:8px 10px;
+        background:rgb(28, 74, 149);
+        border:1px solid rgb(28, 74, 149);
+        padding:2pt 3pt;
         text-align:left;
         font-weight:700;
-        color:#21335b;
+        color:#ffffff;
         white-space:normal;
         word-break:break-word;
         overflow-wrap:anywhere;
+        line-height:1.2;
     }
     tbody td{
         border:1px solid #dde3f0;
-        padding:7px 10px;
+        padding:2pt 3pt;
         vertical-align:top;
         white-space:normal;
         word-break:break-word;
         overflow-wrap:anywhere;
+        line-height:1.2;
     }
     tbody tr:nth-child(even){
-        background:#f9fbff;
+        background:#f7faff;
+    }
+    h3{
+        margin:12pt 0 6pt;
+        font-size:12pt;
+        color:#21335b;
     }
     .no-print{
         margin:10px 0;
-        font-size:11px;
+        font-size:9pt;
         color:#777;
     }
     @media print{
-        @page{
-            size:A4 landscape;
-            margin:2mm;
-        }
         html, body{width:100%;}
-        body{margin:0; background:#fff;}
-        .container{padding-left:0; padding-right:0;}
-        table{font-size:8px;}
-        thead th, tbody td{padding:2px 3px;}
-        thead th{line-height:1.15;}
-        tbody td{line-height:1.15;}
         body{
-            background-image: url('${narviLetterheadPrint}');
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-position: top left;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            margin:0;
+            padding:160pt 24pt 24pt 30pt;
+            background:#fff;
+            background-image:url('${narviLetterheadPrint}');
+            background-size:100% 100%;
+            background-repeat:no-repeat;
+            background-position:top left;
+            -webkit-print-color-adjust:exact;
+            print-color-adjust:exact;
         }
+        .container{padding:0;}
+        table{font-size:7pt;}
+        thead th, tbody td{padding:2pt 3pt;}
         .no-print{display:none;}
     }
 </style></head>
@@ -2500,7 +2607,7 @@ export default function Stocks() {
     };
 
     // Print selected rows (client view) – opens print window for selected items as PDF-ready table
-    const handlePrintClientViewSelected = () => {
+    const handlePrintClientViewSelected = async () => {
         if (clientViewSelectedRows.size === 0) {
             toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
             return;
@@ -2508,8 +2615,7 @@ export default function Stocks() {
         const selectedItems = filteredAndSortedStock.filter(item =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
-        downloadPdfFile(selectedItems, "stocklist-client-view", clientViewFilterType);
-        toast({ title: "PDF export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
+        await downloadPdfFile(selectedItems, "stocklist-client-view", clientViewFilterType);
     };
 
     const handleExportClientViewSelectedExcel = () => {
@@ -2525,7 +2631,7 @@ export default function Stocks() {
     };
 
     // Print selected rows (stock view/edit) – opens print window for selected items
-    const handlePrintStockViewSelected = () => {
+    const handlePrintStockViewSelected = async () => {
         if (selectedRows.size === 0) {
             toast({ title: "No selection", description: "Select one or more rows first.", status: "warning", duration: 2000, isClosable: true });
             return;
@@ -2535,8 +2641,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        downloadPdfFile(selectedItems, "stocklist-view-edit", "all", buildPdfExportData);
-        toast({ title: "PDF export", description: `${selectedItems.length} row(s) exported.`, status: "success", duration: 2200, isClosable: true });
+        await downloadPdfFile(selectedItems, "stocklist-view-edit", "all", buildPdfExportData);
     };
 
     const handleExportStockViewSelectedExcel = () => {
@@ -6530,6 +6635,62 @@ export default function Stocks() {
                 onViewFile={handleViewFile}
                 onDownloadFile={handleDownloadFile}
             />
+
+            <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
+                <ModalOverlay />
+                <ModalContent
+                    m={0}
+                    maxW="100vw"
+                    h="100vh"
+                    maxH="100vh"
+                    borderRadius={0}
+                    display="flex"
+                    flexDirection="column"
+                >
+                    <ModalHeader flexShrink={0}>{pdfPreviewTitle || "Stocklist PDF"}</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody p={0} flex="1" minH={0} overflow="hidden" display="flex" flexDirection="column">
+                        {isPdfPreviewLoading ? (
+                            <Flex align="center" justify="center" flex="1" minH={0}>
+                                <Spinner size="lg" />
+                            </Flex>
+                        ) : pdfPreviewUrl ? (
+                            <Box flex="1" minH={0} w="100%" display="flex">
+                                <iframe
+                                    ref={pdfPreviewIframeRef}
+                                    title="Stocklist PDF preview"
+                                    src={pdfPreviewUrl}
+                                    style={{ border: "none", width: "100%", flex: 1, minHeight: 0 }}
+                                />
+                            </Box>
+                        ) : (
+                            <Flex align="center" justify="center" flex="1" minH={0}>
+                                <Text color="gray.500">No preview available.</Text>
+                            </Flex>
+                        )}
+                    </ModalBody>
+                    <ModalFooter gap={2} flexWrap="wrap" flexShrink={0}>
+                        <Button
+                            leftIcon={<Icon as={MdPrint} />}
+                            onClick={handlePrintFromPdfPreview}
+                            isDisabled={!pdfPreviewUrl || isPdfPreviewLoading}
+                        >
+                            Print
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            leftIcon={<Icon as={MdPictureAsPdf} />}
+                            onClick={handleDownloadFromPdfPreview}
+                            isDisabled={!pdfPreviewUrl || isPdfPreviewLoading}
+                        >
+                            Download
+                        </Button>
+                        <Button variant="ghost" onClick={handleClosePdfPreview}>
+                            Close
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
 
         </Box>
     );
