@@ -12,6 +12,14 @@ function displayPdfValue(value) {
   return String(value);
 }
 
+function formatRateTypeValue(value) {
+  if (value === false || value == null || String(value).trim() === "") return "-";
+  const key = String(value).trim();
+  if (key === "general") return "General";
+  if (key === "client_specific") return "Client Specific";
+  return key;
+}
+
 function formatRateCostValue(item) {
   const rate = item?.rate_float;
   if (rate === false || rate == null || String(rate).trim() === "") return "-";
@@ -20,7 +28,7 @@ function formatRateCostValue(item) {
 
 export function mapRateItemForPdf(item = {}) {
   return {
-    rateId: displayPdfValue(item.rate_id),
+    rateType: formatRateTypeValue(item.rate_type),
     location: displayPdfValue(item.location_text || item.location),
     agent: displayPdfValue(item.agent_id?.name || item.agent_text || item.agent),
     client: displayPdfValue(item.client_id?.name),
@@ -46,6 +54,7 @@ export function buildRateListPdfModel({
   items = [],
   reportType = RATE_LIST_PDF_TYPES.COST_AND_FIXED,
   agentName = "",
+  scopeLabel = "",
 } = {}) {
   const rows = sortRateRowsForPdf(items.map(mapRateItemForPdf));
   const isClientTariff = reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
@@ -54,20 +63,11 @@ export function buildRateListPdfModel({
     reportType,
     title: isClientTariff ? "Client Tariff — Fixed Sales Rates" : "Rate List — Cost + Fixed Sales Rates",
     agentName: agentName || "",
+    scopeLabel: scopeLabel || "",
     rows,
     generatedAt: new Date().toLocaleString(),
     rowCount: rows.length,
   };
-}
-
-function findPotentialDuplicates(rows = []) {
-  const byKey = new Map();
-  rows.forEach((row) => {
-    const key = `${row.rateId}|${row.location}|${row.agent}|${row.rateName}`.toLowerCase();
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(row);
-  });
-  return [...byKey.entries()].filter(([, group]) => group.length > 1);
 }
 
 async function loadLetterheadOnPdf(doc) {
@@ -111,8 +111,9 @@ export async function buildRateListPdf(model) {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  if (model.agentName) {
-    doc.text(`Agent: ${model.agentName}`, contentLeft, cursorY);
+  const subtitle = model.scopeLabel || model.agentName;
+  if (subtitle) {
+    doc.text(subtitle, contentLeft, cursorY);
     cursorY += 12;
   }
   doc.text(`Generated: ${model.generatedAt} · ${model.rowCount} rate(s)`, contentLeft, cursorY);
@@ -120,13 +121,13 @@ export async function buildRateListPdf(model) {
 
   const isClientTariff = model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF;
   const head = isClientTariff
-    ? [["Rate ID", "Location", "Agent", "Rate Name", "Rate Text", "Rate Fixed"]]
-    : [["Rate ID", "Location", "Agent", "Rate Name", "Rate Text", "Rate Calculation", "Rate Cost", "Rate Fixed"]];
+    ? [["Rate Type", "Location", "Agent", "Rate Name", "Rate Text", "Rate Fixed"]]
+    : [["Rate Type", "Location", "Agent", "Rate Name", "Rate Text", "Rate Calculation", "Rate Cost", "Rate Fixed"]];
 
   const body = model.rows.map((row) =>
     isClientTariff
-      ? [row.rateId, row.location, row.agent, row.rateName, row.rateText, row.rateFixed]
-      : [row.rateId, row.location, row.agent, row.rateName, row.rateText, row.rateCalculation, row.rateCost, row.rateFixed]
+      ? [row.rateType, row.location, row.agent, row.rateName, row.rateText, row.rateFixed]
+      : [row.rateType, row.location, row.agent, row.rateName, row.rateText, row.rateCalculation, row.rateCost, row.rateFixed]
   );
 
   autoTable(doc, {
@@ -136,27 +137,17 @@ export async function buildRateListPdf(model) {
     theme: "grid",
     styles: { fontSize: 7.5, cellPadding: 3, overflow: "linebreak", valign: "top" },
     headStyles: { fillColor: [23, 70, 147], textColor: 255, fontStyle: "bold" },
-    margin: { left: contentLeft, right: contentRight },
+    margin: { top: cursorY, left: contentLeft, right: contentRight, bottom: 24 },
     tableWidth: contentWidth,
+    pageBreak: "auto",
+    rowPageBreak: "avoid",
+    showHead: "everyPage",
+    didDrawPage: (data) => {
+      if (data.pageNumber > 1) {
+        data.settings.margin.top = 36;
+      }
+    },
   });
-
-  const duplicates = findPotentialDuplicates(model.rows);
-  if (duplicates.length > 0) {
-    let dupY = (doc.lastAutoTable?.finalY || cursorY) + 16;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(180, 0, 0);
-    doc.text("Possible duplicate entries (same Rate ID / Location / Agent / Rate Name):", contentLeft, dupY);
-    dupY += 12;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    duplicates.slice(0, 15).forEach(([, group]) => {
-      const line = `• ${group.length}× — ${group[0].rateId} | ${group[0].location} | ${group[0].agent} | ${group[0].rateName}`;
-      const wrapped = doc.splitTextToSize(line, contentWidth);
-      doc.text(wrapped, contentLeft, dupY);
-      dupY += wrapped.length * 10 + 2;
-    });
-  }
 
   return doc;
 }
@@ -165,22 +156,24 @@ export function getRateListPdfFilename(model) {
   const dateTag = new Date().toISOString().slice(0, 10);
   const suffix =
     model.reportType === RATE_LIST_PDF_TYPES.CLIENT_TARIFF ? "client-tariffs" : "cost-and-fixed";
-  const agentPart = model.agentName
-    ? `-${String(model.agentName).replace(/[^\w.-]+/g, "-").replace(/-+/g, "-")}`
+  const scopePart = (model.scopeLabel || model.agentName)
+    ? `-${String(model.scopeLabel || model.agentName).replace(/[^\w.-]+/g, "-").replace(/-+/g, "-")}`
     : "";
-  return `rate-list-${suffix}${agentPart}-${dateTag}.pdf`;
+  return `rate-list-${suffix}${scopePart}-${dateTag}.pdf`;
 }
 
-export async function fetchRatesForAgentPdf(api, agentId) {
-  if (!agentId) return [];
+export async function fetchAllFilteredRates(api, params = {}) {
   const all = [];
   let page = 1;
   let hasNext = true;
+  const baseParams = { ...params };
+  delete baseParams.page;
+  delete baseParams.page_size;
 
   while (hasNext) {
     const response = await api.get("/api/rate/list", {
       params: {
-        agent_id: Number(agentId),
+        ...baseParams,
         page,
         page_size: 200,
       },
