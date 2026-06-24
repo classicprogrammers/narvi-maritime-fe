@@ -27,7 +27,10 @@ export const getDeliveryConfirmationOptionsApi = async ({
   q_cnee,
   q_di,
   q_pic,
+  q_si,
+  q_so,
   q_to,
+  q_delivery_to_at,
   agent_id,
 } = {}) => {
   const payload = {};
@@ -39,7 +42,12 @@ export const getDeliveryConfirmationOptionsApi = async ({
   if (q_cnee != null && String(q_cnee).trim() !== "") payload.q_cnee = String(q_cnee);
   if (q_di != null && String(q_di).trim() !== "") payload.q_di = String(q_di);
   if (q_pic != null && String(q_pic).trim() !== "") payload.q_pic = String(q_pic);
+  if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
+  if (q_so != null && String(q_so).trim() !== "") payload.q_so = String(q_so);
   if (q_to != null && String(q_to).trim() !== "") payload.q_to = String(q_to);
+  if (q_delivery_to_at != null && String(q_delivery_to_at).trim() !== "") {
+    payload.q_delivery_to_at = String(q_delivery_to_at);
+  }
   if (agent_id != null && agent_id !== "") payload.agent_id = Number(agent_id);
 
   const response = await api.post("/api/delivery/confirmation/form/options", payload);

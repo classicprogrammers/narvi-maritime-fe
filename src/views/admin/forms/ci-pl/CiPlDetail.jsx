@@ -43,6 +43,7 @@ import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchabl
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
 import DmyDateInput, { formatIsoToDisplayDate, formatDateForApi } from "../../../../components/forms/DmyDateInput";
 import { showFormSaveError } from "../../../../utils/formApiErrors";
+import { buildHeaderMasterOptionFields } from "../../../../utils/masterOptionFormSave";
 import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import {
@@ -607,16 +608,14 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
             ? Number(data.sicNo)
             : null,
-        siform_from_id:
-          data.fromId != null && Number.isFinite(Number(data.fromId))
-            ? Number(data.fromId)
-            : null,
-        siform_to_id:
-          data.toId != null && Number.isFinite(Number(data.toId))
-            ? Number(data.toId)
-            : null,
-        from_text: toNullIfEmpty(data.from),
-        destination_text: toNullIfEmpty(data.to),
+        ...buildHeaderMasterOptionFields({
+          data,
+          savedHeader: lastSavedAutosaveRef.current.header,
+          fromOptions,
+          toOptions,
+          variant: "advise",
+          fields: ["from", "to"],
+        }),
         awb_number: toNullIfEmpty(data.shippedBy),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
@@ -666,21 +665,14 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         data.currencyId != null && data.currencyId !== "" && Number.isFinite(Number(data.currencyId))
           ? Number(data.currencyId)
           : null,
-      si_shipped_by_id:
-        data.shippedById != null && Number.isFinite(Number(data.shippedById))
-          ? Number(data.shippedById)
-          : null,
-      siform_from_id:
-        data.fromId != null && Number.isFinite(Number(data.fromId))
-          ? Number(data.fromId)
-          : null,
-      siform_to_id:
-        data.toId != null && Number.isFinite(Number(data.toId))
-          ? Number(data.toId)
-          : null,
-      from_text: toNullIfEmpty(data.from),
-      to_text: toNullIfEmpty(data.to),
-      to_be_shipped_by: toNullIfEmpty(data.shippedBy),
+      ...buildHeaderMasterOptionFields({
+        data,
+        savedHeader: lastSavedAutosaveRef.current.header,
+        shippedByOptions,
+        fromOptions,
+        toOptions,
+        variant: "si",
+      }),
       deadline_text: formatDateForApi(data.deadline),
       header_pic_id:
         data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic)) && Number(data.pic) > 0

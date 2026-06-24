@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory, useParams } from "react-router-dom";
 import {
   Box,
@@ -37,8 +37,14 @@ import {
 import { MdPrint, MdSettings, MdHelpOutline, MdPictureAsPdf, MdDownload } from "react-icons/md";
 import SimpleSearchableSelect from "../../../../components/forms/SimpleSearchableSelect";
 import DeletableOptionCombobox from "../../../../components/forms/DeletableOptionCombobox";
+import MasterOptionPicker from "../../../../components/forms/MasterOptionPicker";
 import DmyDateInput, { formatIsoToDisplayDate, formatDateForApi } from "../../../../components/forms/DmyDateInput";
 import { showFormSaveError } from "../../../../utils/formApiErrors";
+import {
+  buildMasterOptionFormSaveFields,
+  buildHeaderMasterOptionFields,
+  normalizeMasterOptionId,
+} from "../../../../utils/masterOptionFormSave";
 import useFormOptionDelete from "../../../../hooks/useFormOptionDelete";
 import narviLetterheadPrint from "../../../../assets/letterHead/NarviLetterhead.jpeg";
 import { getSiFormOptionsApi, postSiFormApi, postSiFormUpdateApi } from "../../../../api/shippingInstructions";
@@ -171,6 +177,7 @@ const buildFormResetPayload = () => ({
   job_ref_id: null,
   job_no: null,
   delivery_to_at: null,
+  delivery_to_at_id: null,
   location_text: null,
   stock_list: null,
 });
@@ -178,6 +185,7 @@ const buildFormResetPayload = () => ({
 const INITIAL_FORM_DATA = {
   vessel: "",
   deliveryToAt: "",
+  deliveryToAtId: null,
   consignBlock: "",
   siNo: "",
   sicNo: "",
@@ -194,6 +202,7 @@ const INITIAL_FORM_DATA = {
   toId: null,
   deadline: "",
   pic: "",
+  picName: "",
   transportDetails: "",
   date: "",
   totalPackedQuantity: "",
@@ -288,8 +297,18 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const [fromOptions, setFromOptions] = useState([]);
   const [shippedByOptions, setShippedByOptions] = useState([]);
   const [toOptions, setToOptions] = useState([]);
+  const [deliveryToAtOptions, setDeliveryToAtOptions] = useState([]);
   const [optionsReloadToken, setOptionsReloadToken] = useState(0);
-  const { ingestOptionsResponse, getDeleteSelectProps } = useFormOptionDelete();
+  const { ingestOptionsResponse, getDeleteSelectProps, getUpdateSelectProps } = useFormOptionDelete();
+  const [masterPending, setMasterPending] = useState({
+    shippedBy: null,
+    from: null,
+    to: null,
+    pic: null,
+    location: null,
+    deliveryToAt: null,
+  });
+  const [savingMasterField, setSavingMasterField] = useState(null);
   const [isSiFormLoading, setIsSiFormLoading] = useState(false);
   const [selectedSiName, setSelectedSiName] = useState("");
   const [siFormId, setSiFormId] = useState(null);
@@ -320,6 +339,63 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   // Form state
   const [formData, setFormData] = useState(getInitialFormData);
+
+  const MASTER_OPTION_CONFIG = {
+    shippedBy: {
+      valueKey: "shippedBy",
+      idKey: "shippedById",
+    },
+    from: {
+      valueKey: "from",
+      idKey: "fromId",
+    },
+    to: {
+      valueKey: "to",
+      idKey: "toId",
+    },
+    pic: {
+      valueKey: "picName",
+      idKey: "pic",
+    },
+    location: {
+      valueKey: "to",
+      idKey: "toId",
+    },
+    deliveryToAt: {
+      valueKey: "deliveryToAt",
+      idKey: "deliveryToAtId",
+    },
+  };
+
+  const resolveMasterOptionVariant = () => {
+    if (isDeliveryLike) return "delivery";
+    if (isShippingAdvise) return "advise";
+    return "si";
+  };
+
+  const getPicDisplayName = () =>
+    formData.picName || getOptionNameById(picOptions, formData.pic) || "";
+
+  const getDeliveryToAtDisplayName = () =>
+    formData.deliveryToAt || getOptionNameById(deliveryToAtOptions, formData.deliveryToAtId) || "";
+
+  const getSavedMasterSelection = (fieldKey) => {
+    const cfg = MASTER_OPTION_CONFIG[fieldKey];
+    return {
+      name: formData[cfg.valueKey] || "",
+      id: formData[cfg.idKey],
+    };
+  };
+
+  const isMasterOptionDirty = (fieldKey) => {
+    const pending = masterPending[fieldKey];
+    if (pending === null) return false;
+    const saved = getSavedMasterSelection(fieldKey);
+    return (
+      String(pending.name ?? "").trim() !== String(saved.name ?? "").trim()
+      || normalizeMasterOptionId(pending.id) !== normalizeMasterOptionId(saved.id)
+    );
+  };
 
   useEffect(() => {
     if (!isDeliveryLike) return;
@@ -381,7 +457,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     vw: cargoItems.reduce((sum, item) => sum + item.vw, 0),
   };
 
-  const deliverySiNumberDisplay = isDeliveryForm
+  const deliverySiNumberDisplay = isDeliveryLike
     ? (
       resolveApiText(formData.siNumber) ||
       resolveMany2oneLabel(formData.siNumberId, siOptions) ||
@@ -391,7 +467,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     )
     : formData.siNumber;
 
-  const deliverySoNumberDisplay = isDeliveryForm
+  const deliverySoNumberDisplay = isDeliveryLike
     ? (
       resolveApiText(formData.soNo) ||
       resolveMany2oneLabel(formData.soNumberId, soOptions) ||
@@ -415,8 +491,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const [qAgent, setQAgent] = useState("");
   const [qCnee, setQCnee] = useState("");
   const [qShipBy, setQShipBy] = useState("");
+  const [qPic, setQPic] = useState("");
   const [qFrom, setQFrom] = useState("");
   const [qTo, setQTo] = useState("");
+  const [qDeliveryToAt, setQDeliveryToAt] = useState("");
   const getOptionNameById = (list, id) => {
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
     return match?.name ? String(match.name) : "";
@@ -444,7 +522,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const handleDeletedPicOption = (option) => {
     setPicOptions((prev) => prev.filter((row) => Number(row.id) !== Number(option.id)));
     setFormData((prev) => (
-      String(prev.pic) === String(option.id) ? { ...prev, pic: "" } : prev
+      String(prev.pic) === String(option.id) ? { ...prev, pic: "", picName: "" } : prev
+    ));
+    setMasterPending((prev) => ({ ...prev, pic: null }));
+    refreshFormOptions();
+  };
+  const handleUpdatedPicOption = (option, nextName) => {
+    setPicOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.pic) === Number(option.id)
+        ? { ...prev, picName: String(nextName) }
+        : prev
     ));
     refreshFormOptions();
   };
@@ -455,6 +545,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ? { ...prev, from: "", fromId: null }
         : prev
     ));
+    setMasterPending((prev) => ({ ...prev, from: null }));
     refreshFormOptions();
   };
   const handleDeletedToOption = (option) => {
@@ -462,6 +553,49 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     setFormData((prev) => (
       String(prev.to).toLowerCase() === String(option.name).toLowerCase()
         ? { ...prev, to: "", toId: null }
+        : prev
+    ));
+    setMasterPending((prev) => ({ ...prev, to: null }));
+    refreshFormOptions();
+  };
+  const handleDeletedLocationOption = (option) => {
+    setToOptions((prev) => prev.filter((row) => Number(row.id) !== Number(option.id)));
+    setFormData((prev) => (
+      String(prev.to).toLowerCase() === String(option.name).toLowerCase()
+        ? { ...prev, to: "", toId: null }
+        : prev
+    ));
+    setMasterPending((prev) => ({ ...prev, location: null }));
+    refreshFormOptions();
+  };
+  const handleUpdatedLocationOption = (option, nextName) => {
+    setToOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.toId) === Number(option.id)
+        ? { ...prev, to: String(nextName) }
+        : prev
+    ));
+    refreshFormOptions();
+  };
+  const handleDeletedDeliveryToAtOption = (option) => {
+    setDeliveryToAtOptions((prev) => prev.filter((row) => Number(row.id) !== Number(option.id)));
+    setFormData((prev) => (
+      Number(prev.deliveryToAtId) === Number(option.id)
+        ? { ...prev, deliveryToAt: "", deliveryToAtId: null }
+        : prev
+    ));
+    setMasterPending((prev) => ({ ...prev, deliveryToAt: null }));
+    refreshFormOptions();
+  };
+  const handleUpdatedDeliveryToAtOption = (option, nextName) => {
+    setDeliveryToAtOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.deliveryToAtId) === Number(option.id)
+        ? { ...prev, deliveryToAt: String(nextName) }
         : prev
     ));
     refreshFormOptions();
@@ -473,7 +607,91 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ? { ...prev, shippedBy: "", shippedById: null }
         : prev
     ));
+    setMasterPending((prev) => ({ ...prev, shippedBy: null }));
     refreshFormOptions();
+  };
+  const handleUpdatedShippedByOption = (option, nextName) => {
+    setShippedByOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.shippedById) === Number(option.id)
+        ? { ...prev, shippedBy: String(nextName) }
+        : prev
+    ));
+    refreshFormOptions();
+  };
+  const handleUpdatedFromOption = (option, nextName) => {
+    setFromOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.fromId) === Number(option.id)
+        ? { ...prev, from: String(nextName) }
+        : prev
+    ));
+    refreshFormOptions();
+  };
+  const handleUpdatedToOption = (option, nextName) => {
+    setToOptions((prev) =>
+      prev.map((row) => (Number(row.id) === Number(option.id) ? { ...row, name: String(nextName) } : row))
+    );
+    setFormData((prev) => (
+      Number(prev.toId) === Number(option.id)
+        ? { ...prev, to: String(nextName) }
+        : prev
+    ));
+    refreshFormOptions();
+  };
+  const saveMasterOption = async (fieldKey, pendingOverride = null) => {
+    const pending = pendingOverride ?? masterPending[fieldKey];
+    if (!pending) return;
+    if (!pendingOverride && !isMasterOptionDirty(fieldKey)) return;
+
+    try {
+      setSavingMasterField(fieldKey);
+      setIsSiFormLoading(true);
+      const currentId = await ensureFormId();
+      if (!isShippingAdvise && !currentId) return;
+
+      const saved = getSavedMasterSelection(fieldKey);
+      const optionsByField = {
+        shippedBy: shippedByOptions,
+        from: fromOptions,
+        to: toOptions,
+        pic: picOptions,
+        location: toOptions,
+        deliveryToAt: deliveryToAtOptions,
+      };
+      const isNewCreate = normalizeMasterOptionId(pending?.id) == null
+        && String(pending?.name ?? "").trim() !== "";
+
+      const payloadFields = buildMasterOptionFormSaveFields({
+        fieldKey,
+        text: pending?.name,
+        selectedId: pending?.id,
+        savedId: saved.id,
+        options: optionsByField[fieldKey] || [],
+        forceNew: Boolean(pendingOverride) || isNewCreate,
+        variant: resolveMasterOptionVariant(),
+      });
+
+      const updated = await saveForm(buildSavePayloadWithId(currentId, payloadFields));
+      if (updated?.id != null) setSiFormId(updated.id);
+      applySiFormResponse(updated);
+      lastSavedAutosaveRef.current.header = {
+        ...lastSavedAutosaveRef.current.header,
+        ...buildHeaderSnapshotFromApi(updated || {}),
+      };
+      setMasterPending((prev) => ({ ...prev, [fieldKey]: null }));
+      refreshFormOptions();
+    } catch (e) {
+      console.error("Failed to save master option:", e);
+      showFormSaveError(toast, e, "Failed to save form");
+    } finally {
+      setSavingMasterField(null);
+      setIsSiFormLoading(false);
+    }
   };
   const toNullIfEmpty = (value) => {
     const text = value == null ? "" : String(value).trim();
@@ -490,16 +708,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
             ? Number(data.sicNo)
             : null,
-        siform_from_id:
-          data.fromId != null && Number.isFinite(Number(data.fromId))
-            ? Number(data.fromId)
-            : null,
-        siform_to_id:
-          data.toId != null && Number.isFinite(Number(data.toId))
-            ? Number(data.toId)
-            : null,
-        from_text: toNullIfEmpty(data.from),
-        destination_text: toNullIfEmpty(data.to),
+        ...buildHeaderMasterOptionFields({
+          data,
+          savedHeader: lastSavedAutosaveRef.current.header,
+          fromOptions,
+          toOptions,
+          variant: "advise",
+          fields: ["from", "to"],
+        }),
         awb_number: toNullIfEmpty(data.shippedBy),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
@@ -514,18 +730,25 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? Number(data.siNo)
             : null,
         in_liason_with: String(data.consignBlock ?? ""),
-        header_pic_id:
-          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
-            ? Number(data.pic)
+        si_number_id:
+          data.siNumberId != null && data.siNumberId !== "" && Number.isFinite(Number(data.siNumberId))
+            ? Number(data.siNumberId)
             : null,
+        so_number_id:
+          data.soNumberId != null && data.soNumberId !== "" && Number.isFinite(Number(data.soNumberId))
+            ? Number(data.soNumberId)
+            : null,
+        ...buildHeaderMasterOptionFields({
+          data,
+          savedHeader: lastSavedAutosaveRef.current.header,
+          picOptions,
+          toOptions,
+          deliveryToAtOptions,
+          variant: "delivery",
+          fields: ["pic", "location", "deliveryToAt"],
+        }),
         header_date: formatDateForApi(data.date),
         delivery_date: formatDateForApi(data.deadline),
-        delivery_to_at: toNullIfEmpty(data.deliveryToAt),
-        siform_to_id:
-          data.toId != null && Number.isFinite(Number(data.toId))
-            ? Number(data.toId)
-            : null,
-        location_text: toNullIfEmpty(data.to),
       };
     }
     if (isDeliveryForm) {
@@ -543,18 +766,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? Number(data.soNumberId)
             : null,
         in_liason_with: String(data.consignBlock ?? ""),
-        header_pic_id:
-          data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic))
-            ? Number(data.pic)
-            : null,
+        ...buildHeaderMasterOptionFields({
+          data,
+          savedHeader: lastSavedAutosaveRef.current.header,
+          picOptions,
+          toOptions,
+          deliveryToAtOptions,
+          variant: "delivery",
+          fields: ["pic", "location", "deliveryToAt"],
+        }),
         header_date: formatDateForApi(data.date),
         deadline_text: formatDateForApi(data.deadline),
-        delivery_to_at: toNullIfEmpty(data.deliveryToAt),
-        siform_to_id:
-          data.toId != null && Number.isFinite(Number(data.toId))
-            ? Number(data.toId)
-            : null,
-        location_text: toNullIfEmpty(data.to),
       };
     }
     return {
@@ -566,21 +788,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
           ? Number(data.sicNo)
           : null,
-      si_shipped_by_id:
-        data.shippedById != null && Number.isFinite(Number(data.shippedById))
-          ? Number(data.shippedById)
-          : null,
-      siform_from_id:
-        data.fromId != null && Number.isFinite(Number(data.fromId))
-          ? Number(data.fromId)
-          : null,
-      siform_to_id:
-        data.toId != null && Number.isFinite(Number(data.toId))
-          ? Number(data.toId)
-          : null,
-      from_text: toNullIfEmpty(data.from),
-      to_text: toNullIfEmpty(data.to),
-      to_be_shipped_by: toNullIfEmpty(data.shippedBy),
+      ...buildHeaderMasterOptionFields({
+        data,
+        savedHeader: lastSavedAutosaveRef.current.header,
+        shippedByOptions,
+        fromOptions,
+        toOptions,
+        variant: "si",
+      }),
       deadline_text: formatDateForApi(data.deadline),
       header_pic_id:
         data.pic != null && data.pic !== "" && Number.isFinite(Number(data.pic)) && Number(data.pic) > 0
@@ -613,10 +828,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
             ? String(form.in_liason_with ?? "")
             : "",
+        si_number_id: toIdOrNull(form.si_number_id),
+        so_number_id: toIdOrNull(form.so_number_id),
+        so_number: toNullIfEmpty(form.so_number),
         header_pic_id: toIdOrNull(form.header_pic_id),
         header_date: formatDateForApi(form.header_date),
         delivery_date: formatDateForApi(form.delivery_date),
         delivery_to_at: toNullIfEmpty(form.delivery_to_at),
+        delivery_to_at_id: toIdOrNull(form.delivery_to_at_id),
         siform_to_id: toIdOrNull(form.siform_to_id),
         location_text: toNullIfEmpty(form.location_text),
       };
@@ -635,6 +854,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         header_date: formatDateForApi(form.header_date),
         deadline_text: formatDateForApi(form.deadline_text),
         delivery_to_at: toNullIfEmpty(form.delivery_to_at),
+        delivery_to_at_id: toIdOrNull(form.delivery_to_at_id),
         siform_to_id: toIdOrNull(form.siform_to_id),
         location_text: toNullIfEmpty(form.location_text),
       };
@@ -730,6 +950,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const applySiFormResponse = (form, { lockedConsigneeId, lockedSiId, lockedAgentId } = {}) => {
     if (!form) return;
     isApplyingFormRef.current = true;
+    setMasterPending({ shippedBy: null, from: null, to: null, pic: null, location: null, deliveryToAt: null });
     setSiFormId(form.id ?? null);
 
     const countryName =
@@ -804,7 +1025,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const headerSiFromStock = stockList
       .map((it) => (it.si_number != null && it.si_number !== false ? String(it.si_number).trim() : ""))
       .find((value) => value !== "") || "";
-    const resolvedDeliverySiNumber = isDeliveryForm
+    const resolvedDeliverySiNumber = isDeliveryLike
       ? resolveDeliveryHeaderText({
         form,
         textKey: "si_number",
@@ -814,7 +1035,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         extraFallback: headerSiFromStock,
       })
       : "";
-    const resolvedDeliverySoNumber = isDeliveryForm
+    const resolvedDeliverySoNumber = isDeliveryLike
       ? resolveDeliveryHeaderText({
         form,
         textKey: "so_number",
@@ -826,7 +1047,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           resolveMany2oneLabel(form.job_ref_id, soOptions),
       })
       : "";
-    if (isDeliveryForm) {
+    if (isDeliveryLike) {
       lastDeliveryHeaderRef.current = {
         siNumber: resolvedDeliverySiNumber,
         soNumber: resolvedDeliverySoNumber,
@@ -921,6 +1142,40 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : null;
       return match?.name ? String(match.name) : "";
     })();
+    const resolvedDeliveryToAtId = (() => {
+      if (!isDeliveryLike) return null;
+      const fromIdObj =
+        form.delivery_to_at_id && typeof form.delivery_to_at_id === "object"
+          ? form.delivery_to_at_id.id
+          : null;
+      const fromValueObj =
+        form.delivery_to_at && typeof form.delivery_to_at === "object"
+          ? form.delivery_to_at.id
+          : null;
+      const rawId =
+        fromIdObj != null
+          ? fromIdObj
+          : form.delivery_to_at_id != null && form.delivery_to_at_id !== false && form.delivery_to_at_id !== ""
+            ? form.delivery_to_at_id
+            : fromValueObj != null
+              ? fromValueObj
+              : null;
+      if (rawId != null && Number.isFinite(Number(rawId))) return Number(rawId);
+      return null;
+    })();
+    const resolvedDeliveryToAtName = (() => {
+      if (!isDeliveryLike) return "";
+      if (form.delivery_to_at && typeof form.delivery_to_at === "object" && form.delivery_to_at.name) {
+        return String(form.delivery_to_at.name);
+      }
+      if (form.delivery_to_at != null && form.delivery_to_at !== false && typeof form.delivery_to_at === "string") {
+        return String(form.delivery_to_at);
+      }
+      if (resolvedDeliveryToAtId != null) {
+        return getOptionNameById(deliveryToAtOptions, resolvedDeliveryToAtId);
+      }
+      return "";
+    })();
 
     setFormData((prev) => ({
       ...prev,
@@ -930,10 +1185,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           : ""
         : prev.vessel,
       // header card mapping by form type
-      deliveryToAt:
-        isDeliveryLike && form.delivery_to_at != null && form.delivery_to_at !== false
-          ? String(form.delivery_to_at)
-          : "",
+      deliveryToAt: isDeliveryLike ? resolvedDeliveryToAtName : "",
+      deliveryToAtId: isDeliveryLike ? resolvedDeliveryToAtId : null,
       siNo: isDeliveryLike
         ? (lockedSiId ?? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : (form.di_number_id ?? ""))) ?? ""
         : (lockedSiId ?? siId) ?? "",
@@ -956,7 +1209,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
               ? String(form.so_number)
               : "")
           : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
-      soNo: isDeliveryForm
+      soNo: isDeliveryLike
         ? resolveDeliveryHeaderText({
           form,
           textKey: "so_number",
@@ -968,8 +1221,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             resolveMany2oneLabel(form.job_ref_id, soOptions),
         })
         : prev.soNo,
-      soNumberId: isDeliveryForm ? toIdOrNull(form.so_number_id) : prev.soNumberId,
-      siNumber: isDeliveryForm
+      soNumberId: isDeliveryLike ? toIdOrNull(form.so_number_id) : prev.soNumberId,
+      siNumber: isDeliveryLike
         ? resolveDeliveryHeaderText({
           form,
           textKey: "si_number",
@@ -979,7 +1232,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           extraFallback: headerSiFromStock,
         })
         : prev.siNumber,
-      siNumberId: isDeliveryForm ? toIdOrNull(form.si_number_id) : prev.siNumberId,
+      siNumberId: isDeliveryLike ? toIdOrNull(form.si_number_id) : prev.siNumberId,
       shippedBy: isShippingAdvise
         ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
         : (shippedByName ||
@@ -1010,9 +1263,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : isDeliveryLike
           ? (form.location_text != null && form.location_text !== false
             ? String(form.location_text)
-            : form.delivery_to_at != null && form.delivery_to_at !== false
-              ? String(form.delivery_to_at)
-              : toName)
+            : toName)
           : (toName ||
             (form.siform_to_id != null && form.siform_to_id !== false && form.siform_to_id !== ""
               ? (getOptionNameById(toOptions, form.siform_to_id) || String(form.siform_to_id))
@@ -1043,6 +1294,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : isDeliveryLike
           ? resolvedPicId
           : resolvedPicId,
+      picName: isShippingAdvise ? "" : resolvedPicName,
       date: formatIsoToDisplayDate(
         isShippingAdvise
           ? (form.date != null && form.date !== false && String(form.date).trim() !== ""
@@ -1123,7 +1375,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         setSiOptions(mergeSelected);
       }
     }
-    if (isDeliveryForm) {
+    if (isDeliveryLike) {
       const siNumberIdVal = toIdOrNull(form.si_number_id);
       const siNumberLabel = resolvedDeliverySiNumber;
       if (siNumberIdVal && siNumberLabel) {
@@ -1180,6 +1432,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         return [...(Array.isArray(prev) ? prev : []), { id: Number(resolvedPicId), name: String(resolvedPicName) }];
       });
     }
+    if (isDeliveryLike && resolvedDeliveryToAtId != null && resolvedDeliveryToAtName) {
+      setDeliveryToAtOptions((prev) => {
+        const exists = Array.isArray(prev) && prev.some((o) => Number(o.id) === Number(resolvedDeliveryToAtId));
+        if (exists) return prev;
+        return [
+          ...(Array.isArray(prev) ? prev : []),
+          { id: Number(resolvedDeliveryToAtId), name: String(resolvedDeliveryToAtName) },
+        ];
+      });
+    }
 
     setSelectedSiName(siName ? String(siName) : "");
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
@@ -1225,7 +1487,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 ? String(it.awb)
                 : "",
         siNumber:
-          isDeliveryForm && it.si_number != null && it.si_number !== false
+          isDeliveryLike && it.si_number != null && it.si_number !== false
             ? String(it.si_number)
             : "",
         poNumber:
@@ -1314,8 +1576,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
         if (isDeliveryLike) {
           optionsParams.q_di = qSi;
-          optionsParams.q_pic = qShipBy;
-          if (isDeliveryForm) {
+          optionsParams.q_pic = isDeliveryLike ? qPic : qShipBy;
+          optionsParams.q_delivery_to_at = qDeliveryToAt;
+          if (isDeliveryLike) {
             optionsParams.q_si = qDeliverySi;
             optionsParams.q_so = qDeliverySo;
           }
@@ -1448,6 +1711,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           )
         );
         setToOptions(normalizeTextOptions(optionsSource?.to_options || optionsSource?.location_options));
+        if (isDeliveryLike) {
+          const deliveryToAtRaw =
+            optionsSource?.delivery_to_at_options ||
+            optionsSource?.deliver_to_at_options ||
+            [];
+          const normalizedDeliveryToAt = normalizeTextOptions(deliveryToAtRaw);
+          setDeliveryToAtOptions((prev) =>
+            mergeSelectedIdOption(
+              prev,
+              formData.deliveryToAtId,
+              formData.deliveryToAt,
+              normalizedDeliveryToAt
+            )
+          );
+        }
       } catch (e) {
         console.error("Failed to load form options:", e);
       } finally {
@@ -1459,7 +1737,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qDeliverySi, qDeliverySo, qAgent, qShipBy, qFrom, qTo, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, selectedSiName, isShippingAdvise, isDeliveryForm, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
+  }, [qCnee, qSi, qSic, qDeliverySi, qDeliverySo, qAgent, qShipBy, qPic, qFrom, qTo, qDeliveryToAt, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, formData.deliveryToAtId, formData.deliveryToAt, selectedSiName, isShippingAdvise, isDeliveryForm, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -1549,13 +1827,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     formData.siNo,
     formData.sicNo,
     formData.jobNo,
-    formData.deliveryToAt,
-    formData.shippedBy,
-    formData.shippedById,
-    formData.from,
-    formData.fromId,
-    formData.to,
-    formData.toId,
     formData.deadline,
     formData.pic,
     formData.date,
@@ -1717,6 +1988,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setQShipBy("");
       setQFrom("");
       setQTo("");
+      setQDeliveryToAt("");
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
@@ -1810,7 +2082,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     let twoColStartY = contentTop + 26;
     if (isDeliveryLike) {
       twoColStartY += 8; // add top breathing room before delivery heading
-      const deliveryToAtText = `TO DELIVER TO AT: ${formData.deliveryToAt || "-"}`;
+      const deliveryToAtText = `TO DELIVER TO AT: ${getDeliveryToAtDisplayName() || "-"}`;
       doc.setFontSize(10);
       doc.setTextColor(33, 51, 91);
       doc.setFont(undefined, "bold");
@@ -1860,14 +2132,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       : isDeliveryConfirmation
         ? [
           ["JOB NO", formData.jobNo || "-"],
-          ["PIC", formData.pic || "-"],
+          ["SO NO", deliverySoNumberDisplay || "-"],
+          ["PIC", getPicDisplayName() || formData.pic || "-"],
           ["DELIVERY DATE", formData.deadline || "-"],
           ["LOCATION", formData.to || "-"],
         ]
         : isDeliveryForm
           ? [
             ["JOB NO", formData.jobNo || "-"],
-            ["SI NO", deliverySiNumberDisplay || "-"],
             ["SO NO", deliverySoNumberDisplay || "-"],
             ["PIC", formData.pic || "-"],
             ["DEADLINE", formData.deadline || "-"],
@@ -1952,56 +2224,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           "",
         ]);
       });
-    } else if (isDeliveryConfirmation) {
-      cargoHead = [
-        "STOKITEM ID",
-        "Warehouse",
-        "AWB",
-        "FROM",
-        "SUPLIER",
-        "PO NUMBER",
-        "DG/UN",
-        "BOXES",
-        "KG",
-        "LWH",
-      ];
-      cargoRows = (cargoItems || []).map((item) => [
-        item.stockItemId || "-",
-        item.warehouseId || "-",
-        item.awbNumber || "-",
-        item.origin || "-",
-        item.supplier || "-",
-        item.poNumber || "-",
-        dgUnPdf(item),
-        String(item.boxes ?? "-"),
-        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
-        item.lwh || "-",
-      ]);
-      cargoRows.push([
-        "CARGO TO BE DELIVERED",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        String(totals.boxes ?? 0),
-        Number(totals.kg || 0).toFixed(2),
-        "",
-      ]);
-      cargoRows.push([
-        "PACKED AS",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        String(formData.totalPackedQuantity ?? ""),
-        String(formData.totalPackedWeight ?? ""),
-        "",
-      ]);
-    } else if (isDeliveryForm) {
+    } else if (isDeliveryLike) {
       cargoHead = [
         "AWB NO",
         "FROM",
@@ -2073,7 +2296,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             }
           }
         }
-        if ((isDeliveryForm || isDeliveryConfirmation) && hookData.section === "body") {
+        if (isDeliveryLike && hookData.section === "body") {
           const packedAsRowIndex = cargoRows.length - 1;
           if (hookData.row.index === packedAsRowIndex) {
             hookData.cell.styles.fillColor = [255, 245, 204];
@@ -2200,24 +2423,33 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   {isShippingAdvise ? "SHIP TO:" : isDeliveryLike ? "TO DELIVER TO AT:" : "CONSIGN TO:"}
                 </Text>
                 {isDeliveryLike && (
-                  <Input
+                  <MasterOptionPicker
                     id="delivery-to-at"
-                    value={formData.deliveryToAt}
-                    onChange={(e) => {
-                      headerUserEditedRef.current = true;
-                      handleInputChange("deliveryToAt", e.target.value);
-                    }}
-                    size="sm"
+                    savedName={getDeliveryToAtDisplayName()}
+                    savedId={formData.deliveryToAtId}
+                    pendingSelection={masterPending.deliveryToAt}
+                    onPendingChange={(selection) =>
+                      setMasterPending((prev) => ({ ...prev, deliveryToAt: selection }))
+                    }
+                    onConfirm={() => saveMasterOption("deliveryToAt")}
+                    onAddNew={(name) => saveMasterOption("deliveryToAt", { name, id: null })}
+                    isConfirming={savingMasterField === "deliveryToAt"}
+                    options={deliveryToAtOptions}
+                    onSearchChange={setQDeliveryToAt}
+                    isLoading={isOptionsLoading || isSiFormLoading}
+                    onOptionsRefresh={refreshFormOptions}
+                    placeholder="Select delivery to at..."
+                    color="white"
+                    bg="orange.400"
+                    borderColor="transparent"
                     fontWeight="semibold"
                     mb={2}
-                    variant="unstyled"
-                    bg="orange.400"
-                    color="white"
                     px={3}
                     py={1}
                     borderRadius="sm"
-                    placeholder="Type delivery to at..."
                     _placeholder={{ color: "whiteAlpha.800" }}
+                    {...getDeleteSelectProps("deliveryToAt", handleDeletedDeliveryToAtOption)}
+                    {...getUpdateSelectProps("deliveryToAt", handleUpdatedDeliveryToAtOption)}
                   />
                 )}
                 {isDeliveryLike && (
@@ -2521,27 +2753,52 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       >
                         {isShippingAdvise ? "AWB NO:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
                       </FormLabel>
-                      <DeletableOptionCombobox
-                        id="shipped-by-field"
-                        value={formData.shippedBy}
-                        onChange={(nextVal) => {
-                          headerUserEditedRef.current = true;
-                          handleInputChange("shippedBy", nextVal);
-                          handleInputChange("shippedById", getTextOptionIdByValue(shippedByOptions, nextVal));
-                          setQShipBy(nextVal);
-                        }}
-                        onSearchChange={setQShipBy}
-                        options={shippedByOptions}
-                        isLoading={isOptionsLoading || isSiFormLoading}
-                        size="sm"
-                        fontWeight="medium"
-                        variant="unstyled"
-                        bg="transparent"
-                        color="white"
-                        placeholder="Select or type shipped by..."
-                        _placeholder={{ color: "whiteAlpha.800" }}
-                        {...getDeleteSelectProps("shippedBy", handleDeletedShippedByOption)}
-                      />
+                      {isShippingInstruction ? (
+                        <MasterOptionPicker
+                          id="shipped-by-field"
+                          savedName={formData.shippedBy}
+                          savedId={formData.shippedById}
+                          pendingSelection={masterPending.shippedBy}
+                          onPendingChange={(selection) =>
+                            setMasterPending((prev) => ({ ...prev, shippedBy: selection }))
+                          }
+                          onConfirm={() => saveMasterOption("shippedBy")}
+                          onAddNew={(name) => saveMasterOption("shippedBy", { name, id: null })}
+                          isConfirming={savingMasterField === "shippedBy"}
+                          options={shippedByOptions}
+                          onSearchChange={setQShipBy}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          onOptionsRefresh={refreshFormOptions}
+                          placeholder="Select shipped by..."
+                          color="white"
+                          bg="transparent"
+                          borderColor="transparent"
+                          {...getDeleteSelectProps("shippedBy", handleDeletedShippedByOption)}
+                          {...getUpdateSelectProps("shippedBy", handleUpdatedShippedByOption)}
+                        />
+                      ) : (
+                        <DeletableOptionCombobox
+                          id="shipped-by-field"
+                          value={formData.shippedBy}
+                          onChange={(nextVal) => {
+                            headerUserEditedRef.current = true;
+                            handleInputChange("shippedBy", nextVal);
+                            handleInputChange("shippedById", getTextOptionIdByValue(shippedByOptions, nextVal));
+                            setQShipBy(nextVal);
+                          }}
+                          onSearchChange={setQShipBy}
+                          options={shippedByOptions}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          size="sm"
+                          fontWeight="medium"
+                          variant="unstyled"
+                          bg="transparent"
+                          color="white"
+                          placeholder="Select or type shipped by..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                          {...getDeleteSelectProps("shippedBy", handleDeletedShippedByOption)}
+                        />
+                      )}
                     </FormControl>
                   )}
 
@@ -2608,26 +2865,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         >
                           FROM:
                         </FormLabel>
-                        <DeletableOptionCombobox
+                        <MasterOptionPicker
                           id="from-origin-field"
-                          value={formData.from}
-                          onChange={(nextVal) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("from", nextVal);
-                            handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
-                            setQFrom(nextVal);
-                          }}
-                          onSearchChange={setQFrom}
+                          savedName={formData.from}
+                          savedId={formData.fromId}
+                          pendingSelection={masterPending.from}
+                          onPendingChange={(selection) =>
+                            setMasterPending((prev) => ({ ...prev, from: selection }))
+                          }
+                          onConfirm={() => saveMasterOption("from")}
+                          onAddNew={(name) => saveMasterOption("from", { name, id: null })}
+                          isConfirming={savingMasterField === "from"}
                           options={fromOptions}
+                          onSearchChange={setQFrom}
                           isLoading={isOptionsLoading || isSiFormLoading}
-                          size="sm"
-                          fontWeight="medium"
-                          variant="unstyled"
-                          bg="transparent"
+                          onOptionsRefresh={refreshFormOptions}
+                          placeholder="Select origin..."
                           color="white"
-                          placeholder="Select or type origin..."
-                          _placeholder={{ color: "whiteAlpha.800" }}
+                          bg="transparent"
+                          borderColor="transparent"
                           {...getDeleteSelectProps("from", handleDeletedFromOption)}
+                          {...getUpdateSelectProps("from", handleUpdatedFromOption)}
                         />
                       </FormControl>
 
@@ -2635,26 +2893,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="to" fontWeight="bold" textTransform="uppercase" m={0}>
                           DESTINATION:
                         </FormLabel>
-                        <DeletableOptionCombobox
+                        <MasterOptionPicker
                           id="destination-field"
-                          value={formData.to}
-                          onChange={(nextVal) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("to", nextVal);
-                            handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
-                            setQTo(nextVal);
-                          }}
-                          onSearchChange={setQTo}
+                          savedName={formData.to}
+                          savedId={formData.toId}
+                          pendingSelection={masterPending.to}
+                          onPendingChange={(selection) =>
+                            setMasterPending((prev) => ({ ...prev, to: selection }))
+                          }
+                          onConfirm={() => saveMasterOption("to")}
+                          onAddNew={(name) => saveMasterOption("to", { name, id: null })}
+                          isConfirming={savingMasterField === "to"}
                           options={toOptions}
+                          onSearchChange={setQTo}
                           isLoading={isOptionsLoading || isSiFormLoading}
-                          size="sm"
-                          fontWeight="medium"
-                          variant="unstyled"
-                          bg="transparent"
+                          onOptionsRefresh={refreshFormOptions}
+                          placeholder="Select destination..."
                           color="white"
-                          placeholder="Select or type destination..."
-                          _placeholder={{ color: "whiteAlpha.800" }}
+                          bg="transparent"
+                          borderColor="transparent"
                           {...getDeleteSelectProps("to", handleDeletedToOption)}
+                          {...getUpdateSelectProps("to", handleUpdatedToOption)}
                         />
                       </FormControl>
                     </>
@@ -2670,26 +2929,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           >
                             FROM:
                           </FormLabel>
-                          <DeletableOptionCombobox
+                          <MasterOptionPicker
                             id="from-origin-field"
-                            value={formData.from}
-                            onChange={(nextVal) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("from", nextVal);
-                              handleInputChange("fromId", getTextOptionIdByValue(fromOptions, nextVal));
-                              setQFrom(nextVal);
-                            }}
-                            onSearchChange={setQFrom}
+                            savedName={formData.from}
+                            savedId={formData.fromId}
+                            pendingSelection={masterPending.from}
+                            onPendingChange={(selection) =>
+                              setMasterPending((prev) => ({ ...prev, from: selection }))
+                            }
+                            onConfirm={() => saveMasterOption("from")}
+                            onAddNew={(name) => saveMasterOption("from", { name, id: null })}
+                            isConfirming={savingMasterField === "from"}
                             options={fromOptions}
+                            onSearchChange={setQFrom}
                             isLoading={isOptionsLoading || isSiFormLoading}
-                            size="sm"
-                            fontWeight="medium"
-                            variant="unstyled"
-                            bg="transparent"
+                            onOptionsRefresh={refreshFormOptions}
+                            placeholder="Select origin..."
                             color="white"
-                            placeholder="Select or type origin..."
-                            _placeholder={{ color: "whiteAlpha.800" }}
+                            bg="transparent"
+                            borderColor="transparent"
                             {...getDeleteSelectProps("from", handleDeletedFromOption)}
+                            {...getUpdateSelectProps("from", handleUpdatedFromOption)}
                           />
                         </FormControl>
 
@@ -2702,26 +2962,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           >
                             TO:
                           </FormLabel>
-                          <DeletableOptionCombobox
+                          <MasterOptionPicker
                             id="destination-field"
-                            value={formData.to}
-                            onChange={(nextVal) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("to", nextVal);
-                              handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
-                              setQTo(nextVal);
-                            }}
-                            onSearchChange={setQTo}
+                            savedName={formData.to}
+                            savedId={formData.toId}
+                            pendingSelection={masterPending.to}
+                            onPendingChange={(selection) =>
+                              setMasterPending((prev) => ({ ...prev, to: selection }))
+                            }
+                            onConfirm={() => saveMasterOption("to")}
+                            onAddNew={(name) => saveMasterOption("to", { name, id: null })}
+                            isConfirming={savingMasterField === "to"}
                             options={toOptions}
+                            onSearchChange={setQTo}
                             isLoading={isOptionsLoading || isSiFormLoading}
-                            size="sm"
-                            fontWeight="medium"
-                            variant="unstyled"
-                            bg="transparent"
+                            onOptionsRefresh={refreshFormOptions}
+                            placeholder="Select destination..."
                             color="white"
-                            placeholder="Select or type destination..."
-                            _placeholder={{ color: "whiteAlpha.800" }}
+                            bg="transparent"
+                            borderColor="transparent"
                             {...getDeleteSelectProps("to", handleDeletedToOption)}
+                            {...getUpdateSelectProps("to", handleUpdatedToOption)}
                           />
                         </FormControl>
 
@@ -2869,7 +3130,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           />
                         }
                       </FormControl>
-                      {isDeliveryForm && (
+                      {isDeliveryLike && (
                         <>
                           <FormControl display="contents">
                             <FormLabel htmlFor="si-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
@@ -2979,32 +3240,57 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           PIC :
                         </FormLabel>
-                        <SimpleSearchableSelect
-                          id="pic-delivery"
-                          value={formData.pic}
-                          onChange={(val) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("pic", val ?? "");
-                          }}
-                          options={picOptions}
-                          displayKey="name"
-                          valueKey="id"
-                          prefillOnFocus={false}
-                          size="sm"
-                          bg="transparent"
-                          borderColor="transparent"
-                          variant="unstyled"
-                          px={0}
-                          py={0}
-                          _focus={{ boxShadow: "none", outline: "none" }}
-                          _focusVisible={{ boxShadow: "none", outline: "none" }}
-                          isLoading={isOptionsLoading || isSiFormLoading}
-                          color="white"
-                          placeholder="Select PIC..."
-                          _placeholder={{ color: "whiteAlpha.800" }}
-                          style={{ color: "white" }}
-                          {...getDeleteSelectProps("pic", handleDeletedPicOption)}
-                        />
+                        {isDeliveryLike ? (
+                          <MasterOptionPicker
+                            id="pic-delivery"
+                            savedName={getPicDisplayName()}
+                            savedId={formData.pic}
+                            pendingSelection={masterPending.pic}
+                            onPendingChange={(selection) =>
+                              setMasterPending((prev) => ({ ...prev, pic: selection }))
+                            }
+                            onConfirm={() => saveMasterOption("pic")}
+                            onAddNew={(name) => saveMasterOption("pic", { name, id: null })}
+                            isConfirming={savingMasterField === "pic"}
+                            options={picOptions}
+                            onSearchChange={setQPic}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            onOptionsRefresh={refreshFormOptions}
+                            placeholder="Select PIC..."
+                            color="white"
+                            bg="transparent"
+                            borderColor="transparent"
+                            {...getDeleteSelectProps("pic", handleDeletedPicOption)}
+                            {...getUpdateSelectProps("pic", handleUpdatedPicOption)}
+                          />
+                        ) : (
+                          <SimpleSearchableSelect
+                            id="pic-delivery"
+                            value={formData.pic}
+                            onChange={(val) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("pic", val ?? "");
+                            }}
+                            options={picOptions}
+                            displayKey="name"
+                            valueKey="id"
+                            prefillOnFocus={false}
+                            size="sm"
+                            bg="transparent"
+                            borderColor="transparent"
+                            variant="unstyled"
+                            px={0}
+                            py={0}
+                            _focus={{ boxShadow: "none", outline: "none" }}
+                            _focusVisible={{ boxShadow: "none", outline: "none" }}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            color="white"
+                            placeholder="Select PIC..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                            style={{ color: "white" }}
+                            {...getDeleteSelectProps("pic", handleDeletedPicOption)}
+                          />
+                        )}
                       </FormControl>
                       <FormControl display="contents">
                         <FormLabel htmlFor="date-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
@@ -3046,27 +3332,53 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="location-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           LOCATION :
                         </FormLabel>
-                        <DeletableOptionCombobox
-                          id="location-delivery"
-                          value={formData.to}
-                          onChange={(nextVal) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("to", nextVal);
-                            handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
-                            setQTo(nextVal);
-                          }}
-                          onSearchChange={setQTo}
-                          options={toOptions}
-                          isLoading={isOptionsLoading || isSiFormLoading}
-                          size="sm"
-                          fontWeight="semibold"
-                          variant="unstyled"
-                          bg="transparent"
-                          color="white"
-                          placeholder="Select or type location..."
-                          _placeholder={{ color: "whiteAlpha.800" }}
-                          {...getDeleteSelectProps("to", handleDeletedToOption)}
-                        />
+                        {isDeliveryLike ? (
+                          <MasterOptionPicker
+                            id="location-delivery"
+                            savedName={formData.to}
+                            savedId={formData.toId}
+                            pendingSelection={masterPending.location}
+                            onPendingChange={(selection) =>
+                              setMasterPending((prev) => ({ ...prev, location: selection }))
+                            }
+                            onConfirm={() => saveMasterOption("location")}
+                            onAddNew={(name) => saveMasterOption("location", { name, id: null })}
+                            isConfirming={savingMasterField === "location"}
+                            options={toOptions}
+                            onSearchChange={setQTo}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            onOptionsRefresh={refreshFormOptions}
+                            placeholder="Select location..."
+                            color="white"
+                            bg="transparent"
+                            borderColor="transparent"
+                            fontWeight="semibold"
+                            {...getDeleteSelectProps("to", handleDeletedLocationOption)}
+                            {...getUpdateSelectProps("to", handleUpdatedLocationOption)}
+                          />
+                        ) : (
+                          <DeletableOptionCombobox
+                            id="location-delivery"
+                            value={formData.to}
+                            onChange={(nextVal) => {
+                              headerUserEditedRef.current = true;
+                              handleInputChange("to", nextVal);
+                              handleInputChange("toId", getTextOptionIdByValue(toOptions, nextVal));
+                              setQTo(nextVal);
+                            }}
+                            onSearchChange={setQTo}
+                            options={toOptions}
+                            isLoading={isOptionsLoading || isSiFormLoading}
+                            size="sm"
+                            fontWeight="semibold"
+                            variant="unstyled"
+                            bg="transparent"
+                            color="white"
+                            placeholder="Select or type location..."
+                            _placeholder={{ color: "whiteAlpha.800" }}
+                            {...getDeleteSelectProps("to", handleDeletedToOption)}
+                          />
+                        )}
                       </FormControl>
                     </>
                   )}
@@ -3209,7 +3521,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                   <Table variant="simple" size="sm" border="1px" borderColor="gray.300">
                     <Thead bg="gray.100">
                       <Tr>
-                        {isDeliveryForm ? (
+                        {isDeliveryLike ? (
                           <>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SI NO</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB NO</Th>
@@ -3224,32 +3536,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           </>
                         ) : (
                           <>
-                            {isDeliveryConfirmation && (
-                              <>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="orange.200">STOCKITEM ID</Th>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">AWB</Th>
-                              </>
-                            )}
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">
-                              {isDeliveryLike ? "FROM" : "ORIGIN"}
-                            </Th>
-                            {!isDeliveryConfirmation && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">ORIGIN</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">Warehouse</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">SUPPLIER</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">PO NUMBER</Th>
-                            {!isDeliveryLike && (
-                              <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
-                            )}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">DG/UN</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">BOXES</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">KG</Th>
-                            {!isDeliveryLike && <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">CBM</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">LWH</Th>
-                            {!isDeliveryLike && (
-                              <>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
-                              </>
-                            )}
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" bg="yellow.200">VW</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold">StockitemID</Th>
                           </>
                         )}
                       </Tr>
@@ -3257,7 +3554,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     <Tbody>
                       {cargoItems.map((item, index) => (
                         <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
-                          {isDeliveryForm ? (
+                          {isDeliveryLike ? (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.siNumber || "-"}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || "-"}</Td>
@@ -3272,45 +3569,32 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             </>
                           ) : (
                             <>
-                              {isDeliveryConfirmation && (
-                                <>
-                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
-                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || ""}</Td>
-                                </>
-                              )}
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                              {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                                 {item.warehouseId || ""}
-                              </Td>}
+                              </Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
-                              {!isDeliveryLike && (
-                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
-                              )}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                              {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
-                              {!isDeliveryLike && (
-                                <>
-                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
-                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
-                                </>
-                              )}
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
                             </>
                           )}
                         </Tr>
                       ))}
                       <Tr bg="gray.100" fontWeight="bold">
-                        <Td colSpan={isDeliveryForm ? 6 : isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
+                        <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                           {isDeliveryLike ? "CARGO TO BE DELIVERED:" : "CARGO TO BE SHIPPED:"}
                         </Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
                         {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                        {isDeliveryForm && <Td py={2} px={2} fontSize="xs"></Td>}
+                        {isDeliveryLike && <Td py={2} px={2} fontSize="xs"></Td>}
                         {!isDeliveryLike && (
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
                         )}
@@ -3319,7 +3603,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       {!isShippingAdvise && (
                         <Tr bg="gray.50">
                           <Td
-                            colSpan={isDeliveryForm ? 6 : isDeliveryLike ? 6 : 5}
+                            colSpan={isDeliveryLike ? 6 : 5}
                             borderRight="1px"
                             borderColor="gray.300"
                             py={2}
@@ -3361,7 +3645,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             />
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                          {isDeliveryForm && <Td py={2} px={2} fontSize="xs"></Td>}
+                          {isDeliveryLike && <Td py={2} px={2} fontSize="xs"></Td>}
                           {!isDeliveryLike && (
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           )}

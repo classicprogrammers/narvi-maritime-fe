@@ -56,6 +56,7 @@ export const getDeliveryInstructionOptionsApi = async ({
   q_si,
   q_so,
   q_to,
+  q_delivery_to_at,
   agent_id,
 } = {}) => {
   const payload = {};
@@ -71,6 +72,9 @@ export const getDeliveryInstructionOptionsApi = async ({
   if (q_si != null && String(q_si).trim() !== "") payload.q_si = String(q_si);
   if (q_so != null && String(q_so).trim() !== "") payload.q_so = String(q_so);
   if (q_to != null && String(q_to).trim() !== "") payload.q_to = String(q_to);
+  if (q_delivery_to_at != null && String(q_delivery_to_at).trim() !== "") {
+    payload.q_delivery_to_at = String(q_delivery_to_at);
+  }
   if (agent_id != null && agent_id !== "") payload.agent_id = Number(agent_id);
 
   const response = await api.post("/api/delivery/instruction/form/options", payload);
