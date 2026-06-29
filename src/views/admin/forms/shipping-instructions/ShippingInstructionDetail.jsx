@@ -2431,7 +2431,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                     onPendingChange={(selection) =>
                       setMasterPending((prev) => ({ ...prev, deliveryToAt: selection }))
                     }
-                    onConfirm={() => saveMasterOption("deliveryToAt")}
+                    onConfirm={(selection) => saveMasterOption("deliveryToAt", selection)}
                     onAddNew={(name) => saveMasterOption("deliveryToAt", { name, id: null })}
                     isConfirming={savingMasterField === "deliveryToAt"}
                     options={deliveryToAtOptions}
@@ -2762,7 +2762,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           onPendingChange={(selection) =>
                             setMasterPending((prev) => ({ ...prev, shippedBy: selection }))
                           }
-                          onConfirm={() => saveMasterOption("shippedBy")}
+                          onConfirm={(selection) => saveMasterOption("shippedBy", selection)}
                           onAddNew={(name) => saveMasterOption("shippedBy", { name, id: null })}
                           isConfirming={savingMasterField === "shippedBy"}
                           options={shippedByOptions}
@@ -2873,7 +2873,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           onPendingChange={(selection) =>
                             setMasterPending((prev) => ({ ...prev, from: selection }))
                           }
-                          onConfirm={() => saveMasterOption("from")}
+                          onConfirm={(selection) => saveMasterOption("from", selection)}
                           onAddNew={(name) => saveMasterOption("from", { name, id: null })}
                           isConfirming={savingMasterField === "from"}
                           options={fromOptions}
@@ -2901,7 +2901,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           onPendingChange={(selection) =>
                             setMasterPending((prev) => ({ ...prev, to: selection }))
                           }
-                          onConfirm={() => saveMasterOption("to")}
+                          onConfirm={(selection) => saveMasterOption("to", selection)}
                           onAddNew={(name) => saveMasterOption("to", { name, id: null })}
                           isConfirming={savingMasterField === "to"}
                           options={toOptions}
@@ -2937,7 +2937,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             onPendingChange={(selection) =>
                               setMasterPending((prev) => ({ ...prev, from: selection }))
                             }
-                            onConfirm={() => saveMasterOption("from")}
+                            onConfirm={(selection) => saveMasterOption("from", selection)}
                             onAddNew={(name) => saveMasterOption("from", { name, id: null })}
                             isConfirming={savingMasterField === "from"}
                             options={fromOptions}
@@ -2970,7 +2970,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             onPendingChange={(selection) =>
                               setMasterPending((prev) => ({ ...prev, to: selection }))
                             }
-                            onConfirm={() => saveMasterOption("to")}
+                            onConfirm={(selection) => saveMasterOption("to", selection)}
                             onAddNew={(name) => saveMasterOption("to", { name, id: null })}
                             isConfirming={savingMasterField === "to"}
                             options={toOptions}
@@ -3249,7 +3249,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             onPendingChange={(selection) =>
                               setMasterPending((prev) => ({ ...prev, pic: selection }))
                             }
-                            onConfirm={() => saveMasterOption("pic")}
+                            onConfirm={(selection) => saveMasterOption("pic", selection)}
                             onAddNew={(name) => saveMasterOption("pic", { name, id: null })}
                             isConfirming={savingMasterField === "pic"}
                             options={picOptions}
@@ -3341,7 +3341,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                             onPendingChange={(selection) =>
                               setMasterPending((prev) => ({ ...prev, location: selection }))
                             }
-                            onConfirm={() => saveMasterOption("location")}
+                            onConfirm={(selection) => saveMasterOption("location", selection)}
                             onAddNew={(name) => saveMasterOption("location", { name, id: null })}
                             isConfirming={savingMasterField === "location"}
                             options={toOptions}

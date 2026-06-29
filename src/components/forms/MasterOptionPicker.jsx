@@ -28,7 +28,7 @@ const normalizeId = (value) => {
  * Searchable dropdown for master options (shipped by / from / to).
  * - Rename existing rows: POST /api/form/options/update (pencil icon in list).
  * - Add new: SI form save API immediately (Add row / search confirm for new text).
- * - Link existing selection: SI form save API (check icon on the field).
+ * - Link existing selection: SI form save API (auto-saved on list item click).
  */
 export default function MasterOptionPicker({
   id: inputId,
@@ -81,9 +81,8 @@ export default function MasterOptionPicker({
     String(pendingSelection.name ?? "").trim() !== String(savedName ?? "").trim()
     || normalizeId(pendingSelection.id) !== normalizeId(savedId)
   );
-  const showConfirm = isDirty;
   const showClear = Boolean(activeName) || isDirty;
-  const rightIconsWidth = showConfirm && showClear ? "4rem" : (showConfirm || showClear ? "2rem" : undefined);
+  const rightIconsWidth = showClear ? "2rem" : undefined;
 
   const filteredOptions = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -160,12 +159,17 @@ export default function MasterOptionPicker({
     setIsOpen(true);
   };
 
-  const selectOption = (option) => {
-    onPendingChange?.({
+  const selectOption = async (option) => {
+    const selection = {
       name: String(option.name || ""),
       id: normalizeId(option.id),
-    });
+    };
+    onPendingChange?.(selection);
     setIsOpen(false);
+    setSearch("");
+    if (onConfirm) {
+      await onConfirm(selection);
+    }
   };
 
   const selectNewOption = () => {
@@ -231,7 +235,7 @@ export default function MasterOptionPicker({
     await onOptionsRefresh?.();
   };
 
-  const handleClear = (event) => {
+  const handleClear = async (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (isDirty) {
@@ -239,15 +243,12 @@ export default function MasterOptionPicker({
       return;
     }
     if (activeName) {
-      onPendingChange?.({ name: "", id: null });
+      const cleared = { name: "", id: null };
+      onPendingChange?.(cleared);
+      if (onConfirm) {
+        await onConfirm(cleared);
+      }
     }
-  };
-
-  const handleConfirm = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!isDirty || isConfirming) return;
-    onConfirm?.();
   };
 
   const handleSearchConfirm = async (event) => {
@@ -485,32 +486,18 @@ export default function MasterOptionPicker({
             _placeholder={{ color: "whiteAlpha.800" }}
             {...inputProps}
           />
-          {showConfirm || showClear ? (
+          {showClear ? (
             <InputRightElement width={rightIconsWidth} h="100%">
               <HStack spacing={0} justify="flex-end" w="100%" pr={1}>
-                {showConfirm ? (
-                  <IconButton
-                    aria-label="Confirm selection"
-                    icon={<CheckIcon boxSize={2.5} />}
-                    size="xs"
-                    colorScheme="green"
-                    variant="ghost"
-                    isLoading={isConfirming}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={handleConfirm}
-                  />
-                ) : null}
-                {showClear ? (
-                  <IconButton
-                    aria-label="Clear selection"
-                    icon={<CloseIcon boxSize={2.5} />}
-                    size="xs"
-                    variant="ghost"
-                    colorScheme="whiteAlpha"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={handleClear}
-                  />
-                ) : null}
+                <IconButton
+                  aria-label="Clear selection"
+                  icon={<CloseIcon boxSize={2.5} />}
+                  size="xs"
+                  variant="ghost"
+                  colorScheme="whiteAlpha"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={handleClear}
+                />
               </HStack>
             </InputRightElement>
           ) : null}
