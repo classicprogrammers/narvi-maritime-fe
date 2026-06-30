@@ -29,27 +29,32 @@ export const toIdOrNull = (value) => {
   return Number.isFinite(id) ? id : null;
 };
 
+/** Returns a numeric form id, or undefined when empty — omit from save payloads. */
+export const toOptionalFormId = (value) => {
+  const id = toIdOrNull(value);
+  return id == null ? undefined : id;
+};
+
+/** Include only form id fields that have a value (never send sibling ids as null). */
+export const withOptionalFormIds = (entries = {}) => {
+  const result = {};
+  Object.entries(entries).forEach(([key, raw]) => {
+    const id = toOptionalFormId(raw);
+    if (id != null) result[key] = id;
+  });
+  return result;
+};
+
+/** Drop null/undefined keys from partial form update payloads. */
+export const omitNullPayloadFields = (payload = {}) =>
+  Object.fromEntries(Object.entries(payload).filter(([, value]) => value != null));
+
 export const buildCiPlExclusiveNumberFields = (data) => {
-  const siNumberId =
-    data.siNo != null && data.siNo !== "" && Number.isFinite(Number(data.siNo))
-      ? Number(data.siNo)
-      : null;
-  const sicNumberId =
-    data.sicNo != null && data.sicNo !== "" && Number.isFinite(Number(data.sicNo))
-      ? Number(data.sicNo)
-      : null;
-  const diNumberId =
-    data.diNo != null && data.diNo !== "" && Number.isFinite(Number(data.diNo))
-      ? Number(data.diNo)
-      : null;
-  const activeNumberKey =
-    siNumberId != null ? "si_number_id" : sicNumberId != null ? "sic_number_id" : diNumberId != null ? "di_number_id" : null;
-  if (!activeNumberKey) {
-    return { si_number_id: null, sic_number_id: null, di_number_id: null };
-  }
-  return {
-    si_number_id: activeNumberKey === "si_number_id" ? siNumberId : null,
-    sic_number_id: activeNumberKey === "sic_number_id" ? sicNumberId : null,
-    di_number_id: activeNumberKey === "di_number_id" ? diNumberId : null,
-  };
+  const siNumberId = toOptionalFormId(data.siNo);
+  const sicNumberId = toOptionalFormId(data.sicNo);
+  const diNumberId = toOptionalFormId(data.diNo);
+  if (siNumberId != null) return { si_number_id: siNumberId };
+  if (sicNumberId != null) return { sic_number_id: sicNumberId };
+  if (diNumberId != null) return { di_number_id: diNumberId };
+  return {};
 };
