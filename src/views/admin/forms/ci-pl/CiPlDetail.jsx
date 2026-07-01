@@ -92,6 +92,14 @@ import {
   omitNullPayloadFields,
 } from "../../../../utils/shippingFormAutosave";
 import { getMasterData, MASTER_KEYS } from "../../../../utils/masterDataCache";
+import {
+  formatCiPlMultiFieldDisplay,
+  getCiPlPdfMultiFieldLines,
+  parseCiPlDescriptionFromApi,
+  parseCiPlMultiFieldLines,
+  serializeCiPlDescriptionForApi,
+  serializeCiPlMultiFieldLines,
+} from "../../../../utils/ciPlDescriptionField";
 
 const normalizeCurrencyMasterOptions = (rawList) => {
   if (!Array.isArray(rawList)) return [];
@@ -142,37 +150,6 @@ const formatLwhWithLineBreaks = (value) => {
     .join("\n");
 };
 
-/** Multiple inputs per stock line field are stored in one API string, joined by RS. */
-const CI_PL_MULTI_FIELD_SEP = "\x1e";
-
-const parseCiPlMultiFieldLines = (value) => {
-  if (value == null || value === false) return [""];
-  const text = String(value);
-  if (!text) return [""];
-  if (text.includes(CI_PL_MULTI_FIELD_SEP)) {
-    return text.split(CI_PL_MULTI_FIELD_SEP);
-  }
-  return [text];
-};
-
-const serializeCiPlMultiFieldLines = (lines) => {
-  if (!Array.isArray(lines)) return "";
-  return lines.map((line) => String(line ?? "")).join(CI_PL_MULTI_FIELD_SEP);
-};
-
-const formatCiPlMultiFieldDisplay = (value) => {
-  const lines = parseCiPlMultiFieldLines(value)
-    .map((line) => String(line ?? "").trim())
-    .filter(Boolean);
-  return lines.length ? lines.join("\n") : "";
-};
-
-const getCiPlPdfMultiFieldLines = (value) =>
-  parseCiPlMultiFieldLines(value).map((line) => {
-    const text = String(line ?? "").trim();
-    return text || "-";
-  });
-
 const normalizeCiPlSingleValueField = (value) => {
   if (value == null || value === false) return "";
   return String(parseCiPlMultiFieldLines(value)[0] ?? "").trim();
@@ -207,6 +184,9 @@ const ciPlInlineFieldStyles = {
 
 function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
   const lines = parseCiPlMultiFieldLines(value);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [editingLineIndex, setEditingLineIndex] = useState(null);
+  const [draftText, setDraftText] = useState("");
   const commit = (nextLines) => onChange(serializeCiPlMultiFieldLines(nextLines));
   const updateLine = (lineIndex, nextValue) => {
     commit(lines.map((line, idx) => (idx === lineIndex ? nextValue : line)));
@@ -216,38 +196,82 @@ function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
     if (lines.length <= 1) return;
     commit(lines.filter((_, idx) => idx !== lineIndex));
   };
+  const openLineEditor = (lineIndex) => {
+    setEditingLineIndex(lineIndex);
+    setDraftText(lines[lineIndex] ?? "");
+    onOpen();
+  };
+  const handleCloseLineEditor = () => {
+    onClose();
+    setEditingLineIndex(null);
+    setDraftText("");
+  };
+  const handleSaveLineEditor = () => {
+    if (editingLineIndex == null) return;
+    updateLine(editingLineIndex, draftText);
+    handleCloseLineEditor();
+  };
 
   return (
-    <VStack align="stretch" spacing={1} w="100%">
-      {lines.map((line, lineIndex) => (
-        <HStack key={`line-${lineIndex}`} align="center" spacing={1}>
-          <Input
-            {...ciPlInlineFieldStyles}
-            value={line}
-            onChange={(e) => updateLine(lineIndex, e.target.value)}
-            placeholder={placeholder}
-          />
-          <IconButton
-            aria-label="Remove field"
-            icon={<Icon as={MdDelete} />}
-            size="xs"
-            variant="ghost"
-            colorScheme="red"
-            flexShrink={0}
-            isDisabled={lines.length <= 1}
-            onClick={() => removeLine(lineIndex)}
-          />
-        </HStack>
-      ))}
-      <IconButton
-        aria-label="Add field"
-        icon={<Icon as={MdAdd} />}
-        size="xs"
-        variant="outline"
-        alignSelf="flex-start"
-        onClick={addLine}
-      />
-    </VStack>
+    <>
+      <VStack align="stretch" spacing={1} w="100%">
+        {lines.map((line, lineIndex) => (
+          <HStack key={`line-${lineIndex}`} align="center" spacing={1}>
+            <Input
+              {...ciPlInlineFieldStyles}
+              value={line}
+              readOnly
+              cursor="pointer"
+              placeholder={placeholder}
+              onClick={() => openLineEditor(lineIndex)}
+            />
+            <IconButton
+              aria-label="Remove field"
+              icon={<Icon as={MdDelete} />}
+              size="xs"
+              variant="ghost"
+              colorScheme="red"
+              flexShrink={0}
+              isDisabled={lines.length <= 1}
+              onClick={() => removeLine(lineIndex)}
+            />
+          </HStack>
+        ))}
+        <IconButton
+          aria-label="Add field"
+          icon={<Icon as={MdAdd} />}
+          size="xs"
+          variant="outline"
+          alignSelf="flex-start"
+          onClick={addLine}
+        />
+      </VStack>
+      <Modal isOpen={isOpen} onClose={handleCloseLineEditor} size="xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            Edit Description{editingLineIndex != null ? ` ${editingLineIndex + 1}` : ""}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Textarea
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              rows={6}
+              placeholder={placeholder}
+            />
+          </ModalBody>
+          <ModalFooter gap={2}>
+            <Button variant="ghost" onClick={handleCloseLineEditor}>
+              Cancel
+            </Button>
+            <Button colorScheme="blue" onClick={handleSaveLineEditor}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </>
   );
 }
 
@@ -760,7 +784,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         ? { stock_item_id: String(item.stockItemId) }
         : {}),
       warehouse_new: toNullIfEmpty(item?.warehouseId),
-      description: toNullIfEmpty(item?.details),
+      description: toNullIfEmpty(serializeCiPlDescriptionForApi(item?.details)),
       dg_un: toNullIfEmpty(item?.dg_un),
       lwh: toNullIfEmpty(item?.lwh),
       ...(isPerUnit
@@ -1295,12 +1319,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             : it.po != null && it.po !== false
               ? String(it.po)
               : "",
-        details:
+        details: parseCiPlDescriptionFromApi(
           it.description != null && it.description !== false
-            ? String(it.description)
+            ? it.description
             : it.details != null && it.details !== false
-              ? String(it.details)
-              : "",
+              ? it.details
+              : ""
+        ),
         dg_un:
           it.dg_un != null && it.dg_un !== false
             ? String(it.dg_un)
@@ -1665,6 +1690,44 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         lastSubmittedCiplLinesRef.current = nextLinesSignature;
         lastSavedAutosaveRef.current.stockLines = nextLinesSignature;
         if (updated?.id != null) setSiFormId(updated.id);
+        if (Array.isArray(updated?.stock_list) && updated.stock_list.length > 0) {
+          setCargoItems((prev) => {
+            const next = prev.map((item, idx) => {
+              const serverLine =
+                updated.stock_list.find(
+                  (line) =>
+                    item.lineId != null &&
+                    line?.id != null &&
+                    Number(line.id) === Number(item.lineId)
+                ) ??
+                updated.stock_list.find(
+                  (line) =>
+                    item.stockListId != null &&
+                    line?.stock_list_id != null &&
+                    Number(line.stock_list_id) === Number(item.stockListId)
+                ) ??
+                updated.stock_list[idx];
+              if (!serverLine) return item;
+              const apiDescription = serverLine.description ?? serverLine.details;
+              const details =
+                apiDescription != null && apiDescription !== false
+                  ? parseCiPlDescriptionFromApi(apiDescription)
+                  : item.details;
+              const lineId =
+                serverLine.id != null && Number.isFinite(Number(serverLine.id))
+                  ? Number(serverLine.id)
+                  : item.lineId;
+              if (details === item.details && lineId === item.lineId) return item;
+              return { ...item, details, lineId };
+            });
+            const mergedSignature = JSON.stringify(
+              buildCiplStockLinePayload(next, isCiPlPerUnitTab)
+            );
+            lastSubmittedCiplLinesRef.current = mergedSignature;
+            lastSavedAutosaveRef.current.stockLines = mergedSignature;
+            return next;
+          });
+        }
       } catch (e) {
         console.error("Failed to autosave CIPL stock notebook lines:", e);
         showFormSaveError(toast, e, "Failed to save stock lines");
