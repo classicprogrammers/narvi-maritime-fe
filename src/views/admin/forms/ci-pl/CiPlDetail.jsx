@@ -167,18 +167,89 @@ const formatCiPlMultiFieldDisplay = (value) => {
   return lines.length ? lines.join("\n") : "";
 };
 
-const sumCiPlNumericFieldLines = (value) =>
-  parseCiPlMultiFieldLines(value).reduce((sum, line) => {
-    const n = Number(String(line).trim());
-    return sum + (Number.isFinite(n) ? n : 0);
-  }, 0);
+const getCiPlPdfMultiFieldLines = (value) =>
+  parseCiPlMultiFieldLines(value).map((line) => {
+    const text = String(line ?? "").trim();
+    return text || "-";
+  });
 
-const parseCiPlDescriptionLines = parseCiPlMultiFieldLines;
-const serializeCiPlDescriptionLines = serializeCiPlMultiFieldLines;
+const normalizeCiPlSingleValueField = (value) => {
+  if (value == null || value === false) return "";
+  return String(parseCiPlMultiFieldLines(value)[0] ?? "").trim();
+};
+
 const formatCiPlDescriptionDisplay = formatCiPlMultiFieldDisplay;
-const parseCiPlValueLines = parseCiPlMultiFieldLines;
-const serializeCiPlValueLines = serializeCiPlMultiFieldLines;
-const formatCiPlValueDisplay = formatCiPlMultiFieldDisplay;
+const formatCiPlValueDisplay = (value) => normalizeCiPlSingleValueField(value);
+
+/** Show decimals only when the value (or API string) has a fractional part */
+const formatApiNumericDisplay = (value) => {
+  if (value == null || value === "" || value === false) return "-";
+  const text = String(value).trim();
+  if (!text) return "-";
+  const n = Number(text);
+  if (!Number.isFinite(n)) return text;
+  if (Number.isInteger(n)) return String(n);
+  return String(parseFloat(n.toFixed(10)));
+};
+
+const ciPlInlineFieldStyles = {
+  size: "xs",
+  variant: "unstyled",
+  bg: "#f1f3f5",
+  px: 2,
+  py: 2,
+  borderRadius: "sm",
+  border: "1px solid",
+  borderColor: "gray.300",
+  flex: 1,
+  minW: 0,
+};
+
+function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
+  const lines = parseCiPlMultiFieldLines(value);
+  const commit = (nextLines) => onChange(serializeCiPlMultiFieldLines(nextLines));
+  const updateLine = (lineIndex, nextValue) => {
+    commit(lines.map((line, idx) => (idx === lineIndex ? nextValue : line)));
+  };
+  const addLine = () => commit([...lines, ""]);
+  const removeLine = (lineIndex) => {
+    if (lines.length <= 1) return;
+    commit(lines.filter((_, idx) => idx !== lineIndex));
+  };
+
+  return (
+    <VStack align="stretch" spacing={1} w="100%">
+      {lines.map((line, lineIndex) => (
+        <HStack key={`line-${lineIndex}`} align="center" spacing={1}>
+          <Input
+            {...ciPlInlineFieldStyles}
+            value={line}
+            onChange={(e) => updateLine(lineIndex, e.target.value)}
+            placeholder={placeholder}
+          />
+          <IconButton
+            aria-label="Remove field"
+            icon={<Icon as={MdDelete} />}
+            size="xs"
+            variant="ghost"
+            colorScheme="red"
+            flexShrink={0}
+            isDisabled={lines.length <= 1}
+            onClick={() => removeLine(lineIndex)}
+          />
+        </HStack>
+      ))}
+      <IconButton
+        aria-label="Add field"
+        icon={<Icon as={MdAdd} />}
+        size="xs"
+        variant="outline"
+        alignSelf="flex-start"
+        onClick={addLine}
+      />
+    </VStack>
+  );
+}
 
 export default function ShippingInstructionDetail({ formType = "instruction", archivedFormId: archivedFormIdProp = null }) {
   const { id: routeArchivedId } = useParams();
@@ -257,16 +328,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     onClose: onPdfPreviewClose,
   } = useDisclosure();
   const {
-    isOpen: isDescriptionModalOpen,
-    onOpen: onDescriptionModalOpen,
-    onClose: onDescriptionModalClose,
-  } = useDisclosure();
-  const {
-    isOpen: isValueModalOpen,
-    onOpen: onValueModalOpen,
-    onClose: onValueModalClose,
-  } = useDisclosure();
-  const {
     isOpen: isArchiveModalOpen,
     onOpen: onArchiveModalOpen,
     onClose: onArchiveModalClose,
@@ -274,10 +335,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const [archiveResponse, setArchiveResponse] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPdfPreviewLoading, setIsPdfPreviewLoading] = useState(false);
-  const [editingDescriptionIndex, setEditingDescriptionIndex] = useState(null);
-  const [editingDescriptionLines, setEditingDescriptionLines] = useState([""]);
-  const [editingValueIndex, setEditingValueIndex] = useState(null);
-  const [editingValueLines, setEditingValueLines] = useState([""]);
   const pdfPreviewBlobUrlRef = useRef(null);
   const pdfPreviewIframeRef = useRef(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -456,10 +513,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             const v = Number(item.valueUsd);
             return sum + (Number.isFinite(v) ? v : 0);
           }, 0)
-          : cargoItems.reduce((sum, item) => sum + sumCiPlNumericFieldLines(item.valueUsd), 0),
+          : cargoItems.reduce((sum, item) => {
+            const v = Number(String(item.valueUsd ?? "").trim());
+            return sum + (Number.isFinite(v) ? v : 0);
+          }, 0),
   };
   const formatStockListTotal = (value, fractionDigits = 2) => {
-    if (!Number.isFinite(value)) return "-";
+    if (!Number.isFinite(Number(value))) return "-";
     return Number(value).toFixed(fractionDigits);
   };
 
@@ -474,75 +534,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
     );
   };
-  const openDescriptionEditor = (index) => {
-    setEditingDescriptionIndex(index);
-    setEditingDescriptionLines(parseCiPlDescriptionLines(cargoItems[index]?.details));
-    onDescriptionModalOpen();
-  };
-  const handleCloseDescriptionModal = () => {
-    onDescriptionModalClose();
-    setEditingDescriptionIndex(null);
-    setEditingDescriptionLines([""]);
-  };
-  const handleSaveDescription = () => {
-    if (editingDescriptionIndex != null) {
-      updateCargoItem(
-        editingDescriptionIndex,
-        "details",
-        serializeCiPlDescriptionLines(editingDescriptionLines)
-      );
-    }
-    handleCloseDescriptionModal();
-  };
-  const updateDescriptionLine = (lineIndex, value) => {
-    setEditingDescriptionLines((prev) =>
-      prev.map((line, idx) => (idx === lineIndex ? value : line))
-    );
-  };
-  const addDescriptionLine = () => {
-    setEditingDescriptionLines((prev) => [...prev, ""]);
-  };
-  const removeDescriptionLine = (lineIndex) => {
-    setEditingDescriptionLines((prev) => {
-      if (prev.length <= 1) return prev;
-      return prev.filter((_, idx) => idx !== lineIndex);
-    });
-  };
-  const openValueEditor = (index) => {
-    setEditingValueIndex(index);
-    setEditingValueLines(parseCiPlValueLines(cargoItems[index]?.valueUsd));
-    onValueModalOpen();
-  };
-  const handleCloseValueModal = () => {
-    onValueModalClose();
-    setEditingValueIndex(null);
-    setEditingValueLines([""]);
-  };
-  const handleSaveValue = () => {
-    if (editingValueIndex != null) {
-      updateCargoItem(
-        editingValueIndex,
-        "valueUsd",
-        serializeCiPlValueLines(editingValueLines)
-      );
-    }
-    handleCloseValueModal();
-  };
-  const updateValueLine = (lineIndex, value) => {
-    setEditingValueLines((prev) =>
-      prev.map((line, idx) => (idx === lineIndex ? value : line))
-    );
-  };
-  const addValueLine = () => {
-    setEditingValueLines((prev) => [...prev, ""]);
-  };
-  const removeValueLine = (lineIndex) => {
-    setEditingValueLines((prev) => {
-      if (prev.length <= 1) return prev;
-      return prev.filter((_, idx) => idx !== lineIndex);
-    });
-  };
-
   const getPerUnitLineValueUsd = (item) => {
     const q = Number(item?.quantity);
     const p = Number(item?.perUnit);
@@ -1314,12 +1305,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           it.dg_un != null && it.dg_un !== false
             ? String(it.dg_un)
             : "",
-        valueUsd:
+        valueUsd: normalizeCiPlSingleValueField(
           it.value_in_usd != null && it.value_in_usd !== false
-            ? String(it.value_in_usd)
+            ? it.value_in_usd
             : it.value_usd != null && it.value_usd !== false
-              ? String(it.value_usd)
-              : "",
+              ? it.value_usd
+              : ""
+        ),
         quantity:
           it.quantity_pcs != null && it.quantity_pcs !== false
             ? String(it.quantity_pcs)
@@ -1333,7 +1325,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
               ? String(it.perunit)
               : "",
         boxes: Number(it.boxes ?? it.box ?? 0),
+        boxesRaw: it.boxes ?? it.box ?? null,
         kg: Number(it.kg ?? it.weight ?? 0),
+        kgRaw: it.kg ?? it.weight ?? null,
         cbm: Number(it.cbm || 0),
         lwh: lwhVal,
         vw: Number(it.vw ?? it.ww ?? 0),
@@ -2172,54 +2166,76 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         return String(value).trim();
       };
       const formatCiPlPdfNumber = (value) => {
-        if (value == null || value === "" || value === false) return "";
-        const n = Number(value);
-        return Number.isFinite(n) ? n.toFixed(2) : "";
+        const text = formatApiNumericDisplay(value);
+        return text === "-" ? "" : text;
       };
-      const formatCiPlPdfBoxes = (value) => {
-        if (value == null || value === "" || value === false) return "";
-        const n = Number(value);
-        if (!Number.isFinite(n)) return formatCiPlPdfText(value);
-        return Number.isInteger(n) ? String(n) : n.toFixed(2);
-      };
-      const formatCiPlDescriptionCell = (value) => {
-        const text = formatCiPlDescriptionDisplay(value);
-        return formatCiPlPdfText(text) || "-";
-      };
-      const formatCiPlValueCell = (value) => {
-        const text = formatCiPlValueDisplay(value);
-        return formatCiPlPdfText(text) || "-";
-      };
+      const formatCiPlPdfBoxes = formatCiPlPdfNumber;
       const formatCiPlPdfLwh = (value) => {
         const text = formatLwhWithLineBreaks(value);
         return text || "";
       };
-      const ciPlRows = (cargoItems || []).map((item) => (
-        isCiPlPerUnitTab
-          ? [
-            formatCiPlPdfText(item.poNumber),
-            formatCiPlPdfBoxes(item.boxes),
-            formatCiPlPdfNumber(item.kg),
-            formatCiPlPdfLwh(item.lwh),
-            formatCiPlDescriptionCell(item.details),
-            formatCiPlPdfText(item.quantity),
-            formatCiPlPdfText(item.perUnit),
-            formatCiPlPdfText(getPerUnitLineValueUsd(item)),
-          ]
-          : [
-            formatCiPlPdfText(item.poNumber),
-            formatCiPlPdfBoxes(item.boxes),
-            formatCiPlPdfNumber(item.kg),
-            formatCiPlPdfLwh(item.lwh),
-            formatCiPlDescriptionCell(item.details),
-            formatCiPlValueCell(item.valueUsd),
-          ]
-      ));
+      const ciPlPdfSpanCell = (content, rowSpan) => {
+        const text =
+          content != null && String(content).trim() !== "" ? String(content) : "-";
+        if (rowSpan <= 1) return text;
+        return { content: text, rowSpan, styles: { valign: "middle" } };
+      };
+      const buildCiPlPdfCargoRows = (items) => {
+        const rows = [];
+        (items || []).forEach((item) => {
+          const descLines = getCiPlPdfMultiFieldLines(item?.details);
+          if (isCiPlPerUnitTab) {
+            const lineCount = Math.max(descLines.length, 1);
+            const sharedCells = [
+              ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfNumber(item.kgRaw ?? item.kg), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfLwh(item.lwh), lineCount),
+            ];
+            const trailingCells = [
+              ciPlPdfSpanCell(formatCiPlPdfText(item.quantity), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfText(item.perUnit), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfText(getPerUnitLineValueUsd(item)), lineCount),
+            ];
+            for (let i = 0; i < lineCount; i += 1) {
+              if (i === 0) {
+                rows.push([
+                  ...sharedCells,
+                  descLines[i] ?? "-",
+                  ...trailingCells,
+                ]);
+              } else {
+                rows.push([descLines[i] ?? "-"]);
+              }
+            }
+            return;
+          }
+
+          const lineCount = Math.max(descLines.length, 1);
+          const valueCell = formatCiPlPdfText(item.valueUsd) || "-";
+          const sharedCells = [
+            ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
+            ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
+            ciPlPdfSpanCell(formatCiPlPdfNumber(item.kgRaw ?? item.kg), lineCount),
+            ciPlPdfSpanCell(formatCiPlPdfLwh(item.lwh), lineCount),
+          ];
+          for (let i = 0; i < lineCount; i += 1) {
+            const descCell = i < descLines.length ? descLines[i] : "-";
+            if (i === 0) {
+              rows.push([...sharedCells, descCell, ciPlPdfSpanCell(valueCell, lineCount)]);
+            } else {
+              rows.push([descCell]);
+            }
+          }
+        });
+        return rows;
+      };
+      const ciPlRows = buildCiPlPdfCargoRows(cargoItems);
       const ciPlTotalRow = isCiPlPerUnitTab
         ? [
           "TOTAL",
-          formatStockListTotal(stockListTableTotals.boxes),
-          formatStockListTotal(stockListTableTotals.weight),
+          formatApiNumericDisplay(stockListTableTotals.boxes),
+          formatApiNumericDisplay(stockListTableTotals.weight),
           "",
           ciPlTotalDescriptionLabel,
           formatStockListTotal(stockListTableTotals.quantityPcs, 0),
@@ -2230,8 +2246,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         ]
         : [
           "TOTAL",
-          formatStockListTotal(stockListTableTotals.boxes),
-          formatStockListTotal(stockListTableTotals.weight),
+          formatApiNumericDisplay(stockListTableTotals.boxes),
+          formatApiNumericDisplay(stockListTableTotals.weight),
           "",
           ciPlTotalDescriptionLabel,
           formatStockListTotal(stockListTableTotals.valueUsd),
@@ -2239,8 +2255,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const ciPlPackedAsRow = isCiPlPerUnitTab
         ? [
           "PACKED AS",
-          String(formData.totalPackedQuantity ?? ""),
-          String(formData.totalPackedWeight ?? ""),
+          formatApiNumericDisplay(formData.totalPackedQuantity),
+          formatApiNumericDisplay(formData.totalPackedWeight),
           "",
           "",
           "",
@@ -2249,8 +2265,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         ]
         : [
           "PACKED AS",
-          String(formData.totalPackedQuantity ?? ""),
-          String(formData.totalPackedWeight ?? ""),
+          formatApiNumericDisplay(formData.totalPackedQuantity),
+          formatApiNumericDisplay(formData.totalPackedWeight),
           "",
           "",
           "",
@@ -2316,6 +2332,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
 
       const ciPlDescriptionColIndex = 4;
       const ciPlLwhColIndex = 3;
+      const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : 5;
       const ciPlColumnStyles = isCiPlPerUnitTab
         ? {
           0: { cellWidth: 56 },
@@ -2354,6 +2371,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         },
         didParseCell: (hookData) => {
           if (hookData.column.index === ciPlDescriptionColIndex) {
+            hookData.cell.styles.overflow = "linebreak";
+            hookData.cell.styles.valign = "top";
+          }
+          if (hookData.column.index === ciPlValueColIndex) {
             hookData.cell.styles.overflow = "linebreak";
             hookData.cell.styles.valign = "top";
           }
@@ -3544,15 +3565,15 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               </Td>}
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
                             </>
                           ) : (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
                               <Td
                                 borderRight="1px"
                                 borderColor="gray.300"
@@ -3579,22 +3600,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 verticalAlign="top"
                               >
                                 {isCiPlForm ? (
-                                  <Box
-                                    w="100%"
-                                    minH="32px"
-                                    cursor="pointer"
-                                    whiteSpace="pre-wrap"
-                                    wordBreak="break-word"
-                                    px={2}
-                                    py={2}
-                                    borderRadius="sm"
-                                    bg="#f1f3f5"
-                                    border="1px solid"
-                                    borderColor="gray.300"
-                                    onClick={() => openDescriptionEditor(index)}
-                                  >
-                                    {formatCiPlDescriptionDisplay(item.details) || "Free text"}
-                                  </Box>
+                                  <CiPlInlineMultiField
+                                    value={item.details}
+                                    onChange={(nextValue) => updateCargoItem(index, "details", nextValue)}
+                                    placeholder="Free text"
+                                  />
                                 ) : (
                                   <Input
                                     value={item.details || ""}
@@ -3651,22 +3661,19 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                     {getPerUnitLineValueUsd(item) || "-"}
                                   </Text>
                                 ) : isCiPlForm ? (
-                                  <Box
-                                    w="100%"
-                                    minH="32px"
-                                    cursor="pointer"
-                                    whiteSpace="pre-wrap"
-                                    wordBreak="break-word"
+                                  <Input
+                                    value={item.valueUsd || ""}
+                                    onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
+                                    size="xs"
+                                    variant="unstyled"
+                                    bg="#f1f3f5"
                                     px={2}
                                     py={2}
                                     borderRadius="sm"
-                                    bg="#f1f3f5"
                                     border="1px solid"
                                     borderColor="gray.300"
-                                    onClick={() => openValueEditor(index)}
-                                  >
-                                    {formatCiPlValueDisplay(item.valueUsd) || "Free text"}
-                                  </Box>
+                                    placeholder="Free text"
+                                  />
                                 ) : (
                                   <Input
                                     value={item.valueUsd || ""}
@@ -3692,10 +3699,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             TOTAL
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                            {formatStockListTotal(stockListTableTotals.boxes)}
+                            {formatApiNumericDisplay(stockListTableTotals.boxes)}
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                            {formatStockListTotal(stockListTableTotals.weight)}
+                            {formatApiNumericDisplay(stockListTableTotals.weight)}
                           </Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
                           {isCiPlPerUnitTab ? (
@@ -4181,102 +4188,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
               isDisabled={!pdfPreviewUrl}
             >
               Print
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-      <Modal isOpen={isDescriptionModalOpen} onClose={handleCloseDescriptionModal} size="xl" scrollBehavior="inside">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Edit Description</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={3}>
-              {editingDescriptionLines.map((line, lineIndex) => (
-                <HStack key={`desc-line-${lineIndex}`} align="start" spacing={2}>
-                  <Textarea
-                    flex={1}
-                    value={line}
-                    onChange={(e) => updateDescriptionLine(lineIndex, e.target.value)}
-                    rows={3}
-                    placeholder={`Description ${lineIndex + 1}`}
-                  />
-                  <IconButton
-                    aria-label="Remove description field"
-                    icon={<Icon as={MdDelete} />}
-                    size="sm"
-                    variant="ghost"
-                    colorScheme="red"
-                    mt={1}
-                    isDisabled={editingDescriptionLines.length <= 1}
-                    onClick={() => removeDescriptionLine(lineIndex)}
-                  />
-                </HStack>
-              ))}
-              <Button
-                leftIcon={<Icon as={MdAdd} />}
-                size="sm"
-                variant="outline"
-                alignSelf="flex-start"
-                onClick={addDescriptionLine}
-              >
-                Add description field
-              </Button>
-            </VStack>
-          </ModalBody>
-          <ModalFooter gap={2}>
-            <Button variant="ghost" onClick={handleCloseDescriptionModal}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleSaveDescription}>
-              Save
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-      <Modal isOpen={isValueModalOpen} onClose={handleCloseValueModal} size="xl" scrollBehavior="inside">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Edit {valueInCurrencyLabel}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack align="stretch" spacing={3}>
-              {editingValueLines.map((line, lineIndex) => (
-                <HStack key={`value-line-${lineIndex}`} align="start" spacing={2}>
-                  <Input
-                    flex={1}
-                    value={line}
-                    onChange={(e) => updateValueLine(lineIndex, e.target.value)}
-                    placeholder={`Value ${lineIndex + 1}`}
-                  />
-                  <IconButton
-                    aria-label="Remove value field"
-                    icon={<Icon as={MdDelete} />}
-                    size="sm"
-                    variant="ghost"
-                    colorScheme="red"
-                    isDisabled={editingValueLines.length <= 1}
-                    onClick={() => removeValueLine(lineIndex)}
-                  />
-                </HStack>
-              ))}
-              <Button
-                leftIcon={<Icon as={MdAdd} />}
-                size="sm"
-                variant="outline"
-                alignSelf="flex-start"
-                onClick={addValueLine}
-              >
-                Add value field
-              </Button>
-            </VStack>
-          </ModalBody>
-          <ModalFooter gap={2}>
-            <Button variant="ghost" onClick={handleCloseValueModal}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleSaveValue}>
-              Save
             </Button>
           </ModalFooter>
         </ModalContent>
