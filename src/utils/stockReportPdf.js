@@ -23,12 +23,30 @@ async function loadLetterheadOnPdf(doc) {
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
 import { formatStockDestinationDisplay } from "./stockDestinationOptions";
 import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
+import { applyStockReportAttachmentOnStatusChange } from "./stockReportAttachmentsUi";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
     if (!key) return "-";
     if (key === "arrived") return "Arrived under Customs";
     return formatStockStatusLabel(key);
+}
+
+/** Transition text for the header "From:" line, e.g. "Pending to Stock". */
+export function resolveStatusChangeTransitionLabel(row) {
+    const fromLabel = formatStatusForPdf(row.statusChangeFrom);
+    const toLabel = formatStatusForPdf(row.statusChangeTo ?? row.stockStatus);
+
+    if (fromLabel !== "-" && toLabel !== "-") {
+        return `${fromLabel} to ${toLabel}`;
+    }
+    if (toLabel !== "-") {
+        return toLabel;
+    }
+    if (fromLabel !== "-") {
+        return fromLabel;
+    }
+    return "-";
 }
 
 function ensureDocNumberPrefix(val, prefix) {
@@ -225,16 +243,12 @@ export async function buildStockReportPdfDocument(row) {
     if (row.statusChangedBy && String(row.statusChangedBy).trim() && row.statusChangedBy !== "-") {
         doc.text(`Status updated by: ${clean(row.statusChangedBy)} (${statusUpdatedAt})`, contentLeft, headerY);
         headerY += 14;
-    }
 
-    const fromLabel = formatStatusForPdf(row.statusChangeFrom);
-    doc.text(`From: ${fromLabel}`, contentLeft, headerY);
-    headerY += 14;
-
-    if (row.statusChangeTo != null && String(row.statusChangeTo).trim() !== "") {
-        const toLabel = formatStatusForPdf(row.statusChangeTo);
-        doc.text(`To: ${toLabel}`, contentLeft, headerY);
-        headerY += 14;
+        const transitionLabel = resolveStatusChangeTransitionLabel(row);
+        if (transitionLabel !== "-") {
+            doc.text(`From: ${transitionLabel}`, contentLeft, headerY);
+            headerY += 14;
+        }
     }
 
     const drawSectionHeader = (title, yPos) => {
@@ -307,18 +321,12 @@ export async function buildStockReportPdfDocument(row) {
                     : "-")
             );
             return [
-                [
-                    `Piece ${idx}`,
-                    clean(line.warehouse_ref || line.id || "-"),
-                    "Warehouse ref",
-                    clean(line.warehouse_ref),
-                ],
-                ["L x W x H", lwhStr, "CBM", clean(toFixedOrDash(line.cbm, 3))],
-                ["VW", clean(toFixedOrDash(line.vw, 2)), "Weight", clean(toFixedOrDash(line.weight ?? line.weight_kg, 2))],
+                [`Piece ${idx}`, "", "L x W x H", lwhStr],
+                ["CBM", clean(toFixedOrDash(line.cbm, 3)), "VW", clean(toFixedOrDash(line.vw, 2))],
+                ["Weight", clean(toFixedOrDash(line.weight ?? line.weight_kg, 2)), "", ""],
             ];
         })
         : [
-            ["Piece 1", `${clean(row.client)} - ${clean(row.warehouseId)}`, "Warehouse ref", clean(row.warehouseId)],
             ["L x W x H", "-", "CBM", clean(row.totalVolumeCbm)],
             ["VW", "-", "Weight", clean(row.weight)],
         ];
@@ -467,18 +475,52 @@ function totalVolumeFromDimensions(dimensions, fallback) {
     return !Number.isNaN(f) && f > 0 ? f : fallback ?? "";
 }
 
-/** Stock DB main edit form row → API-like item for {@link mapAdminStockItemToPdfRow}. */
-export function mapMainDbEditRowToAdminItem(row, helpers = {}) {
-    const dims = Array.isArray(row.dimensions) ? row.dimensions : [];
+function pickFormRowValue(row, ...keys) {
+    if (!row || typeof row !== "object") return undefined;
+    for (const key of keys) {
+        const value = row[key];
+        if (value !== null && value !== undefined && value !== "" && value !== false) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+/** Ensure dimension rows carry computed CBM for PDF piece tables. */
+export function normalizeDimensionsForPdf(dimensions = []) {
+    if (!Array.isArray(dimensions)) return [];
+    return dimensions.map((dim) => {
+        const pieceCbm = getDimensionVolumeCbm(dim);
+        return {
+            ...dim,
+            volume_cbm: pieceCbm > 0 ? pieceCbm : (dim.volume_cbm ?? dim.volume_dim ?? ""),
+        };
+    });
+}
+
+/**
+ * Any stock form row (NewStockItem, StockForm, StockDBMainEdit) → API-like item for PDF mapping.
+ * Reads all field name variants so status-change reports reflect the latest edited values.
+ */
+export function mapFormRowToAdminItemForPdf(row, helpers = {}) {
+    if (!row || typeof row !== "object") return {};
+
+    const dims = normalizeDimensionsForPdf(row.dimensions);
     const totalCbm = totalVolumeFromDimensions(dims, row.volumeCbm);
     const shippingOrders = helpers.shippingOrders || [];
-    const soM2O = buildStockSoIdM2O(row.soId, shippingOrders);
-    const soDisplay = soM2O ? getShippingOrderDisplayLabel(
-        shippingOrders.find((s) => String(s.id) === String(row.soId))
-    ) : "";
+    const soId = pickFormRowValue(row, "soId");
+    const soM2O = buildStockSoIdM2O(soId, shippingOrders);
+    const soDisplay = soM2O
+        ? getShippingOrderDisplayLabel(
+              shippingOrders.find((s) => String(s.id) === String(soId))
+          )
+        : "";
+
+    const remarks = pickFormRowValue(row, "remarks", "internalRemark");
+
     return {
-        stock_item_id: row.stockItemId,
-        stock_number: row.stockItemId || row.stockNumber,
+        stock_item_id: pickFormRowValue(row, "stockItemId", "stockNumber"),
+        stock_number: pickFormRowValue(row, "stockItemId", "stockNumber"),
         stock_id: row.stockId,
         stock_status: row.stockStatus,
         client_id: row.client,
@@ -486,86 +528,110 @@ export function mapMainDbEditRowToAdminItem(row, helpers = {}) {
         supplier_id: row.supplier,
         po_text: row.poNumber,
         origin_text: row.origin_text,
-        via_hub: row.viaHub1,
-        via_hub2: row.viaHub2,
+        origin_id: row.origin_id ?? row.origin,
+        first_entry_location: pickFormRowValue(row, "firstEntryLocation", "origin_text"),
+        via_hub: pickFormRowValue(row, "viaHub", "viaHub1"),
+        via_hub2: pickFormRowValue(row, "viaHub2"),
         ap_destination_new: row.apDestination,
         destination_new: row.destination,
         warehouse_new: row.warehouseId,
-        date_on_stock: row.dateOnStock,
-        first_entry_date: row.dateOnStock,
-        weight_kg: row.weightKgs,
+        date_on_stock: pickFormRowValue(row, "dateOnStock"),
+        first_entry_date: pickFormRowValue(row, "dateOnStock", "firstEntryDate", "slCreateDate"),
+        create_date: pickFormRowValue(row, "slCreateDate", "slCreateDateTime", "create_date"),
+        write_date: row.write_date,
+        weight_kg: pickFormRowValue(row, "weightKgs", "weight_kg"),
         volume_cbm: totalCbm,
         total_volume_cbm: totalCbm,
-        item: row.item || row.items,
-        items: row.items,
-        stock_items_quantity: row.items,
+        item: pickFormRowValue(row, "item", "items"),
+        items: pickFormRowValue(row, "items", "item"),
+        stock_items_quantity: pickFormRowValue(row, "item", "items", "stock_items_quantity"),
         currency_id: row.currency,
         value: row.value,
-        dg_un: row.dgUn,
+        dg_un: pickFormRowValue(row, "dgUn", "dg_un"),
         so_id: soM2O,
         so_number: soDisplay || undefined,
         dimensions: dims,
-        remarks: row.remarks,
-        internal_remark: row.internalRemark,
-        po_remarks: row.internalRemark,
+        remarks,
+        internal_remark: pickFormRowValue(row, "internalRemark", "remarks"),
+        po_remarks: pickFormRowValue(row, "internalRemark", "po_remarks"),
         si_number: row.siNumber,
         si_combined: row.siCombined,
         di_no: row.diNumber,
         shipping_doc: row.shippingDoc,
         export_doc: row.exportDoc,
         export_doc_2: row.exportDoc2,
-        location_history: [],
+        delivery_irregularities: row.deliveryIrregularities,
+        priority: row.priority,
+        location_history: Array.isArray(row.location_history) ? row.location_history : [],
     };
 }
 
-/** New stock / StockForm row → API-like item for {@link mapAdminStockItemToPdfRow}. */
+/** @deprecated Use {@link mapFormRowToAdminItemForPdf} */
+export function mapMainDbEditRowToAdminItem(row, helpers = {}) {
+    return mapFormRowToAdminItemForPdf(row, helpers);
+}
+
+/** @deprecated Use {@link mapFormRowToAdminItemForPdf} */
 export function mapStandardFormRowToAdminItem(row, helpers = {}) {
-    const dims = Array.isArray(row.dimensions) ? row.dimensions : [];
-    const totalCbm = totalVolumeFromDimensions(dims, row.volumeCbm);
-    const shippingOrders = helpers.shippingOrders || [];
-    const soM2O = buildStockSoIdM2O(row.soId, shippingOrders);
-    const soDisplay = soM2O ? getShippingOrderDisplayLabel(
-        shippingOrders.find((s) => String(s.id) === String(row.soId))
-    ) : "";
-    return {
-        stock_item_id: row.stockItemId,
-        stock_number: row.stockItemId || row.stockNumber,
-        stock_id: row.stockId,
-        stock_status: row.stockStatus,
-        client_id: row.client,
-        vessel_id: row.vessel,
-        supplier_id: row.supplier,
-        po_text: row.poNumber,
-        origin_text: row.origin_text,
-        via_hub: row.viaHub,
-        via_hub2: row.viaHub2,
-        ap_destination_new: row.apDestination,
-        destination_new: row.destination,
-        warehouse_new: row.warehouseId,
-        date_on_stock: row.dateOnStock,
-        first_entry_date: row.dateOnStock,
-        weight_kg: row.weightKgs,
-        volume_cbm: totalCbm,
-        total_volume_cbm: totalCbm,
-        item: row.item,
-        items: row.items,
-        stock_items_quantity: row.item || row.items,
-        currency_id: row.currency,
-        value: row.value,
-        dg_un: row.dgUn,
-        so_id: soM2O,
-        so_number: soDisplay || undefined,
-        dimensions: dims,
-        remarks: row.remarks,
-        internal_remark: row.internalRemark,
-        po_remarks: row.internalRemark,
-        si_number: row.siNumber,
-        si_combined: row.siCombined,
-        di_no: row.diNumber,
-        shipping_doc: row.shippingDoc,
-        export_doc: row.exportDoc,
-        export_doc_2: row.exportDoc2,
-        location_history: [],
+    return mapFormRowToAdminItemForPdf(row, helpers);
+}
+
+/** Prefer the latest form row (ref) over the status-change snapshot when building the PDF. */
+export function resolveLatestFormRowForPdf(formRowsRef, rowIndex, fallbackRow) {
+    const rows = formRowsRef?.current;
+    const refRow = Array.isArray(rows) ? rows[rowIndex] : null;
+    if (refRow && fallbackRow) {
+        return {
+            ...fallbackRow,
+            ...refRow,
+            stockStatus: fallbackRow.stockStatus,
+            stockStatusChangedBy: fallbackRow.stockStatusChangedBy,
+            stockStatusPreviousForPayload: fallbackRow.stockStatusPreviousForPayload,
+        };
+    }
+    if (refRow) return refRow;
+    return fallbackRow;
+}
+
+/**
+ * Shared handler for status-change stock report PDF generation on create/edit forms.
+ */
+export function createAppendStockReportPdfOnStatusChange({
+    formRowsRef,
+    setFormRows,
+    setStockReportPdfLoadingRowIndex,
+    stockReportPdfHelpers,
+    statusChangeActorName,
+    toast,
+    shippingOrders = [],
+}) {
+    return async function appendStockReportPdfOnStatusChange(rowIndex, rowSnapshot, previousStatus, newStatus) {
+        setStockReportPdfLoadingRowIndex(rowIndex);
+        try {
+            const latestRow = resolveLatestFormRowForPdf(formRowsRef, rowIndex, rowSnapshot);
+            const adminItem = mapFormRowToAdminItemForPdf(latestRow, { shippingOrders });
+            const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
+                changedByName: statusChangeActorName || "Unknown user",
+                previousStatus: previousStatus || latestRow.stockStatusPreviousForPayload || "",
+                newStatus: newStatus || latestRow.stockStatus || "",
+            });
+            setFormRows((prev) =>
+                prev.map((r, i) =>
+                    i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
+                )
+            );
+        } catch (err) {
+            console.error("Stock report PDF:", err);
+            toast({
+                title: "Could not generate status report PDF",
+                description: err?.message || "Please try again.",
+                status: "error",
+                duration: 5000,
+                isClosable: true,
+            });
+        } finally {
+            setStockReportPdfLoadingRowIndex(null);
+        }
     };
 }
 
@@ -577,11 +643,17 @@ export function mapStandardFormRowToAdminItem(row, helpers = {}) {
  * @param {string} [meta.newStatus] — raw new stock_status value
  */
 export async function buildStockReportPdfAttachmentForItem(adminItem, helpers, meta = {}) {
-    const pdfRow = mapAdminStockItemToPdfRow(adminItem, helpers);
+    const itemForPdf = { ...adminItem };
+    if (meta.changedByName) {
+        const statusChangeTime = new Date().toLocaleString();
+        itemForPdf.write_date = statusChangeTime;
+    }
+    const pdfRow = mapAdminStockItemToPdfRow(itemForPdf, helpers);
     if (meta.changedByName) {
         pdfRow.statusChangedBy = meta.changedByName;
-        pdfRow.statusChangeFrom = meta.previousStatus;
-        pdfRow.statusChangeTo = meta.newStatus;
+        pdfRow.statusChangeFrom = meta.previousStatus ?? "";
+        pdfRow.statusChangeTo = meta.newStatus ?? adminItem.stock_status ?? "";
+        pdfRow.writeDate = itemForPdf.write_date;
     }
     const doc = await buildStockReportPdfDocument(pdfRow);
     const dataUri = doc.output("datauristring");

@@ -83,15 +83,11 @@ import {
     mergeStockDestinationOptions,
 } from "../../../utils/stockDestinationOptions";
 import {
-    buildStockReportPdfAttachmentForItem,
+    createAppendStockReportPdfOnStatusChange,
     createStockPdfRowHelpers,
-    mapMainDbEditRowToAdminItem,
     normalizeLegacyStockReportFilename,
 } from "../../../utils/stockReportPdf";
-import {
-    applyStockReportAttachmentOnStatusChange,
-    partitionAttachmentsRow,
-} from "../../../utils/stockReportAttachmentsUi";
+import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { formatRowTotalVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
@@ -404,12 +400,17 @@ export default function StockDBMainEdit() {
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
+    const formRowsRef = useRef(formRows);
     // Store original data for comparison
     const [originalRows, setOriginalRows] = useState([]);
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     /** React Strict Mode runs functional setState twice in dev; avoids duplicate PDF scheduling. */
     const statusPdfScheduleDedupeRef = useRef(null);
+
+    useEffect(() => {
+        formRowsRef.current = formRows;
+    }, [formRows]);
 
     const shippingOrderOptions = useMemo(
         () => buildShippingOrderSelectOptions(shippingOrders),
@@ -437,34 +438,16 @@ export default function StockDBMainEdit() {
     );
 
     const appendStockReportPdfOnStatusChange = useCallback(
-        async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
-            setStockReportPdfLoadingRowIndex(rowIndex);
-            try {
-                const adminItem = mapMainDbEditRowToAdminItem(rowSnapshot, { shippingOrders });
-                const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
-                    changedByName: statusChangeActorName || "Unknown user",
-                    previousStatus,
-                    newStatus,
-                });
-                setFormRows((prev) =>
-                    prev.map((r, i) =>
-                        i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
-                    )
-                );
-            } catch (err) {
-                console.error("Stock report PDF:", err);
-                toast({
-                    title: "Could not generate status report PDF",
-                    description: err?.message || "Please try again.",
-                    status: "error",
-                    duration: 5000,
-                    isClosable: true,
-                });
-            } finally {
-                setStockReportPdfLoadingRowIndex(null);
-            }
-        },
-        [stockReportPdfHelpers, statusChangeActorName, toast]
+        createAppendStockReportPdfOnStatusChange({
+            formRowsRef,
+            setFormRows,
+            setStockReportPdfLoadingRowIndex,
+            stockReportPdfHelpers,
+            statusChangeActorName,
+            toast,
+            shippingOrders,
+        }),
+        [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders]
     );
 
     // Load form data from stock item

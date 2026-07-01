@@ -56,14 +56,10 @@ import {
 } from "../../../utils/stockDestinationOptions";
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
-    buildStockReportPdfAttachmentForItem,
+    createAppendStockReportPdfOnStatusChange,
     createStockPdfRowHelpers,
-    mapStandardFormRowToAdminItem,
 } from "../../../utils/stockReportPdf";
-import {
-    applyStockReportAttachmentOnStatusChange,
-    partitionAttachmentsRow,
-} from "../../../utils/stockReportAttachmentsUi";
+import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
 import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 
@@ -153,9 +149,14 @@ export default function StockForm() {
 
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
+    const formRowsRef = useRef(formRows);
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const statusPdfScheduleDedupeRef = useRef(null);
+
+    useEffect(() => {
+        formRowsRef.current = formRows;
+    }, [formRows]);
 
     const stockReportPdfHelpers = useMemo(
         () =>
@@ -209,33 +210,14 @@ export default function StockForm() {
     );
 
     const appendStockReportPdfOnStatusChange = useCallback(
-        async (rowIndex, rowSnapshot, previousStatus, newStatus) => {
-            setStockReportPdfLoadingRowIndex(rowIndex);
-            try {
-                const adminItem = mapStandardFormRowToAdminItem(rowSnapshot);
-                const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
-                    changedByName: statusChangeActorName || "Unknown user",
-                    previousStatus,
-                    newStatus,
-                });
-                setFormRows((prev) =>
-                    prev.map((r, i) =>
-                        i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
-                    )
-                );
-            } catch (err) {
-                console.error("Stock report PDF:", err);
-                toast({
-                    title: "Could not generate status report PDF",
-                    description: err?.message || "Please try again.",
-                    status: "error",
-                    duration: 5000,
-                    isClosable: true,
-                });
-            } finally {
-                setStockReportPdfLoadingRowIndex(null);
-            }
-        },
+        createAppendStockReportPdfOnStatusChange({
+            formRowsRef,
+            setFormRows,
+            setStockReportPdfLoadingRowIndex,
+            stockReportPdfHelpers,
+            statusChangeActorName,
+            toast,
+        }),
         [stockReportPdfHelpers, statusChangeActorName, toast]
     );
 
