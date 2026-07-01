@@ -169,6 +169,41 @@ const formatApiNumericDisplay = (value) => {
   return String(parseFloat(n.toFixed(10)));
 };
 
+const resolveStockLineSupplierName = (line) => {
+  if (!line || typeof line !== "object") return "";
+  if (line.supplier && typeof line.supplier === "object" && line.supplier.name != null) {
+    return String(line.supplier.name);
+  }
+  if (line.supplier_id && typeof line.supplier_id === "object" && line.supplier_id.name != null) {
+    return String(line.supplier_id.name);
+  }
+  if (typeof line.supplier === "string" && line.supplier.trim() !== "") {
+    return line.supplier;
+  }
+  return "";
+};
+
+const parseCiPlFormTotalsFromApi = (form) => {
+  const formTotalsSource =
+    form?.totals && typeof form.totals === "object" ? form.totals : form ?? {};
+  const parseFormTotal = (value) => {
+    if (value == null || value === false || value === "") return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    totalBox: parseFormTotal(form?.total_box ?? formTotalsSource.total_box),
+    totalWeight: parseFormTotal(form?.total_weight ?? formTotalsSource.total_weight),
+    totalValueInUsd: parseFormTotal(
+      form?.total_value_in_usd ?? formTotalsSource.total_value_in_usd
+    ),
+    totalPerUnit: parseFormTotal(form?.total_per_unit ?? formTotalsSource.total_per_unit),
+    totalQuantityPcs: parseFormTotal(
+      form?.total_quantity_pcs ?? formTotalsSource.total_quantity_pcs
+    ),
+  };
+};
+
 const ciPlInlineFieldStyles = {
   size: "xs",
   variant: "unstyled",
@@ -512,36 +547,33 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     cbm: cargoItems.reduce((sum, item) => sum + item.cbm, 0),
     vw: cargoItems.reduce((sum, item) => sum + item.vw, 0),
   };
-  const stockListTableTotals = {
-    boxes: formData.totalBox != null ? formData.totalBox : totals.boxes,
-    weight: formData.totalWeight != null ? formData.totalWeight : totals.kg,
-    quantityPcs:
-      formData.totalQuantityPcs != null
-        ? formData.totalQuantityPcs
-        : cargoItems.reduce((sum, item) => {
-          const v = Number(item.quantity);
-          return sum + (Number.isFinite(v) ? v : 0);
-        }, 0),
-    perUnit:
-      formData.totalPerUnit != null
-        ? formData.totalPerUnit
-        : null,
-    valueUsd:
-      formData.totalValueInUsd != null
-        ? formData.totalValueInUsd
-        : isCiPlPerUnitTab
-          ? cargoItems.reduce((sum, item) => {
-            const q = Number(item.quantity);
-            const p = Number(item.perUnit);
-            if (Number.isFinite(q) && Number.isFinite(p)) return sum + q * p;
-            const v = Number(item.valueUsd);
+  const stockListTableTotals = isCiPlPerUnitTab
+    ? {
+      boxes: formData.totalBox,
+      weight: formData.totalWeight,
+      quantityPcs: formData.totalQuantityPcs,
+      perUnit: formData.totalPerUnit,
+      valueUsd: formData.totalValueInUsd,
+    }
+    : {
+      boxes: formData.totalBox != null ? formData.totalBox : totals.boxes,
+      weight: formData.totalWeight != null ? formData.totalWeight : totals.kg,
+      quantityPcs:
+        formData.totalQuantityPcs != null
+          ? formData.totalQuantityPcs
+          : cargoItems.reduce((sum, item) => {
+            const v = Number(item.quantity);
             return sum + (Number.isFinite(v) ? v : 0);
-          }, 0)
+          }, 0),
+      perUnit: formData.totalPerUnit != null ? formData.totalPerUnit : null,
+      valueUsd:
+        formData.totalValueInUsd != null
+          ? formData.totalValueInUsd
           : cargoItems.reduce((sum, item) => {
             const v = Number(String(item.valueUsd ?? "").trim());
             return sum + (Number.isFinite(v) ? v : 0);
           }, 0),
-  };
+    };
   const formatStockListTotal = (value, fractionDigits = 2) => {
     if (!Number.isFinite(Number(value))) return "-";
     return Number(value).toFixed(fractionDigits);
@@ -748,6 +780,17 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       ),
     };
   };
+  const syncFormTotalsFromApi = (form) => {
+    const apiTotals = parseCiPlFormTotalsFromApi(form);
+    setFormData((prev) => ({
+      ...prev,
+      totalBox: apiTotals.totalBox,
+      totalWeight: apiTotals.totalWeight,
+      totalValueInUsd: apiTotals.totalValueInUsd,
+      totalPerUnit: apiTotals.totalPerUnit,
+      totalQuantityPcs: apiTotals.totalQuantityPcs,
+    }));
+  };
   const syncAutosaveSnapshotsFromApi = (form, { stockLinesSignature } = {}) => {
     if (!form) return;
     lastSavedAutosaveRef.current.header = buildHeaderSnapshotFromApi(form);
@@ -939,24 +982,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       ? Boolean(form.in_liason_with && String(form.in_liason_with).trim() !== "")
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
-    const formTotalsSource =
-      form.totals && typeof form.totals === "object" ? form.totals : form;
-    const parseFormTotal = (value) => {
-      if (value == null || value === false || value === "") return null;
-      const n = Number(value);
-      return Number.isFinite(n) ? n : null;
-    };
-    const totalBox = parseFormTotal(form.total_box ?? formTotalsSource.total_box);
-    const totalWeight = parseFormTotal(form.total_weight ?? formTotalsSource.total_weight);
-    const totalValueInUsd = parseFormTotal(
-      form.total_value_in_usd ?? formTotalsSource.total_value_in_usd
-    );
-    const totalPerUnit = parseFormTotal(
-      form.total_per_unit ?? formTotalsSource.total_per_unit
-    );
-    const totalQuantityPcs = parseFormTotal(
-      form.total_quantity_pcs ?? formTotalsSource.total_quantity_pcs
-    );
+    const {
+      totalBox,
+      totalWeight,
+      totalValueInUsd,
+      totalPerUnit,
+      totalQuantityPcs,
+    } = parseCiPlFormTotalsFromApi(form);
     const stockTotals = {
       quantity: stockList.reduce((sum, it) => sum + Number(it?.boxes ?? it?.box ?? 0), 0),
       weight: stockList.reduce((sum, it) => sum + Number(it?.kg ?? it?.weight ?? 0), 0),
@@ -1270,14 +1302,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
 
     const mapped = stockList.map((it, idx) => {
-      const supplierName =
-        it.supplier && typeof it.supplier === "object" && it.supplier.name != null
-          ? String(it.supplier.name)
-          : it.supplier_id && typeof it.supplier_id === "object" && it.supplier_id.name != null
-            ? String(it.supplier_id.name)
-            : typeof it.supplier === "string"
-              ? it.supplier
-              : "";
+      const supplierName = resolveStockLineSupplierName(it);
       const originVal =
         it.from != null && it.from !== false
           ? String(it.from)
@@ -1717,8 +1742,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                 serverLine.id != null && Number.isFinite(Number(serverLine.id))
                   ? Number(serverLine.id)
                   : item.lineId;
-              if (details === item.details && lineId === item.lineId) return item;
-              return { ...item, details, lineId };
+              const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
+              if (details === item.details && lineId === item.lineId && supplier === item.supplier) {
+                return item;
+              }
+              return { ...item, details, lineId, supplier };
             });
             const mergedSignature = JSON.stringify(
               buildCiplStockLinePayload(next, isCiPlPerUnitTab)
@@ -1727,6 +1755,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             lastSavedAutosaveRef.current.stockLines = mergedSignature;
             return next;
           });
+        }
+        if (updated) {
+          syncFormTotalsFromApi(updated);
+          syncAutosaveSnapshotsFromApi(updated);
         }
       } catch (e) {
         console.error("Failed to autosave CIPL stock notebook lines:", e);
@@ -2222,8 +2254,67 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const gapBetweenCols = 16;
       const rightColWidth = 260;
       const ciPlTableWidth = leftColWidth + gapBetweenCols + rightColWidth;
-      const ciPlDescriptionColWidth = isCiPlPerUnitTab ? 148 : 200;
-      const ciPlLwhColWidth = 72;
+      const ciPlLwhColWidth = 52;
+      const buildCiPlPdfColumnStyles = () => {
+        const lwh = ciPlLwhColWidth;
+        const toStyles = (widths) => {
+          const styles = {};
+          widths.forEach(({ index, width, overflowLinebreak }) => {
+            styles[index] = {
+              cellWidth: width,
+              ...(overflowLinebreak ? { overflow: "linebreak", valign: "top" } : {}),
+            };
+          });
+          return styles;
+        };
+        if (isCiPlPerUnitTab) {
+          const fixed = [
+            { index: 0, width: 46 },
+            { index: 1, width: 28 },
+            { index: 2, width: 34 },
+            { index: 3, width: lwh, overflowLinebreak: true },
+            { index: 5, width: 34 },
+            { index: 6, width: 38 },
+            { index: 7, width: 42 },
+          ];
+          const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
+          return toStyles([
+            ...fixed.slice(0, 4),
+            { index: 4, width: ciPlTableWidth - fixedSum, overflowLinebreak: true },
+            ...fixed.slice(4),
+          ]);
+        }
+        if (isCiPlManifestTab) {
+          const fixed = [
+            { index: 0, width: 48 },
+            { index: 1, width: 56 },
+            { index: 2, width: 26 },
+            { index: 3, width: 32 },
+            { index: 4, width: lwh, overflowLinebreak: true },
+            { index: 6, width: 42 },
+          ];
+          const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
+          return toStyles([
+            ...fixed.slice(0, 5),
+            { index: 5, width: ciPlTableWidth - fixedSum, overflowLinebreak: true },
+            fixed[5],
+          ]);
+        }
+        const fixed = [
+          { index: 0, width: 48 },
+          { index: 1, width: 26 },
+          { index: 2, width: 32 },
+          { index: 3, width: lwh, overflowLinebreak: true },
+          { index: 5, width: 42 },
+        ];
+        const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
+        return toStyles([
+          ...fixed.slice(0, 4),
+          { index: 4, width: ciPlTableWidth - fixedSum, overflowLinebreak: true },
+          fixed[4],
+        ]);
+      };
+      const ciPlColumnStyles = buildCiPlPdfColumnStyles();
       const formatCiPlPdfText = (value) => {
         if (value == null || value === false) return "";
         return String(value).trim();
@@ -2274,6 +2365,27 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             return;
           }
 
+          if (isCiPlManifestTab) {
+            const lineCount = Math.max(descLines.length, 1);
+            const valueCell = formatCiPlPdfText(item.valueUsd) || "-";
+            const sharedCells = [
+              ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfText(item.supplier), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfNumber(item.kgRaw ?? item.kg), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfLwh(item.lwh), lineCount),
+            ];
+            for (let i = 0; i < lineCount; i += 1) {
+              const descCell = i < descLines.length ? descLines[i] : "-";
+              if (i === 0) {
+                rows.push([...sharedCells, descCell, ciPlPdfSpanCell(valueCell, lineCount)]);
+              } else {
+                rows.push([descCell]);
+              }
+            }
+            return;
+          }
+
           const lineCount = Math.max(descLines.length, 1);
           const valueCell = formatCiPlPdfText(item.valueUsd) || "-";
           const sharedCells = [
@@ -2301,20 +2413,28 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           formatApiNumericDisplay(stockListTableTotals.weight),
           "",
           ciPlTotalDescriptionLabel,
-          formatStockListTotal(stockListTableTotals.quantityPcs, 0),
-          stockListTableTotals.perUnit != null
-            ? formatStockListTotal(stockListTableTotals.perUnit)
-            : "-",
-          formatStockListTotal(stockListTableTotals.valueUsd),
+          formatApiNumericDisplay(stockListTableTotals.quantityPcs),
+          formatApiNumericDisplay(stockListTableTotals.perUnit),
+          formatApiNumericDisplay(stockListTableTotals.valueUsd),
         ]
-        : [
-          "TOTAL",
-          formatApiNumericDisplay(stockListTableTotals.boxes),
-          formatApiNumericDisplay(stockListTableTotals.weight),
-          "",
-          ciPlTotalDescriptionLabel,
-          formatStockListTotal(stockListTableTotals.valueUsd),
-        ];
+        : isCiPlManifestTab
+          ? [
+            "TOTAL",
+            "",
+            formatApiNumericDisplay(stockListTableTotals.boxes),
+            formatApiNumericDisplay(stockListTableTotals.weight),
+            "",
+            ciPlTotalDescriptionLabel,
+            formatStockListTotal(stockListTableTotals.valueUsd),
+          ]
+          : [
+            "TOTAL",
+            formatApiNumericDisplay(stockListTableTotals.boxes),
+            formatApiNumericDisplay(stockListTableTotals.weight),
+            "",
+            ciPlTotalDescriptionLabel,
+            formatStockListTotal(stockListTableTotals.valueUsd),
+          ];
       const ciPlPackedAsRow = isCiPlPerUnitTab
         ? [
           "PACKED AS",
@@ -2326,19 +2446,31 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           "",
           "",
         ]
-        : [
-          "PACKED AS",
-          formatApiNumericDisplay(formData.totalPackedQuantity),
-          formatApiNumericDisplay(formData.totalPackedWeight),
-          "",
-          "",
-          "",
-        ];
+        : isCiPlManifestTab
+          ? [
+            "PACKED AS",
+            "",
+            formatApiNumericDisplay(formData.totalPackedQuantity),
+            formatApiNumericDisplay(formData.totalPackedWeight),
+            "",
+            "",
+            "",
+          ]
+          : [
+            "PACKED AS",
+            formatApiNumericDisplay(formData.totalPackedQuantity),
+            formatApiNumericDisplay(formData.totalPackedWeight),
+            "",
+            "",
+            "",
+          ];
       const ciPlBody = [...ciPlRows, ciPlTotalRow, ciPlPackedAsRow];
       const ciPlTotalRowIndex = ciPlBody.length - 2;
       const ciPlPackedAsRowIndex = ciPlBody.length - 1;
 
-      const docTitle = `Invoice / Packing List${formData.vessel ? ` - ${formData.vessel}` : ""}`;
+      const docTitle = isCiPlManifestTab
+        ? `Shipping Invoice / Cargo Manifest${formData.vessel ? ` - ${formData.vessel}` : ""}`
+        : `Invoice / Packing List${formData.vessel ? ` - ${formData.vessel}` : ""}`;
       doc.setFontSize(12);
       doc.text(docTitle, contentLeft, contentTop);
       doc.setFontSize(9);
@@ -2393,34 +2525,17 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       doc.rect(contentLeft, consignTableTopY, leftColWidth, sharedBoxHeight);
       doc.rect(rightColLeft, consignTableTopY, rightColWidth, sharedBoxHeight);
 
-      const ciPlDescriptionColIndex = 4;
-      const ciPlLwhColIndex = 3;
-      const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : 5;
-      const ciPlColumnStyles = isCiPlPerUnitTab
-        ? {
-          0: { cellWidth: 56 },
-          1: { cellWidth: 40 },
-          2: { cellWidth: 48 },
-          3: { cellWidth: ciPlLwhColWidth, overflow: "linebreak", valign: "top" },
-          4: { cellWidth: ciPlDescriptionColWidth, overflow: "linebreak" },
-          5: { cellWidth: 48 },
-          6: { cellWidth: 48 },
-          7: { cellWidth: 68 },
-        }
-        : {
-          0: { cellWidth: 72 },
-          1: { cellWidth: 48 },
-          2: { cellWidth: 56 },
-          3: { cellWidth: ciPlLwhColWidth, overflow: "linebreak", valign: "top" },
-          4: { cellWidth: ciPlDescriptionColWidth, overflow: "linebreak" },
-          5: { cellWidth: 80 },
-        };
+      const ciPlDescriptionColIndex = isCiPlManifestTab ? 5 : 4;
+      const ciPlLwhColIndex = isCiPlManifestTab ? 4 : 3;
+      const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : isCiPlManifestTab ? 6 : 5;
 
       autoTable(doc, {
         startY: twoColEndY + 14,
         head: [isCiPlPerUnitTab
           ? ["PO#", "BOX", "WEIGHT", "LWH", "DESCRIPTION", "QUANTITY / PCS", "PER UNIT", valueInCurrencyLabel]
-          : ["PO#", "BOX", "WEIGHT", "LWH", "DESCRIPTION", valueInCurrencyLabel]],
+          : isCiPlManifestTab
+            ? ["PO#", "SUPPLIER", "BOX", "WEIGHT", "LWH", "DESCRIPTION", valueInCurrencyLabel]
+            : ["PO#", "BOX", "WEIGHT", "LWH", "DESCRIPTION", valueInCurrencyLabel]],
         body: ciPlBody,
         theme: "grid",
         tableWidth: ciPlTableWidth,
@@ -3546,7 +3661,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                     borderColor="gray.300"
                     tableLayout={!isDeliveryLike ? "fixed" : undefined}
                     w="100%"
-                    minW={!isDeliveryLike ? (isCiPlPerUnitTab ? "1040px" : "900px") : undefined}
+                    minW={!isDeliveryLike ? (isCiPlPerUnitTab ? "1040px" : isCiPlManifestTab ? "980px" : "900px") : undefined}
                   >
                     <Thead bg="gray.100">
                       <Tr>
@@ -3578,6 +3693,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                         ) : (
                           <>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">PO#</Th>
+                            {isCiPlManifestTab && (
+                              <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="120px">SUPPLIER</Th>
+                            )}
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="64px">BOX</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">WEIGHT</Th>
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="112px">LWH</Th>
@@ -3635,6 +3753,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           ) : (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                              {isCiPlManifestTab && (
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || ""}</Td>
+                              )}
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
                               <Td
@@ -3761,6 +3882,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                             TOTAL
                           </Td>
+                          {isCiPlManifestTab && (
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                          )}
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                             {formatApiNumericDisplay(stockListTableTotals.boxes)}
                           </Td>
@@ -3774,12 +3898,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 {ciPlTotalDescriptionLabel}
                               </Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {formatStockListTotal(stockListTableTotals.quantityPcs, 0)}
+                                {formatApiNumericDisplay(stockListTableTotals.quantityPcs)}
                               </Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {stockListTableTotals.perUnit != null
-                                  ? formatStockListTotal(stockListTableTotals.perUnit)
-                                  : "-"}
+                                {formatApiNumericDisplay(stockListTableTotals.perUnit)}
                               </Td>
                             </>
                           ) : (
@@ -3794,7 +3916,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             </Td>
                           )}
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                            {formatStockListTotal(stockListTableTotals.valueUsd)}
+                            {isCiPlPerUnitTab
+                              ? formatApiNumericDisplay(stockListTableTotals.valueUsd)
+                              : formatStockListTotal(stockListTableTotals.valueUsd)}
                           </Td>
                         </Tr>
                       )}
@@ -3813,6 +3937,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={4} fontSize="xs" fontWeight="bold">
                             PACKED AS:
                           </Td>
+                          {isCiPlManifestTab && (
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                          )}
                           <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
                             <Input
                               id="totalPackedQuantity"
