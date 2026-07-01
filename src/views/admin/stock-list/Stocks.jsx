@@ -98,6 +98,7 @@ import StockListAttachmentsCell from "../../../components/stock-list/StockListAt
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
+import { formatVolumeCbm } from "../../../utils/stockVolume";
 
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
@@ -2946,7 +2947,6 @@ export default function Stocks() {
             { backend: "length_cm", original: ["length_cm"], edited: ["length_cm"], transform: (v) => toNumber(v) },
             { backend: "height_cm", original: ["height_cm"], edited: ["height_cm"], transform: (v) => toNumber(v) },
             { backend: "volume_dim", original: ["volume_dim", "volume_no_dim"], edited: ["volume_dim"], transform: (v) => toNumber(v) },
-            { backend: "volume_cbm", original: ["volume_cbm"], edited: ["volume_cbm"], transform: (v) => toNumber(v) },
             { backend: "po_text", original: ["po_text"], edited: ["po_text"], transform: (v) => v || "" },
             // Arrays of PO numbers and LWH lines (derived from text, one per line)
             {
@@ -3743,11 +3743,11 @@ export default function Stocks() {
                             _hover={!isEditing ? { bg: useColorModeValue("gray.100", "gray.700") } : {}}
                         >
                             {isEditing ? (
-                                renderEditableCell(item, "total_volume_cbm", item.total_volume_cbm, "number")
+                                <Text {...cellText}>{formatVolumeCbm(item.total_volume_cbm)}</Text>
                             ) : (
                                 <HStack spacing={2} align="center" justify="flex-start">
                                     <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                        {renderText(item.total_volume_cbm)}
+                                        {formatVolumeCbm(item.total_volume_cbm)}
                                     </Text>
                                     <Tooltip label="View dimensions" hasArrow>
                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
@@ -3923,7 +3923,7 @@ export default function Stocks() {
                             {isEditing ? renderEditableCell(item, "weight_kg", item.weight_kg ?? item.weight_kgs, "number") : <Text {...cellText}>{renderText(item.weight_kg ?? item.weight_kgs)}</Text>}
                         </Td>
                         <Td {...cellProps}>
-                            {isEditing ? renderEditableCell(item, "volume_cbm", item.volume_cbm, "number") : <Text {...cellText}>{renderText(item.volume_cbm)}</Text>}
+                            <Text {...cellText}>{formatVolumeCbm(item.volume_cbm)}</Text>
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "currency_id", item.currency_id, "select", currencies.map(c => ({ value: c.id, label: c.name }))) : <Text {...cellText}>{getDisplayName(item.currency_id || item.currency)}</Text>}
@@ -5352,7 +5352,7 @@ export default function Stocks() {
                                                                 >
                                                                     <HStack spacing={2} align="center" justify="flex-start">
                                                                         <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                                            {renderText(item.total_volume_cbm)}
+                                                                            {formatVolumeCbm(item.total_volume_cbm)}
                                                                         </Text>
                                                                         <Tooltip label="View dimensions" hasArrow>
                                                                             <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
@@ -6397,7 +6397,7 @@ export default function Stocks() {
                                                     Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="blue.500">
-                                                    {renderText(dim.volume_cbm ?? dim.volume_dim ?? "-") || "-"}
+                                                    {formatVolumeCbm(dim.volume_cbm ?? dim.volume_dim) || "-"}
                                                 </Text>
                                             </Box>
                                             <Box>

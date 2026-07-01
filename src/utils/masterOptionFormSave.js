@@ -5,9 +5,7 @@ const resolveMasterFieldApiKeys = (fieldKey, variant = "si") => {
     case "from":
       return { textKey: "from_text", idKey: "siform_from_id" };
     case "to":
-      return variant === "advise"
-        ? { textKey: "destination_text", idKey: "siform_to_id" }
-        : { textKey: "to_text", idKey: "siform_to_id" };
+      return { textKey: "to_text", idKey: "siform_to_id" };
     case "pic":
       return { textKey: "header_pic", idKey: "header_pic_id" };
     case "location":
@@ -62,6 +60,10 @@ export const buildMasterOptionFormSaveFields = ({
 
   if (!textValue) {
     return { [textKey]: null, [idKey]: null };
+  }
+
+  if (forceNew) {
+    return { [textKey]: textValue };
   }
 
   const match = findMasterOptionByName(options, textValue);

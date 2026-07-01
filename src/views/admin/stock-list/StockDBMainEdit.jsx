@@ -63,7 +63,7 @@ import {
     MdDownload,
 } from "react-icons/md";
 import { updateStockItemApi, deleteStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
-import { normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import vesselsAPI from "../../../api/vessels";
@@ -93,6 +93,7 @@ import {
     partitionAttachmentsRow,
 } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { formatRowTotalVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
   resolveStockSoIdForForm,
@@ -537,7 +538,7 @@ export default function StockDBMainEdit() {
             widthCm: String(getFieldValue(stock.width_cm, "") || ""),
             heightCm: String(getFieldValue(stock.height_cm, "") || ""),
             volumeNoDim: String(getFieldValue(stock.volume_no_dim ?? stock.volume_dim, "") || ""),
-            volumeCbm: String(getFieldValue(stock.volume_cbm, "") || ""),
+            volumeCbm: String(getFieldValue(stock.total_volume_cbm ?? stock.volume_cbm, "") || ""),
             lwhText: getFieldValue(stock.lwh_text) || "",
             cwAirfreight: String(getFieldValue(stock.cw_air_freight_new ?? stock.cw_freight ?? stock.cw_airfreight, "") || ""),
             value: String(getFieldValue(stock.value, "") || ""),
@@ -1158,14 +1159,16 @@ export default function StockDBMainEdit() {
                         stockStatusChangedBy: statusChangeActorName,
                         stockStatusPreviousForPayload: oldStatus,
                     };
-                    const snapshot = { ...newRows[rowIndex] };
-                    const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
-                    if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
-                        statusPdfScheduleDedupeRef.current = dedupeKey;
-                        queueMicrotask(() => {
-                            statusPdfScheduleDedupeRef.current = null;
-                            appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
-                        });
+                    if (shouldGenerateStockReportForStatusChange(oldStatus, newStatus)) {
+                        const snapshot = { ...newRows[rowIndex] };
+                        const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
+                        if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
+                            statusPdfScheduleDedupeRef.current = dedupeKey;
+                            queueMicrotask(() => {
+                                statusPdfScheduleDedupeRef.current = null;
+                                appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
+                            });
+                        }
                     }
                 }
             }
@@ -1291,7 +1294,7 @@ export default function StockDBMainEdit() {
             ["lengthCm", "length_cm", (v) => toNumber(v) || 0],
             ["heightCm", "height_cm", (v) => toNumber(v) || 0],
             // volume_dim is set from dimensions only (see below)
-            ["volumeCbm", "volume_cbm", (v) => toNumber(v) || 0],
+            // volume_cbm is calculated by backend from dimensions — do not send from frontend
             ["lwhText", "lwh_text", (v) => v || ""],
             ["cwAirfreight", "cw_air_freight_new", (v) => toNumber(v) || 0],
             ["value", "value", (v) => toNumber(v) || 0],
@@ -1365,7 +1368,6 @@ export default function StockDBMainEdit() {
                                 width_cm: width,
                                 height_cm: height,
                                 volume_dim: false,
-                                volume_cbm: normalizeDimValue(dim.volume_cbm),
                                 cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                 weight_kg: normalizeDimValue(dim.weight_kg),
                             });
@@ -1381,7 +1383,6 @@ export default function StockDBMainEdit() {
                                 width_cm: 0.0,
                                 height_cm: 0.0,
                                 volume_dim: volumeDim,
-                                volume_cbm: normalizeDimValue(dim.volume_cbm),
                                 cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                 weight_kg: normalizeDimValue(dim.weight_kg),
                             });
@@ -1407,7 +1408,6 @@ export default function StockDBMainEdit() {
                                     width_cm: width,
                                     height_cm: height,
                                     volume_dim: false,
-                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                     weight_kg: normalizeDimValue(dim.weight_kg),
                                 });
@@ -1423,7 +1423,6 @@ export default function StockDBMainEdit() {
                                     width_cm: 0.0,
                                     height_cm: 0.0,
                                     volume_dim: volumeDim,
-                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                     weight_kg: normalizeDimValue(dim.weight_kg),
                                 });
@@ -1465,7 +1464,6 @@ export default function StockDBMainEdit() {
                                     width_cm: currentWidth,
                                     height_cm: currentHeight,
                                     volume_dim: false,
-                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                     weight_kg: currentWeightKg,
                                 };
@@ -1489,7 +1487,6 @@ export default function StockDBMainEdit() {
                                     width_cm: 0.0,
                                     height_cm: 0.0,
                                     volume_dim: currentVolumeDim,
-                                    volume_cbm: normalizeDimValue(dim.volume_cbm),
                                     cw_air_freight: normalizeDimValue(dim.cw_air_freight),
                                     weight_kg: currentWeightKg,
                                 };
@@ -1942,7 +1939,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Weight KG</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Dimension</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume cbm</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Total Volume CBM</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Airfreight</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Value</Th>
@@ -2751,17 +2748,9 @@ export default function StockDBMainEdit() {
                                         </Button>
                                     </Td>
                                     <Td {...cellProps}>
-                                        <NumberInput
-                                            value={row.volumeCbm}
-                                            onChange={(value) => handleInputChange(rowIndex, "volumeCbm", value)}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                            minW="200px"
-                                            w="100%"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                        <Text fontSize="sm" color={inputText}>
+                                            {formatRowTotalVolumeCbm(row.dimensions, row.volumeCbm)}
+                                        </Text>
                                     </Td>
                                     <Td {...cellProps}>
                                         <VStack spacing={2} align="stretch">
@@ -3344,22 +3333,9 @@ export default function StockDBMainEdit() {
                                         <Flex gap={3} wrap="wrap" mt={3}>
                                             <FormControl flex="1" minW="150px">
                                                 <FormLabel fontSize="sm">Volume CBM</FormLabel>
-                                                <NumberInput
-                                                    value={dim.volume_cbm || ""}
-                                                    onChange={(value) => {
-                                                        const updated = [...dimensionsList];
-                                                        updated[index] = {
-                                                            ...updated[index],
-                                                            volume_cbm: value,
-                                                        };
-                                                        setDimensionsList(updated);
-                                                    }}
-                                                    min={0}
-                                                    precision={2}
-                                                    size="sm"
-                                                >
-                                                    <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                                </NumberInput>
+                                                <Text fontSize="sm" color={inputText} py={2}>
+                                                    {resolveDisplayVolumeCbm(dim)}
+                                                </Text>
                                             </FormControl>
                                             <FormControl flex="1" minW="150px">
                                                 <FormLabel fontSize="sm">CW Air Freight</FormLabel>
@@ -3438,21 +3414,6 @@ export default function StockDBMainEdit() {
                                         ...updatedRows[dimensionsModalRowIndex],
                                         dimensions: dimensionsList,
                                     };
-                                    // Recalculate volume_cbm if needed
-                                    if (dimensionsList.length > 0 && dimensionsList[0]) {
-                                        const dim = dimensionsList[0];
-                                        if (dim.calculation_method === "lwh") {
-                                            const length = parseFloat(dim.length_cm || 0);
-                                            const width = parseFloat(dim.width_cm || 0);
-                                            const height = parseFloat(dim.height_cm || 0);
-                                            if (length > 0 && width > 0 && height > 0) {
-                                                const calculatedCbm = ((length * width * height) / 1000000).toFixed(2);
-                                                updatedRows[dimensionsModalRowIndex].volumeCbm = calculatedCbm;
-                                            }
-                                        } else if (dim.calculation_method === "volume" && dim.volume_dim) {
-                                            updatedRows[dimensionsModalRowIndex].volumeCbm = parseFloat(dim.volume_dim);
-                                        }
-                                    }
                                     setFormRows(updatedRows);
                                 }
                                 onDimensionsModalClose();

@@ -713,12 +713,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         ...buildHeaderMasterOptionFields({
           data,
           savedHeader: lastSavedAutosaveRef.current.header,
+          shippedByOptions,
           fromOptions,
           toOptions,
           variant: "advise",
-          fields: ["from", "to"],
+          fields: ["shippedBy", "from", "to"],
         }),
-        awb_number: toNullIfEmpty(data.shippedBy),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
         job_no: toNullIfEmpty(data.jobNo),
@@ -794,11 +794,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       return {
         si_number_id: toIdOrNull(form.si_number_id),
         sic_number_id: toIdOrNull(form.sic_number_id),
+        si_shipped_by_id: toIdOrNull(form.si_shipped_by_id),
         siform_from_id: toIdOrNull(form.siform_from_id),
         siform_to_id: toIdOrNull(form.siform_to_id),
         from_text: toNullIfEmpty(form.from_text),
-        destination_text: toNullIfEmpty(form.destination_text),
-        awb_number: toNullIfEmpty(form.awb_number),
+        to_text: toNullIfEmpty(form.to_text ?? form.destination_text),
+        to_be_shipped_by: toNullIfEmpty(form.to_be_shipped_by ?? form.awb_number),
         eta_text: formatDateForApi(form.eta_text),
         date: formatDateForApi(form.date),
         job_no: toNullIfEmpty(form.job_no),
@@ -1218,18 +1219,21 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : prev.siNumber,
       siNumberId: isDeliveryLike ? toIdOrNull(form.si_number_id) : prev.siNumberId,
       shippedBy: isShippingAdvise
-        ? (form.awb_number != null && form.awb_number !== false ? String(form.awb_number) : "")
+        ? (form.to_be_shipped_by != null && form.to_be_shipped_by !== false
+          ? String(form.to_be_shipped_by)
+          : form.awb_number != null && form.awb_number !== false
+            ? String(form.awb_number)
+            : "")
         : (shippedByName ||
           (form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
             ? (getOptionNameById(shippedByOptions, form.si_shipped_by_id) || String(form.si_shipped_by_id))
             : String(lastSubmittedHeaderRef.current.to_be_shipped_by || ""))),
-      shippedById: isShippingAdvise
-        ? null
-        : (form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
+      shippedById:
+        form.si_shipped_by_id && typeof form.si_shipped_by_id === "object" && form.si_shipped_by_id.id != null
           ? Number(form.si_shipped_by_id.id)
           : form.si_shipped_by_id != null && form.si_shipped_by_id !== false && form.si_shipped_by_id !== ""
             ? (Number.isFinite(Number(form.si_shipped_by_id)) ? Number(form.si_shipped_by_id) : null)
-            : null),
+            : null,
       from: isShippingAdvise
         ? (form.from_text != null && form.from_text !== false ? String(form.from_text) : "")
         : (fromName ||
@@ -1243,7 +1247,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? (Number.isFinite(Number(form.siform_from_id)) ? Number(form.siform_from_id) : null)
             : null,
       to: isShippingAdvise
-        ? (form.destination_text != null && form.destination_text !== false ? String(form.destination_text) : "")
+        ? (form.to_text != null && form.to_text !== false
+          ? String(form.to_text)
+          : form.destination_text != null && form.destination_text !== false
+            ? String(form.destination_text)
+            : "")
         : isDeliveryLike
           ? (form.location_text != null && form.location_text !== false
             ? String(form.location_text)
@@ -1571,7 +1579,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           optionsParams.q_sic = qSic;
           optionsParams.q_from = qFrom;
         }
-        if (!isShippingAdvise && !isDeliveryLike) {
+        if (!isDeliveryLike) {
           optionsParams.q_ship_by = qShipBy;
         }
         const data = await loadOptions(optionsParams);
@@ -1774,10 +1782,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }
         const payload = buildSavePayloadWithId(currentId, changed);
         lastSubmittedHeaderRef.current = {
-          to_be_shipped_by: isShippingAdvise ? (payload.awb_number ?? "") : (payload.to_be_shipped_by ?? ""),
+          to_be_shipped_by: isShippingAdvise
+            ? (payload.to_be_shipped_by ?? payload.awb_number ?? "")
+            : (payload.to_be_shipped_by ?? ""),
           from_text: payload.from_text ?? "",
           to_text: isShippingAdvise
-            ? (payload.destination_text ?? "")
+            ? (payload.to_text ?? payload.destination_text ?? "")
             : isDeliveryConfirmation
               ? (payload.location_text ?? "")
               : isDeliveryForm
@@ -2735,7 +2745,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                       >
                         {isShippingAdvise ? "AWB NO:" : isDeliveryForm ? "AWB:" : "TO BE SHIPPED BY:"}
                       </FormLabel>
-                      {isShippingInstruction ? (
+                      {(isShippingInstruction || isShippingAdvise) ? (
                         <MasterOptionPicker
                           id="shipped-by-field"
                           savedName={formData.shippedBy}
@@ -2751,7 +2761,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           onSearchChange={setQShipBy}
                           isLoading={isOptionsLoading || isSiFormLoading}
                           onOptionsRefresh={refreshFormOptions}
-                          placeholder="Select shipped by..."
+                          placeholder={isShippingAdvise ? "Select or add AWB..." : "Select shipped by..."}
                           color="white"
                           bg="transparent"
                           borderColor="transparent"

@@ -54,7 +54,7 @@ import {
     MdMoreVert,
 } from "react-icons/md";
 import { getShippingOrders } from "../../../api/shippingOrders";
-import { normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
@@ -83,6 +83,7 @@ import {
     partitionAttachmentsRow,
 } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { calculateVolumeCbmFromLwhCm, formatVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
   resolveStockSoIdForForm,
@@ -1037,7 +1038,7 @@ export default function StockForm() {
                 const height = toNumber(updatedRow.heightCm || 0);
                 if (length > 0 && width > 0 && height > 0) {
                     // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
-                    updatedRow.volumeCbm = ((length * width * height) / 1000000).toFixed(2);
+                    updatedRow.volumeCbm = calculateVolumeCbmFromLwhCm(length, width, height);
                 }
             }
 
@@ -1046,14 +1047,16 @@ export default function StockForm() {
                 if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
                     updatedRow.stockStatusChangedBy = statusChangeActorName;
                     updatedRow.stockStatusPreviousForPayload = oldStatus;
-                    const snapshot = { ...updatedRow };
-                    const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
-                    if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
-                        statusPdfScheduleDedupeRef.current = dedupeKey;
-                        queueMicrotask(() => {
-                            statusPdfScheduleDedupeRef.current = null;
-                            appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
-                        });
+                    if (shouldGenerateStockReportForStatusChange(oldStatus, newStatus)) {
+                        const snapshot = { ...updatedRow };
+                        const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
+                        if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
+                            statusPdfScheduleDedupeRef.current = dedupeKey;
+                            queueMicrotask(() => {
+                                statusPdfScheduleDedupeRef.current = null;
+                                appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
+                            });
+                        }
                     }
                 }
             }
@@ -1184,7 +1187,7 @@ export default function StockForm() {
             length_cm: toNumber(rowData.lengthCm) || 0,
             height_cm: toNumber(rowData.heightCm) || 0,
             volume_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
-            volume_cbm: toNumber(rowData.volumeCbm) || 0,
+            // volume_cbm calculated by backend from dimensions
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
             cw_air_freight_new: toNumber(rowData.cwAirfreight) || 0,
@@ -2721,22 +2724,9 @@ export default function StockForm() {
                                     <Flex gap={3} wrap="wrap" mt={3}>
                                         <FormControl flex="1" minW="150px">
                                             <FormLabel fontSize="sm">Volume CBM</FormLabel>
-                                            <NumberInput
-                                                value={dim.volume_cbm || ""}
-                                                onChange={(value) => {
-                                                    const updated = [...dimensionsList];
-                                                    updated[index] = {
-                                                        ...updated[index],
-                                                        volume_cbm: value,
-                                                    };
-                                                    setDimensionsList(updated);
-                                                }}
-                                                min={0}
-                                                precision={2}
-                                                size="sm"
-                                            >
-                                                <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                            </NumberInput>
+                                            <Text fontSize="sm" color={inputText} py={2}>
+                                                {resolveDisplayVolumeCbm(dim)}
+                                            </Text>
                                         </FormControl>
                                         <FormControl flex="1" minW="150px">
                                             <FormLabel fontSize="sm">CW Air Freight</FormLabel>
@@ -2820,12 +2810,12 @@ export default function StockForm() {
                                         const length = parseFloat(dim.length_cm || 0);
                                         const width = parseFloat(dim.width_cm || 0);
                                         const height = parseFloat(dim.height_cm || 0);
-                                        if (length > 0 && width > 0 && height > 0) {
-                                            const calculatedCbm = ((length * width * height) / 1000000).toFixed(2);
-                                            updatedRows[currentRowIndexForDimensions].volumeCbm = calculatedCbm;
-                                        }
-                                    } else if (dim.calculation_method === "volume" && dim.volume_dim) {
-                                        updatedRows[currentRowIndexForDimensions].volumeCbm = parseFloat(dim.volume_dim);
+                                            if (length > 0 && width > 0 && height > 0) {
+                                                const calculatedCbm = calculateVolumeCbmFromLwhCm(length, width, height);
+                                                updatedRows[currentRowIndexForDimensions].volumeCbm = calculatedCbm;
+                                            }
+                                        } else if (dim.calculation_method === "volume" && dim.volume_dim) {
+                                            updatedRows[currentRowIndexForDimensions].volumeCbm = Number(Number(dim.volume_dim).toFixed(3)) || 0;
                                     }
                                 }
                                 setFormRows(updatedRows);

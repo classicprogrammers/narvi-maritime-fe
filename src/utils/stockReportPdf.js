@@ -22,6 +22,7 @@ async function loadLetterheadOnPdf(doc) {
 
 import { formatStockStatusLabel, normalizeStockStatusKey } from "../constants/stockStatus";
 import { formatStockDestinationDisplay } from "./stockDestinationOptions";
+import { getDimensionVolumeCbm, sumDimensionsVolumeCbm } from "./stockVolume";
 
 export function formatStatusForPdf(status) {
     const key = normalizeStockStatusKey(status);
@@ -115,6 +116,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
             String(dim.width_cm).trim() !== "" &&
             String(dim.height_cm).trim() !== "";
         const lwh = hasLwh ? `${dim.length_cm} x ${dim.width_cm} x ${dim.height_cm}` : null;
+        const pieceCbm = getDimensionVolumeCbm(dim);
         return {
             piece_name: `Piece ${lineIndex + 1}`,
             warehouse_ref: dim.warehouse_ref,
@@ -122,11 +124,17 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
             length_cm: dim.length_cm,
             width_cm: dim.width_cm,
             height_cm: dim.height_cm,
-            cbm: dim.volume_cbm ?? dim.volume_dim,
+            cbm: pieceCbm > 0 ? pieceCbm : (dim.volume_cbm ?? dim.volume_dim),
             vw: dim.cw_air_freight,
             weight: dim.weight_kg,
         };
     });
+
+    const summedCbm = sumDimensionsVolumeCbm(dims);
+    const backendTotalCbm =
+        item.total_volume_cbm ?? item.volume_cbm ?? item.cbm_total ?? item.cbm;
+    const totalVolumeCbmValue =
+        summedCbm > 0 ? summedCbm : backendTotalCbm;
 
     const piecesCount =
         item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? (pcsLines.length || 0);
@@ -142,7 +150,7 @@ export function mapAdminStockItemToPdfRow(item, helpers) {
         dgUnNumber: clean(item.dg_un ?? item.dg_un_number),
         boxes: clean(piecesCount),
         weight: clean(item.weight_kg ?? item.weight_kgs ?? item.weight),
-        totalVolumeCbm: clean(item.total_volume_cbm ?? item.volume_cbm ?? item.cbm_total ?? item.cbm),
+        totalVolumeCbm: clean(totalVolumeCbmValue),
         origin: clean(firstEntryLocation),
         location: clean(firstEntryLocation),
         firstEntryLocation: clean(firstEntryLocation),
@@ -197,38 +205,36 @@ export async function buildStockReportPdfDocument(row) {
     }
 
     const vesselPart = row.vessel && row.vessel !== "-" ? row.vessel : "-";
-    const generatedAt = new Date().toLocaleString();
+    const clientPart = row.client && row.client !== "-" ? row.client : "-";
+    const generatedAt = row.createDate && row.createDate !== "-" ? row.createDate : new Date().toLocaleString();
+    const statusUpdatedAt = row.writeDate && row.writeDate !== "-" ? row.writeDate : generatedAt;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`Stock report for the ${vesselPart}`, contentLeft, contentTop);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.text(`Stock Report - ${vesselPart}`, contentLeft, contentTop);
+    doc.setFontSize(11);
+    doc.text(`Client Name: ${clientPart}`, contentLeft, contentTop + 18);
 
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    let headerY = contentTop + 14;
+    let headerY = contentTop + 36;
     doc.text(`Generated: ${generatedAt}`, contentLeft, headerY);
     headerY += 14;
 
     if (row.statusChangedBy && String(row.statusChangedBy).trim() && row.statusChangedBy !== "-") {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.text(`Status updated by: ${clean(row.statusChangedBy)} (${generatedAt})`, contentLeft, headerY);
+        doc.text(`Status updated by: ${clean(row.statusChangedBy)} (${statusUpdatedAt})`, contentLeft, headerY);
         headerY += 14;
     }
 
-    const hasStatusTransition =
-        (row.statusChangeFrom != null && String(row.statusChangeFrom).trim() !== "") ||
-        (row.statusChangeTo != null && String(row.statusChangeTo).trim() !== "");
-    if (hasStatusTransition) {
-        const fromLabel = formatStatusForPdf(row.statusChangeFrom);
+    const fromLabel = formatStatusForPdf(row.statusChangeFrom);
+    doc.text(`From: ${fromLabel}`, contentLeft, headerY);
+    headerY += 14;
+
+    if (row.statusChangeTo != null && String(row.statusChangeTo).trim() !== "") {
         const toLabel = formatStatusForPdf(row.statusChangeTo);
-        // ASCII-only label (Unicode arrows break WinAnsi Helvetica in jsPDF).
-        const transitionLine = `From ${fromLabel} To ${toLabel}`;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        const transitionLines = doc.splitTextToSize(transitionLine, 532);
-        doc.text(transitionLines, contentLeft, headerY);
-        headerY += Math.max(14, transitionLines.length * 12);
+        doc.text(`To: ${toLabel}`, contentLeft, headerY);
+        headerY += 14;
     }
 
     const drawSectionHeader = (title, yPos) => {
@@ -245,31 +251,25 @@ export async function buildStockReportPdfDocument(row) {
     };
 
     const stockDetailsRows = [
-        ["PO number", clean(row.poNo), "Stock number", clean(row.stockNumber)],
+        ["PO NO", clean(row.poNo), "Stock Number", clean(row.stockNumber)],
         ["Supplier", clean(row.supplier), "Status", clean(row.stockStatus)],
-        ["Origin", clean(row.origin || row.firstEntryLocation), "First entry date", clean(row.firstEntryDate)],
-        ["Via HUB 1", clean(row.viaHub1), "Via HUB 2", clean(row.viaHub2)],
-        ["Destination", clean(row.destination), "AP Destination", clean(row.apDestination)],
-        ["SO Number", clean(row.soNumber), "SI Number", clean(row.siNumber)],
-        ["SIC Number", clean(row.siCombined), "DI Number", clean(row.diNumber)],
-        ["Shipping docs", clean(row.shippingDoc), "Export docs 1", clean(row.exportDoc)],
-        ["Export docs 2", clean(row.exportDoc2), "Currency / Value", `${clean(row.currency)} ${clean(row.value)}`],
-        ["Vessel", clean(row.vessel), "Client", clean(row.client)],
-        ["DG/UN Number", clean(row.dgUnNumber), "", ""],
+        ["Origin", clean(row.origin || row.firstEntryLocation), "First Entry Date", clean(row.firstEntryDate)],
+        ["Via HUB 1", clean(row.viaHub1), "Shipping docs", clean(row.shippingDoc)],
+        ["Currency / Value", `${clean(row.currency)} ${clean(row.value)}`, "DG / UN Number", clean(row.dgUnNumber)],
     ];
 
-    let cursorY = drawSectionHeader("Stock details", headerY + 10);
+    let cursorY = drawSectionHeader("Stock Report details", headerY + 10);
     autoTable(doc, {
         startY: cursorY,
         body: stockDetailsRows,
         theme: "plain",
-        styles: { fontSize: 8.7, cellPadding: { top: 3, right: 5, bottom: 3, left: 5 } },
+        styles: { fontSize: 9, cellPadding: { top: 4, right: 5, bottom: 4, left: 5 } },
         margin: { left: contentLeft, right: 24 },
         columnStyles: {
-            0: { fontStyle: "bold", cellWidth: 110 },
-            1: { cellWidth: 150 },
-            2: { fontStyle: "bold", cellWidth: 110 },
-            3: { cellWidth: 150 },
+            0: { fontStyle: "bold", cellWidth: 115 },
+            1: { cellWidth: 165 },
+            2: { fontStyle: "bold", cellWidth: 115 },
+            3: { cellWidth: 165 },
         },
     });
 
@@ -277,13 +277,12 @@ export async function buildStockReportPdfDocument(row) {
     cursorY = drawSectionHeader("Remarks", cursorY);
     autoTable(doc, {
         startY: cursorY,
-        body: [["Remarks", clean(row.remarks)]],
+        body: [[clean(row.remarks)]],
         theme: "plain",
         styles: { fontSize: 9, cellPadding: 5 },
         margin: { left: contentLeft, right: 24 },
         columnStyles: {
-            0: { fontStyle: "bold", cellWidth: 110 },
-            1: { cellWidth: 410 },
+            0: { cellWidth: 520 },
         },
     });
 
@@ -462,13 +461,8 @@ export function createStockPdfRowHelpers({
 }
 
 function totalVolumeFromDimensions(dimensions, fallback) {
-    if (Array.isArray(dimensions) && dimensions.length > 0) {
-        const sum = dimensions.reduce(
-            (s, d) => s + (parseFloat(d.volume_cbm) || parseFloat(d.volume_dim) || 0),
-            0
-        );
-        if (sum > 0) return sum;
-    }
+    const sum = sumDimensionsVolumeCbm(dimensions);
+    if (sum > 0) return sum;
     const f = parseFloat(fallback);
     return !Number.isNaN(f) && f > 0 ? f : fallback ?? "";
 }

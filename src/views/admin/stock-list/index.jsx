@@ -54,6 +54,7 @@ import { getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../.
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { formatVolumeCbm } from "../../../utils/stockVolume";
 import {
     formatStockStatusLabel,
     getStatusOptionsForActiveFilter,
@@ -2270,7 +2271,7 @@ export default function StockList() {
                                             >
                                                 <HStack spacing={2} align="center" justify="flex-start">
                                                     <Text {...cellText} color="blue.500" _hover={{ textDecoration: "underline" }}>
-                                                        {renderText(item.total_volume_cbm)}
+                                                        {formatVolumeCbm(item.total_volume_cbm)}
                                                     </Text>
                                                     <Tooltip label="View dimensions" hasArrow>
                                                         <Icon as={MdVisibility} color="blue.500" boxSize={4} cursor="pointer" />
@@ -2537,7 +2538,7 @@ export default function StockList() {
                                                     Total Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="sm" fontWeight="medium" color="blue.500">
-                                                    {renderText(item.total_volume_cbm)}
+                                                    {formatVolumeCbm(item.total_volume_cbm)}
                                                 </Text>
                                             </Box>
                                             <Box>
@@ -2748,7 +2749,7 @@ export default function StockList() {
                                                     Volume (CBM)
                                                 </Text>
                                                 <Text fontSize="md" fontWeight="semibold" color="blue.500">
-                                                    {renderText(dim.volume_cbm) || "-"}
+                                                    {formatVolumeCbm(dim.volume_cbm) || "-"}
                                                 </Text>
                                             </Box>
                                             <Box>

@@ -40,6 +40,14 @@ export const formatStockStatusLabel = (status, options = []) => {
   return FALLBACK_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
+export const shouldGenerateStockReportForStatusChange = (previousStatus, nextStatus) => {
+  const prev = normalizeStockStatusKey(previousStatus);
+  const next = normalizeStockStatusKey(nextStatus);
+  if (next !== "stock") return false;
+  if (!prev) return true;
+  return prev === "pending" || prev === "in_transit";
+};
+
 /** Fallback filter dropdown options when API has not returned stock_status_options yet */
 export const FALLBACK_ACTIVE_STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },

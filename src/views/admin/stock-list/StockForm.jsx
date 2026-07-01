@@ -40,7 +40,7 @@ import {
     MdClose as MdRemove,
 } from "react-icons/md";
 import { createStockItemApi } from "../../../api/stock";
-import { normalizeStockStatusKey } from "../../../constants/stockStatus";
+import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
@@ -64,6 +64,7 @@ import {
     applyStockReportAttachmentOnStatusChange,
     partitionAttachmentsRow,
 } from "../../../utils/stockReportAttachmentsUi";
+import { calculateVolumeCbmFromLwhCm, formatRowTotalVolumeCbm } from "../../../utils/stockVolume";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 
 export default function StockForm() {
@@ -706,8 +707,7 @@ export default function StockForm() {
                     const width = toNumber(dim.width_cm || 0);
                     const height = toNumber(dim.height_cm || 0);
                     if (length > 0 && width > 0 && height > 0) {
-                        // Convert cm to meters and calculate CBM: (L * W * H) / 1,000,000
-                        const calculatedCbm = ((length * width * height) / 1000000).toFixed(2);
+                        const calculatedCbm = calculateVolumeCbmFromLwhCm(length, width, height);
                         updatedRow.dimensions[0].volume_cbm = calculatedCbm;
                         updatedRow.volumeCbm = calculatedCbm;
                     } else {
@@ -718,7 +718,7 @@ export default function StockForm() {
                 } else if (method === "volume") {
                     // Only use volume_dim if method is volume
                     if (dim.volume_dim) {
-                        const volumeValue = toNumber(dim.volume_dim);
+                        const volumeValue = Number(Number(toNumber(dim.volume_dim)).toFixed(3)) || 0;
                         updatedRow.dimensions[0].volume_cbm = volumeValue;
                         updatedRow.volumeCbm = volumeValue;
                     } else {
@@ -733,14 +733,16 @@ export default function StockForm() {
                 if (String(oldStatus) !== String(newStatus) && String(newStatus).trim() !== "") {
                     updatedRow.stockStatusChangedBy = statusChangeActorName;
                     updatedRow.stockStatusPreviousForPayload = oldStatus;
-                    const snapshot = { ...updatedRow };
-                    const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
-                    if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
-                        statusPdfScheduleDedupeRef.current = dedupeKey;
-                        queueMicrotask(() => {
-                            statusPdfScheduleDedupeRef.current = null;
-                            appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
-                        });
+                    if (shouldGenerateStockReportForStatusChange(oldStatus, newStatus)) {
+                        const snapshot = { ...updatedRow };
+                        const dedupeKey = `${rowIndex}|${String(oldStatus)}|${String(newStatus)}`;
+                        if (statusPdfScheduleDedupeRef.current !== dedupeKey) {
+                            statusPdfScheduleDedupeRef.current = dedupeKey;
+                            queueMicrotask(() => {
+                                statusPdfScheduleDedupeRef.current = null;
+                                appendStockReportPdfOnStatusChange(rowIndex, snapshot, oldStatus, newStatus);
+                            });
+                        }
                     }
                 }
             }
@@ -896,7 +898,6 @@ export default function StockForm() {
                             width_cm: dim.width_cm ? parseFloat(dim.width_cm) : 0.0,
                             height_cm: dim.height_cm ? parseFloat(dim.height_cm) : 0.0,
                             volume_dim: false, // Always false for lwh method
-                            volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
                             cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
                         };
                     } else {
@@ -908,7 +909,6 @@ export default function StockForm() {
                             width_cm: 0.0, // Always 0.0 for volume method
                             height_cm: 0.0, // Always 0.0 for volume method
                             volume_dim: dim.volume_dim ? parseFloat(dim.volume_dim) : false,
-                            volume_cbm: dim.volume_cbm ? parseFloat(dim.volume_cbm) : 0.0,
                             cw_air_freight: dim.cw_air_freight ? parseFloat(dim.cw_air_freight) : 0.0,
                         };
                     }
@@ -919,8 +919,7 @@ export default function StockForm() {
             length_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].length_cm) || 0) : 0,
             height_cm: rowData.dimensions?.[0]?.calculation_method === "lwh" ? (toNumber(rowData.dimensions[0].height_cm) || 0) : 0,
             volume_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
-            volume_no_dim: rowData.dimensions?.[0]?.calculation_method === "volume" ? (toNumber(rowData.dimensions[0].volume_dim) || 0) : 0,
-            volume_cbm: rowData.dimensions?.[0]?.volume_cbm ? (toNumber(rowData.dimensions[0].volume_cbm) || 0) : (toNumber(rowData.volumeCbm) || 0),
+            // volume_cbm calculated by backend from dimensions
             // Send raw text plus parsed array of LWH entries (one per line)
             // LWH text: raw text + array of lines
             lwh_text: rowData.lwhText || "",
@@ -1253,7 +1252,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Width cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Height cm</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume dim</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Volume CBM</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Total Volume CBM</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">CW Air Freight</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">LWH Text</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DG/UN Number</Th>
@@ -1601,34 +1600,11 @@ export default function StockForm() {
                                             <Text fontSize="xs" color="gray.400">-</Text>
                                         )}
                                     </Td>
-                                    {/* Dimensions - Volume CBM */}
+                                    {/* Total Volume CBM (read-only, sum of dimensions / backend) */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
-                                        <NumberInput
-                                            value={row.dimensions?.[0]?.volume_cbm || row.volumeCbm || ""}
-                                            onChange={(value) => {
-                                                const newDimensions = [...(row.dimensions || [])];
-                                                if (!newDimensions[0]) {
-                                                    newDimensions[0] = {
-                                                        id: null,
-                                                        calculation_method: row.dimensions?.[0]?.calculation_method || "lwh",
-                                                        length_cm: "",
-                                                        width_cm: "",
-                                                        height_cm: "",
-                                                        volume_dim: "",
-                                                        volume_cbm: 0.0,
-                                                        cw_air_freight: 0.0,
-                                                    };
-                                                }
-                                                newDimensions[0].volume_cbm = value;
-                                                handleInputChange(rowIndex, "dimensions", newDimensions);
-                                                handleInputChange(rowIndex, "volumeCbm", value);
-                                            }}
-                                            min={0}
-                                            precision={2}
-                                            size="sm"
-                                        >
-                                            <NumberInputField bg={inputBg} color={inputText} borderColor={borderColor} />
-                                        </NumberInput>
+                                        <Text fontSize="sm" color={inputText}>
+                                            {formatRowTotalVolumeCbm(row.dimensions, row.volumeCbm)}
+                                        </Text>
                                     </Td>
                                     {/* Dimensions - CW Air Freight */}
                                     <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
