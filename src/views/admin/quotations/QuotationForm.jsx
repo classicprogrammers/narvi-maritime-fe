@@ -389,6 +389,31 @@ export default function QuotationForm() {
             []
           )
           : [];
+
+        const rawVesselIds = new Set(
+          (result.vessel_options ?? []).map((item) => String(item.id ?? item.vessel_id))
+        );
+        const rawSoIds = new Set((result.so_options ?? []).map((item) => String(item.id)));
+        let nextHeader = headerRef.current;
+        let headerChanged = false;
+        if (hasClient && nextHeader.vessel_id && !rawVesselIds.has(String(nextHeader.vessel_id))) {
+          nextHeader = { ...nextHeader, vessel_id: "", sale_order_id: "" };
+          headerChanged = true;
+        }
+        if (
+          hasClient &&
+          hasVessel &&
+          nextHeader.sale_order_id &&
+          !rawSoIds.has(String(nextHeader.sale_order_id))
+        ) {
+          nextHeader = { ...nextHeader, sale_order_id: "" };
+          headerChanged = true;
+        }
+        if (headerChanged) {
+          headerRef.current = nextHeader;
+          setHeader(nextHeader);
+        }
+
         clientOptionsRef.current = nextClientOptions;
         vesselOptionsRef.current = nextVesselOptions;
         soOptionsRef.current = nextSoOptions;
@@ -428,7 +453,7 @@ export default function QuotationForm() {
     if (lineState.location) {
       payload.location = lineState.location;
     }
-    if (lineState.is_client_specific && intOrUndef(lineState.agent_id)) {
+    if (intOrUndef(lineState.agent_id)) {
       payload.agent_id = intOrUndef(lineState.agent_id);
     }
     return payload;
@@ -482,6 +507,9 @@ export default function QuotationForm() {
           if (result.agent_required != null) {
             updates.agent_required = Boolean(result.agent_required);
           }
+          if (result.vendor_required_for_rate_item != null) {
+            updates.vendor_required_for_rate_item = Boolean(result.vendor_required_for_rate_item);
+          }
           if (result.rate_type_filter != null) {
             updates.rate_type_filter = apiString(result.rate_type_filter);
           }
@@ -492,9 +520,10 @@ export default function QuotationForm() {
               (loc) => (loc ? { id: loc, name: loc, location: loc } : null)
             );
           }
-          if (result.agent_options) {
+          const agentOptionList = result.agent_options ?? result.vendor_options;
+          if (agentOptionList) {
             updates.agentOptions = ensureSelectedOption(
-              normalizeOptions(result.agent_options),
+              normalizeOptions(agentOptionList),
               line.agent_id,
               (agentId) =>
                 agentId
@@ -506,7 +535,7 @@ export default function QuotationForm() {
                   : null
             );
           }
-          if (result.rate_item_options) {
+          if (intOrUndef(lineState.agent_id) && result.rate_item_options) {
             updates.rateItemOptions = ensureSelectedOption(
               normalizeRateItems(result.rate_item_options),
               line.rate_list_id,
@@ -525,6 +554,8 @@ export default function QuotationForm() {
                   }
                   : null
             );
+          } else if (!intOrUndef(lineState.agent_id)) {
+            updates.rateItemOptions = [];
           }
           if (result.status_options) {
             updates.statusOptions = resolveLineStatusOptions(
@@ -535,9 +566,6 @@ export default function QuotationForm() {
           updates.status = resolveLineStatus(line.status);
           if (result.currency_options) {
             updates.currencyOptions = normalizeOptions(result.currency_options);
-          }
-          if (!lineState.is_client_specific) {
-            updates.agentOptions = [];
           }
           return updates;
         });
@@ -1477,30 +1505,26 @@ export default function QuotationForm() {
                                 />
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
-                                {line.is_client_specific ? (
-                                  <SimpleSearchableSelect
-                                    value={line.agent_id}
-                                    onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
-                                    options={line.agentOptions}
-                                    placeholder="Vendor"
-                                    isLoading={lineOptionsLoading[index]}
-                                    formatOption={formatAgentOption}
-                                    serverSideSearch
-                                    onSearchChange={(q) => scheduleLineSearch(index, "agent", q)}
-                                    {...lineAutoSelectProps}
-                                  />
-                                ) : (
-                                  <Text {...lineCellFont} color="gray.500">
-                                    —
-                                  </Text>
-                                )}
+                                <SimpleSearchableSelect
+                                  value={line.agent_id}
+                                  onChange={(val) => updateLineCascade(index, "agent_id", val || "")}
+                                  options={line.agentOptions}
+                                  placeholder={line.location ? "Vendor" : "Select location first"}
+                                  isDisabled={!line.location}
+                                  isLoading={lineOptionsLoading[index]}
+                                  formatOption={formatAgentOption}
+                                  serverSideSearch
+                                  onSearchChange={(q) => scheduleLineSearch(index, "agent", q)}
+                                  {...lineAutoSelectProps}
+                                />
                               </Td>
                               <Td {...lineSearchDataCell} bg={lineInputCellBg} {...lineReadOnlyCell}>
                                 <SimpleSearchableSelect
                                   value={line.rate_list_id}
                                   onChange={(val) => updateLineCascade(index, "rate_list_id", val || "")}
                                   options={line.rateItemOptions}
-                                  placeholder="Rate item"
+                                  placeholder={line.agent_id ? "Rate item" : "Select vendor first"}
+                                  isDisabled={!line.agent_id}
                                   isLoading={lineOptionsLoading[index]}
                                   formatOption={(item) =>
                                     item.rate_item_name || item.name || formatRateItemOption(item)

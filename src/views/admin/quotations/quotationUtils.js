@@ -360,6 +360,7 @@ export function emptyLine() {
     statusOptions: [],
     currencyOptions: [],
     agent_required: false,
+    vendor_required_for_rate_item: false,
     rate_type_filter: "",
     agent_name: "",
     rate_list_name: "",
@@ -492,8 +493,9 @@ export function buildLineSavePayload(line) {
     currency_override_id: intOrNull(line.currency_override_id),
   };
   if (line.id) row.id = line.id;
-  if (line.is_client_specific) {
-    row.agent_id = intOrNull(line.agent_id);
+  const agentId = intOrNull(line.agent_id);
+  if (agentId != null) {
+    row.agent_id = agentId;
   }
   return row;
 }
