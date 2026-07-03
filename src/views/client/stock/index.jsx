@@ -51,6 +51,7 @@ import { getCappedStockReportEntriesForDisplay } from "utils/stockReportAttachme
 import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
+import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -447,6 +448,30 @@ function ClientStock() {
     );
   };
 
+  const resolveClientStockPreviewUrl = useCallback(async (attachment, stockItemId) => {
+    if (!stockItemId || attachment?.id == null) {
+      throw new Error("Report file is not available.");
+    }
+    const response = await clientStockApi.downloadClientStockAttachmentApi(
+      stockItemId,
+      attachment,
+      false
+    );
+    if (!(response?.data instanceof Blob)) {
+      throw new Error("Could not load file.");
+    }
+    return {
+      fileUrl: URL.createObjectURL(response.data),
+      mimeType: response.type || attachment.mimetype || "application/pdf",
+      filename: resolveReportDownloadFilename(attachment, response),
+      shouldRevoke: true,
+    };
+  }, []);
+
+  const { openGallery, galleryModal } = useStockAttachmentsGallery({
+    resolvePreviewUrl: resolveClientStockPreviewUrl,
+  });
+
   const handleOpenPreviousReports = (entries, stockRecordId, stockStatusKey, rowId) => {
     setPreviousReportsModal({
       isOpen: true,
@@ -467,42 +492,12 @@ function ClientStock() {
     });
   };
 
-  const handleViewReportFile = async (row, attachment) => {
+  const handlePreviewAllAttachments = (row, attachments, startIndex = 0) => {
     if (!isClientPortalStockStatus(row.stockStatusKey)) return;
     const stockRecordId = row.stockRecordId ?? row.stockItemId;
-    if (!stockRecordId || !attachment?.id) return;
-    setIsPreparingPreview(true);
-    try {
-      const response = await fetchReportBlob({ stockRecordId }, attachment, false);
-      if (!(response?.data instanceof Blob)) {
-        throw new Error("Could not load file.");
-      }
-      const blobUrl = URL.createObjectURL(response.data);
-      setReportPreviewItems((prev) => {
-        clearPreviewUrls(prev);
-        return [
-          {
-            rowId: row.id,
-            stockRecordId,
-            attachmentId: attachment.id,
-            filename: resolveReportDownloadFilename(attachment, response),
-            blobUrl,
-          },
-        ];
-      });
-      setActivePreviewIndex(0);
-      setIsReportPreviewOpen(true);
-    } catch (e) {
-      toast({
-        title: "Unable to open file",
-        description: e?.message || "Please try again.",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
-    } finally {
-      setIsPreparingPreview(false);
-    }
+    const list = Array.isArray(attachments) ? attachments.filter((a) => a?.id != null) : [];
+    if (!stockRecordId || !list.length) return;
+    openGallery(list, stockRecordId, startIndex);
   };
 
   const triggerBrowserDownload = (blobUrl, filename) => {
@@ -1060,10 +1055,14 @@ function ClientStock() {
                           stockItemId={row.stockRecordId}
                           previousLabel="Previous status reports"
                           emptyLabel="—"
-                          onViewFile={(att, stockRecordId) =>
-                            handleViewReportFile(
-                              { ...row, stockRecordId },
-                              att
+                          onPreviewAll={(attachments, stockRecordId) =>
+                            handlePreviewAllAttachments(
+                              {
+                                id: row.id,
+                                stockRecordId,
+                                stockStatusKey: row.stockStatusKey,
+                              },
+                              attachments
                             )
                           }
                           onDownloadFile={(att, stockRecordId) =>
@@ -1180,14 +1179,14 @@ function ClientStock() {
         stockItemId={previousReportsModal.stockRecordId}
         showFileActions
         allowDelete={false}
-        onViewFile={(att, stockRecordId) =>
-          handleViewReportFile(
+        onPreviewAll={(attachments, stockRecordId) =>
+          handlePreviewAllAttachments(
             {
               id: previousReportsModal.rowId,
               stockRecordId,
               stockStatusKey: previousReportsModal.stockStatusKey,
             },
-            att
+            attachments
           )
         }
         onDownloadFile={(att, stockRecordId) =>
@@ -1281,6 +1280,8 @@ function ClientStock() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {galleryModal}
     </Box>
   );
 }

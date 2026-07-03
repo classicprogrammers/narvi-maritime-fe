@@ -59,7 +59,7 @@ import {
 import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import { MdRefresh, MdEdit, MdAdd, MdClose, MdCheck, MdCancel, MdVisibility, MdFilterList, MdSearch, MdNumbers, MdSort, MdCheckBox, MdCheckBoxOutlineBlank, MdDownload, MdViewModule, MdViewList, MdContentCopy, MdPrint, MdPictureAsPdf, MdInventory2, MdDateRange } from "react-icons/md";
 import { useStock } from "../../../redux/hooks/useStock";
-import { updateStockItemApi, getStockItemAttachmentsApi, downloadStockItemAttachmentApi } from "../../../api/stock";
+import { updateStockItemApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
 import api from "../../../api/axios";
 import locationsAPI from "../../../api/locations";
@@ -97,6 +97,7 @@ import {
 import StockListAttachmentsCell from "../../../components/stock-list/StockListAttachmentsCell";
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
 
@@ -600,8 +601,8 @@ export default function Stocks() {
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
     const [selectedDimensions, setSelectedDimensions] = useState([]);
-    const [isLoadingAttachment, setIsLoadingAttachment] = useState(false);
     const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
+    const { openGallery, galleryModal } = useStockAttachmentsGallery();
 
     // View selected items - filter table instead of modal
     const [isViewingSelected, setIsViewingSelected] = useState(false);
@@ -1177,223 +1178,6 @@ export default function Stocks() {
     const getStatusLabel = (status) => {
         const style = getStatusStyle(status);
         return style.label || status || "-";
-    };
-
-    // Handle viewing attachments - use new API endpoint
-    const handleViewFile = async (attachment, stockItemId = null) => {
-        try {
-            let fileUrl = null;
-
-            // Case 1: actual uploaded file (File or Blob)
-            if (attachment instanceof File || attachment instanceof Blob) {
-                fileUrl = URL.createObjectURL(attachment);
-                window.open(fileUrl, '_blank');
-                return;
-            }
-
-            // Case 2: If we have stockId and attachmentId, use new API endpoint
-            if (stockItemId && attachment.id) {
-                try {
-                    setIsLoadingAttachment(true);
-                    // Use new endpoint for viewing: /api/stock/list/${stockId}/attachment/${attachmentId}/download
-                    const response = await downloadStockItemAttachmentApi(stockItemId, attachment.id, false);
-
-                    if (response.data instanceof Blob) {
-                        const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-                        fileUrl = URL.createObjectURL(response.data);
-                        window.open(fileUrl, '_blank');
-                        return;
-                    } else {
-                        throw new Error('Invalid response format from server');
-                    }
-                } catch (apiError) {
-                    console.error('Error fetching attachment from API:', apiError);
-                    toast({
-                        title: 'Error',
-                        description: apiError.message || 'Failed to fetch attachment from server',
-                        status: 'error',
-                        duration: 50000,
-                        isClosable: true,
-                    });
-                    return;
-                } finally {
-                    setIsLoadingAttachment(false);
-                }
-            }
-
-            // Case 3: API endpoint URL - legacy support
-            if (attachment.url && attachment.url.includes('/api/stock/list/') && attachment.url.includes('/attachments')) {
-                try {
-                    // Extract stock ID from URL or use provided stockItemId
-                    let stockId = stockItemId;
-                    if (!stockId) {
-                        const urlMatch = attachment.url.match(/\/api\/stock\/list\/(\d+)\/attachments/);
-                        if (urlMatch && urlMatch[1]) {
-                            stockId = urlMatch[1];
-                        }
-                    }
-
-                    if (!stockId) {
-                        throw new Error('Unable to determine stock item ID from attachment URL');
-                    }
-
-                    setIsLoadingAttachment(true);
-
-                    try {
-                        // Call API to get attachment
-                        const response = await getStockItemAttachmentsApi(stockId);
-
-                        // Handle response - could be blob (direct file) or JSON (metadata)
-                        let attachmentData = null;
-
-                        // If response is a blob (direct file data)
-                        if (response.data instanceof Blob) {
-                            const mimeType = response.type || attachment.mimetype || "application/octet-stream";
-                            fileUrl = URL.createObjectURL(response.data);
-                            window.open(fileUrl, '_blank');
-                            return;
-                        }
-
-                        // If response is JSON (metadata or error)
-                        if (response.result && response.result.attachments && Array.isArray(response.result.attachments)) {
-                            // Find the specific attachment by ID if available
-                            if (attachment.id) {
-                                attachmentData = response.result.attachments.find(att => att.id === attachment.id);
-                            } else {
-                                // Use first attachment if no ID match
-                                attachmentData = response.result.attachments[0];
-                            }
-                        } else if (response.attachments && Array.isArray(response.attachments)) {
-                            if (attachment.id) {
-                                attachmentData = response.attachments.find(att => att.id === attachment.id);
-                            } else {
-                                attachmentData = response.attachments[0];
-                            }
-                        } else if (response.result && response.result.data) {
-                            // Handle case where attachment data is in result.data
-                            attachmentData = response.result.data;
-                        } else if (response.data && !(response.data instanceof Blob)) {
-                            attachmentData = response.data;
-                        }
-
-                        if (!attachmentData) {
-                            throw new Error('Attachment not found in API response');
-                        }
-
-                        // Now handle the attachment data - it might have base64 data, URL, or file data
-                        if (attachmentData.datas) {
-                            // Base64 data - convert to blob
-                            const mimeType = attachmentData.mimetype || attachment.mimetype || "application/octet-stream";
-                            const base64Data = attachmentData.datas;
-                            const byteCharacters = atob(base64Data);
-                            const byteNumbers = new Array(byteCharacters.length);
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                                byteNumbers[i] = byteCharacters.charCodeAt(i);
-                            }
-                            const byteArray = new Uint8Array(byteNumbers);
-                            const blob = new Blob([byteArray], { type: mimeType });
-                            fileUrl = URL.createObjectURL(blob);
-                            window.open(fileUrl, '_blank');
-                            return;
-                        } else if (attachmentData.url && !attachmentData.url.includes('/api/stock/list/')) {
-                            // Direct file URL (not an API endpoint)
-                            fileUrl = attachmentData.url;
-                            window.open(fileUrl, '_blank');
-                            return;
-                        } else if (attachmentData.file || attachmentData.blob) {
-                            // File or blob object
-                            const file = attachmentData.file || attachmentData.blob;
-                            fileUrl = URL.createObjectURL(file);
-                            window.open(fileUrl, '_blank');
-                            return;
-                        } else {
-                            throw new Error('Attachment data format not supported');
-                        }
-                    } finally {
-                        setIsLoadingAttachment(false);
-                    }
-                } catch (apiError) {
-                    console.error('Error fetching attachment from API:', apiError);
-                    setIsLoadingAttachment(false);
-                    toast({
-                        title: 'Error',
-                        description: apiError.message || 'Failed to fetch attachment from server',
-                        status: 'error',
-                        duration: 50000,
-                        isClosable: true,
-                    });
-                    return;
-                }
-            }
-            // Case 4: backend URL (non-API endpoint)
-            else if (attachment.url) {
-                fileUrl = attachment.url;
-                window.open(fileUrl, '_blank');
-                return;
-            }
-            // Case 5: base64 data (most common for attachments) - convert to blob
-            else if (attachment.datas) {
-                try {
-                    const mimeType = attachment.mimetype || "application/octet-stream";
-                    const base64Data = attachment.datas;
-
-                    // Convert base64 to binary
-                    const byteCharacters = atob(base64Data);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: mimeType });
-
-                    // Create object URL from blob
-                    fileUrl = URL.createObjectURL(blob);
-                    window.open(fileUrl, '_blank');
-                    return;
-                } catch (base64Error) {
-                    console.error('Error converting base64 to blob:', base64Error);
-                    toast({
-                        title: 'Error',
-                        description: 'Unable to view file. File conversion failed.',
-                        status: 'error',
-                        duration: 50000,
-                        isClosable: true,
-                    });
-                    return;
-                }
-            }
-            // Case 6: construct URL from attachment ID
-            else if (attachment.id) {
-                const baseUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_BACKEND_URL || "";
-                fileUrl = `${baseUrl}/web/content/${attachment.id}`;
-                window.open(fileUrl, '_blank');
-                return;
-            }
-            // Case 7: file path
-            else if (attachment.path) {
-                fileUrl = attachment.path;
-                window.open(fileUrl, '_blank');
-                return;
-            }
-
-            // If we get here, no valid file data was found
-            toast({
-                title: 'Error',
-                description: 'Unable to view file. File data not available.',
-                status: 'error',
-                duration: 50000,
-                isClosable: true,
-            });
-        } catch (error) {
-            console.error('Error viewing file:', error);
-            toast({
-                title: 'Error',
-                description: error.message || 'Failed to view file',
-                status: 'error',
-                duration: 50000,
-                isClosable: true,
-            });
-        }
     };
 
     // Handle force downloading attachments - use new API endpoint with download=true
@@ -3793,7 +3577,7 @@ export default function Stocks() {
                             <StockListAttachmentsCell
                                 attachments={item.attachments}
                                 stockItemId={item.id || item.stock_item_id}
-                                onViewFile={handleViewFile}
+                                onPreviewAll={openGallery}
                                 onDownloadFile={handleDownloadFile}
                                 onOpenPreviousReports={(entries, stockItemId) =>
                                     setStockReportHistoryContext({ entries, stockItemId })
@@ -4000,7 +3784,7 @@ export default function Stocks() {
                             <StockListAttachmentsCell
                                 attachments={item.attachments}
                                 stockItemId={item.id || item.stock_item_id}
-                                onViewFile={handleViewFile}
+                                onPreviewAll={openGallery}
                                 onDownloadFile={handleDownloadFile}
                                 onOpenPreviousReports={(entries, stockItemId) =>
                                     setStockReportHistoryContext({ entries, stockItemId })
@@ -5385,7 +5169,7 @@ export default function Stocks() {
                                                                     <StockListAttachmentsCell
                                                                         attachments={item.attachments}
                                                                         stockItemId={item.id || item.stock_item_id}
-                                                                        onViewFile={handleViewFile}
+                                                                        onPreviewAll={openGallery}
                                                                         onDownloadFile={handleDownloadFile}
                                                                         onOpenPreviousReports={(entries, stockItemId) =>
                                                                             setStockReportHistoryContext({ entries, stockItemId })
@@ -6632,9 +6416,11 @@ export default function Stocks() {
                 stockItemId={stockReportHistoryContext?.stockItemId ?? null}
                 showFileActions
                 allowDelete={false}
-                onViewFile={handleViewFile}
+                onPreviewAll={openGallery}
                 onDownloadFile={handleDownloadFile}
             />
+
+            {galleryModal}
 
             <Modal isOpen={isPdfPreviewOpen} onClose={handleClosePdfPreview} size="full" scrollBehavior="inside">
                 <ModalOverlay />

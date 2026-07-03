@@ -57,6 +57,33 @@ export function partitionAttachmentsRow(row) {
     return { nonReportExisting, nonReportPending, reportEntries };
 }
 
+/** All attachments on an edit-form row, in display order (for gallery preview). */
+export function collectRowAttachmentsForPreview(row) {
+    const { nonReportExisting, nonReportPending, reportEntries } = partitionAttachmentsRow(row);
+    return [
+        ...nonReportExisting,
+        ...nonReportPending.map(({ att }) => att),
+        ...reportEntries.map(({ att }) => att),
+    ];
+}
+
+/** Visible attachments in list/table cells (excludes older status reports). */
+export function collectListAttachmentsForPreview(attachments, attachmentMode = "reports") {
+    const list = Array.isArray(attachments) ? attachments : [];
+    if (list.length === 0) return [];
+
+    if (attachmentMode === "all") {
+        return getAttachmentEntriesNewestFirst(list).map((entry) => entry.att);
+    }
+
+    const partitioned = partitionAttachmentsList(list);
+    const items = [...partitioned.nonReportAttachments];
+    if (partitioned.reportEntries[0]) {
+        items.push(partitioned.reportEntries[0].att);
+    }
+    return items;
+}
+
 /**
  * Stock report entries from a saved stock list item's attachments array (newest first).
  * @returns {Array<{ att: object, source: 'saved', id?: string|number }>}

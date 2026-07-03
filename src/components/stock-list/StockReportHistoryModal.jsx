@@ -11,9 +11,10 @@ import {
     IconButton,
     HStack,
     VStack,
+    Button,
+    Icon,
 } from "@chakra-ui/react";
-import { Icon } from "@chakra-ui/react";
-import { MdVisibility, MdRemove, MdDownload } from "react-icons/md";
+import { MdRemove, MdDownload, MdVisibility } from "react-icons/md";
 import { normalizeLegacyStockReportFilename } from "../../utils/stockReportPdf";
 
 /**
@@ -28,16 +29,16 @@ export default function StockReportHistoryModal({
     stockItemId = null,
     showFileActions = false,
     allowDelete = true,
-    onViewFile,
+    onPreviewAll,
     onDownloadFile,
     onDeleteExisting,
     onDeletePending,
 }) {
-    const canDownloadSaved =
-        (entry) =>
-            (entry.source === "existing" || entry.source === "saved") &&
-            stockItemId &&
-            entry.att?.id;
+    const canDownloadSaved = (entry) =>
+        (entry.source === "existing" || entry.source === "saved") && stockItemId && entry.att?.id;
+
+    const previewAttachments = entries.map((entry) => entry.att).filter(Boolean);
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
             <ModalOverlay />
@@ -51,6 +52,17 @@ export default function StockReportHistoryModal({
                         </Text>
                     ) : (
                         <VStack spacing={2} align="stretch">
+                            {showFileActions && onPreviewAll && previewAttachments.length > 0 && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    colorScheme="blue"
+                                    leftIcon={<Icon as={MdVisibility} />}
+                                    onClick={() => onPreviewAll(previewAttachments, stockItemId, 0)}
+                                >
+                                    Preview all ({previewAttachments.length})
+                                </Button>
+                            )}
                             {entries.map((entry, idx) => {
                                 const att = entry.att;
                                 const key =
@@ -77,28 +89,16 @@ export default function StockReportHistoryModal({
                                             {label}
                                         </Text>
                                         <HStack spacing={0} flexShrink={0}>
-                                            {showFileActions && onViewFile && (
+                                            {showFileActions && onDownloadFile && canDownloadSaved(entry) && (
                                                 <IconButton
-                                                    aria-label="View file"
-                                                    icon={<Icon as={MdVisibility} />}
+                                                    aria-label="Download file"
+                                                    icon={<Icon as={MdDownload} />}
                                                     size="xs"
                                                     variant="ghost"
-                                                    colorScheme="blue"
-                                                    onClick={() => onViewFile(att, stockItemId)}
+                                                    colorScheme="green"
+                                                    onClick={() => onDownloadFile(att, stockItemId)}
                                                 />
                                             )}
-                                            {showFileActions &&
-                                                onDownloadFile &&
-                                                canDownloadSaved(entry) && (
-                                                    <IconButton
-                                                        aria-label="Download file"
-                                                        icon={<Icon as={MdDownload} />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="green"
-                                                        onClick={() => onDownloadFile(att, stockItemId)}
-                                                    />
-                                                )}
                                             {allowDelete !== false && onDeleteExisting && onDeletePending && (
                                                 <IconButton
                                                     aria-label="Remove report"

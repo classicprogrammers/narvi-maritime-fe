@@ -100,6 +100,7 @@ import {
   serializeCiPlDescriptionForApi,
   serializeCiPlMultiFieldLines,
 } from "../../../../utils/ciPlDescriptionField";
+import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
 
 const normalizeCurrencyMasterOptions = (rawList) => {
   if (!Array.isArray(rawList)) return [];
@@ -156,17 +157,12 @@ const normalizeCiPlSingleValueField = (value) => {
 };
 
 const formatCiPlDescriptionDisplay = formatCiPlMultiFieldDisplay;
-const formatCiPlValueDisplay = (value) => normalizeCiPlSingleValueField(value);
 
-/** Show decimals only when the value (or API string) has a fractional part */
-const formatApiNumericDisplay = (value) => {
-  if (value == null || value === "" || value === false) return "-";
-  const text = String(value).trim();
-  if (!text) return "-";
-  const n = Number(text);
-  if (!Number.isFinite(n)) return text;
-  if (Number.isInteger(n)) return String(n);
-  return String(parseFloat(n.toFixed(10)));
+const formatCiPlValueDisplay = (value) => {
+  const normalized = normalizeCiPlSingleValueField(value);
+  if (normalized === "") return "";
+  const displayed = formatApiNumericDisplay(normalized);
+  return displayed === "-" ? normalized : displayed;
 };
 
 const resolveStockLineSupplierName = (line) => {
@@ -574,10 +570,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             return sum + (Number.isFinite(v) ? v : 0);
           }, 0),
     };
-  const formatStockListTotal = (value, fractionDigits = 2) => {
-    if (!Number.isFinite(Number(value))) return "-";
-    return Number(value).toFixed(fractionDigits);
-  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -591,11 +583,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
     );
   };
   const getPerUnitLineValueUsd = (item) => {
+    if (item?.valueUsd != null && item.valueUsd !== false && String(item.valueUsd).trim() !== "") {
+      return formatCiPlValueDisplay(item.valueUsd);
+    }
     const q = Number(item?.quantity);
     const p = Number(item?.perUnit);
-    if (Number.isFinite(q) && Number.isFinite(p)) return (q * p).toFixed(2);
-    if (item?.valueUsd != null && item.valueUsd !== false && String(item.valueUsd).trim() !== "") {
-      return String(item.valueUsd);
+    if (Number.isFinite(q) && Number.isFinite(p)) {
+      return formatCiPlValueDisplay(q * p);
     }
     return "";
   };
@@ -664,7 +658,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         awb_number: toNullIfEmpty(data.shippedBy),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
-        job_no: toNullIfEmpty(data.jobNo),
         transport_details: toNullIfEmpty(data.transportDetails),
       };
     }
@@ -2259,23 +2252,25 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         const lwh = ciPlLwhColWidth;
         const toStyles = (widths) => {
           const styles = {};
-          widths.forEach(({ index, width, overflowLinebreak }) => {
-            styles[index] = {
-              cellWidth: width,
-              ...(overflowLinebreak ? { overflow: "linebreak", valign: "top" } : {}),
-            };
+          widths.forEach(({ index, width, overflowLinebreak, halign, valign }) => {
+            styles[index] = { cellWidth: width };
+            if (overflowLinebreak) {
+              styles[index].overflow = "linebreak";
+            }
+            if (halign) styles[index].halign = halign;
+            styles[index].valign = valign ?? (overflowLinebreak ? "top" : "middle");
           });
           return styles;
         };
         if (isCiPlPerUnitTab) {
           const fixed = [
-            { index: 0, width: 46 },
-            { index: 1, width: 28 },
-            { index: 2, width: 34 },
-            { index: 3, width: lwh, overflowLinebreak: true },
-            { index: 5, width: 34 },
-            { index: 6, width: 38 },
-            { index: 7, width: 42 },
+            { index: 0, width: 46, halign: "center", valign: "middle" },
+            { index: 1, width: 28, halign: "center", valign: "middle" },
+            { index: 2, width: 34, halign: "center", valign: "middle" },
+            { index: 3, width: lwh, overflowLinebreak: true, halign: "center", valign: "middle" },
+            { index: 5, width: 34, halign: "center", valign: "middle" },
+            { index: 6, width: 38, halign: "center", valign: "middle" },
+            { index: 7, width: 42, halign: "center", valign: "middle" },
           ];
           const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
           return toStyles([
@@ -2286,12 +2281,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         }
         if (isCiPlManifestTab) {
           const fixed = [
-            { index: 0, width: 48 },
+            { index: 0, width: 48, halign: "center", valign: "middle" },
             { index: 1, width: 56 },
-            { index: 2, width: 26 },
-            { index: 3, width: 32 },
-            { index: 4, width: lwh, overflowLinebreak: true },
-            { index: 6, width: 42 },
+            { index: 2, width: 26, halign: "center", valign: "middle" },
+            { index: 3, width: 32, halign: "center", valign: "middle" },
+            { index: 4, width: lwh, overflowLinebreak: true, halign: "center", valign: "middle" },
+            { index: 6, width: 42, halign: "center", valign: "middle" },
           ];
           const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
           return toStyles([
@@ -2301,11 +2296,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           ]);
         }
         const fixed = [
-          { index: 0, width: 48 },
-          { index: 1, width: 26 },
-          { index: 2, width: 32 },
-          { index: 3, width: lwh, overflowLinebreak: true },
-          { index: 5, width: 42 },
+          { index: 0, width: 48, halign: "center", valign: "middle" },
+          { index: 1, width: 26, halign: "center", valign: "middle" },
+          { index: 2, width: 32, halign: "center", valign: "middle" },
+          { index: 3, width: lwh, overflowLinebreak: true, halign: "center", valign: "middle" },
+          { index: 5, width: 42, halign: "center", valign: "middle" },
         ];
         const fixedSum = fixed.reduce((sum, col) => sum + col.width, 0);
         return toStyles([
@@ -2324,6 +2319,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         return text === "-" ? "" : text;
       };
       const formatCiPlPdfBoxes = formatCiPlPdfNumber;
+      const formatCiPlPdfValue = (value) => {
+        const text = formatCiPlValueDisplay(value);
+        return text || "";
+      };
       const formatCiPlPdfLwh = (value) => {
         const text = formatLwhWithLineBreaks(value);
         return text || "";
@@ -2349,7 +2348,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             const trailingCells = [
               ciPlPdfSpanCell(formatCiPlPdfText(item.quantity), lineCount),
               ciPlPdfSpanCell(formatCiPlPdfText(item.perUnit), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfText(getPerUnitLineValueUsd(item)), lineCount),
+              ciPlPdfSpanCell(formatCiPlPdfValue(getPerUnitLineValueUsd(item)), lineCount),
             ];
             for (let i = 0; i < lineCount; i += 1) {
               if (i === 0) {
@@ -2367,7 +2366,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
 
           if (isCiPlManifestTab) {
             const lineCount = Math.max(descLines.length, 1);
-            const valueCell = formatCiPlPdfText(item.valueUsd) || "-";
+            const valueCell = formatCiPlPdfValue(item.valueUsd) || "-";
             const sharedCells = [
               ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
               ciPlPdfSpanCell(formatCiPlPdfText(item.supplier), lineCount),
@@ -2387,7 +2386,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           }
 
           const lineCount = Math.max(descLines.length, 1);
-          const valueCell = formatCiPlPdfText(item.valueUsd) || "-";
+          const valueCell = formatCiPlPdfValue(item.valueUsd) || "-";
           const sharedCells = [
             ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
             ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
@@ -2425,7 +2424,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             formatApiNumericDisplay(stockListTableTotals.weight),
             "",
             ciPlTotalDescriptionLabel,
-            formatStockListTotal(stockListTableTotals.valueUsd),
+            formatApiNumericDisplay(stockListTableTotals.valueUsd),
           ]
           : [
             "TOTAL",
@@ -2433,7 +2432,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             formatApiNumericDisplay(stockListTableTotals.weight),
             "",
             ciPlTotalDescriptionLabel,
-            formatStockListTotal(stockListTableTotals.valueUsd),
+            formatApiNumericDisplay(stockListTableTotals.valueUsd),
           ];
       const ciPlPackedAsRow = isCiPlPerUnitTab
         ? [
@@ -2527,7 +2526,11 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
 
       const ciPlDescriptionColIndex = isCiPlManifestTab ? 5 : 4;
       const ciPlLwhColIndex = isCiPlManifestTab ? 4 : 3;
+      const ciPlBoxColIndex = isCiPlManifestTab ? 2 : 1;
+      const ciPlWeightColIndex = isCiPlManifestTab ? 3 : 2;
+      const ciPlPoColIndex = 0;
       const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : isCiPlManifestTab ? 6 : 5;
+      const ciPlCenterColIndexes = [ciPlPoColIndex, ciPlBoxColIndex, ciPlWeightColIndex, ciPlLwhColIndex, ciPlValueColIndex];
 
       autoTable(doc, {
         startY: twoColEndY + 14,
@@ -2552,13 +2555,12 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             hookData.cell.styles.overflow = "linebreak";
             hookData.cell.styles.valign = "top";
           }
-          if (hookData.column.index === ciPlValueColIndex) {
-            hookData.cell.styles.overflow = "linebreak";
-            hookData.cell.styles.valign = "top";
-          }
-          if (hookData.column.index === ciPlLwhColIndex) {
-            hookData.cell.styles.overflow = "linebreak";
-            hookData.cell.styles.valign = "top";
+          if (ciPlCenterColIndexes.includes(hookData.column.index)) {
+            hookData.cell.styles.halign = "center";
+            hookData.cell.styles.valign = "middle";
+            if (hookData.column.index === ciPlLwhColIndex) {
+              hookData.cell.styles.overflow = "linebreak";
+            }
           }
           if (hookData.section === "body" && hookData.row.index === ciPlTotalRowIndex) {
             hookData.cell.styles.fillColor = [237, 242, 247];
@@ -3042,19 +3044,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           {isDeliveryForm ? "JOB NO :" : (isShippingAdvise ? "SI NUMBER:" : "SI NO:")}
                         </FormLabel>
                         {isDeliveryForm ? (
-                          <Input
-                            id="jobNo-delivery"
-                            value={formData.jobNo}
-                            onChange={(e) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("jobNo", e.target.value);
-                            }}
-                            size="sm"
-                            fontWeight="semibold"
-                            variant="unstyled"
-                            bg="transparent"
-                            color="white"
-                          />
+                          <Text size="sm" fontWeight="semibold" color="white">
+                            {formData.jobNo || "—"}
+                          </Text>
                         ) : (
                           <SimpleSearchableSelect
                             id="siNo"
@@ -3320,19 +3312,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           />
                         ) : (
                           <Box bg="orange.200" px={2} py={1} borderRadius="sm">
-                            <Input
-                              id="jobNo"
-                              value={formData.jobNo}
-                              onChange={(e) => {
-                                headerUserEditedRef.current = true;
-                                handleInputChange("jobNo", e.target.value);
-                              }}
-                              size="sm"
-                              fontWeight="medium"
-                              variant="unstyled"
-                              bg="transparent"
-                              color="gray.800"
-                            />
+                            <Text size="sm" fontWeight="medium" color="gray.800">
+                              {formData.jobNo || "—"}
+                            </Text>
                           </Box>
                         )}
                       </FormControl>
@@ -3692,13 +3674,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           </>
                         ) : (
                           <>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">PO#</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px" textAlign="center">PO#</Th>
                             {isCiPlManifestTab && (
                               <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="120px">SUPPLIER</Th>
                             )}
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="64px">BOX</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px">WEIGHT</Th>
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="112px">LWH</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="7%" minW="64px" textAlign="center">BOX</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="8%" minW="72px" textAlign="center">WEIGHT</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="12%" minW="112px" textAlign="center">LWH</Th>
                             <Th
                               borderRight="1px"
                               borderColor="gray.300"
@@ -3717,7 +3699,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px">PER UNIT</Th>
                               </>
                             )}
-                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="10%" minW="96px">{valueInCurrencyLabel}</Th>
+                            <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="10%" minW="96px" textAlign="center">{valueInCurrencyLabel}</Th>
                           </>
                         )}
                       </Tr>
@@ -3745,19 +3727,19 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 {item.warehouseId || ""}
                               </Td>}
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.lwh}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh}</Td>
                             </>
                           ) : (
                             <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
                               {isCiPlManifestTab && (
                                 <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || ""}</Td>
                               )}
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
                               <Td
                                 borderRight="1px"
                                 borderColor="gray.300"
@@ -3769,6 +3751,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 whiteSpace="pre-line"
                                 lineHeight="1.35"
                                 verticalAlign="middle"
+                                textAlign="center"
                               >
                                 {formatLwhWithLineBreaks(item.lwh)}
                               </Td>
@@ -3839,9 +3822,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                   </Td>
                                 </>
                               )}
-                              <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                              <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
                                 {isCiPlPerUnitTab ? (
-                                  <Text px={2} py={2} fontSize="xs">
+                                  <Text px={2} py={2} fontSize="xs" textAlign="center">
                                     {getPerUnitLineValueUsd(item) || "-"}
                                   </Text>
                                 ) : isCiPlForm ? (
@@ -3857,6 +3840,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                     border="1px solid"
                                     borderColor="gray.300"
                                     placeholder="Free text"
+                                    textAlign="center"
                                   />
                                 ) : (
                                   <Input
@@ -3870,6 +3854,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                     borderRadius="sm"
                                     border="1px solid"
                                     borderColor="gray.300"
+                                    textAlign="center"
                                   />
                                 )}
                               </Td>
@@ -3885,13 +3870,13 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           {isCiPlManifestTab && (
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
                           )}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
                             {formatApiNumericDisplay(stockListTableTotals.boxes)}
                           </Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
                             {formatApiNumericDisplay(stockListTableTotals.weight)}
                           </Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" />
                           {isCiPlPerUnitTab ? (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
@@ -3915,10 +3900,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               {ciPlTotalDescriptionLabel}
                             </Td>
                           )}
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                            {isCiPlPerUnitTab
-                              ? formatApiNumericDisplay(stockListTableTotals.valueUsd)
-                              : formatStockListTotal(stockListTableTotals.valueUsd)}
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
+                            {formatApiNumericDisplay(stockListTableTotals.valueUsd)}
                           </Td>
                         </Tr>
                       )}
@@ -3940,7 +3923,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           {isCiPlManifestTab && (
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
                           )}
-                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100" textAlign="center">
                             <Input
                               id="totalPackedQuantity"
                               type="number"
@@ -3953,9 +3936,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               variant="unstyled"
                               bg="transparent"
                               fontWeight="semibold"
+                              textAlign="center"
                             />
                           </Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100">
+                          <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="orange.100" textAlign="center">
                             <Input
                               id="totalPackedWeight"
                               type="number"
@@ -3969,9 +3953,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               variant="unstyled"
                               bg="transparent"
                               fontWeight="semibold"
+                              textAlign="center"
                             />
                           </Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" />
                           {isCiPlPerUnitTab ? (
                             <>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" />

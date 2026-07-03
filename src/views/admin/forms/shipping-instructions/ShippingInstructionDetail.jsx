@@ -72,6 +72,7 @@ import {
   withOptionalFormIds,
   omitNullPayloadFields,
 } from "../../../../utils/shippingFormAutosave";
+import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
 
 const resolveApiText = (value) => {
   if (value == null || value === false) return "";
@@ -492,7 +493,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
   const [qSi, setQSi] = useState("");
   const [qSic, setQSic] = useState("");
-  const [qDeliverySi, setQDeliverySi] = useState("");
   const [qDeliverySo, setQDeliverySo] = useState("");
   const [qAgent, setQAgent] = useState("");
   const [qCnee, setQCnee] = useState("");
@@ -721,15 +721,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         }),
         eta_text: formatDateForApi(data.deadline),
         date: formatDateForApi(data.date),
-        job_no: toNullIfEmpty(data.jobNo),
         transport_details: toNullIfEmpty(data.transportDetails),
       };
     }
     if (isDeliveryConfirmation) {
       return {
         ...withOptionalFormIds({
-          di_number_id: data.siNo,
-          si_number_id: data.siNumberId,
           so_number_id: data.soNumberId,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
@@ -749,8 +746,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     if (isDeliveryForm) {
       return {
         ...withOptionalFormIds({
-          di_number_id: data.siNo,
-          si_number_id: data.siNumberId,
           so_number_id: data.soNumberId,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
@@ -1497,10 +1492,24 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 ? String(it.dg_un_number)
                 : "",
         boxes: Number(it.boxes || 0),
+        boxesRaw: it.boxes != null && it.boxes !== false ? String(it.boxes) : "",
         kg: Number(it.kg ?? it.weight_kg ?? 0),
+        kgRaw:
+          it.kg != null && it.kg !== false
+            ? String(it.kg)
+            : it.weight_kg != null && it.weight_kg !== false
+              ? String(it.weight_kg)
+              : "",
         cbm: Number(it.cbm || 0),
+        cbmRaw: it.cbm != null && it.cbm !== false ? String(it.cbm) : "",
         lwh: lwhVal,
         vw: Number(it.vw ?? it.ww ?? 0),
+        vwRaw:
+          it.vw != null && it.vw !== false
+            ? String(it.vw)
+            : it.ww != null && it.ww !== false
+              ? String(it.ww)
+              : "",
         stockItemId,
       };
     });
@@ -1571,7 +1580,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           optionsParams.q_pic = isDeliveryLike ? qPic : qShipBy;
           optionsParams.q_delivery_to_at = qDeliveryToAt;
           if (isDeliveryLike) {
-            optionsParams.q_si = qDeliverySi;
             optionsParams.q_so = qDeliverySo;
           }
         } else {
@@ -1658,9 +1666,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           setDiOptions((prev) =>
             mergeSelectedIdOption(prev, formData.siNo, selectedSiName, normalizedDiNos)
           );
-          setSiOptions((prev) =>
-            mergeSelectedIdOption(prev, formData.siNumberId, formData.siNumber, normalizedSiNos)
-          );
           setSoOptions((prev) =>
             mergeSelectedIdOption(prev, formData.soNumberId, formData.soNo, normalizedSoNos)
           );
@@ -1729,7 +1734,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [qCnee, qSi, qSic, qDeliverySi, qDeliverySo, qAgent, qShipBy, qPic, qFrom, qTo, qDeliveryToAt, formData.selectAgent, formData.siNo, formData.sicNo, formData.siNumberId, formData.soNumberId, formData.siNumber, formData.soNo, formData.deliveryToAtId, formData.deliveryToAt, selectedSiName, isShippingAdvise, isDeliveryForm, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
+  }, [qCnee, qSi, qSic, qDeliverySo, qAgent, qShipBy, qPic, qFrom, qTo, qDeliveryToAt, formData.selectAgent, formData.siNo, formData.sicNo, formData.soNumberId, formData.soNo, formData.deliveryToAtId, formData.deliveryToAt, selectedSiName, isShippingAdvise, isDeliveryForm, isDeliveryLike, optionsReloadToken, ingestOptionsResponse]);
 
   // On page load: fetch latest saved SI form
   useEffect(() => {
@@ -1873,9 +1878,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     setFormData((prev) => ({
       ...prev,
       totalPackedQuantity: Number(totals.boxes || 0),
-      totalPackedWeight: Number((totals.kg || 0).toFixed(2)),
-      totalPackedVw: Number((totals.vw || 0).toFixed(2)),
-      totalVw: Number((totals.vw || 0).toFixed(2)),
+      totalPackedWeight: Number(totals.kg || 0),
+      totalPackedVw: Number(totals.vw || 0),
+      totalVw: Number(totals.vw || 0),
     }));
   }, [totals.boxes, totals.kg, totals.vw]);
 
@@ -1983,6 +1988,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setQFrom("");
       setQTo("");
       setQDeliveryToAt("");
+      setQDeliverySo("");
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
@@ -2126,6 +2132,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       : isDeliveryConfirmation
         ? [
           ["JOB NO", formData.jobNo || "-"],
+          ["SO NO", deliverySoNumberDisplay || formData.soNo || "-"],
           ["PIC", getPicDisplayName() || formData.pic || "-"],
           ["DELIVERY DATE", formData.deadline || "-"],
           ["LOCATION", formData.to || "-"],
@@ -2133,6 +2140,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : isDeliveryForm
           ? [
             ["JOB NO", formData.jobNo || "-"],
+            ["SO NO", deliverySoNumberDisplay || formData.soNo || "-"],
             ["PIC", formData.pic || "-"],
             ["DEADLINE", formData.deadline || "-"],
             ["LOCATION", formData.to || "-"],
@@ -2175,9 +2183,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoRows = (cargoItems || []).map((item) => [
         item.supplier || "-",
         item.poNumber || "-",
-        String(item.boxes ?? "-"),
-        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
-        item.cbm != null && item.cbm !== "" ? Number(item.cbm).toFixed(2) : "-",
+        formatApiNumericDisplay(item.boxesRaw ?? item.boxes),
+        formatApiNumericDisplay(item.kgRaw ?? item.kg),
+        formatApiNumericDisplay(item.cbmRaw ?? item.cbm),
         item.lwh || "-",
         item.origin || "-",
         item.warehouseId || "-",
@@ -2185,8 +2193,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoRows.push([
         "CARGO TO BE SHIPPED",
         "",
-        String(totals.boxes ?? 0),
-        Number(totals.kg || 0).toFixed(2),
+        formatApiNumericDisplay(totals.boxes),
+        formatApiNumericDisplay(totals.kg),
         "",
         "",
         "",
@@ -2195,8 +2203,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       cargoRows.push([
         "PACKED AS",
         "",
-        String(formData.totalPackedQuantity ?? ""),
-        String(formData.totalPackedWeight ?? ""),
+        formatApiNumericDisplay(formData.totalPackedQuantity),
+        formatApiNumericDisplay(formData.totalPackedWeight),
         "",
         "",
         "",
@@ -2233,8 +2241,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         item.warehouseId || "-",
         item.supplier || "-",
         item.poNumber || "-",
-        String(item.boxes ?? "-"),
-        item.kg != null && item.kg !== "" ? Number(item.kg).toFixed(2) : "-",
+        formatApiNumericDisplay(item.boxesRaw ?? item.boxes),
+        formatApiNumericDisplay(item.kgRaw ?? item.kg),
         item.lwh || "-",
       ]);
       cargoRows.push([
@@ -2243,8 +2251,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
-        String(totals.boxes ?? 0),
-        Number(totals.kg || 0).toFixed(2),
+        formatApiNumericDisplay(totals.boxes),
+        formatApiNumericDisplay(totals.kg),
         "",
       ]);
       cargoRows.push([
@@ -2253,8 +2261,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         "",
         "",
         "",
-        String(formData.totalPackedQuantity ?? ""),
-        String(formData.totalPackedWeight ?? ""),
+        formatApiNumericDisplay(formData.totalPackedQuantity),
+        formatApiNumericDisplay(formData.totalPackedWeight),
         "",
       ]);
     }
@@ -2513,19 +2521,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         {isDeliveryForm ? "JOB NO :" : "SI NO:"}
                       </FormLabel>
                       {isDeliveryForm ? (
-                        <Input
-                          id="jobNo-delivery"
-                          value={formData.jobNo}
-                          onChange={(e) => {
-                            headerUserEditedRef.current = true;
-                            handleInputChange("jobNo", e.target.value);
-                          }}
-                          size="sm"
-                          fontWeight="semibold"
-                          variant="unstyled"
-                          bg="transparent"
-                          color="white"
-                        />
+                        <Text size="sm" fontWeight="semibold" color="white">
+                          {formData.jobNo || "—"}
+                        </Text>
                       ) : (
                         <SimpleSearchableSelect
                           id="siNo"
@@ -2717,19 +2715,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         />
                       ) : (
                         <Box bg="orange.200" px={2} py={1} borderRadius="sm">
-                          <Input
-                            id="jobNo"
-                            value={formData.jobNo}
-                            onChange={(e) => {
-                              headerUserEditedRef.current = true;
-                              handleInputChange("jobNo", e.target.value);
-                            }}
-                            size="sm"
-                            fontWeight="medium"
-                            variant="unstyled"
-                            bg="transparent"
-                            color="gray.800"
-                          />
+                          <Text size="sm" fontWeight="medium" color="gray.800">
+                            {formData.jobNo || "—"}
+                          </Text>
                         </Box>
                       )}
                     </FormControl>
@@ -3075,108 +3063,61 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="job-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           JOB NO :
                         </FormLabel>
-                        {
-                          <SimpleSearchableSelect
-                            id="job-delivery"
-                            value={formData.siNo}
-                            onChange={async (val) => {
-                              const v = val ?? "";
-                              handleInputChange("siNo", v);
-                              const selectedName = v !== "" ? getOptionNameById(diOptions, v) : "";
-                              setQSi(selectedName);
-                              if (v === "") return;
-                              packedTotalsUserEditedRef.current = false;
-                              try {
-                                setIsSiFormLoading(true);
-                                const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
-                                if (!currentId) return;
-                                const updated = await saveForm(
-                                  buildSavePayloadWithId(currentId, buildDiNumberChangePayload(v))
-                                );
-                                if (updated?.id != null) setSiFormId(updated.id);
-                                applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
-                              } catch (e) {
-                                console.error("Failed to update DI number:", e);
-                                showFormSaveError(toast, e, "Failed to save form");
-                              } finally {
-                                setIsSiFormLoading(false);
-                              }
-                            }}
-                            onSearchChange={(txt) => setQSi(txt ?? "")}
-                            prefillOnFocus={false}
-                            options={diOptions}
-                            displayKey="name"
-                            valueKey="id"
-                            size="sm"
-                            bg="transparent"
-                            borderColor="transparent"
-                            variant="unstyled"
-                            px={0}
-                            py={0}
-                            _focus={{ boxShadow: "none", outline: "none" }}
-                            _focusVisible={{ boxShadow: "none", outline: "none" }}
-                            isLoading={isOptionsLoading || isSiFormLoading}
-                            style={{ color: "white" }}
-                            placeholder="Select DI number..."
-                            _placeholder={{ color: "whiteAlpha.800" }}
-                          />
-                        }
+                        <Text size="sm" fontWeight="semibold" color="white">
+                          {formData.jobNo || "—"}
+                        </Text>
                       </FormControl>
-                      {isDeliveryLike && (
-                        <>
-                          <FormControl display="contents">
-                            <FormLabel htmlFor="si-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
-                              SI NO:
-                            </FormLabel>
-                            <SimpleSearchableSelect
-                              id="si-number-delivery"
-                              value={formData.siNumberId ?? ""}
-                              onChange={async (val) => {
-                                const v = val ?? "";
-                                headerUserEditedRef.current = true;
-                                handleInputChange("siNumberId", v);
-                                const selectedName = v !== "" ? getOptionNameById(siOptions, v) : "";
-                                handleInputChange("siNumber", selectedName);
-                                setQDeliverySi(selectedName);
-                                try {
-                                  setIsSiFormLoading(true);
-                                  const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
-                                  if (!currentId) return;
-                                  const updated = await saveForm(
-                                    buildSavePayloadWithId(currentId, {
-                                      si_number_id: v !== "" ? Number(v) : null,
-                                    })
-                                  );
-                                  if (updated?.id != null) setSiFormId(updated.id);
-                                  applySiFormResponse(updated, { lockedAgentId: formData.selectAgent });
-                                } catch (e) {
-                                  console.error("Failed to update SI number:", e);
-                                  showFormSaveError(toast, e, "Failed to save form");
-                                } finally {
-                                  setIsSiFormLoading(false);
-                                }
-                              }}
-                              onSearchChange={(txt) => setQDeliverySi(txt ?? "")}
-                              prefillOnFocus={false}
-                              options={siOptions}
-                              displayKey="name"
-                              valueKey="id"
-                              size="sm"
-                              bg="transparent"
-                              borderColor="transparent"
-                              variant="unstyled"
-                              px={0}
-                              py={0}
-                              _focus={{ boxShadow: "none", outline: "none" }}
-                              _focusVisible={{ boxShadow: "none", outline: "none" }}
-                              isLoading={isOptionsLoading || isSiFormLoading}
-                              style={{ color: "white" }}
-                              placeholder="Select SI number..."
-                              _placeholder={{ color: "whiteAlpha.800" }}
-                            />
-                          </FormControl>
-                        </>
-                      )}
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="so-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          SO NO :
+                        </FormLabel>
+                        <SimpleSearchableSelect
+                          id="so-number-delivery"
+                          value={formData.soNumberId ?? ""}
+                          onChange={async (val) => {
+                            const v = val ?? "";
+                            headerUserEditedRef.current = true;
+                            handleInputChange("soNumberId", v);
+                            const selectedName = v !== "" ? getOptionNameById(soOptions, v) : "";
+                            handleInputChange("soNo", selectedName);
+                            setQDeliverySo(selectedName);
+                            try {
+                              setIsSiFormLoading(true);
+                              const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
+                              if (!currentId) return;
+                              const updated = await saveForm(
+                                buildSavePayloadWithId(currentId, {
+                                  so_number_id: v !== "" ? Number(v) : null,
+                                })
+                              );
+                              if (updated?.id != null) setSiFormId(updated.id);
+                              applySiFormResponse(updated, { lockedAgentId: formData.selectAgent });
+                            } catch (e) {
+                              console.error("Failed to update SO number:", e);
+                              showFormSaveError(toast, e, "Failed to save form");
+                            } finally {
+                              setIsSiFormLoading(false);
+                            }
+                          }}
+                          onSearchChange={(txt) => setQDeliverySo(txt ?? "")}
+                          prefillOnFocus={false}
+                          options={soOptions}
+                          displayKey="name"
+                          valueKey="id"
+                          size="sm"
+                          bg="transparent"
+                          borderColor="transparent"
+                          variant="unstyled"
+                          px={0}
+                          py={0}
+                          _focus={{ boxShadow: "none", outline: "none" }}
+                          _focusVisible={{ boxShadow: "none", outline: "none" }}
+                          isLoading={isOptionsLoading || isSiFormLoading}
+                          style={{ color: "white" }}
+                          placeholder="Select SO number..."
+                          _placeholder={{ color: "whiteAlpha.800" }}
+                        />
+                      </FormControl>
                       <FormControl display="contents">
                         <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           PIC :
@@ -3358,10 +3299,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || "-"}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
-                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.cbmRaw ?? item.cbm)}</Td>
+                            <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{formatApiNumericDisplay(item.vwRaw ?? item.vw)}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh || "-"}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin || "-"}</Td>
                             <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || "-"}</Td>
@@ -3372,10 +3313,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           <Td colSpan={2} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                             CARGO TO BE SHIPPED:
                           </Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(totals.boxes)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(totals.kg)}</Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{formatApiNumericDisplay(formData.totalVw)}</Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
@@ -3503,8 +3444,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || "-"}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || "-"}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber || "-"}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh || "-"}</Td>
                               <Td py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || "-"}</Td>
                             </>
@@ -3517,11 +3458,11 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.poNumber}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.dg_un || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.boxes}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.kg.toFixed(2)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.cbm.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.cbmRaw ?? item.cbm)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{item.vw.toFixed(2)}</Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{formatApiNumericDisplay(item.vwRaw ?? item.vw)}</Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.stockItemId || ""}</Td>
                             </>
                           )}
@@ -3531,13 +3472,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <Td colSpan={isDeliveryLike ? 6 : 5} borderRight="1px" borderColor="gray.300" py={4} px={4} fontSize="xs">
                           {isDeliveryLike ? "CARGO TO BE DELIVERED:" : "CARGO TO BE SHIPPED:"}
                         </Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.boxes}</Td>
-                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{totals.kg.toFixed(2)}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(totals.boxes)}</Td>
+                        <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(totals.kg)}</Td>
                         {!isDeliveryLike && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>}
                         <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs"></Td>
                         {isDeliveryLike && <Td py={2} px={2} fontSize="xs"></Td>}
                         {!isDeliveryLike && (
-                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{Number(formData.totalVw || 0).toFixed(2)}</Td>
+                          <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="yellow.100">{formatApiNumericDisplay(formData.totalVw)}</Td>
                         )}
                         {!isDeliveryLike && <Td py={2} px={2} fontSize="xs" borderRight="1px" borderColor="gray.300"></Td>}
                       </Tr>

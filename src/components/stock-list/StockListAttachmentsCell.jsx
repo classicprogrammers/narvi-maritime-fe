@@ -2,10 +2,10 @@ import React from "react";
 import { VStack, HStack, Text, IconButton, Button, Icon } from "@chakra-ui/react";
 import { MdVisibility, MdDownload } from "react-icons/md";
 import {
-    getAttachmentEntriesNewestFirst,
+    collectListAttachmentsForPreview,
     partitionAttachmentsList,
 } from "../../utils/stockReportAttachmentsUi";
-import { normalizeLegacyStockReportFilename } from "../../utils/stockReportPdf";
+import { getStockAttachmentLabel } from "../../utils/stockAttachmentPreview";
 
 /**
  * Files column for stock list tables: other attachments + latest status report;
@@ -14,7 +14,7 @@ import { normalizeLegacyStockReportFilename } from "../../utils/stockReportPdf";
 export default function StockListAttachmentsCell({
     attachments,
     stockItemId,
-    onViewFile,
+    onPreviewAll,
     onDownloadFile,
     onOpenPreviousReports,
     emptyLabel = "No files",
@@ -36,9 +36,10 @@ export default function StockListAttachmentsCell({
     let olderReports = [];
 
     if (attachmentMode === "all") {
-        const entries = getAttachmentEntriesNewestFirst(list);
-        latestReport = entries[0] ?? null;
-        olderReports = entries.slice(1);
+        const previewItems = collectListAttachmentsForPreview(list, "all");
+        latestReport = previewItems[0] ? { att: previewItems[0] } : null;
+        olderReports = previewItems.slice(1).map((att, idx) => ({ att, id: att.id ?? idx }));
+        nonReportAttachments = [];
     } else {
         const partitioned = partitionAttachmentsList(list);
         nonReportAttachments = partitioned.nonReportAttachments;
@@ -47,9 +48,9 @@ export default function StockListAttachmentsCell({
     }
 
     const stockId = stockItemId;
+    const previewAttachments = collectListAttachmentsForPreview(list, attachmentMode);
 
-    const fileLabel = (att) =>
-        normalizeLegacyStockReportFilename(att.filename || att.name) || att.filename || att.name || "File";
+    const fileLabel = (att) => getStockAttachmentLabel(att);
 
     const renderFileRow = (att, key) => (
         <HStack key={key} spacing={1} align="center">
@@ -58,21 +59,10 @@ export default function StockListAttachmentsCell({
                 isTruncated
                 flex={1}
                 title={fileLabel(att)}
-                cursor="pointer"
-                color="blue.500"
-                _hover={{ textDecoration: "underline" }}
-                onClick={() => onViewFile(att, stockId)}
+                color="gray.700"
             >
                 {fileLabel(att)}
             </Text>
-            <IconButton
-                icon={<Icon as={MdVisibility} />}
-                size="xs"
-                variant="ghost"
-                colorScheme="blue"
-                aria-label="View file"
-                onClick={() => onViewFile(att, stockId)}
-            />
             {onDownloadFile && att.id && stockId && (
                 <IconButton
                     icon={<Icon as={MdDownload} />}
@@ -96,6 +86,18 @@ export default function StockListAttachmentsCell({
 
     return (
         <VStack spacing={1} align="stretch">
+            {onPreviewAll && previewAttachments.length > 0 && (
+                <Button
+                    size="xs"
+                    variant="outline"
+                    colorScheme="blue"
+                    leftIcon={<Icon as={MdVisibility} />}
+                    w="100%"
+                    onClick={() => onPreviewAll(previewAttachments, stockId, 0)}
+                >
+                    Preview all ({previewAttachments.length})
+                </Button>
+            )}
             {nonReportAttachments.map((att, idx) => renderFileRow(att, `other-${att.id ?? idx}`))}
             {latestReport && renderFileRow(latestReport.att, `latest-${latestReport.id ?? "report"}`)}
             {olderReports.length > 0 && onOpenPreviousReports && (
