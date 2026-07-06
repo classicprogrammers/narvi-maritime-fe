@@ -197,10 +197,14 @@ const parseCiPlFormTotalsFromApi = (form) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
   };
+  const parseFormTotalDisplay = (value) => {
+    if (value == null || value === false || value === "") return null;
+    return String(value);
+  };
   return {
     totalBox: parseFormTotal(form?.total_box ?? formTotalsSource.total_box),
     totalWeight: parseFormTotal(form?.total_weight ?? formTotalsSource.total_weight),
-    totalValueInUsd: parseFormTotal(
+    totalValueInUsd: parseFormTotalDisplay(
       form?.total_value_in_usd ?? formTotalsSource.total_value_in_usd
     ),
     totalPerUnit: parseFormTotal(form?.total_per_unit ?? formTotalsSource.total_per_unit),
@@ -208,6 +212,12 @@ const parseCiPlFormTotalsFromApi = (form) => {
       form?.total_quantity_pcs ?? formTotalsSource.total_quantity_pcs
     ),
   };
+};
+
+/** TOTAL row value — show backend string exactly (keep .00, no reformatting). */
+const formatCiPlTotalValueDisplay = (value) => {
+  if (value == null || value === false || value === "") return "-";
+  return String(value);
 };
 
 const ciPlInlineFieldStyles = {
@@ -2426,7 +2436,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           ciPlTotalDescriptionLabel,
           formatApiNumericDisplay(stockListTableTotals.quantityPcs),
           formatApiNumericDisplay(stockListTableTotals.perUnit),
-          formatApiNumericDisplay(stockListTableTotals.valueUsd),
+          formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
         ]
         : isCiPlManifestTab
           ? [
@@ -2436,7 +2446,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             formatApiNumericDisplay(stockListTableTotals.weight),
             "",
             ciPlTotalDescriptionLabel,
-            formatApiNumericDisplay(stockListTableTotals.valueUsd),
+            formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
           ]
           : [
             "TOTAL",
@@ -2444,7 +2454,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             formatApiNumericDisplay(stockListTableTotals.weight),
             "",
             ciPlTotalDescriptionLabel,
-            formatApiNumericDisplay(stockListTableTotals.valueUsd),
+            formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
           ];
       const ciPlPackedAsRow = isCiPlPerUnitTab
         ? [
@@ -2482,8 +2492,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const docTitle = isCiPlManifestTab
         ? `Shipping Invoice / Cargo Manifest${formData.vessel ? ` - ${formData.vessel}` : ""}`
         : `Invoice / Packing List${formData.vessel ? ` - ${formData.vessel}` : ""}`;
-      doc.setFontSize(12);
-      doc.text(docTitle, contentLeft, contentTop);
+      doc.setFontSize(20);
+      doc.text(docTitle, pageWidth / 2, contentTop, { align: "center" });
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.text(`Date: ${pdfDate}`, contentLeft, contentTop + 14);
 
@@ -4022,7 +4033,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             </Td>
                           )}
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
-                            {formatApiNumericDisplay(stockListTableTotals.valueUsd)}
+                            {formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd)}
                           </Td>
                         </Tr>
                       )}
