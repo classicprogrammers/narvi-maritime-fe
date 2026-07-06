@@ -474,16 +474,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     )
     : formData.siNumber;
 
-  const deliverySoNumberDisplay = isDeliveryLike
-    ? (
-      resolveApiText(formData.soNo) ||
-      resolveMany2oneLabel(formData.soNumberId, soOptions) ||
-      resolveApiText(formData.jobNo) ||
-      lastDeliveryHeaderRef.current.soNumber ||
-      ""
-    )
-    : formData.soNo;
-
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -505,6 +495,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
     return match?.name ? String(match.name) : "";
   };
+  const deliveryDiNumberDisplay = isDeliveryLike
+    ? (
+      selectedSiName ||
+      getOptionNameById(diOptions, formData.siNo) ||
+      resolveApiText(formData.jobNo) ||
+      ""
+    )
+    : formData.jobNo;
+  const deliverySoNumberDisplay = isDeliveryLike
+    ? resolveApiText(formData.soNo)
+    : formData.soNo;
   const mergeSelectedIdOption = (prev, selectedId, selectedName, normalizedOptions) => {
     if (selectedId !== "" && Number.isFinite(Number(selectedId))) {
       const idNum = Number(selectedId);
@@ -727,7 +728,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     if (isDeliveryConfirmation) {
       return {
         ...withOptionalFormIds({
-          so_number_id: data.soNumberId,
+          di_number_id: data.siNo,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
         ...buildHeaderMasterOptionFields({
@@ -746,7 +747,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     if (isDeliveryForm) {
       return {
         ...withOptionalFormIds({
-          so_number_id: data.soNumberId,
+          di_number_id: data.siNo,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
         ...buildHeaderMasterOptionFields({
@@ -1022,9 +1023,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         idKey: "so_number_id",
         options: soOptions,
         prevValue: "",
-        extraFallback:
-          resolveApiText(form.job_no) ||
-          resolveMany2oneLabel(form.job_ref_id, soOptions),
+        extraFallback: resolveMany2oneLabel(form.job_ref_id, soOptions),
       })
       : "";
     if (isDeliveryLike) {
@@ -1183,11 +1182,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(form.sic_number)
             : "")
         : isDeliveryLike
-          ? (form.job_no != null && form.job_no !== false
-            ? String(form.job_no)
-            : form.so_number != null && form.so_number !== false
-              ? String(form.so_number)
-              : "")
+          ? String(siName || "")
           : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
       soNo: isDeliveryLike
         ? resolveDeliveryHeaderText({
@@ -1196,9 +1191,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           idKey: "so_number_id",
           options: soOptions,
           prevValue: prev.soNo,
-          extraFallback:
-            resolveApiText(form.job_no) ||
-            resolveMany2oneLabel(form.job_ref_id, soOptions),
+          extraFallback: resolveMany2oneLabel(form.job_ref_id, soOptions),
         })
         : prev.soNo,
       soNumberId: isDeliveryLike ? toIdOrNull(form.so_number_id) : prev.soNumberId,
@@ -2131,16 +2124,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ]
       : isDeliveryConfirmation
         ? [
-          ["JOB NO", formData.jobNo || "-"],
-          ["SO NO", deliverySoNumberDisplay || formData.soNo || "-"],
+          ["JOB NO", deliveryDiNumberDisplay || "-"],
+          ["SO NO", deliverySoNumberDisplay || "-"],
           ["PIC", getPicDisplayName() || formData.pic || "-"],
           ["DELIVERY DATE", formData.deadline || "-"],
           ["LOCATION", formData.to || "-"],
         ]
         : isDeliveryForm
           ? [
-            ["JOB NO", formData.jobNo || "-"],
-            ["SO NO", deliverySoNumberDisplay || formData.soNo || "-"],
+            ["JOB NO", deliveryDiNumberDisplay || "-"],
+            ["SO NO", deliverySoNumberDisplay || "-"],
             ["PIC", formData.pic || "-"],
             ["DEADLINE", formData.deadline || "-"],
             ["LOCATION", formData.to || "-"],
@@ -3063,45 +3056,37 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         <FormLabel htmlFor="job-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
                           JOB NO :
                         </FormLabel>
-                        <Text size="sm" fontWeight="semibold" color="white">
-                          {formData.jobNo || "—"}
-                        </Text>
-                      </FormControl>
-                      <FormControl display="contents">
-                        <FormLabel htmlFor="so-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
-                          SO NO :
-                        </FormLabel>
                         <SimpleSearchableSelect
-                          id="so-number-delivery"
-                          value={formData.soNumberId ?? ""}
+                          id="job-delivery"
+                          value={formData.siNo}
                           onChange={async (val) => {
                             const v = val ?? "";
-                            headerUserEditedRef.current = true;
-                            handleInputChange("soNumberId", v);
-                            const selectedName = v !== "" ? getOptionNameById(soOptions, v) : "";
-                            handleInputChange("soNo", selectedName);
-                            setQDeliverySo(selectedName);
+                            handleInputChange("siNo", v);
+                            const selectedName = v !== "" ? getOptionNameById(diOptions, v) : "";
+                            handleInputChange("jobNo", selectedName);
+                            setSelectedSiName(selectedName);
+                            setQSi(selectedName);
+                            if (v === "") return;
+                            packedTotalsUserEditedRef.current = false;
                             try {
                               setIsSiFormLoading(true);
                               const currentId = siFormId ?? (await loadFormLatest({ latest_only: true }))?.id;
                               if (!currentId) return;
                               const updated = await saveForm(
-                                buildSavePayloadWithId(currentId, {
-                                  so_number_id: v !== "" ? Number(v) : null,
-                                })
+                                buildSavePayloadWithId(currentId, buildDiNumberChangePayload(v))
                               );
                               if (updated?.id != null) setSiFormId(updated.id);
-                              applySiFormResponse(updated, { lockedAgentId: formData.selectAgent });
+                              applySiFormResponse(updated, { lockedSiId: v, lockedAgentId: formData.selectAgent });
                             } catch (e) {
-                              console.error("Failed to update SO number:", e);
+                              console.error("Failed to update DI number:", e);
                               showFormSaveError(toast, e, "Failed to save form");
                             } finally {
                               setIsSiFormLoading(false);
                             }
                           }}
-                          onSearchChange={(txt) => setQDeliverySo(txt ?? "")}
+                          onSearchChange={(txt) => setQSi(txt ?? "")}
                           prefillOnFocus={false}
-                          options={soOptions}
+                          options={diOptions}
                           displayKey="name"
                           valueKey="id"
                           size="sm"
@@ -3114,9 +3099,17 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                           _focusVisible={{ boxShadow: "none", outline: "none" }}
                           isLoading={isOptionsLoading || isSiFormLoading}
                           style={{ color: "white" }}
-                          placeholder="Select SO number..."
+                          placeholder="Select DI number..."
                           _placeholder={{ color: "whiteAlpha.800" }}
                         />
+                      </FormControl>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="so-number-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          SO NO :
+                        </FormLabel>
+                        <Text size="sm" fontWeight="semibold" color="white">
+                          {formData.soNo || "—"}
+                        </Text>
                       </FormControl>
                       <FormControl display="contents">
                         <FormLabel htmlFor="pic-delivery" fontWeight="bold" textTransform="uppercase" m={0}>

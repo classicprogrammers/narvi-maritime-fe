@@ -58,36 +58,89 @@ import vesselsAPI from "../../../api/vessels";
 import { refreshMasterData, MASTER_KEYS } from "../../../utils/masterDataCache";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SearchableSelect from "../../../components/forms/SearchableSelect";
+import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import {
   VESSEL_TYPE_SELEC_OPTIONS,
   normalizeVesselTypeSelec,
 } from "../../../constants/vesselTypeSelectOptions";
+
+const VESSELS_LIST_STORAGE_KEY = "narvi_vessels_list_state";
+
+const defaultVesselsListState = {
+  searchValue: "",
+  searchQuery: "",
+  clientFilter: "",
+  clientFilterLabel: "",
+  vesselTypeFilter: "",
+  page: 1,
+  sortBy: "name",
+  sortOrder: "asc",
+};
+
+function normalizeFilterId(value) {
+  if (value == null || value === "") return "";
+  const num = Number(value);
+  return Number.isFinite(num) ? num : value;
+}
+
+function readPersistedVesselsListState() {
+  try {
+    const raw = typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem(VESSELS_LIST_STORAGE_KEY)
+      : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      searchValue: typeof parsed.searchValue === "string" ? parsed.searchValue : "",
+      searchQuery: typeof parsed.searchQuery === "string" ? parsed.searchQuery : "",
+      clientFilter: normalizeFilterId(parsed.clientFilter),
+      clientFilterLabel: typeof parsed.clientFilterLabel === "string" ? parsed.clientFilterLabel : "",
+      vesselTypeFilter: typeof parsed.vesselTypeFilter === "string" ? parsed.vesselTypeFilter : "",
+      page: typeof parsed.page === "number" && parsed.page >= 1 ? parsed.page : 1,
+      sortBy: typeof parsed.sortBy === "string" ? parsed.sortBy : "name",
+      sortOrder: parsed.sortOrder === "desc" ? "desc" : "asc",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedVesselsListState(state) {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.setItem(VESSELS_LIST_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
 
 export default function Vessels() {
   const history = useHistory();
   const [vessels, setVessels] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [searchValue, setSearchValue] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
-  const [vesselTypeFilter, setVesselTypeFilter] = useState("");
+  const [savedListState] = useState(() => readPersistedVesselsListState() || defaultVesselsListState);
+  const [searchValue, setSearchValue] = useState(savedListState.searchValue);
+  const [searchQuery, setSearchQuery] = useState(savedListState.searchQuery);
+  const [clientFilter, setClientFilter] = useState(savedListState.clientFilter);
+  const [clientFilterLabel, setClientFilterLabel] = useState(savedListState.clientFilterLabel);
+  const [vesselTypeFilter, setVesselTypeFilter] = useState(savedListState.vesselTypeFilter);
   const [vesselTypeSelecOptions, setVesselTypeSelecOptions] = useState(VESSEL_TYPE_SELEC_OPTIONS);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(savedListState.page);
   const pageSize = 80;
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const [sortBy, setSortBy] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
+  const [sortBy, setSortBy] = useState(savedListState.sortBy);
+  const [sortOrder, setSortOrder] = useState(savedListState.sortOrder);
   const [editingVessel, setEditingVessel] = useState(null);
   const [deleteVesselId, setDeleteVesselId] = useState(null);
 
   const { clients } = useMasterData();
   const clientOptions = useMemo(() => {
     const source = Array.isArray(clients) ? clients : [];
-    return source.filter((client) => {
+    const filtered = source.filter((client) => {
       const hasCompanyMarker =
         client?.is_company !== undefined ||
         client?.company_type !== undefined ||
@@ -103,7 +156,45 @@ export default function Vessels() {
         client?.parent_id === "";
       return hasCompanyMarker ? (isCompany && isTopLevel) : true;
     });
+
+    if (!clientFilter) return filtered;
+    if (filtered.some((client) => String(client.id) === String(clientFilter))) {
+      return filtered;
+    }
+
+    const selectedFromSource = source.find(
+      (client) => String(client.id) === String(clientFilter)
+    );
+    if (selectedFromSource) {
+      return [selectedFromSource, ...filtered];
+    }
+
+    if (clientFilterLabel) {
+      return [{ id: clientFilter, name: clientFilterLabel }, ...filtered];
+    }
+
+    return filtered;
+  }, [clients, clientFilter, clientFilterLabel]);
+  const handleClientFilterChange = useCallback((value) => {
+    const nextValue = value || "";
+    setClientFilter(nextValue);
+    if (!nextValue) {
+      setClientFilterLabel("");
+      return;
+    }
+    const source = Array.isArray(clients) ? clients : [];
+    const match = source.find((client) => String(client.id) === String(nextValue));
+    setClientFilterLabel(match?.name || match?.company_name || "");
   }, [clients]);
+
+  useEffect(() => {
+    if (!clientFilter || clientFilterLabel) return;
+    const source = Array.isArray(clients) ? clients : [];
+    const match = source.find((client) => String(client.id) === String(clientFilter));
+    if (match) {
+      setClientFilterLabel(match.name || match.company_name || "");
+    }
+  }, [clientFilter, clientFilterLabel, clients]);
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
@@ -260,6 +351,24 @@ export default function Vessels() {
   }, [fetchVessels]);
 
   useEffect(() => {
+    writePersistedVesselsListState({
+      searchValue,
+      searchQuery,
+      clientFilter,
+      clientFilterLabel,
+      vesselTypeFilter,
+      page,
+      sortBy,
+      sortOrder,
+    });
+  }, [searchValue, searchQuery, clientFilter, clientFilterLabel, vesselTypeFilter, page, sortBy, sortOrder]);
+
+  const isFirstFilterPageReset = useRef(true);
+  useEffect(() => {
+    if (isFirstFilterPageReset.current) {
+      isFirstFilterPageReset.current = false;
+      return;
+    }
     setPage(1);
   }, [searchQuery, clientFilter, vesselTypeFilter]);
 
@@ -281,6 +390,7 @@ export default function Vessels() {
     setSearchValue("");
     setSearchQuery("");
     setClientFilter("");
+    setClientFilterLabel("");
     setVesselTypeFilter("");
     setPage(1);
   };
@@ -813,17 +923,17 @@ export default function Vessels() {
               )}
             </InputGroup>
             <Box minW={{ base: "100%", md: "300px" }} maxW={{ base: "100%", md: "350px" }}>
-              <SearchableSelect
+              <SimpleSearchableSelect
                 value={clientFilter}
-                onChange={(value) => setClientFilter(value || "")}
+                onChange={handleClientFilterChange}
                 options={clientOptions}
                 placeholder="Filter by client..."
                 displayKey="name"
                 valueKey="id"
                 formatOption={(c) => c.name || c.company_name || `Client ${c.id}`}
-                sx={{
-                  height: "38px"
-                }}
+                bg={inputBg}
+                color={inputText}
+                size="md"
               />
             </Box>
             <Box minW={{ base: "100%", md: "260px" }} maxW={{ base: "100%", md: "300px" }}>

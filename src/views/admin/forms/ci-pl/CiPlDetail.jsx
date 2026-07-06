@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory, useLocation, useParams } from "react-router-dom";
 import {
   Box,
@@ -97,10 +97,20 @@ import {
   getCiPlPdfMultiFieldLines,
   parseCiPlDescriptionFromApi,
   parseCiPlMultiFieldLines,
-  serializeCiPlDescriptionForApi,
   serializeCiPlMultiFieldLines,
 } from "../../../../utils/ciPlDescriptionField";
 import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
+import {
+  buildCiplStockLinePayload,
+  createEmptyCiplEntry,
+  getCiplActiveEntries,
+  getCiplEntryValueUsd,
+  getCiplPdfEntryRows,
+  getCiplStockLineValueUsd,
+  mergeCiplStockLineFromApi,
+  parseCiplStockLineEntriesFromApi,
+  syncCiplStockLineSummaryFields,
+} from "../../../../utils/ciPlStockLineEntries";
 
 const normalizeCurrencyMasterOptions = (rawList) => {
   if (!Array.isArray(rawList)) return [];
@@ -211,13 +221,38 @@ const ciPlInlineFieldStyles = {
   borderColor: "gray.300",
   flex: 1,
   minW: 0,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  overflow: "visible",
+  resize: "vertical",
+};
+
+const ciPlDescriptionTextareaRows = (text) => {
+  const value = String(text ?? "");
+  if (!value.trim()) return 2;
+  const lines = value.split(/\n/);
+  const rowCount = lines.reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil(line.length / 52)),
+    0
+  );
+  return Math.max(2, Math.min(12, rowCount));
+};
+
+const ciPlValueInputStyles = {
+  size: "xs",
+  variant: "unstyled",
+  bg: "#f1f3f5",
+  px: 2,
+  py: 2,
+  borderRadius: "sm",
+  border: "1px solid",
+  borderColor: "gray.300",
+  w: "100%",
+  textAlign: "center",
 };
 
 function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
   const lines = parseCiPlMultiFieldLines(value);
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [editingLineIndex, setEditingLineIndex] = useState(null);
-  const [draftText, setDraftText] = useState("");
   const commit = (nextLines) => onChange(serializeCiPlMultiFieldLines(nextLines));
   const updateLine = (lineIndex, nextValue) => {
     commit(lines.map((line, idx) => (idx === lineIndex ? nextValue : line)));
@@ -227,82 +262,41 @@ function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
     if (lines.length <= 1) return;
     commit(lines.filter((_, idx) => idx !== lineIndex));
   };
-  const openLineEditor = (lineIndex) => {
-    setEditingLineIndex(lineIndex);
-    setDraftText(lines[lineIndex] ?? "");
-    onOpen();
-  };
-  const handleCloseLineEditor = () => {
-    onClose();
-    setEditingLineIndex(null);
-    setDraftText("");
-  };
-  const handleSaveLineEditor = () => {
-    if (editingLineIndex == null) return;
-    updateLine(editingLineIndex, draftText);
-    handleCloseLineEditor();
-  };
 
   return (
-    <>
-      <VStack align="stretch" spacing={1} w="100%">
-        {lines.map((line, lineIndex) => (
-          <HStack key={`line-${lineIndex}`} align="center" spacing={1}>
-            <Input
-              {...ciPlInlineFieldStyles}
-              value={line}
-              readOnly
-              cursor="pointer"
-              placeholder={placeholder}
-              onClick={() => openLineEditor(lineIndex)}
-            />
-            <IconButton
-              aria-label="Remove field"
-              icon={<Icon as={MdDelete} />}
-              size="xs"
-              variant="ghost"
-              colorScheme="red"
-              flexShrink={0}
-              isDisabled={lines.length <= 1}
-              onClick={() => removeLine(lineIndex)}
-            />
-          </HStack>
-        ))}
-        <IconButton
-          aria-label="Add field"
-          icon={<Icon as={MdAdd} />}
-          size="xs"
-          variant="outline"
-          alignSelf="flex-start"
-          onClick={addLine}
-        />
-      </VStack>
-      <Modal isOpen={isOpen} onClose={handleCloseLineEditor} size="xl" scrollBehavior="inside">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>
-            Edit Description{editingLineIndex != null ? ` ${editingLineIndex + 1}` : ""}
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <Textarea
-              value={draftText}
-              onChange={(e) => setDraftText(e.target.value)}
-              rows={6}
-              placeholder={placeholder}
-            />
-          </ModalBody>
-          <ModalFooter gap={2}>
-            <Button variant="ghost" onClick={handleCloseLineEditor}>
-              Cancel
-            </Button>
-            <Button colorScheme="blue" onClick={handleSaveLineEditor}>
-              Save
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </>
+    <VStack align="stretch" spacing={1} w="100%">
+      {lines.map((line, lineIndex) => (
+        <HStack key={`line-${lineIndex}`} align="flex-start" spacing={1}>
+          <Textarea
+            {...ciPlInlineFieldStyles}
+            value={line}
+            onChange={(e) => updateLine(lineIndex, e.target.value)}
+            placeholder={placeholder}
+            rows={ciPlDescriptionTextareaRows(line)}
+            minH="unset"
+          />
+          <IconButton
+            aria-label="Remove field"
+            icon={<Icon as={MdDelete} />}
+            size="xs"
+            variant="ghost"
+            colorScheme="red"
+            flexShrink={0}
+            mt={1}
+            isDisabled={lines.length <= 1}
+            onClick={() => removeLine(lineIndex)}
+          />
+        </HStack>
+      ))}
+      <IconButton
+        aria-label="Add field"
+        icon={<Icon as={MdAdd} />}
+        size="xs"
+        variant="outline"
+        alignSelf="flex-start"
+        onClick={addLine}
+      />
+    </VStack>
   );
 }
 
@@ -503,6 +497,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       valueUsd: "",
       quantity: "",
       perUnit: "",
+      entries: [createEmptyCiplEntry()],
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -522,6 +517,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       valueUsd: "",
       quantity: "",
       perUnit: "",
+      entries: [createEmptyCiplEntry()],
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -535,6 +531,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const isCiPlPerUnitTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 1;
   const isCiPlManifestTab = !isShippingAdvise && !isDeliveryLike && ciPlTabIndex === 2;
   const isCiPlDraftTab = isCiPlForm && !isCiPlArchivedView;
+  const isCiPlEntriesTab = isCiPlForm && !isCiPlManifestTab;
 
   // Calculate totals
   const totals = {
@@ -565,10 +562,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       valueUsd:
         formData.totalValueInUsd != null
           ? formData.totalValueInUsd
-          : cargoItems.reduce((sum, item) => {
-            const v = Number(String(item.valueUsd ?? "").trim());
-            return sum + (Number.isFinite(v) ? v : 0);
-          }, 0),
+          : cargoItems.reduce(
+            (sum, item) => sum + getCiplStockLineValueUsd(item, isCiPlPerUnitTab),
+            0
+          ),
     };
 
   const handleInputChange = (field, value) => {
@@ -582,7 +579,86 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       prev.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
     );
   };
+  const resolveCargoItemEntries = (item) => {
+    const active = getCiplActiveEntries(item);
+    if (active.length > 0) {
+      return Array.isArray(item.entries) ? item.entries : active;
+    }
+    return parseCiplStockLineEntriesFromApi(
+      {
+        description: item.details,
+        value_in_usd: item.valueUsd,
+        quantity_pcs: item.quantity,
+        per_unit: item.perUnit,
+      },
+      isCiPlPerUnitTab
+    );
+  };
+  const updateCargoItemEntry = (itemIndex, entryLocalKey, field, value) => {
+    setCargoItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const baseEntries = resolveCargoItemEntries(item);
+        const nextEntries = baseEntries.map((entry) =>
+          entry.localKey === entryLocalKey ? { ...entry, [field]: value } : entry
+        );
+        return syncCiplStockLineSummaryFields({ ...item, entries: nextEntries }, isCiPlPerUnitTab);
+      })
+    );
+  };
+  const addCargoItemEntry = (itemIndex) => {
+    setCargoItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const baseEntries = resolveCargoItemEntries(item);
+        return syncCiplStockLineSummaryFields(
+          { ...item, entries: [...baseEntries, createEmptyCiplEntry()] },
+          isCiPlPerUnitTab
+        );
+      })
+    );
+  };
+  const removeCargoItemEntry = (itemIndex, entryLocalKey) => {
+    setCargoItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const baseEntries = resolveCargoItemEntries(item);
+        const active = baseEntries.filter((entry) => !entry.deleted);
+        if (active.length <= 1) return item;
+        let nextEntries = baseEntries
+          .map((entry) => {
+            if (entry.localKey !== entryLocalKey) return entry;
+            if (entry.id) return { ...entry, deleted: true };
+            return null;
+          })
+          .filter(Boolean);
+        if (nextEntries.filter((entry) => !entry.deleted).length === 0) {
+          nextEntries = [...nextEntries, createEmptyCiplEntry()];
+        }
+        return syncCiplStockLineSummaryFields({ ...item, entries: nextEntries }, isCiPlPerUnitTab);
+      })
+    );
+  };
+  const ciplEntryDisplayRows = useMemo(() => {
+    if (!isCiPlEntriesTab) return [];
+    return cargoItems.flatMap((item, itemIndex) => {
+      const entries = resolveCargoItemEntries(item).filter((entry) => !entry.deleted);
+      const rows = entries.length ? entries : [createEmptyCiplEntry()];
+      return rows.map((entry, entryIndex) => ({
+        item,
+        itemIndex,
+        entry,
+        entryIndex,
+        rowSpan: rows.length,
+      }));
+    });
+  }, [cargoItems, isCiPlEntriesTab, isCiPlPerUnitTab]);
   const getPerUnitLineValueUsd = (item) => {
+    const activeEntries = getCiplActiveEntries(item);
+    if (activeEntries.length > 0) {
+      const sum = getCiplStockLineValueUsd(item, true);
+      return sum ? formatCiPlValueDisplay(sum) : "";
+    }
     if (item?.valueUsd != null && item.valueUsd !== false && String(item.valueUsd).trim() !== "") {
       return formatCiPlValueDisplay(item.valueUsd);
     }
@@ -808,48 +884,6 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       lastSavedAutosaveRef.current.stockLines = stockLinesSignature;
     }
   };
-  const buildCiplStockLinePayload = (items, isPerUnit) =>
-    (Array.isArray(items) ? items : []).map((item) => ({
-      ...(item?.lineId != null && Number.isFinite(Number(item.lineId))
-        ? { id: Number(item.lineId) }
-        : {}),
-      ...(item?.stockListId != null && Number.isFinite(Number(item.stockListId))
-        ? { stock_list_id: Number(item.stockListId) }
-        : {}),
-      ...(item?.stockItemId != null && String(item.stockItemId).trim() !== ""
-        ? { stock_item_id: String(item.stockItemId) }
-        : {}),
-      warehouse_new: toNullIfEmpty(item?.warehouseId),
-      description: toNullIfEmpty(serializeCiPlDescriptionForApi(item?.details)),
-      dg_un: toNullIfEmpty(item?.dg_un),
-      lwh: toNullIfEmpty(item?.lwh),
-      ...(isPerUnit
-        ? {
-          quantity_pcs: toNullIfEmpty(item?.quantity),
-          per_unit: toNullIfEmpty(item?.perUnit),
-        }
-        : {
-          value_in_usd: toNullIfEmpty(item?.valueUsd),
-        }),
-    }));
-  const getStickyConsigneeId = () => {
-    if (isDeliveryLike) return null;
-    if (formData.selectConsignee != null && formData.selectConsignee !== "" && Number.isFinite(Number(formData.selectConsignee))) {
-      return Number(formData.selectConsignee);
-    }
-    if (requiredAgentCneeId != null && Number.isFinite(Number(requiredAgentCneeId))) {
-      return Number(requiredAgentCneeId);
-    }
-    return null;
-  };
-  const getStickyAgentId = () => {
-    if (isDeliveryLike) return null;
-    if (formData.selectAgent != null && formData.selectAgent !== "" && Number.isFinite(Number(formData.selectAgent))) {
-      return Number(formData.selectAgent);
-    }
-    return null;
-  };
-
   const blankCargoRows = () => ([
     {
       id: 1,
@@ -862,6 +896,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       valueUsd: "",
       quantity: "",
       perUnit: "",
+      entries: [createEmptyCiplEntry()],
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -883,6 +918,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       valueUsd: "",
       quantity: "",
       perUnit: "",
+      entries: [createEmptyCiplEntry()],
       boxes: 0,
       kg: 0,
       cbm: 0,
@@ -894,6 +930,23 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       awbNumber: "",
     },
   ]);
+  const getStickyConsigneeId = () => {
+    if (isDeliveryLike) return null;
+    if (formData.selectConsignee != null && formData.selectConsignee !== "" && Number.isFinite(Number(formData.selectConsignee))) {
+      return Number(formData.selectConsignee);
+    }
+    if (requiredAgentCneeId != null && Number.isFinite(Number(requiredAgentCneeId))) {
+      return Number(requiredAgentCneeId);
+    }
+    return null;
+  };
+  const getStickyAgentId = () => {
+    if (isDeliveryLike) return null;
+    if (formData.selectAgent != null && formData.selectAgent !== "" && Number.isFinite(Number(formData.selectAgent))) {
+      return Number(formData.selectAgent);
+    }
+    return null;
+  };
 
   const applySiFormResponse = (form, { lockedConsigneeId, lockedSiId, lockedAgentId } = {}) => {
     if (!form) return;
@@ -1318,66 +1371,44 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         it.stock_list_id != null && it.stock_list_id !== false && Number.isFinite(Number(it.stock_list_id))
           ? Number(it.stock_list_id)
           : null;
-      return {
-        id: idx + 1,
-        origin: originVal,
-        warehouseId,
-        supplier: supplierName,
-        awbNumber:
-          it.awb_number != null && it.awb_number !== false
-            ? String(it.awb_number)
-            : it.awb_si_advise != null && it.awb_si_advise !== false
-              ? String(it.awb_si_advise)
-              : it.awb != null && it.awb !== false
-                ? String(it.awb)
+      return syncCiplStockLineSummaryFields(
+        {
+          id: idx + 1,
+          origin: originVal,
+          warehouseId,
+          supplier: supplierName,
+          awbNumber:
+            it.awb_number != null && it.awb_number !== false
+              ? String(it.awb_number)
+              : it.awb_si_advise != null && it.awb_si_advise !== false
+                ? String(it.awb_si_advise)
+                : it.awb != null && it.awb !== false
+                  ? String(it.awb)
+                  : "",
+          poNumber:
+            it.po_number != null && it.po_number !== false
+              ? String(it.po_number)
+              : it.po != null && it.po !== false
+                ? String(it.po)
                 : "",
-        poNumber:
-          it.po_number != null && it.po_number !== false
-            ? String(it.po_number)
-            : it.po != null && it.po !== false
-              ? String(it.po)
+          dg_un:
+            it.dg_un != null && it.dg_un !== false
+              ? String(it.dg_un)
               : "",
-        details: parseCiPlDescriptionFromApi(
-          it.description != null && it.description !== false
-            ? it.description
-            : it.details != null && it.details !== false
-              ? it.details
-              : ""
-        ),
-        dg_un:
-          it.dg_un != null && it.dg_un !== false
-            ? String(it.dg_un)
-            : "",
-        valueUsd: normalizeCiPlSingleValueField(
-          it.value_in_usd != null && it.value_in_usd !== false
-            ? it.value_in_usd
-            : it.value_usd != null && it.value_usd !== false
-              ? it.value_usd
-              : ""
-        ),
-        quantity:
-          it.quantity_pcs != null && it.quantity_pcs !== false
-            ? String(it.quantity_pcs)
-            : it.quantity != null && it.quantity !== false
-              ? String(it.quantity)
-              : "",
-        perUnit:
-          it.per_unit != null && it.per_unit !== false
-            ? String(it.per_unit)
-            : it.perunit != null && it.perunit !== false
-              ? String(it.perunit)
-              : "",
-        boxes: Number(it.boxes ?? it.box ?? 0),
-        boxesRaw: it.boxes ?? it.box ?? null,
-        kg: Number(it.kg ?? it.weight ?? 0),
-        kgRaw: it.kg ?? it.weight ?? null,
-        cbm: Number(it.cbm || 0),
-        lwh: lwhVal,
-        vw: Number(it.vw ?? it.ww ?? 0),
-        lineId,
-        stockListId,
-        stockItemId,
-      };
+          boxes: Number(it.boxes ?? it.box ?? 0),
+          boxesRaw: it.boxes ?? it.box ?? null,
+          kg: Number(it.kg ?? it.weight ?? 0),
+          kgRaw: it.kg ?? it.weight ?? null,
+          cbm: Number(it.cbm || 0),
+          lwh: lwhVal,
+          vw: Number(it.vw ?? it.ww ?? 0),
+          lineId,
+          stockListId,
+          stockItemId,
+          entries: parseCiplStockLineEntriesFromApi(it, isCiPlPerUnitTab),
+        },
+        isCiPlPerUnitTab
+      );
     });
 
     const stockLines = mapped.length ? mapped : blankCargoRows();
@@ -1726,20 +1757,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                 ) ??
                 updated.stock_list[idx];
               if (!serverLine) return item;
-              const apiDescription = serverLine.description ?? serverLine.details;
-              const details =
-                apiDescription != null && apiDescription !== false
-                  ? parseCiPlDescriptionFromApi(apiDescription)
-                  : item.details;
-              const lineId =
-                serverLine.id != null && Number.isFinite(Number(serverLine.id))
-                  ? Number(serverLine.id)
-                  : item.lineId;
               const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
-              if (details === item.details && lineId === item.lineId && supplier === item.supplier) {
-                return item;
-              }
-              return { ...item, details, lineId, supplier };
+              const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab);
+              return supplier === merged.supplier ? merged : { ...merged, supplier };
             });
             const mergedSignature = JSON.stringify(
               buildCiplStockLinePayload(next, isCiPlPerUnitTab)
@@ -2092,6 +2112,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                   valueUsd: null,
                   quantity: null,
                   perUnit: null,
+                  entries: [],
                 })),
                 isCiPlPerUnitTab
               )
@@ -2140,6 +2161,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             valueUsd: null,
             quantity: null,
             perUnit: null,
+            entries: [],
           })),
           isCiPlPerUnitTab
         )
@@ -2336,35 +2358,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const buildCiPlPdfCargoRows = (items) => {
         const rows = [];
         (items || []).forEach((item) => {
-          const descLines = getCiPlPdfMultiFieldLines(item?.details);
-          if (isCiPlPerUnitTab) {
-            const lineCount = Math.max(descLines.length, 1);
-            const sharedCells = [
-              ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfNumber(item.kgRaw ?? item.kg), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfLwh(item.lwh), lineCount),
-            ];
-            const trailingCells = [
-              ciPlPdfSpanCell(formatCiPlPdfText(item.quantity), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfText(item.perUnit), lineCount),
-              ciPlPdfSpanCell(formatCiPlPdfValue(getPerUnitLineValueUsd(item)), lineCount),
-            ];
-            for (let i = 0; i < lineCount; i += 1) {
-              if (i === 0) {
-                rows.push([
-                  ...sharedCells,
-                  descLines[i] ?? "-",
-                  ...trailingCells,
-                ]);
-              } else {
-                rows.push([descLines[i] ?? "-"]);
-              }
-            }
-            return;
-          }
-
           if (isCiPlManifestTab) {
+            const descLines = getCiPlPdfMultiFieldLines(item?.details);
             const lineCount = Math.max(descLines.length, 1);
             const valueCell = formatCiPlPdfValue(item.valueUsd) || "-";
             const sharedCells = [
@@ -2385,22 +2380,39 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
             return;
           }
 
-          const lineCount = Math.max(descLines.length, 1);
-          const valueCell = formatCiPlPdfValue(item.valueUsd) || "-";
+          const entryRows = getCiplPdfEntryRows(item, isCiPlPerUnitTab);
+          const lineCount = Math.max(entryRows.length, 1);
           const sharedCells = [
             ciPlPdfSpanCell(formatCiPlPdfText(item.poNumber), lineCount),
             ciPlPdfSpanCell(formatCiPlPdfBoxes(item.boxesRaw ?? item.boxes), lineCount),
             ciPlPdfSpanCell(formatCiPlPdfNumber(item.kgRaw ?? item.kg), lineCount),
             ciPlPdfSpanCell(formatCiPlPdfLwh(item.lwh), lineCount),
           ];
-          for (let i = 0; i < lineCount; i += 1) {
-            const descCell = i < descLines.length ? descLines[i] : "-";
-            if (i === 0) {
-              rows.push([...sharedCells, descCell, ciPlPdfSpanCell(valueCell, lineCount)]);
+          entryRows.forEach((entryRow, i) => {
+            const descCell = entryRow.description != null && String(entryRow.description).trim() !== ""
+              ? String(entryRow.description)
+              : "-";
+            if (isCiPlPerUnitTab) {
+              const trailingCells = [
+                formatCiPlPdfText(entryRow.quantity),
+                formatCiPlPdfText(entryRow.perUnit),
+                formatCiPlPdfValue(entryRow.valueUsd),
+              ];
+              if (i === 0) {
+                rows.push([...sharedCells, descCell, ...trailingCells]);
+              } else {
+                rows.push([descCell, ...trailingCells]);
+              }
+            } else if (i === 0) {
+              rows.push([
+                ...sharedCells,
+                descCell,
+                formatCiPlPdfValue(entryRow.valueUsd),
+              ]);
             } else {
-              rows.push([descCell]);
+              rows.push([descCell, formatCiPlPdfValue(entryRow.valueUsd)]);
             }
-          }
+          });
         });
         return rows;
       };
@@ -3705,7 +3717,116 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                       </Tr>
                     </Thead>
                     <Tbody>
-                      {cargoItems.map((item, index) => (
+                      {isCiPlEntriesTab
+                        ? ciplEntryDisplayRows.map(({ item, itemIndex, entry, entryIndex, rowSpan }) => (
+                          <Tr key={`${item.id}-${entry.localKey}`} bg={itemIndex % 2 === 0 ? "white" : "gray.50"}>
+                            {entryIndex === 0 && (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" rowSpan={rowSpan} verticalAlign="middle">{item.poNumber}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" rowSpan={rowSpan} verticalAlign="middle">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" rowSpan={rowSpan} verticalAlign="middle">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                                <Td
+                                  borderRight="1px"
+                                  borderColor="gray.300"
+                                  py={2}
+                                  px={2}
+                                  fontSize="xs"
+                                  w="12%"
+                                  minW="112px"
+                                  whiteSpace="pre-line"
+                                  lineHeight="1.35"
+                                  verticalAlign="middle"
+                                  textAlign="center"
+                                  rowSpan={rowSpan}
+                                >
+                                  {formatLwhWithLineBreaks(item.lwh)}
+                                </Td>
+                              </>
+                            )}
+                            <Td
+                              borderRight="1px"
+                              borderColor="gray.300"
+                              py={1}
+                              px={2}
+                              fontSize="xs"
+                              bg="#f1f3f5"
+                              minW={isCiPlPerUnitTab ? "260px" : "280px"}
+                              w={isCiPlPerUnitTab ? "28%" : "42%"}
+                              verticalAlign="top"
+                            >
+                              <VStack align="stretch" spacing={1} w="100%">
+                                <HStack align="flex-start" spacing={1}>
+                                  <Textarea
+                                    {...ciPlInlineFieldStyles}
+                                    value={entry.description || ""}
+                                    onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "description", e.target.value)}
+                                    placeholder="Free text"
+                                    rows={ciPlDescriptionTextareaRows(entry.description)}
+                                    minH="unset"
+                                  />
+                                  <IconButton
+                                    aria-label="Remove entry"
+                                    icon={<Icon as={MdDelete} />}
+                                    size="xs"
+                                    variant="ghost"
+                                    colorScheme="red"
+                                    flexShrink={0}
+                                    mt={1}
+                                    isDisabled={rowSpan <= 1}
+                                    onClick={() => removeCargoItemEntry(itemIndex, entry.localKey)}
+                                  />
+                                </HStack>
+                                {entryIndex === rowSpan - 1 && (
+                                  <IconButton
+                                    aria-label={isCiPlPerUnitTab ? "Add description row" : "Add description and value row"}
+                                    icon={<Icon as={MdAdd} />}
+                                    size="xs"
+                                    variant="outline"
+                                    alignSelf="flex-start"
+                                    onClick={() => addCargoItemEntry(itemIndex)}
+                                  />
+                                )}
+                              </VStack>
+                            </Td>
+                            {isCiPlPerUnitTab && (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                  <Input
+                                    {...ciPlValueInputStyles}
+                                    value={entry.quantity || ""}
+                                    onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "quantity", e.target.value)}
+                                    placeholder="Free text"
+                                    textAlign="center"
+                                  />
+                                </Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                  <Input
+                                    {...ciPlValueInputStyles}
+                                    value={entry.perUnit || ""}
+                                    onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "perUnit", e.target.value)}
+                                    placeholder="Free text"
+                                    textAlign="center"
+                                  />
+                                </Td>
+                              </>
+                            )}
+                            <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
+                              {isCiPlPerUnitTab ? (
+                                <Text px={2} py={2} fontSize="xs" textAlign="center">
+                                  {formatCiPlValueDisplay(getCiplEntryValueUsd(entry, true)) || "-"}
+                                </Text>
+                              ) : (
+                                <Input
+                                  {...ciPlValueInputStyles}
+                                  value={entry.valueUsd || ""}
+                                  onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "valueUsd", e.target.value)}
+                                  placeholder="Free text"
+                                />
+                              )}
+                            </Td>
+                          </Tr>
+                        ))
+                        : cargoItems.map((item, index) => (
                         <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
                           {isDeliveryForm && (
                             <>
@@ -3766,7 +3887,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 w={isCiPlPerUnitTab ? "28%" : "42%"}
                                 verticalAlign="top"
                               >
-                                {isCiPlForm ? (
+                                {isCiPlManifestTab ? (
                                   <CiPlInlineMultiField
                                     value={item.details}
                                     onChange={(nextValue) => updateCargoItem(index, "details", nextValue)}
@@ -3827,7 +3948,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                   <Text px={2} py={2} fontSize="xs" textAlign="center">
                                     {getPerUnitLineValueUsd(item) || "-"}
                                   </Text>
-                                ) : isCiPlForm ? (
+                                ) : isCiPlManifestTab ? (
                                   <Input
                                     value={item.valueUsd || ""}
                                     onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
