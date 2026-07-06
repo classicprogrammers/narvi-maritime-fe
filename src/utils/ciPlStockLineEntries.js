@@ -67,7 +67,24 @@ export function parseCiplStockLineEntriesFromApi(line, isPerUnit) {
       ? line.quantity_pcs === false && line.per_unit === false
       : true)
   ) {
-    return [createEmptyCiplEntry()];
+    const lineValueUsd = normalizeCiplEntryValue(
+      line.value_in_usd != null && line.value_in_usd !== false
+        ? line.value_in_usd
+        : line.value_usd
+    );
+    const lineQty = normalizeCiplEntryValue(line.quantity_pcs ?? line.quantity);
+    const linePerUnit = normalizeCiplEntryValue(line.per_unit ?? line.perunit);
+    return [
+      {
+        id: null,
+        localKey: "e-line-0",
+        description: "",
+        valueUsd: lineValueUsd,
+        quantity: lineQty,
+        perUnit: linePerUnit,
+        deleted: false,
+      },
+    ];
   }
 
   const descriptionRaw =
@@ -254,7 +271,7 @@ export function buildCiplStockLinePayload(items, isPerUnit) {
   );
 }
 
-export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit) {
+export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit, options = {}) {
   if (!serverLine) return item;
 
   const entries = parseCiplStockLineEntriesFromApi(serverLine, isPerUnit);
@@ -263,7 +280,7 @@ export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit) {
       ? Number(serverLine.id)
       : item.lineId;
 
-  return syncCiplStockLineSummaryFields(
+  const merged = syncCiplStockLineSummaryFields(
     {
       ...item,
       lineId,
@@ -271,6 +288,25 @@ export function mergeCiplStockLineFromApi(item, serverLine, isPerUnit) {
     },
     isPerUnit
   );
+
+  if (!options.isManifest) return merged;
+
+  const apiValueUsd =
+    serverLine.value_in_usd != null && serverLine.value_in_usd !== false
+      ? serverLine.value_in_usd
+      : serverLine.value_usd != null && serverLine.value_usd !== false
+        ? serverLine.value_usd
+        : merged.valueUsd;
+
+  return {
+    ...merged,
+    details:
+      serverLine.description != null && serverLine.description !== false
+        ? parseCiPlDescriptionFromApi(serverLine.description)
+        : "",
+    valueUsd:
+      apiValueUsd != null && apiValueUsd !== false ? String(apiValueUsd) : "",
+  };
 }
 
 export function getCiplPdfEntryRows(item, isPerUnit) {

@@ -1381,44 +1381,62 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
         it.stock_list_id != null && it.stock_list_id !== false && Number.isFinite(Number(it.stock_list_id))
           ? Number(it.stock_list_id)
           : null;
-      return syncCiplStockLineSummaryFields(
-        {
-          id: idx + 1,
-          origin: originVal,
-          warehouseId,
-          supplier: supplierName,
-          awbNumber:
-            it.awb_number != null && it.awb_number !== false
-              ? String(it.awb_number)
-              : it.awb_si_advise != null && it.awb_si_advise !== false
-                ? String(it.awb_si_advise)
-                : it.awb != null && it.awb !== false
-                  ? String(it.awb)
+      return (() => {
+        const synced = syncCiplStockLineSummaryFields(
+          {
+            id: idx + 1,
+            origin: originVal,
+            warehouseId,
+            supplier: supplierName,
+            awbNumber:
+              it.awb_number != null && it.awb_number !== false
+                ? String(it.awb_number)
+                : it.awb_si_advise != null && it.awb_si_advise !== false
+                  ? String(it.awb_si_advise)
+                  : it.awb != null && it.awb !== false
+                    ? String(it.awb)
+                    : "",
+            poNumber:
+              it.po_number != null && it.po_number !== false
+                ? String(it.po_number)
+                : it.po != null && it.po !== false
+                  ? String(it.po)
                   : "",
-          poNumber:
-            it.po_number != null && it.po_number !== false
-              ? String(it.po_number)
-              : it.po != null && it.po !== false
-                ? String(it.po)
+            dg_un:
+              it.dg_un != null && it.dg_un !== false
+                ? String(it.dg_un)
                 : "",
-          dg_un:
-            it.dg_un != null && it.dg_un !== false
-              ? String(it.dg_un)
+            boxes: Number(it.boxes ?? it.box ?? 0),
+            boxesRaw: it.boxes ?? it.box ?? null,
+            kg: Number(it.kg ?? it.weight ?? 0),
+            kgRaw: it.kg ?? it.weight ?? null,
+            cbm: Number(it.cbm || 0),
+            lwh: lwhVal,
+            vw: Number(it.vw ?? it.ww ?? 0),
+            lineId,
+            stockListId,
+            stockItemId,
+            entries: parseCiplStockLineEntriesFromApi(it, isCiPlPerUnitTab),
+          },
+          isCiPlPerUnitTab
+        );
+        if (!isCiPlManifestTab) return synced;
+        const apiValueUsd =
+          it.value_in_usd != null && it.value_in_usd !== false
+            ? it.value_in_usd
+            : it.value_usd != null && it.value_usd !== false
+              ? it.value_usd
+              : synced.valueUsd;
+        return {
+          ...synced,
+          details:
+            it.description != null && it.description !== false
+              ? parseCiPlDescriptionFromApi(it.description)
               : "",
-          boxes: Number(it.boxes ?? it.box ?? 0),
-          boxesRaw: it.boxes ?? it.box ?? null,
-          kg: Number(it.kg ?? it.weight ?? 0),
-          kgRaw: it.kg ?? it.weight ?? null,
-          cbm: Number(it.cbm || 0),
-          lwh: lwhVal,
-          vw: Number(it.vw ?? it.ww ?? 0),
-          lineId,
-          stockListId,
-          stockItemId,
-          entries: parseCiplStockLineEntriesFromApi(it, isCiPlPerUnitTab),
-        },
-        isCiPlPerUnitTab
-      );
+          valueUsd:
+            apiValueUsd != null && apiValueUsd !== false ? String(apiValueUsd) : "",
+        };
+      })();
     });
 
     const stockLines = mapped.length ? mapped : blankCargoRows();
@@ -1768,7 +1786,9 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                 updated.stock_list[idx];
               if (!serverLine) return item;
               const supplier = resolveStockLineSupplierName(serverLine) || item.supplier;
-              const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab);
+              const merged = mergeCiplStockLineFromApi(item, serverLine, isCiPlPerUnitTab, {
+                isManifest: isCiPlManifestTab,
+              });
               return supplier === merged.supplier ? merged : { ...merged, supplier };
             });
             const mergedSignature = JSON.stringify(
@@ -3838,94 +3858,76 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                           </Tr>
                         ))
                         : cargoItems.map((item, index) => (
-                        <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
-                          {isDeliveryForm && (
-                            <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
-                            </>
-                          )}
-                          {isDeliveryConfirmation && (
-                            <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
-                            </>
-                          )}
-                          {isDeliveryLike ? (
-                            <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
-                              {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {item.warehouseId || ""}
-                              </Td>}
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh}</Td>
-                            </>
-                          ) : (
-                            <>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
-                              {isCiPlManifestTab && (
-                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || ""}</Td>
-                              )}
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
-                              <Td
-                                borderRight="1px"
-                                borderColor="gray.300"
-                                py={2}
-                                px={2}
-                                fontSize="xs"
-                                w="12%"
-                                minW="112px"
-                                whiteSpace="pre-line"
-                                lineHeight="1.35"
-                                verticalAlign="middle"
-                                textAlign="center"
-                              >
-                                {formatLwhWithLineBreaks(item.lwh)}
-                              </Td>
-                              <Td
-                                borderRight="1px"
-                                borderColor="gray.300"
-                                py={1}
-                                px={2}
-                                fontSize="xs"
-                                bg="#f1f3f5"
-                                minW={isCiPlPerUnitTab ? "260px" : "280px"}
-                                w={isCiPlPerUnitTab ? "28%" : "42%"}
-                                verticalAlign="top"
-                              >
-                                {isCiPlManifestTab ? (
-                                  <CiPlInlineMultiField
-                                    value={item.details}
-                                    onChange={(nextValue) => updateCargoItem(index, "details", nextValue)}
-                                    placeholder="Free text"
-                                  />
-                                ) : (
-                                  <Input
-                                    value={item.details || ""}
-                                    onChange={(e) => updateCargoItem(index, "details", e.target.value)}
-                                    size="xs"
-                                    variant="unstyled"
-                                    bg="#f1f3f5"
-                                    px={2}
-                                    py={2}
-                                    borderRadius="sm"
-                                    border="1px solid"
-                                    borderColor="gray.300"
-                                    placeholder="Free text"
-                                  />
+                          <Tr key={item.id} bg={index % 2 === 0 ? "white" : "gray.50"}>
+                            {isDeliveryForm && (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                              </>
+                            )}
+                            {isDeliveryConfirmation && (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" bg="orange.50">{item.stockItemId || ""}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.warehouseId || ""}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.awbNumber || formData.shippedBy || ""}</Td>
+                              </>
+                            )}
+                            {isDeliveryLike ? (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.origin}</Td>
+                                {!isDeliveryConfirmation && <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                                  {item.warehouseId || ""}
+                                </Td>}
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.lwh}</Td>
+                              </>
+                            ) : (
+                              <>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{item.poNumber}</Td>
+                                {isCiPlManifestTab && (
+                                  <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">{item.supplier || ""}</Td>
                                 )}
-                              </Td>
-                              {isCiPlPerUnitTab && (
-                                <>
-                                  <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.boxesRaw ?? item.boxes)}</Td>
+                                <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">{formatApiNumericDisplay(item.kgRaw ?? item.kg)}</Td>
+                                <Td
+                                  borderRight="1px"
+                                  borderColor="gray.300"
+                                  py={2}
+                                  px={2}
+                                  fontSize="xs"
+                                  w="12%"
+                                  minW="112px"
+                                  whiteSpace="pre-line"
+                                  lineHeight="1.35"
+                                  verticalAlign="middle"
+                                  textAlign="center"
+                                >
+                                  {formatLwhWithLineBreaks(item.lwh)}
+                                </Td>
+                                <Td
+                                  borderRight="1px"
+                                  borderColor="gray.300"
+                                  py={1}
+                                  px={2}
+                                  fontSize="xs"
+                                  bg="#f1f3f5"
+                                  minW={isCiPlPerUnitTab ? "260px" : "280px"}
+                                  w={isCiPlPerUnitTab ? "28%" : "42%"}
+                                  verticalAlign="top"
+                                >
+                                  {isCiPlManifestTab ? (
+                                    <CiPlInlineMultiField
+                                      value={item.details}
+                                      onChange={(nextValue) => updateCargoItem(index, "details", nextValue)}
+                                      placeholder="Free text"
+                                    />
+                                  ) : (
                                     <Input
-                                      value={item.quantity || ""}
-                                      onChange={(e) => updateCargoItem(index, "quantity", e.target.value)}
+                                      value={item.details || ""}
+                                      onChange={(e) => updateCargoItem(index, "details", e.target.value)}
                                       size="xs"
                                       variant="unstyled"
                                       bg="#f1f3f5"
@@ -3936,11 +3938,51 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                       borderColor="gray.300"
                                       placeholder="Free text"
                                     />
-                                  </Td>
-                                  <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                  )}
+                                </Td>
+                                {isCiPlPerUnitTab && (
+                                  <>
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                      <Input
+                                        value={item.quantity || ""}
+                                        onChange={(e) => updateCargoItem(index, "quantity", e.target.value)}
+                                        size="xs"
+                                        variant="unstyled"
+                                        bg="#f1f3f5"
+                                        px={2}
+                                        py={2}
+                                        borderRadius="sm"
+                                        border="1px solid"
+                                        borderColor="gray.300"
+                                        placeholder="Free text"
+                                      />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                      <Input
+                                        value={item.perUnit || ""}
+                                        onChange={(e) => updateCargoItem(index, "perUnit", e.target.value)}
+                                        size="xs"
+                                        variant="unstyled"
+                                        bg="#f1f3f5"
+                                        px={2}
+                                        py={2}
+                                        borderRadius="sm"
+                                        border="1px solid"
+                                        borderColor="gray.300"
+                                        placeholder="Free text"
+                                      />
+                                    </Td>
+                                  </>
+                                )}
+                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
+                                  {isCiPlPerUnitTab ? (
+                                    <Text px={2} py={2} fontSize="xs" textAlign="center">
+                                      {getPerUnitLineValueUsd(item) || "-"}
+                                    </Text>
+                                  ) : isCiPlManifestTab ? (
                                     <Input
-                                      value={item.perUnit || ""}
-                                      onChange={(e) => updateCargoItem(index, "perUnit", e.target.value)}
+                                      value={item.valueUsd || ""}
+                                      onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
                                       size="xs"
                                       variant="unstyled"
                                       bg="#f1f3f5"
@@ -3950,50 +3992,28 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                       border="1px solid"
                                       borderColor="gray.300"
                                       placeholder="Free text"
+                                      textAlign="center"
                                     />
-                                  </Td>
-                                </>
-                              )}
-                              <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
-                                {isCiPlPerUnitTab ? (
-                                  <Text px={2} py={2} fontSize="xs" textAlign="center">
-                                    {getPerUnitLineValueUsd(item) || "-"}
-                                  </Text>
-                                ) : isCiPlManifestTab ? (
-                                  <Input
-                                    value={item.valueUsd || ""}
-                                    onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
-                                    size="xs"
-                                    variant="unstyled"
-                                    bg="#f1f3f5"
-                                    px={2}
-                                    py={2}
-                                    borderRadius="sm"
-                                    border="1px solid"
-                                    borderColor="gray.300"
-                                    placeholder="Free text"
-                                    textAlign="center"
-                                  />
-                                ) : (
-                                  <Input
-                                    value={item.valueUsd || ""}
-                                    onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
-                                    size="xs"
-                                    variant="unstyled"
-                                    bg="#f1f3f5"
-                                    px={2}
-                                    py={2}
-                                    borderRadius="sm"
-                                    border="1px solid"
-                                    borderColor="gray.300"
-                                    textAlign="center"
-                                  />
-                                )}
-                              </Td>
-                            </>
-                          )}
-                        </Tr>
-                      ))}
+                                  ) : (
+                                    <Input
+                                      value={item.valueUsd || ""}
+                                      onChange={(e) => updateCargoItem(index, "valueUsd", e.target.value)}
+                                      size="xs"
+                                      variant="unstyled"
+                                      bg="#f1f3f5"
+                                      px={2}
+                                      py={2}
+                                      borderRadius="sm"
+                                      border="1px solid"
+                                      borderColor="gray.300"
+                                      textAlign="center"
+                                    />
+                                  )}
+                                </Td>
+                              </>
+                            )}
+                          </Tr>
+                        ))}
                       {!isShippingAdvise && !isDeliveryLike && (
                         <Tr bg="gray.100" fontWeight="bold">
                           <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
