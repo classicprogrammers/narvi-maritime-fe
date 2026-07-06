@@ -84,6 +84,7 @@ import {
 } from "../../../utils/stockDestinationOptions";
 import {
     createAppendStockReportPdfOnStatusChange,
+    createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
     normalizeLegacyStockReportFilename,
 } from "../../../utils/stockReportPdf";
@@ -401,8 +402,10 @@ export default function StockDBMainEdit() {
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     const formRowsRef = useRef(formRows);
+    const getPayloadRef = useRef(() => ({}));
     // Store original data for comparison
     const [originalRows, setOriginalRows] = useState([]);
+    const originalRowsRef = useRef(originalRows);
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const { openGallery, galleryModal } = useStockAttachmentsGallery();
@@ -412,6 +415,10 @@ export default function StockDBMainEdit() {
     useEffect(() => {
         formRowsRef.current = formRows;
     }, [formRows]);
+
+    useEffect(() => {
+        originalRowsRef.current = originalRows;
+    }, [originalRows]);
 
     const shippingOrderOptions = useMemo(
         () => buildShippingOrderSelectOptions(shippingOrders),
@@ -436,19 +443,6 @@ export default function StockDBMainEdit() {
             (user?.email && String(user.email).trim()) ||
             "",
         [user?.name, user?.email]
-    );
-
-    const appendStockReportPdfOnStatusChange = useCallback(
-        createAppendStockReportPdfOnStatusChange({
-            formRowsRef,
-            setFormRows,
-            setStockReportPdfLoadingRowIndex,
-            stockReportPdfHelpers,
-            statusChangeActorName,
-            toast,
-            shippingOrders,
-        }),
-        [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders]
     );
 
     // Load form data from stock item
@@ -1367,6 +1361,35 @@ export default function StockDBMainEdit() {
 
         return payload;
     };
+    getPayloadRef.current = getPayload;
+
+    const saveRowBeforeStockReportPdf = useMemo(
+        () =>
+            createSaveRowBeforeStockReportPdf({
+                formRowsRef,
+                getLinePayload: (row, { isUpdate, rowIndex }) =>
+                    getPayloadRef.current(
+                        row,
+                        originalRowsRef.current?.[rowIndex] ?? {},
+                        isUpdate
+                    ),
+            }),
+        []
+    );
+
+    const appendStockReportPdfOnStatusChange = useCallback(
+        createAppendStockReportPdfOnStatusChange({
+            formRowsRef,
+            setFormRows,
+            setStockReportPdfLoadingRowIndex,
+            stockReportPdfHelpers,
+            statusChangeActorName,
+            toast,
+            shippingOrders,
+            saveRowBeforePdf: saveRowBeforeStockReportPdf,
+        }),
+        [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders, saveRowBeforeStockReportPdf]
+    );
 
     // Check if there are unsaved changes
     const hasUnsavedChanges = useCallback(() => {
@@ -2644,7 +2667,7 @@ export default function StockDBMainEdit() {
 
                                             {stockReportPdfLoadingRowIndex === rowIndex && (
                                                 <Text fontSize="xs" color="gray.500" textAlign="center">
-                                                    Generating stock report PDF…
+                                                    Saving and generating stock report PDF…
                                                 </Text>
                                             )}
 

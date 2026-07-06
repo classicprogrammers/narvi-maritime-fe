@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import narviLetterheadPrint from "../assets/letterHead/NarviLetterhead.jpeg";
+import { createStockItemApi, updateStockItemApi } from "../api/stock";
 import {
   buildStockSoIdM2O,
   getShippingOrderDisplayLabel,
@@ -576,6 +577,123 @@ export function mapStandardFormRowToAdminItem(row, helpers = {}) {
     return mapFormRowToAdminItemForPdf(row, helpers);
 }
 
+function pickFirstObject(...candidates) {
+    for (const candidate of candidates) {
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+            return candidate;
+        }
+    }
+    return null;
+}
+
+function pickLineFromResponseCollection(collection, lineIndex) {
+    if (!Array.isArray(collection) || collection.length === 0) return null;
+    return collection[lineIndex] ?? collection[0] ?? null;
+}
+
+/** Read stock id / stock number from create or update API responses. */
+export function extractStockLineFromSaveResponse(response, lineIndex = 0) {
+    const result = response?.result ?? response;
+    if (!result || typeof result !== "object") return null;
+
+    const line = pickFirstObject(
+        pickLineFromResponseCollection(result.stock_list, lineIndex),
+        pickLineFromResponseCollection(result.lines, lineIndex),
+        pickLineFromResponseCollection(result.updated, lineIndex),
+        pickLineFromResponseCollection(result.created, lineIndex),
+        pickLineFromResponseCollection(result.records, lineIndex),
+        pickLineFromResponseCollection(result.items, lineIndex),
+        pickLineFromResponseCollection(result.data?.stock_list, lineIndex),
+        pickLineFromResponseCollection(result.data?.lines, lineIndex),
+        pickLineFromResponseCollection(result.data, lineIndex),
+        lineIndex === 0 ? result.data : null,
+        lineIndex === 0 ? result : null
+    );
+
+    if (!line) return null;
+
+    const stockId = line.id ?? line.stock_id ?? line.stockId ?? null;
+    const stockNumberRaw =
+        line.stock_number ?? line.stock_item_id ?? line.stockNumber ?? line.stockItemId ?? null;
+    const stockItemId =
+        stockNumberRaw != null && stockNumberRaw !== false ? String(stockNumberRaw).trim() : "";
+
+    if (stockId == null && !stockItemId) return null;
+
+    return {
+        stockId: stockId != null && stockId !== false ? stockId : null,
+        stockItemId,
+        stock_number: stockItemId,
+    };
+}
+
+export function mergeSavedStockIdsIntoRow(row, savedPatch) {
+    if (!row || !savedPatch) return row;
+    return {
+        ...row,
+        ...(savedPatch.stockId != null && savedPatch.stockId !== false
+            ? { stockId: savedPatch.stockId }
+            : {}),
+        ...(savedPatch.stockItemId
+            ? { stockItemId: savedPatch.stockItemId, stockNumber: savedPatch.stockItemId }
+            : {}),
+    };
+}
+
+function assertStockSaveSucceeded(response) {
+    const result = response?.result ?? response;
+    if (!result || typeof result !== "object") {
+        throw new Error("Failed to save stock item before PDF");
+    }
+    if (result.status === "error") {
+        throw new Error(result.message || "Failed to save stock item before PDF");
+    }
+    if (Number(result.error_count) > 0) {
+        const errorMessages = Array.isArray(result.errors)
+            ? result.errors
+                  .map((err) => err.message || `${err.field}: ${err.message || "Unknown error"}`)
+                  .join("; ")
+            : result.message || "Failed to save stock item before PDF";
+        throw new Error(errorMessages);
+    }
+    if (result.status && result.status !== "success") {
+        throw new Error(result.message || "Failed to save stock item before PDF");
+    }
+}
+
+/**
+ * Save a single stock form row before generating its status report PDF.
+ * Returns identifiers from the API so the PDF can include the assigned stock number.
+ */
+export function createSaveRowBeforeStockReportPdf({ getLinePayload, formRowsRef }) {
+    return async function saveRowBeforeStockReportPdf(rowIndex, rowSnapshot) {
+        const refRow = formRowsRef?.current?.[rowIndex];
+        const row = refRow ? { ...rowSnapshot, ...refRow } : { ...rowSnapshot };
+        const isUpdate = row.stockId != null && row.stockId !== false && String(row.stockId).trim() !== "";
+        const linePayload = getLinePayload(row, { isUpdate, rowIndex });
+        const payload = { lines: [linePayload] };
+
+        const response = isUpdate
+            ? await updateStockItemApi(row.stockId, payload)
+            : await createStockItemApi(payload);
+
+        assertStockSaveSucceeded(response);
+
+        const saved = extractStockLineFromSaveResponse(response, 0);
+        if (saved) return saved;
+
+        if (isUpdate) {
+            return {
+                stockId: row.stockId,
+                stockItemId: row.stockItemId ? String(row.stockItemId) : "",
+                stock_number: row.stockItemId ? String(row.stockItemId) : "",
+            };
+        }
+
+        throw new Error("Stock item saved but no stock number was returned by the API");
+    };
+}
+
 /** Prefer the latest form row (ref) over the status-change snapshot when building the PDF. */
 export function resolveLatestFormRowForPdf(formRowsRef, rowIndex, fallbackRow) {
     const rows = formRowsRef?.current;
@@ -604,21 +722,43 @@ export function createAppendStockReportPdfOnStatusChange({
     statusChangeActorName,
     toast,
     shippingOrders = [],
+    saveRowBeforePdf,
 }) {
     return async function appendStockReportPdfOnStatusChange(rowIndex, rowSnapshot, previousStatus, newStatus) {
         setStockReportPdfLoadingRowIndex(rowIndex);
         try {
-            const latestRow = resolveLatestFormRowForPdf(formRowsRef, rowIndex, rowSnapshot);
+            let latestRow = resolveLatestFormRowForPdf(formRowsRef, rowIndex, rowSnapshot);
+            let savedPatch = null;
+
+            if (saveRowBeforePdf) {
+                savedPatch = await saveRowBeforePdf(rowIndex, latestRow);
+                if (savedPatch) {
+                    latestRow = mergeSavedStockIdsIntoRow(latestRow, savedPatch);
+                    setFormRows((prev) =>
+                        prev.map((r, i) =>
+                            i === rowIndex ? mergeSavedStockIdsIntoRow(r, savedPatch) : r
+                        )
+                    );
+                }
+            }
+
             const adminItem = mapFormRowToAdminItemForPdf(latestRow, { shippingOrders });
+            if (savedPatch?.stockItemId) {
+                adminItem.stock_number = savedPatch.stockItemId;
+                adminItem.stock_item_id = savedPatch.stockItemId;
+            }
+
             const att = await buildStockReportPdfAttachmentForItem(adminItem, stockReportPdfHelpers, {
                 changedByName: statusChangeActorName || "Unknown user",
                 previousStatus: previousStatus || latestRow.stockStatusPreviousForPayload || "",
                 newStatus: newStatus || latestRow.stockStatus || "",
             });
             setFormRows((prev) =>
-                prev.map((r, i) =>
-                    i === rowIndex ? applyStockReportAttachmentOnStatusChange(r, att) : r
-                )
+                prev.map((r, i) => {
+                    if (i !== rowIndex) return r;
+                    const withIds = mergeSavedStockIdsIntoRow(r, savedPatch);
+                    return applyStockReportAttachmentOnStatusChange(withIds, att);
+                })
             );
         } catch (err) {
             console.error("Stock report PDF:", err);

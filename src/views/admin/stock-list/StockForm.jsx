@@ -57,6 +57,7 @@ import {
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
+    createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
 import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
@@ -150,6 +151,7 @@ export default function StockForm() {
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     const formRowsRef = useRef(formRows);
+    const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
     const statusPdfScheduleDedupeRef = useRef(null);
@@ -207,18 +209,6 @@ export default function StockForm() {
             }
         },
         [vesselOptionsByClientId]
-    );
-
-    const appendStockReportPdfOnStatusChange = useCallback(
-        createAppendStockReportPdfOnStatusChange({
-            formRowsRef,
-            setFormRows,
-            setStockReportPdfLoadingRowIndex,
-            stockReportPdfHelpers,
-            statusChangeActorName,
-            toast,
-        }),
-        [stockReportPdfHelpers, statusChangeActorName, toast]
     );
 
     // Load stock items for bulk edit or single edit
@@ -942,6 +932,29 @@ export default function StockForm() {
 
         return payload;
     };
+    getPayloadRef.current = getPayload;
+
+    const saveRowBeforeStockReportPdf = useMemo(
+        () =>
+            createSaveRowBeforeStockReportPdf({
+                formRowsRef,
+                getLinePayload: (row, { isUpdate }) => getPayloadRef.current(row, isUpdate),
+            }),
+        []
+    );
+
+    const appendStockReportPdfOnStatusChange = useCallback(
+        createAppendStockReportPdfOnStatusChange({
+            formRowsRef,
+            setFormRows,
+            setStockReportPdfLoadingRowIndex,
+            stockReportPdfHelpers,
+            statusChangeActorName,
+            toast,
+            saveRowBeforePdf: saveRowBeforeStockReportPdf,
+        }),
+        [stockReportPdfHelpers, statusChangeActorName, toast, saveRowBeforeStockReportPdf]
+    );
 
     const handleSaveStockItem = async () => {
         try {
@@ -1809,7 +1822,7 @@ export default function StockForm() {
 
                                             {stockReportPdfLoadingRowIndex === rowIndex && (
                                                 <Text fontSize="xs" color="gray.500" textAlign="center">
-                                                    Generating stock report PDF…
+                                                    Saving and generating stock report PDF…
                                                 </Text>
                                             )}
 

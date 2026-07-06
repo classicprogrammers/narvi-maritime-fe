@@ -98,6 +98,7 @@ import {
   parseCiPlDescriptionFromApi,
   parseCiPlMultiFieldLines,
   serializeCiPlMultiFieldLines,
+  CI_PL_MANIFEST_DEFAULT_DESCRIPTION,
 } from "../../../../utils/ciPlDescriptionField";
 import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
 import {
@@ -261,13 +262,13 @@ const ciPlValueInputStyles = {
   textAlign: "center",
 };
 
-function CiPlInlineMultiField({ value, onChange, placeholder = "Free text" }) {
+function CiPlInlineMultiField({ value, onChange, placeholder = "Free text", newLineDefault = "" }) {
   const lines = parseCiPlMultiFieldLines(value);
   const commit = (nextLines) => onChange(serializeCiPlMultiFieldLines(nextLines));
   const updateLine = (lineIndex, nextValue) => {
     commit(lines.map((line, idx) => (idx === lineIndex ? nextValue : line)));
   };
-  const addLine = () => commit([...lines, ""]);
+  const addLine = () => commit([...lines, newLineDefault]);
   const removeLine = (lineIndex) => {
     if (lines.length <= 1) return;
     commit(lines.filter((_, idx) => idx !== lineIndex));
@@ -3923,6 +3924,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                       value={item.details}
                                       onChange={(nextValue) => updateCargoItem(index, "details", nextValue)}
                                       placeholder="Free text"
+                                      newLineDefault={CI_PL_MANIFEST_DEFAULT_DESCRIPTION}
                                     />
                                   ) : (
                                     <Input

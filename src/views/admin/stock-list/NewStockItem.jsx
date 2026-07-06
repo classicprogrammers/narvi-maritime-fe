@@ -52,6 +52,7 @@ import {
     MdAttachFile,
     MdClose as MdRemove,
     MdMoreVert,
+    MdVisibility,
 } from "react-icons/md";
 import { getShippingOrders } from "../../../api/shippingOrders";
 import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
@@ -75,10 +76,12 @@ import {
 import { buildStockCreateLinePayload } from "../../../utils/stockCreatePayload";
 import {
     createAppendStockReportPdfOnStatusChange,
+    createSaveRowBeforeStockReportPdf,
     createStockPdfRowHelpers,
 } from "../../../utils/stockReportPdf";
-import { partitionAttachmentsRow } from "../../../utils/stockReportAttachmentsUi";
+import { partitionAttachmentsRow, collectRowAttachmentsForPreview } from "../../../utils/stockReportAttachmentsUi";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
+import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { calculateVolumeCbmFromLwhCm, formatVolumeCbm, resolveDisplayVolumeCbm } from "../../../utils/stockVolume";
 import { StockSoNumberOpenButton } from "../../../components/stock-list/StockSoNumberLink";
 import {
@@ -233,8 +236,10 @@ export default function StockForm() {
     // Form state - array of rows
     const [formRows, setFormRows] = useState([getEmptyRow()]);
     const formRowsRef = useRef(formRows);
+    const getPayloadRef = useRef(() => ({}));
     const [stockReportPdfLoadingRowIndex, setStockReportPdfLoadingRowIndex] = useState(null);
     const [stockReportHistoryRowIndex, setStockReportHistoryRowIndex] = useState(null);
+    const { openGallery, galleryModal } = useStockAttachmentsGallery();
     const statusPdfScheduleDedupeRef = useRef(null);
 
     useEffect(() => {
@@ -297,19 +302,7 @@ export default function StockForm() {
         [vesselOptionsByClientId]
     );
 
-    const appendStockReportPdfOnStatusChange = useCallback(
-        createAppendStockReportPdfOnStatusChange({
-            formRowsRef,
-            setFormRows,
-            setStockReportPdfLoadingRowIndex,
-            stockReportPdfHelpers,
-            statusChangeActorName,
-            toast,
-            shippingOrders,
-        }),
-        [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders]
-    );
-
+    // Load stock items for bulk edit or single edit
     const ADD_STOCK_HAS_DATA_KEY = "addStockHasData";
     const ADD_STOCK_HAS_DATA_EVENT = "addStockHasDataChange";
 
@@ -1258,6 +1251,30 @@ export default function StockForm() {
 
         return payload;
     };
+    getPayloadRef.current = getPayload;
+
+    const saveRowBeforeStockReportPdf = useMemo(
+        () =>
+            createSaveRowBeforeStockReportPdf({
+                formRowsRef,
+                getLinePayload: (row, { isUpdate }) => getPayloadRef.current(row, isUpdate),
+            }),
+        []
+    );
+
+    const appendStockReportPdfOnStatusChange = useCallback(
+        createAppendStockReportPdfOnStatusChange({
+            formRowsRef,
+            setFormRows,
+            setStockReportPdfLoadingRowIndex,
+            stockReportPdfHelpers,
+            statusChangeActorName,
+            toast,
+            shippingOrders,
+            saveRowBeforePdf: saveRowBeforeStockReportPdf,
+        }),
+        [stockReportPdfHelpers, statusChangeActorName, toast, shippingOrders, saveRowBeforeStockReportPdf]
+    );
 
     const handleSaveStockItem = async () => {
         try {
@@ -2407,7 +2424,7 @@ export default function StockForm() {
 
                                                 {stockReportPdfLoadingRowIndex === rowIndex && (
                                                     <Text fontSize="xs" color="gray.500" textAlign="center">
-                                                        Generating stock report PDF…
+                                                        Saving and generating stock report PDF…
                                                     </Text>
                                                 )}
 
@@ -2416,8 +2433,27 @@ export default function StockForm() {
                                                         partitionAttachmentsRow(row);
                                                     const latestReport = reportEntries[0];
                                                     const olderReports = reportEntries.slice(1);
+                                                    const previewAttachments = collectRowAttachmentsForPreview(row);
                                                     return (
                                                         <>
+                                                            {previewAttachments.length > 0 && (
+                                                                <Button
+                                                                    size="xs"
+                                                                    variant="outline"
+                                                                    colorScheme="blue"
+                                                                    leftIcon={<Icon as={MdVisibility} />}
+                                                                    w="100%"
+                                                                    onClick={() =>
+                                                                        openGallery(
+                                                                            previewAttachments,
+                                                                            row.stockId ?? null,
+                                                                            0
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    View all documents ({previewAttachments.length})
+                                                                </Button>
+                                                            )}
                                                             {nonReportExisting.map((att, attIdx) => (
                                                                 <Flex
                                                                     key={`existing-${att.id || attIdx}`}
@@ -2819,11 +2855,17 @@ export default function StockForm() {
                         : []
                 }
                 rowIndex={stockReportHistoryRowIndex ?? 0}
-                stockItemId={null}
-                showFileActions={false}
+                stockItemId={
+                    stockReportHistoryRowIndex !== null
+                        ? formRows[stockReportHistoryRowIndex]?.stockId ?? null
+                        : null
+                }
+                showFileActions
+                onPreviewAll={openGallery}
                 onDeleteExisting={handleDeleteExistingAttachment}
                 onDeletePending={handleDeleteAttachment}
             />
+            {galleryModal}
         </Box>
     );
 } 

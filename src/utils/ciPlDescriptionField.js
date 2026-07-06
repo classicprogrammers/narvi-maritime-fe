@@ -1,6 +1,10 @@
 /** Internal separator for multiple description rows in frontend state */
 export const CI_PL_MULTI_FIELD_SEP = "\x1e";
 
+/** Default description for Shipping Invoice / Cargo Manifest rows */
+export const CI_PL_MANIFEST_DEFAULT_DESCRIPTION =
+  "As per the attached CI PL from the supplier";
+
 /** Prefix for multi-line description payloads stored in the single API `description` key */
 const CI_PL_DESC_API_PREFIX = "__CIPL_DESC_LINES__";
 
