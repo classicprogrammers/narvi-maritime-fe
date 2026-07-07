@@ -154,20 +154,6 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
     ],
 };
 
-/** Stock view/edit — Copy to clipboard column set */
-const CLIPBOARD_COPY_HEADERS = [
-    "VESSEL",
-    "SUPPLIER",
-    "PO #",
-    "STOCK STATUS",
-    "BOXES",
-    "KG",
-    "LWH TEXT",
-    "TOTAL VOLUME CBM",
-    "WAREHOUSE ID",
-    "DG/UN",
-];
-
 /** Stock view/edit — Export PDF column set */
 const PDF_EXPORT_HEADERS = [
     "VESSEL",
@@ -176,6 +162,7 @@ const PDF_EXPORT_HEADERS = [
     "STOCK STATUS",
     "CUR",
     "VALUE",
+    "DATE ON STOCK",
     "BOXES",
     "KG",
     "LWH TEXT",
@@ -187,6 +174,18 @@ const PDF_EXPORT_HEADERS = [
     "DG/UN",
     "SO NUMBER",
 ];
+
+/** Column count for the primary (dark blue) PDF row per export type */
+const PDF_EXPORT_SPLIT_AT = {
+    viewEdit: 9,
+    filter1: 6,
+    filter2: 8,
+    filter3: 9,
+};
+
+const PDF_HEADER_DARK = [28, 74, 149];
+const PDF_HEADER_LIGHT = [41, 197, 246];
+const PDF_HEADER_LIGHT_TEXT = [255, 255, 255];
 
 /** Stock view/edit — Export Excel column set */
 const EXCEL_EXPORT_HEADERS = [
@@ -1693,7 +1692,7 @@ export default function Stocks() {
             return [vessel, supplier, poNumber, stockStatus, boxes, kg, lwhText, viaHub1, viaHub2, destination, dgUn];
         }
         if (viewType === "filter2") {
-            return [vessel, supplier, poNumber, soNumber, destination, warehouseId, shippingDocs, exportDoc1, exportDoc2, boxes, kg, lwhText];
+            return [vessel, supplier, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
         }
         if (viewType === "filter3") {
             return [
@@ -1702,27 +1701,6 @@ export default function Stocks() {
             ];
         }
         return [];
-    };
-
-    const buildClipboardCopyData = (items) => {
-        if (!Array.isArray(items) || items.length === 0) {
-            return { headers: [], rows: [] };
-        }
-
-        const rows = items.map((item) => [
-            getDisplayName(item.vessel_id || item.vessel) || "-",
-            getDisplayName(item.supplier_id || item.supplier) || "-",
-            (item.po_text || "-").replace(/\n/g, " "),
-            getStatusLabel(item.stock_status) || "-",
-            item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
-            item.weight_kg ?? item.weight_kgs ?? "-",
-            item.lwh_text || "-",
-            item.total_volume_cbm ?? item.cbm_total ?? item.cbm ?? "-",
-            getDisplayName(item.warehouse_new) || item.warehouse_new || item.stock_warehouse || item.warehouse || "-",
-            item.dg_un || "-",
-        ]);
-
-        return { headers: CLIPBOARD_COPY_HEADERS, rows };
     };
 
     const buildPdfExportData = (items) => {
@@ -1742,6 +1720,7 @@ export default function Stocks() {
                 getStatusLabel(item.stock_status) || "-",
                 getDisplayName(item.currency_id || item.currency) || "-",
                 item.value ?? "-",
+                formatDate(item.date_on_stock) || item.date_on_stock || item.stock_date || item.create_date || "-",
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
                 item.lwh_text || "-",
@@ -1797,7 +1776,7 @@ export default function Stocks() {
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
         filter1: ["VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "VIA HUB 1", "VIA HUB 2", "DESTINATION", "DG/UN"],
-        filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "BOXES", "KG", "LWH TEXT"],
+        filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
         filter3: [
             "VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "WAREHOUSE ID",
@@ -1864,8 +1843,8 @@ export default function Stocks() {
         return { headers: [], rows: [] };
     };
 
-    const copyItemsToClipboard = async (selectedItems, buildData = buildClipboardCopyData) => {
-        if (!Array.isArray(selectedItems) || selectedItems.length === 0) return;
+    const copyItemsToClipboard = async (selectedItems, buildData) => {
+        if (!Array.isArray(selectedItems) || selectedItems.length === 0 || !buildData) return;
 
         const { headers, rows } = buildData(selectedItems);
         if (!headers.length) return;
@@ -2044,7 +2023,7 @@ export default function Stocks() {
         const selectedItems = filteredAndSortedStock.filter((item) =>
             clientViewSelectedRows.has(item.id || item.stock_item_id)
         );
-        await copyItemsToClipboard(selectedItems, buildClipboardCopyData);
+        await copyItemsToClipboard(selectedItems, (items) => buildExportDataByView(items, clientViewFilterType));
     };
 
     const handleCopyStockViewSelectedRows = async () => {
@@ -2054,7 +2033,7 @@ export default function Stocks() {
             toast({ title: "No matching rows", description: "Please refresh selection and try again.", status: "warning", duration: 2200, isClosable: true });
             return;
         }
-        await copyItemsToClipboard(selectedItems, buildClipboardCopyData);
+        await copyItemsToClipboard(selectedItems, buildPdfExportData);
     };
 
     const handleCopySelectedRows = handleCopyClientViewSelectedRows;
@@ -2083,11 +2062,13 @@ export default function Stocks() {
         XLSX.writeFile(workbook, `${filePrefix}-${dateTag}.xlsx`);
     };
 
-    const buildStocklistPdfDocument = async (headers, rows) => {
+    const buildStocklistPdfDocument = async (headers, rows, splitAt) => {
         const contentLeft = 30;
         const contentTop = 160;
         const contentRight = 24;
-        const tableStartY = contentTop + 24;
+        const tableStartY = contentTop + 38;
+        const recordGap = 30;
+        const numberLabelHeight = 5;
 
         const doc = new jsPDF({
             orientation: "portrait",
@@ -2129,16 +2110,14 @@ export default function Stocks() {
         }
 
         const generatedAt = new Date().toLocaleString();
+        const recordCount = rows.length;
 
         doc.setFontSize(12);
-        doc.text(`Stocklist Export (${rows.length} row${rows.length === 1 ? "" : "s"})`, contentLeft, contentTop);
+        doc.text(`Stocklist Export (${recordCount} record${recordCount === 1 ? "" : "s"})`, contentLeft, contentTop);
         doc.setFontSize(9);
         doc.text(`Generated: ${generatedAt}`, contentLeft, contentTop + 14);
 
-        autoTable(doc, {
-            head: [headers],
-            body: rows.map((row) => row.map((cell) => String(cell ?? ""))),
-            startY: tableStartY,
+        const commonTableOptions = {
             margin: { top: tableStartY, right: contentRight, bottom: 24, left: contentLeft },
             theme: "grid",
             styles: {
@@ -2147,16 +2126,8 @@ export default function Stocks() {
                 overflow: "linebreak",
                 valign: "top",
             },
-            headStyles: {
-                fillColor: [28, 74, 149],
-                textColor: 255,
-                fontStyle: "bold",
-            },
-            alternateRowStyles: {
-                fillColor: [247, 250, 255],
-            },
             tableWidth,
-            showHead: "everyPage",
+            showHead: true,
             rowPageBreak: "avoid",
             didDrawPage: (hookData) => {
                 if (hookData.pageNumber > 1) {
@@ -2164,6 +2135,73 @@ export default function Stocks() {
                     hookData.settings.margin.top = tableStartY;
                 }
             },
+        };
+
+        let currentY = tableStartY;
+
+        rows.forEach((row, recordIndex) => {
+            const row1Headers = headers.slice(0, splitAt);
+            const row1Values = row.slice(0, splitAt);
+            const row2Headers = headers.slice(splitAt);
+            const row2Values = row.slice(splitAt);
+
+            if (recordIndex > 0 && currentY > pageHeight - 100) {
+                doc.addPage();
+                drawLetterhead();
+                currentY = tableStartY;
+            }
+
+            doc.setFontSize(8);
+            doc.setFont(undefined, "bold");
+            doc.setTextColor(...PDF_HEADER_DARK);
+            doc.text(`# ${recordIndex + 1}`, contentLeft, currentY);
+            currentY += numberLabelHeight;
+
+            autoTable(doc, {
+                ...commonTableOptions,
+                head: [row1Headers],
+                body: [row1Values.map((cell) => String(cell ?? ""))],
+                startY: currentY,
+                headStyles: {
+                    fillColor: PDF_HEADER_DARK,
+                    textColor: 255,
+                    fontStyle: "bold",
+                },
+                bodyStyles: {
+                    fillColor: [255, 255, 255],
+                },
+            });
+
+            currentY = doc.lastAutoTable.finalY + 4;
+
+            if (row2Headers.length > 0) {
+                autoTable(doc, {
+                    ...commonTableOptions,
+                    head: [row2Headers],
+                    body: [row2Values.map((cell) => String(cell ?? ""))],
+                    startY: currentY,
+                    headStyles: {
+                        fillColor: PDF_HEADER_LIGHT,
+                        textColor: PDF_HEADER_LIGHT_TEXT,
+                        fontStyle: "bold",
+                    },
+                    bodyStyles: {
+                        fillColor: [255, 255, 255],
+                    },
+                });
+
+                currentY = doc.lastAutoTable.finalY;
+            }
+
+            if (recordIndex < rows.length - 1) {
+                const lineY = currentY + recordGap / 2;
+                doc.setDrawColor(...PDF_HEADER_DARK);
+                doc.setLineWidth(0.75);
+                doc.line(contentLeft, lineY, pageWidth - contentRight, lineY);
+                currentY += recordGap;
+            }
+
+            doc.setTextColor(0, 0, 0);
         });
 
         return doc;
@@ -2202,11 +2240,15 @@ export default function Stocks() {
             return;
         }
 
+        const splitAt = buildDataOverride
+            ? PDF_EXPORT_SPLIT_AT.viewEdit
+            : (PDF_EXPORT_SPLIT_AT[viewType] ?? PDF_EXPORT_SPLIT_AT.viewEdit);
+
         setIsPdfPreviewLoading(true);
         try {
-            const doc = await buildStocklistPdfDocument(headers, rows);
+            const doc = await buildStocklistPdfDocument(headers, rows, splitAt);
             pdfDocRef.current = doc;
-            setPdfPreviewTitle(`Stocklist Export (${rows.length} row${rows.length === 1 ? "" : "s"})`);
+            setPdfPreviewTitle(`Stocklist Export (${rows.length} record${rows.length === 1 ? "" : "s"})`);
             setPdfDownloadFilePrefix(filePrefix);
 
             const blob = doc.output("blob");
