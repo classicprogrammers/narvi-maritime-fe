@@ -314,7 +314,11 @@ export function getCiplPdfEntryRows(item, isPerUnit) {
   if (activeEntries.length > 0) {
     return activeEntries.map((entry) => ({
       description: entry.description,
-      valueUsd: getCiplEntryValueUsd(entry, isPerUnit),
+      valueUsd: isPerUnit
+        ? getCiplEntryValueUsd(entry, isPerUnit)
+        : (entry.valueUsd != null && String(entry.valueUsd).trim() !== ""
+            ? entry.valueUsd
+            : getCiplEntryValueUsd(entry, isPerUnit)),
       quantity: entry.quantity,
       perUnit: entry.perUnit,
     }));
@@ -323,7 +327,11 @@ export function getCiplPdfEntryRows(item, isPerUnit) {
   return [
     {
       description: item?.details ?? "",
-      valueUsd: getCiplStockLineValueUsd(item, isPerUnit),
+      valueUsd: isPerUnit
+        ? getCiplStockLineValueUsd(item, isPerUnit)
+        : (item?.valueUsd != null && String(item.valueUsd).trim() !== ""
+            ? item.valueUsd
+            : getCiplStockLineValueUsd(item, isPerUnit)),
       quantity: item?.quantity ?? "",
       perUnit: item?.perUnit ?? "",
     },

@@ -100,7 +100,7 @@ import {
   serializeCiPlMultiFieldLines,
   CI_PL_MANIFEST_DEFAULT_DESCRIPTION,
 } from "../../../../utils/ciPlDescriptionField";
-import { formatApiNumericDisplay } from "../../../../utils/formatApiNumericDisplay";
+import { formatApiNumericDisplay, formatCiPlCurrencyDisplay } from "../../../../utils/formatApiNumericDisplay";
 import {
   buildCiplStockLinePayload,
   createEmptyCiplEntry,
@@ -171,9 +171,7 @@ const formatCiPlDescriptionDisplay = formatCiPlMultiFieldDisplay;
 
 const formatCiPlValueDisplay = (value) => {
   const normalized = normalizeCiPlSingleValueField(value);
-  if (normalized === "") return "";
-  const displayed = formatApiNumericDisplay(normalized);
-  return displayed === "-" ? normalized : displayed;
+  return formatCiPlCurrencyDisplay(normalized);
 };
 
 const resolveStockLineSupplierName = (line) => {
