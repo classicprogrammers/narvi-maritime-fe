@@ -90,7 +90,7 @@ const DEFAULT_FILTERS = {
   agent_id: "",
   currency_id: "",
   rate_name: "",
-  rate_id: "",
+  import_group: "",
 };
 
 function intFilterToParam(value) {
@@ -243,7 +243,7 @@ export default function RateList() {
     filters.agent_id ||
     filters.currency_id ||
     filters.rate_name ||
-    filters.rate_id
+    filters.import_group
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
   const [showFilterFields, setShowFilterFields] = useState(false);
@@ -271,7 +271,7 @@ export default function RateList() {
       agent_id: intFilterToParam(filters.agent_id),
       currency_id: intFilterToParam(filters.currency_id),
       rate_name: filters.rate_name.trim() || undefined,
-      rate_id: filters.rate_id.trim() || undefined,
+      import_group: filters.import_group.trim() || undefined,
     }),
     [debouncedSearch, filters]
   );
@@ -854,13 +854,13 @@ export default function RateList() {
                   </Box>
                   <Box minW="180px" flex="1">
                     <Text fontSize="sm" fontWeight="500" color={textColor} mb={2}>
-                      Rate ID
+                      Group Name
                     </Text>
                     <Input
                       {...filterInputProps}
-                      placeholder="Filter by rate ID..."
-                      value={filters.rate_id}
-                      onChange={(e) => handleFilterChange("rate_id", e.target.value)}
+                      placeholder="Filter by group name..."
+                      value={filters.import_group}
+                      onChange={(e) => handleFilterChange("import_group", e.target.value)}
                     />
                   </Box>
                 </HStack>
@@ -941,7 +941,7 @@ export default function RateList() {
               },
             }}
           >
-            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1250px">
+            <Table variant="unstyled" size="sm" layout="fixed" w="100%" minW="1380px">
               <Thead bg={tableHeaderBg} position="sticky" top={0} zIndex={1}>
                 <Tr>
                   <Th w="36px" {...thStyle} textAlign="center">
@@ -963,6 +963,9 @@ export default function RateList() {
                   <Th w="180px" {...thStyle}>
                     Agent
                   </Th>
+                  <Th w="160px" {...thStyle}>
+                    Group Name
+                  </Th>
                   <Th w="250px" {...thStyle}>
                     Rate Name
                   </Th>
@@ -981,7 +984,7 @@ export default function RateList() {
               <Tbody>
                 {loading ? (
                   <Tr>
-                    <Td colSpan={10} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={11} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         Loading rates...
                       </Text>
@@ -989,7 +992,7 @@ export default function RateList() {
                   </Tr>
                 ) : items.length === 0 ? (
                   <Tr>
-                    <Td colSpan={10} textAlign="center" py="40px" {...tdStyle}>
+                    <Td colSpan={11} textAlign="center" py="40px" {...tdStyle}>
                       <Text color={tableTextColorSecondary} fontSize="sm">
                         {hasAnyFilter ? "No rates match your search criteria." : "No rates available."}
                       </Text>
@@ -1041,6 +1044,13 @@ export default function RateList() {
                       <TruncatedCell
                         value={item.agent_id?.name || item.agent_text || item.agent}
                         maxW="180px"
+                        textColor={textColor}
+                        cellText={cellText}
+                        tdStyle={tdStyle}
+                      />
+                      <TruncatedCell
+                        value={item.import_group}
+                        maxW="160px"
                         textColor={textColor}
                         cellText={cellText}
                         tdStyle={tdStyle}
@@ -1330,7 +1340,7 @@ export default function RateList() {
                   />
                 </FormControl>
                 <FormControl>
-                  <FormLabel>Import Group</FormLabel>
+                  <FormLabel>Group Name</FormLabel>
                   <Input
                     value={formData.import_group}
                     onChange={(e) => setFormData((p) => ({ ...p, import_group: e.target.value }))}
