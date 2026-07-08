@@ -144,6 +144,27 @@ export function getCiplEntryValueUsd(entry, isPerUnit) {
   return Number.isFinite(value) ? value : 0;
 }
 
+/** Prefer raw API/form string for display; fall back to computed numeric value as string */
+export function getCiplEntryValueUsdForDisplay(entry, isPerUnit) {
+  const rawValueUsd = normalizeCiplEntryValue(entry?.valueUsd);
+  if (rawValueUsd !== "") {
+    return rawValueUsd;
+  }
+  if (isPerUnit) {
+    const quantity = normalizeCiplEntryValue(entry?.quantity);
+    const perUnit = normalizeCiplEntryValue(entry?.perUnit);
+    if (quantity !== "" && perUnit !== "") {
+      const q = Number(quantity);
+      const p = Number(perUnit);
+      if (Number.isFinite(q) && Number.isFinite(p)) {
+        return String(q * p);
+      }
+    }
+    return "";
+  }
+  return rawValueUsd;
+}
+
 export function getCiplStockLineValueUsd(item, isPerUnit) {
   const activeEntries = getCiplActiveEntries(item);
   if (activeEntries.length === 0) return 0;
@@ -314,11 +335,8 @@ export function getCiplPdfEntryRows(item, isPerUnit) {
   if (activeEntries.length > 0) {
     return activeEntries.map((entry) => ({
       description: entry.description,
-      valueUsd: isPerUnit
-        ? getCiplEntryValueUsd(entry, isPerUnit)
-        : (entry.valueUsd != null && String(entry.valueUsd).trim() !== ""
-            ? entry.valueUsd
-            : getCiplEntryValueUsd(entry, isPerUnit)),
+      valueUsd: getCiplEntryValueUsdForDisplay(entry, isPerUnit)
+        || String(getCiplEntryValueUsd(entry, isPerUnit) || ""),
       quantity: entry.quantity,
       perUnit: entry.perUnit,
     }));
@@ -327,11 +345,9 @@ export function getCiplPdfEntryRows(item, isPerUnit) {
   return [
     {
       description: item?.details ?? "",
-      valueUsd: isPerUnit
-        ? getCiplStockLineValueUsd(item, isPerUnit)
-        : (item?.valueUsd != null && String(item.valueUsd).trim() !== ""
-            ? item.valueUsd
-            : getCiplStockLineValueUsd(item, isPerUnit)),
+      valueUsd: (item?.valueUsd != null && String(item.valueUsd).trim() !== ""
+        ? String(item.valueUsd).trim()
+        : String(getCiplStockLineValueUsd(item, isPerUnit) || "")),
       quantity: item?.quantity ?? "",
       perUnit: item?.perUnit ?? "",
     },

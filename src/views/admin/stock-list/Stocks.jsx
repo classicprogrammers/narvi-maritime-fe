@@ -183,9 +183,21 @@ const PDF_EXPORT_SPLIT_AT = {
     filter3: 9,
 };
 
-const PDF_HEADER_DARK = [28, 74, 149];
-const PDF_HEADER_LIGHT = [41, 197, 246];
-const PDF_HEADER_LIGHT_TEXT = [255, 255, 255];
+const PDF_RECORD_LABEL_COLOR = [68, 68, 68];
+const PDF_TABLE_BORDER_COLOR = [51, 51, 51];
+const PDF_TABLE_BORDER_WIDTH = 0.5;
+const PDF_TABLE_HEAD_STYLES = {
+    fillColor: [255, 255, 255],
+    textColor: [0, 0, 0],
+    fontStyle: "bold",
+    lineColor: PDF_TABLE_BORDER_COLOR,
+    lineWidth: PDF_TABLE_BORDER_WIDTH,
+};
+const PDF_TABLE_BODY_STYLES = {
+    fillColor: [255, 255, 255],
+    lineColor: PDF_TABLE_BORDER_COLOR,
+    lineWidth: PDF_TABLE_BORDER_WIDTH,
+};
 
 /** Stock view/edit — Export Excel column set */
 const EXCEL_EXPORT_HEADERS = [
@@ -2125,6 +2137,8 @@ export default function Stocks() {
                 cellPadding: 2,
                 overflow: "linebreak",
                 valign: "top",
+                lineColor: PDF_TABLE_BORDER_COLOR,
+                lineWidth: PDF_TABLE_BORDER_WIDTH,
             },
             tableWidth,
             showHead: true,
@@ -2153,7 +2167,7 @@ export default function Stocks() {
 
             doc.setFontSize(8);
             doc.setFont(undefined, "bold");
-            doc.setTextColor(...PDF_HEADER_DARK);
+            doc.setTextColor(...PDF_RECORD_LABEL_COLOR);
             doc.text(`# ${recordIndex + 1}`, contentLeft, currentY);
             currentY += numberLabelHeight;
 
@@ -2162,14 +2176,8 @@ export default function Stocks() {
                 head: [row1Headers],
                 body: [row1Values.map((cell) => String(cell ?? ""))],
                 startY: currentY,
-                headStyles: {
-                    fillColor: PDF_HEADER_DARK,
-                    textColor: 255,
-                    fontStyle: "bold",
-                },
-                bodyStyles: {
-                    fillColor: [255, 255, 255],
-                },
+                headStyles: PDF_TABLE_HEAD_STYLES,
+                bodyStyles: PDF_TABLE_BODY_STYLES,
             });
 
             currentY = doc.lastAutoTable.finalY + 4;
@@ -2180,14 +2188,8 @@ export default function Stocks() {
                     head: [row2Headers],
                     body: [row2Values.map((cell) => String(cell ?? ""))],
                     startY: currentY,
-                    headStyles: {
-                        fillColor: PDF_HEADER_LIGHT,
-                        textColor: PDF_HEADER_LIGHT_TEXT,
-                        fontStyle: "bold",
-                    },
-                    bodyStyles: {
-                        fillColor: [255, 255, 255],
-                    },
+                    headStyles: PDF_TABLE_HEAD_STYLES,
+                    bodyStyles: PDF_TABLE_BODY_STYLES,
                 });
 
                 currentY = doc.lastAutoTable.finalY;
@@ -2195,9 +2197,9 @@ export default function Stocks() {
 
             if (recordIndex < rows.length - 1) {
                 const lineY = currentY + recordGap / 2;
-                doc.setDrawColor(...PDF_HEADER_DARK);
+                doc.setDrawColor(...PDF_RECORD_LABEL_COLOR);
                 doc.setLineWidth(0.75);
-                doc.line(contentLeft, lineY, pageWidth - contentRight, lineY);
+                // doc.line(contentLeft, lineY, pageWidth - contentRight, lineY);
                 currentY += recordGap;
             }
 

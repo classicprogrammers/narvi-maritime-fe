@@ -106,6 +106,7 @@ import {
   createEmptyCiplEntry,
   getCiplActiveEntries,
   getCiplEntryValueUsd,
+  getCiplEntryValueUsdForDisplay,
   getCiplPdfEntryRows,
   getCiplStockLineValueUsd,
   mergeCiplStockLineFromApi,
@@ -206,8 +207,10 @@ const parseCiPlFormTotalsFromApi = (form) => {
     totalValueInUsd: parseFormTotalDisplay(
       form?.total_value_in_usd ?? formTotalsSource.total_value_in_usd
     ),
-    totalPerUnit: parseFormTotal(form?.total_per_unit ?? formTotalsSource.total_per_unit),
-    totalQuantityPcs: parseFormTotal(
+    totalPerUnit: parseFormTotalDisplay(
+      form?.total_per_unit ?? formTotalsSource.total_per_unit
+    ),
+    totalQuantityPcs: parseFormTotalDisplay(
       form?.total_quantity_pcs ?? formTotalsSource.total_quantity_pcs
     ),
   };
@@ -665,6 +668,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
   const getPerUnitLineValueUsd = (item) => {
     const activeEntries = getCiplActiveEntries(item);
     if (activeEntries.length > 0) {
+      if (activeEntries.length === 1) {
+        const displayValue = getCiplEntryValueUsdForDisplay(activeEntries[0], true);
+        return displayValue ? formatCiPlValueDisplay(displayValue) : "";
+      }
       const sum = getCiplStockLineValueUsd(item, true);
       return sum ? formatCiPlValueDisplay(sum) : "";
     }
@@ -2453,8 +2460,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           formatApiNumericDisplay(stockListTableTotals.weight),
           "",
           ciPlTotalDescriptionLabel,
-          formatApiNumericDisplay(stockListTableTotals.quantityPcs),
-          formatApiNumericDisplay(stockListTableTotals.perUnit),
+          formatCiPlValueDisplay(stockListTableTotals.quantityPcs) || "-",
+          formatCiPlValueDisplay(stockListTableTotals.perUnit) || "-",
           formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
         ]
         : isCiPlManifestTab
@@ -3843,7 +3850,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center">
                               {isCiPlPerUnitTab ? (
                                 <Text px={2} py={2} fontSize="xs" textAlign="center">
-                                  {formatCiPlValueDisplay(getCiplEntryValueUsd(entry, true)) || "-"}
+                                  {formatCiPlValueDisplay(getCiplEntryValueUsdForDisplay(entry, true)) || "-"}
                                 </Text>
                               ) : (
                                 <Input
@@ -4035,10 +4042,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 {ciPlTotalDescriptionLabel}
                               </Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {formatApiNumericDisplay(stockListTableTotals.quantityPcs)}
+                                {formatCiPlValueDisplay(stockListTableTotals.quantityPcs) || "-"}
                               </Td>
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {formatApiNumericDisplay(stockListTableTotals.perUnit)}
+                                {formatCiPlValueDisplay(stockListTableTotals.perUnit) || "-"}
                               </Td>
                             </>
                           ) : (
