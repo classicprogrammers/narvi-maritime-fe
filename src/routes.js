@@ -21,6 +21,7 @@ import {
   MdGroups,
   MdLocationOn,
   MdAttachMoney,
+  MdReceipt,
   MdStraighten,
   MdPublic,
   MdPlace,
@@ -48,6 +49,7 @@ import Quotations from "views/admin/quotations";
 import QuotationForm from "views/admin/quotations/QuotationForm";
 import RateList from "views/admin/quotations/rate-list";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
+import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
 import ShippingOrderEditPage from "views/admin/shipping-order/ShippingOrderEditPage";
 
@@ -160,6 +162,14 @@ const routes = [
           <Icon as={MdAttachMoney} width="20px" height="20px" color="inherit" />
         ),
         component: ClientTariffs,
+      },
+      {
+        name: "Invoice",
+        path: "/quotations/invoice",
+        icon: (
+          <Icon as={MdReceipt} width="20px" height="20px" color="inherit" />
+        ),
+        component: Invoice,
       },
     ],
   },
