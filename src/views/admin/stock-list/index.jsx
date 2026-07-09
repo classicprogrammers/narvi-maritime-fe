@@ -45,8 +45,6 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider, Switch } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
-import locationsAPI from "../../../api/locations";
-import { getShippingOrders } from "../../../api/shippingOrders";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
@@ -63,6 +61,28 @@ import {
     normalizeStockStatusKey,
     resolveStockListActiveParam,
 } from "../../../constants/stockStatus";
+
+function mapStockSoFieldToOrder(soField) {
+    if (!soField || typeof soField !== "object" || soField.id == null) return null;
+    const businessNumber = soField.name ?? soField.so_id ?? soField.so_number;
+    return {
+        id: soField.id,
+        so_id: businessNumber,
+        name: businessNumber,
+        so_number: businessNumber,
+        done: soField.done,
+    };
+}
+
+function collectShippingOrdersFromStockItems(items = []) {
+    const map = new Map();
+    items.forEach((item) => {
+        const order = mapStockSoFieldToOrder(item?.so_id);
+        if (order) map.set(String(order.id), order);
+    });
+    return Array.from(map.values());
+}
+
 const STOCK_MAIN_DB_STORAGE_KEY = "narvi_stock_main_db_state";
 
 function readPersistedStockMainDbState() {
@@ -72,7 +92,7 @@ function readPersistedStockMainDbState() {
         const p = JSON.parse(raw);
         return {
             page: typeof p.page === "number" ? p.page : 1,
-            pageSize: typeof p.pageSize === "number" ? p.pageSize : 80,
+            pageSize: typeof p.pageSize === "number" ? p.pageSize : 40,
             searchFilter: typeof p.searchFilter === "string" ? p.searchFilter : "",
             selectedClient: p.selectedClient != null ? p.selectedClient : null,
             selectedVessel: p.selectedVessel != null ? p.selectedVessel : null,
@@ -112,7 +132,7 @@ function writePersistedStockMainDbState(state) {
 
 const defaultStockMainDbState = {
     page: 1,
-    pageSize: 80,
+    pageSize: 40,
     searchFilter: "",
     selectedClient: null,
     selectedVessel: null,
@@ -158,6 +178,11 @@ export default function StockList() {
         has_previous: reduxHasPrevious,
     } = useStock();
 
+    const shippingOrdersFromStock = useMemo(
+        () => collectShippingOrdersFromStockItems(stockList),
+        [stockList]
+    );
+
     const { user } = useUser();
     const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
 
@@ -198,10 +223,6 @@ export default function StockList() {
     const [stockReportHistoryContext, setStockReportHistoryContext] = useState(null);
     const { openGallery, galleryModal } = useStockAttachmentsGallery();
 
-    // Master data for filter dropdown options; display uses getDisplayName from API {id, name}
-    const [locations, setLocations] = useState([]);
-    const [shippingOrders, setShippingOrders] = useState([]);
-
     // Filters state (initialized from sessionStorage so they persist across navigation)
     const [savedState] = useState(() => readPersistedStockMainDbState() || defaultStockMainDbState);
     const [selectedClient, setSelectedClient] = useState(savedState.selectedClient);
@@ -225,7 +246,7 @@ export default function StockList() {
 
     // Pagination state
     const [page, setPage] = useState(savedState.page);
-    const [pageSize] = useState(savedState.pageSize);
+    const PAGE_SIZE = 40;
     const [totalCount, setTotalCount] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [hasNext, setHasNext] = useState(false);
@@ -238,7 +259,7 @@ export default function StockList() {
     useEffect(() => {
         writePersistedStockMainDbState({
             page,
-            pageSize,
+            pageSize: PAGE_SIZE,
             searchFilter,
             selectedClient,
             selectedVessel,
@@ -260,12 +281,7 @@ export default function StockList() {
             sortOrder,
             activeFilter,
         });
-    }, [page, pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
-    const [isLoadingClients, setIsLoadingClients] = useState(false);
-    const [isLoadingVessels, setIsLoadingVessels] = useState(false);
-    const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
-    const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
-    const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(false);
+    }, [page, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
 
     // Sorting state
     const [sortField, setSortField] = useState(null);
@@ -285,6 +301,7 @@ export default function StockList() {
     const inputBg = useColorModeValue("gray.100", "gray.800");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
+    const tableLoadingOverlayBg = useColorModeValue("whiteAlpha.850", "blackAlpha.650");
     const cardBg = useColorModeValue("white", "navy.800");
     const headerProps = {
         borderRight: "1px",
@@ -361,7 +378,7 @@ export default function StockList() {
 
         return getStockList({
             page,
-            page_size: pageSize,
+            page_size: PAGE_SIZE,
             sort_by: apiSortBy,
             sort_order: apiSortOrder,
             search: searchFilter?.trim() || undefined,
@@ -385,7 +402,7 @@ export default function StockList() {
             currency_id: getIdParam(selectedCurrency),
             active: resolveStockListActiveParam(activeFilter),
         });
-    }, [getStockList, page, pageSize, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
 
     const statusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
@@ -408,7 +425,7 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [pageSize, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock]);
+    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock]);
 
     // Fetch stock list on mount and when page or fetchTrigger changes
     useEffect(() => {
@@ -459,46 +476,6 @@ export default function StockList() {
             history.replace(location.pathname, {});
         }
     }, [location.state, history, location.pathname]);
-
-    // Track if lookup data has been fetched
-    const hasFetchedLookupData = useRef(false);
-
-    // Fetch locations and shipping orders (only once per component mount)
-    useEffect(() => {
-        // Only fetch if we haven't already fetched lookup data
-        if (hasFetchedLookupData.current) {
-            return;
-        }
-
-        const fetchLookupData = async () => {
-            try {
-                hasFetchedLookupData.current = true;
-
-                // Destinations and currencies come from master cache; only fetch locations and shipping orders
-                const promises = [
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    getShippingOrders().catch(() => ({ orders: [] })).then(data => ({ type: 'shippingOrders', data }))
-                ];
-
-                const results = await Promise.all(promises);
-
-                results.forEach(({ type, data }) => {
-                    switch (type) {
-                        case 'locations':
-                            setLocations(data?.locations || data || []);
-                            break;
-                        case 'shippingOrders':
-                            setShippingOrders(data?.orders || data || []);
-                            break;
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to fetch lookup data:', error);
-                hasFetchedLookupData.current = false; // Reset on error to allow retry
-            }
-        };
-        fetchLookupData();
-    }, []); // Empty dependency array - only fetch once on mount
 
     // Helper functions to add/remove prefixes for SO NUMBER, SI NUMBER, SI COMBINED, and DI NUMBER
     // These functions preserve internal spaces (e.g., "00021 1.1" remains "00021 1.1")
@@ -552,7 +529,7 @@ export default function StockList() {
         if (typeof soNumber === "object" && soNumber?.so_id != null) return `SO-${soNumber.so_id}`;
         if (typeof soNumber === "object" && soNumber?.name != null) return ensureSoPrefix(soNumber.name);
         if (typeof soNumber === "object" && soNumber?.id != null) return ensureSoPrefix(soNumber.id);
-        const so = shippingOrders.find(s =>
+        const so = shippingOrdersFromStock.find(s =>
             (s.so_id != null && String(s.so_id) === String(soNumber)) ||
             String(s.so_number || s.name || "") === String(soNumber) ||
             String(s.id) === String(soNumber)
@@ -584,16 +561,22 @@ export default function StockList() {
             String(d.code || "").toLowerCase() === String(value).toLowerCase()
         );
         if (dest) return dest.name;
-        const loc = locations.find(l =>
-            String(l.id) === String(value) ||
-            String(l.location_id) === String(value) ||
-            String(l.name || "").toLowerCase() === String(value).toLowerCase() ||
-            String(l.code || "").toLowerCase() === String(value).toLowerCase()
-        );
-        if (loc) return loc.name || loc.code || `Loc ${value}`;
         if (typeof value === 'string' && value.length <= 10) return value;
         return value;
     };
+
+    const warehouseOptions = useMemo(() => {
+        const map = new Map();
+        stockList.forEach((item) => {
+            const raw = item.warehouse_id ?? item.warehouse_new ?? item.stock_warehouse;
+            if (raw == null || raw === "" || raw === false) return;
+            const id = typeof raw === "object" ? raw.id ?? raw.name : raw;
+            const name = getDisplayName(raw);
+            if (id == null || name === "-") return;
+            map.set(String(id), { id, name });
+        });
+        return Array.from(map.values());
+    }, [stockList]);
 
     // Get unique hub options from stock list
     const hubOptions = useMemo(() => {
@@ -789,7 +772,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortField, sortDirection, sortOption, clients, vessels, vendors, locations, currencies, countries, shippingOrders, destinations, isViewingSelected, selectedRows]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortField, sortDirection, sortOption, isViewingSelected, selectedRows]);
 
     // Get selected items for the view modal
     const viewSelectedItems = useMemo(() => {
@@ -940,21 +923,21 @@ export default function StockList() {
         if (typeof soId === "object" && soId?.so_id != null) return `SO-${soId.so_id}`;
         if (typeof soId === "object" && soId?.name != null) return ensureSoPrefix(soId.name);
         if (typeof soId === "object" && soId?.id != null) return ensureSoPrefix(soId.id);
-        const so = shippingOrders.find(s => String(s.id) === String(soId));
+        const so = shippingOrdersFromStock.find(s => String(s.id) === String(soId));
         return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)) : ensureSoPrefix(soId);
     };
 
     const getSoStatus = (item) => {
         if (item.so_id) {
             const soId = typeof item.so_id === "object" ? item.so_id?.id : item.so_id;
-            const so = shippingOrders.find(s => String(s.id) === String(soId));
+            const so = shippingOrdersFromStock.find(s => String(s.id) === String(soId));
             if (so && so.done) {
                 return so.done === "active" ? "Active" : so.done === "pending" ? "Pending POD" : so.done;
             }
         }
         // Try to get from stock_so_number
         if (item.stock_so_number) {
-            const so = shippingOrders.find(s =>
+            const so = shippingOrdersFromStock.find(s =>
                 (s.so_id != null && String(s.so_id) === String(item.stock_so_number)) ||
                 String(s.so_number || s.name || "") === String(item.stock_so_number) ||
                 String(s.id) === String(item.stock_so_number)
@@ -1336,7 +1319,7 @@ export default function StockList() {
                                                             displayKey="name"
                                                             valueKey="id"
                                                             formatOption={(option) => option.name || `Client ${option.id}`}
-                                                            isLoading={isLoadingClients}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1367,7 +1350,7 @@ export default function StockList() {
                                                             displayKey="name"
                                                             valueKey="id"
                                                             formatOption={(option) => option.name || String(option.id ?? "")}
-                                                            isLoading={isLoadingVessels}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1398,7 +1381,7 @@ export default function StockList() {
                                                             displayKey="name"
                                                             valueKey="id"
                                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                            isLoading={isLoadingSuppliers}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1457,12 +1440,12 @@ export default function StockList() {
                                                         <SimpleSearchableSelect
                                                             value={selectedWarehouse}
                                                             onChange={(value) => setSelectedWarehouse(value)}
-                                                            options={locations}
+                                                            options={warehouseOptions}
                                                             placeholder="Filter by Warehouse"
                                                             displayKey="name"
                                                             valueKey="id"
                                                             formatOption={(option) => option.name || option.code || `Warehouse ${option.id}`}
-                                                            isLoading={isLoadingWarehouses}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1497,7 +1480,7 @@ export default function StockList() {
                                                                 const fullName = option.full_name || option.description || "";
                                                                 return [code, fullName].filter(Boolean).join(" - ") || `Currency ${option.id}`;
                                                             }}
-                                                            isLoading={isLoadingCurrencies}
+                                                            isLoading={false}
                                                             bg={inputBg}
                                                             color={inputText}
                                                             borderColor={borderColor}
@@ -1835,22 +1818,19 @@ export default function StockList() {
                     }}
                 >
                     {isLoading && (
-                        <Box
-                            position="fixed"
-                            top="50%"
-                            left="50%"
-                            transform="translate(-50%, -50%)"
-                            zIndex={1000}
-                            bg={useColorModeValue("white", "gray.800")}
-                            p={6}
-                            borderRadius="md"
-                            boxShadow="lg"
+                        <Flex
+                            position="absolute"
+                            inset={0}
+                            zIndex={2}
+                            align="center"
+                            justify="center"
+                            bg={tableLoadingOverlayBg}
                         >
-                            <VStack spacing="4">
-                                <Spinner size="xl" color="#1c4a95" />
-                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                            <VStack spacing="3">
+                                <Spinner size="lg" color="#1c4a95" />
+                                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
                             </VStack>
-                        </Box>
+                        </Flex>
                     )}
                     {!isLoading && filteredAndSortedStock.length === 0 ? (
                         <Center py="80px" px="25px">
@@ -1971,14 +1951,7 @@ export default function StockList() {
                                 </Tr>
                             </Thead>
                             <Tbody>
-                                {isLoading && stockList.length === 0 ? (
-                                    <Tr>
-                                        <Td colSpan={45} textAlign="center" py="40px">
-                                            <Box visibility="hidden" h="100px" />
-                                        </Td>
-                                    </Tr>
-                                ) : (
-                                    filteredAndSortedStock.map((item, index) => (
+                                {filteredAndSortedStock.map((item, index) => (
                                         <Tr
                                             key={item.id}
                                             bg={index % 2 === 0 ? tableRowBg : tableRowBgAlt}
@@ -2112,8 +2085,7 @@ export default function StockList() {
                                                 />
                                             </Td>
                                         </Tr>
-                                    ))
-                                )}
+                                    ))}
                             </Tbody>
                         </Table>
                     )}
@@ -2124,8 +2096,8 @@ export default function StockList() {
                     <Flex justify="space-between" align="center" py={4} flexWrap="wrap" gap={4}>
                         <HStack spacing={4}>
                             <Text fontSize="sm" color="gray.600">
-                                Showing {(page - 1) * pageSize + 1} to{" "}
-                                {(totalCount || reduxTotalCount) === 0 ? 0 : Math.min(page * pageSize, totalCount || reduxTotalCount)} of {totalCount || reduxTotalCount} records
+                                Showing {(page - 1) * PAGE_SIZE + 1} to{" "}
+                                {(totalCount || reduxTotalCount) === 0 ? 0 : Math.min(page * PAGE_SIZE, totalCount || reduxTotalCount)} of {totalCount || reduxTotalCount} records
                             </Text>
                             <Text fontSize="sm" color="gray.600" fontWeight="500">
                                 Page {page} of {totalPages || 1}

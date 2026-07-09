@@ -62,8 +62,6 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { updateStockItemApi, downloadStockItemAttachmentApi } from "../../../api/stock";
 import { useHistory, useLocation } from "react-router-dom";
 import api from "../../../api/axios";
-import locationsAPI from "../../../api/locations";
-import { getShippingOrders } from "../../../api/shippingOrders";
 import {
     buildStockSoIdM2O,
     resolveStockSoIdForForm,
@@ -71,6 +69,26 @@ import {
     stockSoIdPayloadValuesEqual,
     normalizeStockFormSoId,
 } from "../../../utils/shippingOrderListState";
+
+function mapStockSoFieldToOrder(soField) {
+    if (!soField || typeof soField !== "object" || soField.id == null) return null;
+    const businessNumber = soField.name ?? soField.so_id ?? soField.so_number;
+    return {
+        id: soField.id,
+        so_id: businessNumber,
+        name: businessNumber,
+        so_number: businessNumber,
+    };
+}
+
+function collectShippingOrdersFromStockItems(items = []) {
+    const map = new Map();
+    items.forEach((item) => {
+        const order = mapStockSoFieldToOrder(item?.so_id);
+        if (order) map.set(String(order.id), order);
+    });
+    return Array.from(map.values());
+}
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
@@ -493,7 +511,7 @@ export default function Stocks() {
     const [savedState] = useState(() => readPersistedStockViewEditState() || defaultStockViewEditState);
     const [activeTab, setActiveTab] = useState(savedState.activeTab);
 
-    const PAGE_SIZE = 80;
+    const PAGE_SIZE = 40;
 
     // Pagination state for Stock View / Edit tab (activeTab === 0)
     const [stockViewPage, setStockViewPage] = useState(savedState.stockViewPage);
@@ -517,6 +535,11 @@ export default function Stocks() {
         has_next,
         has_previous,
     } = useStock();
+
+    const shippingOrdersFromStock = useMemo(
+        () => collectShippingOrdersFromStockItems(stockList),
+        [stockList]
+    );
 
     // Filters - separate for each view (initialized from sessionStorage so they persist across navigation)
     const [vesselViewClient, setVesselViewClient] = useState(savedState.vesselViewClient);
@@ -625,14 +648,6 @@ export default function Stocks() {
         setQDestination,
         setQApDestination,
     } = useStockDestinationOptions();
-    const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
-
-    // Master data for filter/edit dropdown options; display uses getDisplayName from API {id, name}
-    const [locations, setLocations] = useState([]);
-    const [shippingOrders, setShippingOrders] = useState([]);
-    const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
-    // Users state removed - PIC is now a free text field, no need to fetch users
-
 
     const textColor = useColorModeValue("gray.700", "white");
     const tableHeaderBg = useColorModeValue("gray.50", "gray.700");
@@ -645,6 +660,7 @@ export default function Stocks() {
     const inputBg = useColorModeValue("gray.100", "gray.800");
     const inputText = useColorModeValue("gray.700", "gray.100");
     const borderColor = useColorModeValue("gray.200", "gray.700");
+    const tableLoadingOverlayBg = useColorModeValue("whiteAlpha.850", "blackAlpha.650");
     const cardBg = useColorModeValue("white", "navy.800");
 
     const headerProps = {
@@ -680,7 +696,6 @@ export default function Stocks() {
         display: "block",
     };
 
-    const hasFetchedLookupData = useRef(false);
     const filterDebounceRef = useRef(null);
     const [apiFetchTrigger, setApiFetchTrigger] = useState(0);
 
@@ -877,60 +892,6 @@ export default function Stocks() {
         }
     }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, sortOption, clientSortOption]);
 
-    // Fetch locations and shipping orders (only once per component mount)
-    useEffect(() => {
-        // Only fetch if we haven't already fetched lookup data
-        if (hasFetchedLookupData.current) {
-            return;
-        }
-
-        const fetchLookupData = async () => {
-            try {
-                hasFetchedLookupData.current = true;
-                setIsLoadingWarehouses(true);
-                setIsLoadingShippingOrders(true);
-
-                // Destinations and currencies from master cache; fetch locations and shipping orders
-                const promises = [
-                    locationsAPI.getLocations().catch(() => ({ locations: [] })).then(data => ({ type: 'locations', data })),
-                    getShippingOrders().catch(() => ({ orders: [] })).then(data => {
-                        let orders = [];
-                        if (Array.isArray(data)) {
-                            orders = data;
-                        } else if (data?.orders && Array.isArray(data.orders)) {
-                            orders = data.orders;
-                        } else if (data?.result?.orders && Array.isArray(data.result.orders)) {
-                            orders = data.result.orders;
-                        } else if (data?.data?.orders && Array.isArray(data.data.orders)) {
-                            orders = data.data.orders;
-                        }
-                        return { type: 'shippingOrders', data: orders };
-                    })
-                ];
-
-                const results = await Promise.all(promises);
-
-                results.forEach(({ type, data }) => {
-                    switch (type) {
-                        case 'locations':
-                            setLocations(data?.locations || data || []);
-                            break;
-                        case 'shippingOrders':
-                            setShippingOrders(data || []);
-                            break;
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to fetch lookup data:', error);
-                hasFetchedLookupData.current = false; // Reset on error to allow retry
-            } finally {
-                setIsLoadingWarehouses(false);
-                setIsLoadingShippingOrders(false);
-            }
-        };
-        fetchLookupData();
-    }, []); // Empty dependency array - only fetch once on mount
-
     // Restore filter state from location.state when returning from edit mode
     useEffect(() => {
         if (location.state && location.state.filterState) {
@@ -988,7 +949,7 @@ export default function Stocks() {
         if (typeof soId === "object" && soId?.so_id != null) return `SO-${soId.so_id}`;
         if (typeof soId === "object" && soId?.name != null) return ensureSoPrefix(soId.name);
         if (typeof soId === "object" && soId?.id != null) return ensureSoPrefix(soId.id);
-        const so = shippingOrders.find(s => String(s.id) === String(soId));
+        const so = shippingOrdersFromStock.find(s => String(s.id) === String(soId));
         return so ? (so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)) : ensureSoPrefix(soId);
     };
 
@@ -997,7 +958,7 @@ export default function Stocks() {
         if (typeof soNumber === "object" && soNumber?.so_id != null) return `SO-${soNumber.so_id}`;
         if (typeof soNumber === "object" && soNumber?.name != null) return ensureSoPrefix(soNumber.name);
         if (typeof soNumber === "object" && soNumber?.id != null) return ensureSoPrefix(soNumber.id);
-        const so = shippingOrders.find(s =>
+        const so = shippingOrdersFromStock.find(s =>
             (s.so_id != null && String(s.so_id) === String(soNumber)) ||
             String(s.so_number || s.name || "") === String(soNumber) ||
             String(s.id) === String(soNumber)
@@ -1114,14 +1075,6 @@ export default function Stocks() {
             String(d.code || "").toLowerCase() === String(value).toLowerCase()
         );
         if (dest) return dest.name || dest.code || `Dest ${value}`;
-        // Try location
-        const loc = locations.find(l =>
-            String(l.id) === String(value) ||
-            String(l.location_id) === String(value) ||
-            String(l.name || "").toLowerCase() === String(value).toLowerCase() ||
-            String(l.code || "").toLowerCase() === String(value).toLowerCase()
-        );
-        if (loc) return loc.name || loc.code || `Loc ${value}`;
         // If it's already a short string, might be a code or free text - return as is
         if (typeof value === 'string' && value.length <= 50) return value;
         return value;
@@ -2591,7 +2544,7 @@ export default function Stocks() {
             client_id: getFieldValue("client_id", "client"),
             // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || "",
-            so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrders)) || "",
+            so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrdersFromStock)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
             origin_id: item.origin_text || getDisplayName(item.origin_id) || "",
@@ -2830,11 +2783,11 @@ export default function Stocks() {
         });
 
         const originalSoId = normalizeStockFormSoId(
-            resolveStockSoIdForForm(originalItem, shippingOrders)
+            resolveStockSoIdForForm(originalItem, shippingOrdersFromStock)
         );
         const editedSoId = normalizeStockFormSoId(getEditedValue(["so_id"]));
-        if (!stockSoIdPayloadValuesEqual(editedSoId, originalSoId, shippingOrders)) {
-            payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrders);
+        if (!stockSoIdPayloadValuesEqual(editedSoId, originalSoId, shippingOrdersFromStock)) {
+            payload.so_id = buildStockSoIdPayloadValue(editedSoId, shippingOrdersFromStock);
         }
 
         const currentDestinationNew = buildStockDestinationNewPayload(
@@ -3167,17 +3120,18 @@ export default function Stocks() {
 
         // Handle searchable select for SO number field
         if (type === "so_number" || field.includes("so_number")) {
-            const soOptions = shippingOrders
-                .filter(so => so && so.id) // Filter out invalid entries
+            const ordersForRow = [...shippingOrdersFromStock];
+            const currentOrder = mapStockSoFieldToOrder(item.so_id);
+            if (currentOrder && !ordersForRow.some((so) => String(so.id) === String(currentOrder.id))) {
+                ordersForRow.push(currentOrder);
+            }
+
+            const soOptions = ordersForRow
+                .filter(so => so && so.id)
                 .map(so => ({
                     value: String(so.id),
                     label: so.so_id != null ? `SO-${so.so_id}` : ensureSoPrefix(so.so_number || so.name || so.id)
                 }));
-
-            // Debug logging
-            if (soOptions.length === 0 && !isLoadingShippingOrders) {
-                console.log('No SO options found. Shipping orders:', shippingOrders);
-            }
 
             return (
                 <Box position="relative" zIndex={10}>
@@ -3185,11 +3139,11 @@ export default function Stocks() {
                         value={currentValue ? String(currentValue) : ""}
                         onChange={(val) => handleChange(val)}
                         options={soOptions}
-                        placeholder={isLoadingShippingOrders ? "Loading SO numbers..." : (soOptions.length === 0 ? "No SO numbers available" : "Select SO Number...")}
+                        placeholder={soOptions.length === 0 ? "No SO numbers on this page" : "Select SO Number..."}
                         displayKey="label"
                         valueKey="value"
                         formatOption={(option) => option.label || `SO-${option.value}`}
-                        isLoading={isLoadingShippingOrders}
+                        isLoading={false}
                         bg={inputBg}
                         color={inputText}
                         borderColor={borderColor}
@@ -4975,22 +4929,19 @@ export default function Stocks() {
                                     }}
                                 >
                                     {isLoading && (
-                                        <Box
-                                            position="fixed"
-                                            top="50%"
-                                            left="50%"
-                                            transform="translate(-50%, -50%)"
-                                            zIndex={1000}
-                                            bg={useColorModeValue("white", "gray.800")}
-                                            p={6}
-                                            borderRadius="md"
-                                            boxShadow="lg"
+                                        <Flex
+                                            position="absolute"
+                                            inset={0}
+                                            zIndex={2}
+                                            align="center"
+                                            justify="center"
+                                            bg={tableLoadingOverlayBg}
                                         >
-                                            <VStack spacing="4">
-                                                <Spinner size="xl" color="#1c4a95" />
-                                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                            <VStack spacing="3">
+                                                <Spinner size="lg" color="#1c4a95" />
+                                                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
                                             </VStack>
-                                        </Box>
+                                        </Flex>
                                     )}
                                     {!isLoading && getFilteredStockByStatus().length === 0 ? (
                                         <Center py="60px" px="25px">
@@ -5076,14 +5027,7 @@ export default function Stocks() {
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
-                                                {isLoading && stockList.length === 0 ? (
-                                                    <Tr>
-                                                        <Td colSpan={20} textAlign="center" py="40px">
-                                                            <Box visibility="hidden" h="100px" />
-                                                        </Td>
-                                                    </Tr>
-                                                ) : (
-                                                    displayedItems.map((item, index) => {
+                                                {displayedItems.map((item, index) => {
                                                         const statusStyle = getStatusStyle(item.stock_status);
                                                         const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                         return (
@@ -5232,8 +5176,7 @@ export default function Stocks() {
                                                                 </Td>
                                                             </Tr>
                                                         );
-                                                    })
-                                                )}
+                                                    })}
                                             </Tbody>
                                         </Table>
                                     )}
@@ -5575,22 +5518,19 @@ export default function Stocks() {
                                     }}
                                 >
                                     {isLoading && (
-                                        <Box
-                                            position="fixed"
-                                            top="50%"
-                                            left="50%"
-                                            transform="translate(-50%, -50%)"
-                                            zIndex={1000}
-                                            bg={useColorModeValue("white", "gray.800")}
-                                            p={6}
-                                            borderRadius="md"
-                                            boxShadow="lg"
+                                        <Flex
+                                            position="absolute"
+                                            inset={0}
+                                            zIndex={2}
+                                            align="center"
+                                            justify="center"
+                                            bg={tableLoadingOverlayBg}
                                         >
-                                            <VStack spacing="4">
-                                                <Spinner size="xl" color="#1c4a95" />
-                                                <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                            <VStack spacing="3">
+                                                <Spinner size="lg" color="#1c4a95" />
+                                                <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
                                             </VStack>
-                                        </Box>
+                                        </Flex>
                                     )}
                                     {!isLoading && filteredAndSortedStock.length === 0 ? (
                                         <Center py="60px" px="25px">
@@ -5621,14 +5561,7 @@ export default function Stocks() {
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
-                                                {isLoading && stockList.length === 0 ? (
-                                                    <Tr>
-                                                        <Td colSpan={clientViewTableColSpan} textAlign="center" py="40px">
-                                                            <Box visibility="hidden" h="100px" />
-                                                        </Td>
-                                                    </Tr>
-                                                ) : (
-                                                    displayedItems.map((item, index) => {
+                                                {displayedItems.map((item, index) => {
                                                         const statusStyle = getStatusStyle(item.stock_status);
                                                         const rowBg = statusStyle.bgColor || statusStyle.lightBg || tableRowBg;
                                                         const itemId = item.id || item.stock_item_id;
@@ -5662,8 +5595,7 @@ export default function Stocks() {
                                                                 </Td>
                                                             </Tr>
                                                         );
-                                                    })
-                                                )}
+                                                    })}
                                             </Tbody>
                                         </Table>
                                     )}
@@ -5844,22 +5776,19 @@ export default function Stocks() {
                         {/* Table Container */}
                         <Box pr="25px" overflowX="auto" position="relative" minH="400px">
                             {isLoading && (
-                                <Box
-                                    position="fixed"
-                                    top="50%"
-                                    left="50%"
-                                    transform="translate(-50%, -50%)"
-                                    zIndex={1000}
-                                    bg={useColorModeValue("white", "gray.800")}
-                                    p={6}
-                                    borderRadius="md"
-                                    boxShadow="lg"
+                                <Flex
+                                    position="absolute"
+                                    inset={0}
+                                    zIndex={2}
+                                    align="center"
+                                    justify="center"
+                                    bg={tableLoadingOverlayBg}
                                 >
-                                    <VStack spacing="4">
-                                        <Spinner size="xl" color="#1c4a95" />
-                                        <Text color={tableTextColorSecondary}>Loading stock list...</Text>
+                                    <VStack spacing="3">
+                                        <Spinner size="lg" color="#1c4a95" />
+                                        <Text fontSize="sm" color={tableTextColorSecondary}>Loading stock list...</Text>
                                     </VStack>
-                                </Box>
+                                </Flex>
                             )}
                             {!isLoading && filteredAndSortedStock.length === 0 ? (
                                 <Center py="80px" px="25px">
