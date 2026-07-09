@@ -121,17 +121,15 @@ import { formatVolumeCbm } from "../../../utils/stockVolume";
 
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
-        { key: "client", label: "CLIENT" },
+        { key: "client", label: "CLIENT", uiOnly: true },
         { key: "vessel", label: "VESSEL" },
+        { key: "via_hub_1", label: "HUB 1" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "po", label: "PO #", type: "po" },
         { key: "stock_status", label: "STOCK STATUS", type: "status" },
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
         { key: "lwh_text", label: "LWH TEXT", type: "multiline" },
-        { key: "via_hub_1", label: "VIA HUB 1" },
-        { key: "via_hub_2", label: "VIA HUB 2" },
-        { key: "destination", label: "DESTINATION" },
         { key: "dg_un", label: "DG/UN" },
     ],
     filter2: [
@@ -196,7 +194,7 @@ const PDF_EXPORT_HEADERS = [
 /** Column count for the primary (dark blue) PDF row per export type */
 const PDF_EXPORT_SPLIT_AT = {
     viewEdit: 9,
-    filter1: 6,
+    filter1: 9,
     filter2: 8,
     filter3: 9,
 };
@@ -1654,7 +1652,7 @@ export default function Stocks() {
         const apDestination = formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-";
 
         if (viewType === "filter1") {
-            return [vessel, supplier, poNumber, stockStatus, boxes, kg, lwhText, viaHub1, viaHub2, destination, dgUn];
+            return [vessel, viaHub1, supplier, poNumber, stockStatus, boxes, kg, lwhText, dgUn];
         }
         if (viewType === "filter2") {
             return [vessel, supplier, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
@@ -1740,7 +1738,7 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
-        filter1: ["VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "VIA HUB 1", "VIA HUB 2", "DESTINATION", "DG/UN"],
+        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
         filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
         filter3: [
             "VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
@@ -2027,7 +2025,7 @@ export default function Stocks() {
         XLSX.writeFile(workbook, `${filePrefix}-${dateTag}.xlsx`);
     };
 
-    const buildStocklistPdfDocument = async (headers, rows, splitAt) => {
+    const buildStocklistPdfDocument = async (headers, rows, splitAt, { singleTable = false } = {}) => {
         const contentLeft = 30;
         const contentTop = 160;
         const contentRight = 24;
@@ -2105,6 +2103,18 @@ export default function Stocks() {
         };
 
         let currentY = tableStartY;
+
+        if (singleTable) {
+            autoTable(doc, {
+                ...commonTableOptions,
+                head: [headers],
+                body: rows.map((row) => row.map((cell) => String(cell ?? ""))),
+                startY: currentY,
+                headStyles: PDF_TABLE_HEAD_STYLES,
+                bodyStyles: PDF_TABLE_BODY_STYLES,
+            });
+            return doc;
+        }
 
         rows.forEach((row, recordIndex) => {
             const row1Headers = headers.slice(0, splitAt);
@@ -2198,10 +2208,11 @@ export default function Stocks() {
         const splitAt = buildDataOverride
             ? PDF_EXPORT_SPLIT_AT.viewEdit
             : (PDF_EXPORT_SPLIT_AT[viewType] ?? PDF_EXPORT_SPLIT_AT.viewEdit);
+        const singleTable = !buildDataOverride && viewType === "filter1";
 
         setIsPdfPreviewLoading(true);
         try {
-            const doc = await buildStocklistPdfDocument(headers, rows, splitAt);
+            const doc = await buildStocklistPdfDocument(headers, rows, splitAt, { singleTable });
             pdfDocRef.current = doc;
             setPdfPreviewTitle(`Stocklist Export (${rows.length} record${rows.length === 1 ? "" : "s"})`);
             setPdfDownloadFilePrefix(filePrefix);
@@ -2255,33 +2266,47 @@ export default function Stocks() {
 
         const headerRow = `<tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>`;
 
-        // Group items by vessel so each vessel has its own table.
-        const groups = new Map();
-        items.forEach(item => {
-            const vesselName = getDisplayName(item.vessel_id || item.vessel) || "-";
-            if (!groups.has(vesselName)) {
-                groups.set(vesselName, []);
-            }
-            groups.get(vesselName).push(item);
-        });
-
         let vesselTables = "";
-        groups.forEach((groupItems, vesselName) => {
-            let bodyRows = "";
-            groupItems.forEach(item => {
-                const { rows } = buildExportDataByView([item], exportViewType);
-                const row = rows[0] || [];
-                bodyRows += `<tr>${row.map((cell) => `<td>${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`;
-            });
 
-            vesselTables += `
-                <h3>Vessel: ${escapeHtml(vesselName)}</h3>
+        if (exportViewType === "filter1") {
+            const { rows } = buildExportDataByView(items, exportViewType);
+            const bodyRows = rows.map((row) =>
+                `<tr>${row.map((cell) => `<td>${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`
+            ).join("");
+            vesselTables = `
                 <table>
                     <thead>${headerRow}</thead>
                     <tbody>${bodyRows}</tbody>
                 </table>
             `;
-        });
+        } else {
+            // Group items by vessel so each vessel has its own table.
+            const groups = new Map();
+            items.forEach(item => {
+                const vesselName = getDisplayName(item.vessel_id || item.vessel) || "-";
+                if (!groups.has(vesselName)) {
+                    groups.set(vesselName, []);
+                }
+                groups.get(vesselName).push(item);
+            });
+
+            groups.forEach((groupItems, vesselName) => {
+                let bodyRows = "";
+                groupItems.forEach(item => {
+                    const { rows } = buildExportDataByView([item], exportViewType);
+                    const row = rows[0] || [];
+                    bodyRows += `<tr>${row.map((cell) => `<td>${escapeHtml(cell).replace(/\n/g, "<br/>")}</td>`).join("")}</tr>`;
+                });
+
+                vesselTables += `
+                    <h3>Vessel: ${escapeHtml(vesselName)}</h3>
+                    <table>
+                        <thead>${headerRow}</thead>
+                        <tbody>${bodyRows}</tbody>
+                    </table>
+                `;
+            });
+        }
 
         return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stocklist - Client View</title>
 <style>

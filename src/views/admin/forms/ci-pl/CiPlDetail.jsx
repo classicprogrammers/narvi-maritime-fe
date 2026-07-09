@@ -2461,7 +2461,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
           "",
           ciPlTotalDescriptionLabel,
           formatCiPlValueDisplay(stockListTableTotals.quantityPcs) || "-",
-          formatCiPlValueDisplay(stockListTableTotals.perUnit) || "-",
+          "",
           formatCiPlTotalValueDisplay(stockListTableTotals.valueUsd),
         ]
         : isCiPlManifestTab
@@ -2579,7 +2579,16 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
       const ciPlWeightColIndex = isCiPlManifestTab ? 3 : 2;
       const ciPlPoColIndex = 0;
       const ciPlValueColIndex = isCiPlPerUnitTab ? 7 : isCiPlManifestTab ? 6 : 5;
-      const ciPlCenterColIndexes = [ciPlPoColIndex, ciPlBoxColIndex, ciPlWeightColIndex, ciPlLwhColIndex, ciPlValueColIndex];
+      const ciPlQuantityColIndex = isCiPlPerUnitTab ? 5 : null;
+      const ciPlPerUnitColIndex = isCiPlPerUnitTab ? 6 : null;
+      const ciPlCenterColIndexes = [
+        ciPlPoColIndex,
+        ciPlBoxColIndex,
+        ciPlWeightColIndex,
+        ciPlLwhColIndex,
+        ciPlValueColIndex,
+        ...(isCiPlPerUnitTab ? [ciPlQuantityColIndex, ciPlPerUnitColIndex] : []),
+      ];
 
       autoTable(doc, {
         startY: twoColEndY + 14,
@@ -3744,8 +3753,8 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             </Th>
                             {isCiPlPerUnitTab && (
                               <>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px">QUANTITY / PCS</Th>
-                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px">PER UNIT</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px" textAlign="center">QUANTITY / PCS</Th>
+                                <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="11%" minW="100px" textAlign="center">PER UNIT</Th>
                               </>
                             )}
                             <Th borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" fontWeight="bold" w="10%" minW="96px" textAlign="center">{valueInCurrencyLabel}</Th>
@@ -3827,22 +3836,20 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                             </Td>
                             {isCiPlPerUnitTab && (
                               <>
-                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center" verticalAlign="middle">
                                   <Input
                                     {...ciPlValueInputStyles}
                                     value={entry.quantity || ""}
                                     onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "quantity", e.target.value)}
                                     placeholder="Free text"
-                                    textAlign="center"
                                   />
                                 </Td>
-                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center" verticalAlign="middle">
                                   <Input
                                     {...ciPlValueInputStyles}
                                     value={entry.perUnit || ""}
                                     onChange={(e) => updateCargoItemEntry(itemIndex, entry.localKey, "perUnit", e.target.value)}
                                     placeholder="Free text"
-                                    textAlign="center"
                                   />
                                 </Td>
                               </>
@@ -3949,7 +3956,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                 </Td>
                                 {isCiPlPerUnitTab && (
                                   <>
-                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center" verticalAlign="middle">
                                       <Input
                                         value={item.quantity || ""}
                                         onChange={(e) => updateCargoItem(index, "quantity", e.target.value)}
@@ -3962,9 +3969,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                         border="1px solid"
                                         borderColor="gray.300"
                                         placeholder="Free text"
+                                        textAlign="center"
                                       />
                                     </Td>
-                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5">
+                                    <Td borderRight="1px" borderColor="gray.300" py={1} px={2} fontSize="xs" bg="#f1f3f5" textAlign="center" verticalAlign="middle">
                                       <Input
                                         value={item.perUnit || ""}
                                         onChange={(e) => updateCargoItem(index, "perUnit", e.target.value)}
@@ -3977,6 +3985,7 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                                         border="1px solid"
                                         borderColor="gray.300"
                                         placeholder="Free text"
+                                        textAlign="center"
                                       />
                                     </Td>
                                   </>
@@ -4041,12 +4050,10 @@ export default function ShippingInstructionDetail({ formType = "instruction", ar
                               <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
                                 {ciPlTotalDescriptionLabel}
                               </Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center">
                                 {formatCiPlValueDisplay(stockListTableTotals.quantityPcs) || "-"}
                               </Td>
-                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs">
-                                {formatCiPlValueDisplay(stockListTableTotals.perUnit) || "-"}
-                              </Td>
+                              <Td borderRight="1px" borderColor="gray.300" py={2} px={2} fontSize="xs" textAlign="center" />
                             </>
                           ) : (
                             <Td
