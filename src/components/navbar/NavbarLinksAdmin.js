@@ -23,7 +23,7 @@ import { useHistory } from "react-router-dom";
 import {
   MdNotificationsNone,
   MdMenu,
-  MdClose,
+  MdChevronLeft,
 } from "react-icons/md";
 import { FaEthereum } from "react-icons/fa";
 import routes from "routes.js";
@@ -89,9 +89,9 @@ export default function HeaderLinks(props) {
 
       <IconButton
         display={{ base: "none", xl: "flex" }}
-        icon={<Icon as={toggleSidebar ? MdClose : MdMenu} />}
+        icon={<Icon as={toggleSidebar ? MdChevronLeft : MdMenu} />}
         variant="ghost"
-        aria-label="Toggle Sidebar"
+        aria-label={toggleSidebar ? "Collapse sidebar" : "Expand sidebar"}
         onClick={handleToggleSidebar}
         color={navbarIcon}
         _hover={{ bg: "gray.100" }}
