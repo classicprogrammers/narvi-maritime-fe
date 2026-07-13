@@ -103,6 +103,15 @@ export const getStockListOptionsApi = async (params = {}) => {
   }
 };
 
+const STOCK_SEMANTIC_SORTS = new Set([
+  "via_hub",
+  "vessel_name",
+  "stock_status",
+  "via_hub_status",
+  "vessel_status",
+  "vessel_via_hub_status",
+]);
+
 // Get stock list with pagination and search/filters (all params passed through to backend)
 export const getStockListApi = async (params = {}) => {
   try {
@@ -137,13 +146,23 @@ export const getStockListApi = async (params = {}) => {
       create_date_to = "",
     } = params;
 
-    // Always pass sort_by and sort_order through exactly as provided.
+    // Semantic sorts use backend default sort_order; column sorts may pass sort_order explicitly.
     const requestParams = {
       page,
       page_size,
-      sort_by,
-      sort_order,
     };
+
+    const resolvedSortBy = params.sort_by != null && String(params.sort_by).trim() !== ""
+      ? String(params.sort_by).trim()
+      : sort_by;
+
+    requestParams.sort_by = resolvedSortBy;
+
+    if (!STOCK_SEMANTIC_SORTS.has(resolvedSortBy)) {
+      requestParams.sort_order = params.sort_order != null && String(params.sort_order).trim() !== ""
+        ? String(params.sort_order).trim()
+        : sort_order;
+    }
 
     const trimmedSearch = search ? String(search).trim() : "";
     const trimmedName = name ? String(name).trim() : "";

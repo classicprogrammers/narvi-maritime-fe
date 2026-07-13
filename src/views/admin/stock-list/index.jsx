@@ -354,33 +354,29 @@ export default function StockList() {
     };
 
     const fetchStockList = useCallback(() => {
-        // Map high-level sortOption to backend sort_by/sort_order when set;
-        // otherwise fall back to the manual column sortBy/sortOrder state.
+        // Map high-level sortOption to backend sort_by when set;
+        // otherwise fall back to the manual column sortBy state.
         let apiSortBy = sortBy;
-        let apiSortOrder = sortOrder;
 
         if (sortOption === "via_hub") {
             apiSortBy = "via_hub";
-            apiSortOrder = "asc";
         } else if (sortOption === "via_vessel") {
             apiSortBy = "vessel_name";
-            apiSortOrder = "asc";
         } else if (sortOption === "status") {
             apiSortBy = "stock_status";
-            apiSortOrder = "asc";
         } else if (sortOption === "via_hub_status") {
             apiSortBy = "via_hub_status";
-            apiSortOrder = "asc";
         } else if (sortOption === "via_vessel_status") {
             apiSortBy = "vessel_status";
-            apiSortOrder = "asc";
+        } else if (sortOption === "via_vessel_via_hub_status") {
+            apiSortBy = "vessel_via_hub_status";
         }
 
         return getStockList({
             page,
             page_size: PAGE_SIZE,
             sort_by: apiSortBy,
-            sort_order: apiSortOrder,
+            sort_order: sortOrder,
             search: searchFilter?.trim() || undefined,
             client_id: getIdParam(selectedClient),
             vessel_id: getIdParam(selectedVessel),
@@ -708,12 +704,21 @@ export default function StockList() {
                 }
 
                 // Sort by Vessel (alphabetically by vessel name)
-                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
+                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status' || sortOption === 'via_vessel_via_hub_status') {
                     const vesselNameA = getDisplayName(a.vessel_id || a.vessel || "").toLowerCase().trim();
                     const vesselNameB = getDisplayName(b.vessel_id || b.vessel || "").toLowerCase().trim();
 
                     if (vesselNameA !== vesselNameB) {
                         return vesselNameA.localeCompare(vesselNameB);
+                    }
+                }
+
+                if (sortOption === 'via_vessel_via_hub_status') {
+                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
+                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+
+                    if (viaHubA !== viaHubB) {
+                        return viaHubA.localeCompare(viaHubB);
                     }
                 }
 
@@ -724,7 +729,7 @@ export default function StockList() {
                 // 4. "Arrived Destination"
                 // 5. "On a Shipping Instruction"
                 // 6. "On a Delivery Instruction"
-                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
+                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status' || sortOption === 'via_vessel_via_hub_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
                         "stock",         // "Stock"
@@ -1280,7 +1285,8 @@ export default function StockList() {
                                                                 sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
                                                                     sortOption === 'status' ? "Sort: Stock Status" :
                                                                         sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
-                                                                            "Sort: VIA VESSEL + Status"}
+                                                                            sortOption === 'via_vessel_status' ? "Sort: VIA VESSEL + Status" :
+                                                                                "Sort: VIA VESSEL + VIA HUB + Status"}
                                                     </MenuButton>
                                                     <MenuList>
                                                         <MenuItem onClick={() => setSortOption('via_hub')}>
@@ -1297,6 +1303,9 @@ export default function StockList() {
                                                         </MenuItem>
                                                         <MenuItem onClick={() => setSortOption('via_vessel_status')}>
                                                             Sort by VIA VESSEL + Status
+                                                        </MenuItem>
+                                                        <MenuItem onClick={() => setSortOption('via_vessel_via_hub_status')}>
+                                                            Sort by VIA VESSEL + VIA HUB + Status
                                                         </MenuItem>
                                                         <MenuItem onClick={() => setSortOption('none')}>
                                                             No Sort
@@ -1750,6 +1759,13 @@ export default function StockList() {
                                                     <>
                                                         1st: VIA VESSEL (alphabetically by vessel name)<br />
                                                         2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                    </>
+                                                )}
+                                                {sortOption === 'via_vessel_via_hub_status' && (
+                                                    <>
+                                                        1st: VIA VESSEL (alphabetically by vessel name)<br />
+                                                        2nd: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                        3rd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                     </>
                                                 )}
                                             </Text>

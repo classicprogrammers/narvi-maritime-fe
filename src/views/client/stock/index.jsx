@@ -136,28 +136,23 @@ function ClientStock() {
     setIsLoading(true);
     try {
       let sort_by;
-      let sort_order;
       if (clientSortOption === "via_hub") {
         sort_by = "via_hub";
-        sort_order = "asc";
       } else if (clientSortOption === "via_vessel") {
         sort_by = "vessel_name";
-        sort_order = "asc";
       } else if (clientSortOption === "status") {
         sort_by = "stock_status";
-        sort_order = "asc";
       } else if (clientSortOption === "via_hub_status") {
         sort_by = "via_hub_status";
-        sort_order = "asc";
       } else if (clientSortOption === "via_vessel_status") {
         sort_by = "vessel_status";
-        sort_order = "asc";
+      } else if (clientSortOption === "via_vessel_via_hub_status") {
+        sort_by = "vessel_via_hub_status";
       }
       const res = await clientStockApi.getClientStock({
         search: search.trim() || undefined,
         stock_status: filters.status || undefined,
         sort_by,
-        sort_order,
       });
       const toDisplay = (value) =>
         value != null && value !== false && String(value).trim() !== "" ? String(value) : "-";
@@ -332,6 +327,16 @@ function ClientStock() {
       rows.sort((a, b) => {
         const vesselCmp = getVessel(a).localeCompare(getVessel(b));
         if (vesselCmp !== 0) return vesselCmp;
+        return compareStatus(a, b);
+      });
+      return rows;
+    }
+    if (clientSortOption === "via_vessel_via_hub_status") {
+      rows.sort((a, b) => {
+        const vesselCmp = getVessel(a).localeCompare(getVessel(b));
+        if (vesselCmp !== 0) return vesselCmp;
+        const hubCmp = getViaHub(a).localeCompare(getViaHub(b));
+        if (hubCmp !== 0) return hubCmp;
         return compareStatus(a, b);
       });
       return rows;
@@ -881,6 +886,7 @@ function ClientStock() {
                   status: "Sorting: Stock Status",
                   via_hub_status: "Sorting: VIA HUB + Status",
                   via_vessel_status: "Sorting: VIA VESSEL + Status",
+                  via_vessel_via_hub_status: "Sorting: VIA VESSEL + VIA HUB + Status",
                   none: "Sorting: No Sort",
                 }[clientSortOption] || "Sorting: No Sort")}
               </MenuButton>
@@ -899,6 +905,9 @@ function ClientStock() {
                 </MenuItem>
                 <MenuItem onClick={() => setClientSortOption("via_vessel_status")}>
                   Sort by VIA VESSEL + Status
+                </MenuItem>
+                <MenuItem onClick={() => setClientSortOption("via_vessel_via_hub_status")}>
+                  Sort by VIA VESSEL + VIA HUB + Status
                 </MenuItem>
                 <MenuItem onClick={() => setClientSortOption("none")}>
                   No Sort

@@ -453,7 +453,8 @@ function readPersistedStockViewEditState() {
                     p.clientSortOption === "via_vessel" ||
                     p.clientSortOption === "status" ||
                     p.clientSortOption === "via_hub_status" ||
-                    p.clientSortOption === "via_vessel_status"
+                    p.clientSortOption === "via_vessel_status" ||
+                    p.clientSortOption === "via_vessel_via_hub_status"
                     ? p.clientSortOption
                     : "none",
         };
@@ -808,24 +809,20 @@ export default function Stocks() {
             const clientId = f.stockViewClient != null ? (typeof f.stockViewClient === "object" ? (f.stockViewClient?.id ?? f.stockViewClient?.value) : f.stockViewClient) : undefined;
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
 
-            // Map Stock View / Edit sortOption to backend sort_by / sort_order
+            // Map Stock View / Edit sortOption to backend sort_by
             let sort_by;
-            let sort_order;
             if (sortOption === "via_hub") {
                 sort_by = "via_hub";
-                sort_order = "asc";
             } else if (sortOption === "via_vessel") {
                 sort_by = "vessel_name";
-                sort_order = "asc";
             } else if (sortOption === "status") {
                 sort_by = "stock_status";
-                sort_order = "asc";
             } else if (sortOption === "via_hub_status") {
                 sort_by = "via_hub_status";
-                sort_order = "asc";
             } else if (sortOption === "via_vessel_status") {
                 sort_by = "vessel_status";
-                sort_order = "asc";
+            } else if (sortOption === "via_vessel_via_hub_status") {
+                sort_by = "vessel_via_hub_status";
             }
 
             getStockList({
@@ -850,31 +847,26 @@ export default function Stocks() {
                 date_on_stock_to: f.createDateTo?.trim() || undefined,
                 via_hub: hubVal?.trim() || undefined,
                 sort_by,
-                sort_order,
             });
         } else {
             const statusSet = f.clientViewStatuses || new Set();
             // Pass multiple statuses as array so API gets &stock_status=pending&stock_status=stock (repeated param)
             const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
 
-            // Map clientSortOption to backend sort_by/sort_order
+            // Map clientSortOption to backend sort_by
             let sort_by;
-            let sort_order;
             if (clientSortOption === "via_hub") {
                 sort_by = "via_hub";
-                sort_order = "asc";
             } else if (clientSortOption === "via_vessel") {
                 sort_by = "vessel_name";
-                sort_order = "asc";
             } else if (clientSortOption === "status") {
                 sort_by = "stock_status";
-                sort_order = "asc";
             } else if (clientSortOption === "via_hub_status") {
                 sort_by = "via_hub_status";
-                sort_order = "asc";
             } else if (clientSortOption === "via_vessel_status") {
                 sort_by = "vessel_status";
-                sort_order = "asc";
+            } else if (clientSortOption === "via_vessel_via_hub_status") {
+                sort_by = "vessel_via_hub_status";
             }
 
             getStockList({
@@ -885,7 +877,6 @@ export default function Stocks() {
                 search: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
                 name: [f.clientViewSearchClient, f.clientViewSearchVessel].filter(Boolean).join(" ") || undefined,
                 sort_by,
-                sort_order,
             });
         }
     }, [currentApiPage, apiFetchTrigger, getStockList, activeTab, stockViewPage, clientViewPage, sortOption, clientSortOption]);
@@ -1342,7 +1333,8 @@ export default function Stocks() {
             sortOption === 'via_vessel' ||
             sortOption === 'status' ||
             sortOption === 'via_hub_status' ||
-            sortOption === 'via_vessel_status'
+            sortOption === 'via_vessel_status' ||
+            sortOption === 'via_vessel_via_hub_status'
         ) {
             return filtered;
         }
@@ -1397,12 +1389,21 @@ export default function Stocks() {
                 }
 
                 // Sort by Vessel (alphabetically by vessel name)
-                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status') {
+                if (sortOption === 'via_vessel' || sortOption === 'via_vessel_status' || sortOption === 'via_vessel_via_hub_status') {
                     const vesselNameA = getDisplayName(a.vessel_id || a.vessel || "").toLowerCase().trim();
                     const vesselNameB = getDisplayName(b.vessel_id || b.vessel || "").toLowerCase().trim();
 
                     if (vesselNameA !== vesselNameB) {
                         return vesselNameA.localeCompare(vesselNameB);
+                    }
+                }
+
+                if (sortOption === 'via_vessel_via_hub_status') {
+                    const viaHubA = (a.via_hub2 || a.via_hub || "").toLowerCase().trim();
+                    const viaHubB = (b.via_hub2 || b.via_hub || "").toLowerCase().trim();
+
+                    if (viaHubA !== viaHubB) {
+                        return viaHubA.localeCompare(viaHubB);
                     }
                 }
 
@@ -1413,7 +1414,7 @@ export default function Stocks() {
                 // 4. "Arrived Destination"
                 // 5. "On a Shipping Instruction"
                 // 6. "On a Delivery Instruction"
-                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status') {
+                if (sortOption === 'status' || sortOption === 'via_hub_status' || sortOption === 'via_vessel_status' || sortOption === 'via_vessel_via_hub_status') {
                     const statusOrder = [
                         "pending",        // "Pending"
                         "stock",         // "Stock"
@@ -1501,7 +1502,7 @@ export default function Stocks() {
             return sorted;
         }
 
-        // Client-view sorting is applied through backend sort_by/sort_order.
+        // Client-view sorting is applied through backend sort_by.
         return items;
     };
 
@@ -1517,7 +1518,7 @@ export default function Stocks() {
 
         // Status filter is applied by API only; no frontend status filter
 
-        // For client view, selected sort is applied by API via sort_by / sort_order.
+        // For client view, selected sort is applied by API via sort_by.
         // For "none", keep backend default order.
 
         return filtered;
@@ -3924,7 +3925,8 @@ export default function Stocks() {
                                                 sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
                                                     sortOption === 'status' ? "Sort: Stock Status" :
                                                         sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
-                                                            "Sort: VIA VESSEL + Status"}
+                                                            sortOption === 'via_vessel_status' ? "Sort: VIA VESSEL + Status" :
+                                                                "Sort: VIA VESSEL + VIA HUB + Status"}
                                     </MenuButton>
                                     <MenuList>
                                         <MenuItem onClick={() => setSortOption('via_hub')}>
@@ -3941,6 +3943,9 @@ export default function Stocks() {
                                         </MenuItem>
                                         <MenuItem onClick={() => setSortOption('via_vessel_status')}>
                                             Sort by VIA VESSEL + Status
+                                        </MenuItem>
+                                        <MenuItem onClick={() => setSortOption('via_vessel_via_hub_status')}>
+                                            Sort by VIA VESSEL + VIA HUB + Status
                                         </MenuItem>
                                         <MenuItem onClick={() => setSortOption('none')}>
                                             No Sort
@@ -4828,6 +4833,13 @@ export default function Stocks() {
                                                                     2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
                                                                 </>
                                                             )}
+                                                            {sortOption === 'via_vessel_via_hub_status' && (
+                                                                <>
+                                                                    1st: VIA VESSEL (alphabetically by vessel name)<br />
+                                                                    2nd: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
+                                                                    3rd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
+                                                                </>
+                                                            )}
                                                         </Text>
                                                     </Box>
                                                 )}
@@ -5337,6 +5349,7 @@ export default function Stocks() {
                                                                     status: "Sorting: Stock Status",
                                                                     via_hub_status: "Sorting: VIA HUB + Status",
                                                                     via_vessel_status: "Sorting: VIA VESSEL + Status",
+                                                                    via_vessel_via_hub_status: "Sorting: VIA VESSEL + VIA HUB + Status",
                                                                     none: "Sorting: No Sort",
                                                                 }[clientSortOption] || "Sorting: No Sort")}
                                                             </MenuButton>
@@ -5355,6 +5368,9 @@ export default function Stocks() {
                                                                 </MenuItem>
                                                                 <MenuItem onClick={() => setClientSortOption("via_vessel_status")}>
                                                                     Sort by VIA VESSEL + Status
+                                                                </MenuItem>
+                                                                <MenuItem onClick={() => setClientSortOption("via_vessel_via_hub_status")}>
+                                                                    Sort by VIA VESSEL + VIA HUB + Status
                                                                 </MenuItem>
                                                                 <MenuItem onClick={() => setClientSortOption("none")}>
                                                                     No Sort
