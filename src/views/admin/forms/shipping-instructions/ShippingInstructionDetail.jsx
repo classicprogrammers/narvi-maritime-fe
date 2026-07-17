@@ -120,6 +120,51 @@ const resolveDeliveryHeaderText = ({
   return "";
 };
 
+const resolveDiNumberLabel = (form, diOptions = [], diIdOverride = null) => {
+  const rawId =
+    diIdOverride ??
+    (form?.di_number_id && typeof form.di_number_id === "object"
+      ? form.di_number_id.id
+      : form?.di_number_id);
+  if (form?.di_number_id && typeof form.di_number_id === "object" && form.di_number_id.name) {
+    const name = resolveApiText(form.di_number_id.name);
+    if (name) return name;
+  }
+  if (rawId != null && rawId !== "" && Number.isFinite(Number(rawId))) {
+    const fromOptions = resolveMany2oneLabel(Number(rawId), diOptions);
+    if (fromOptions) return fromOptions;
+  }
+  const jobNo = resolveApiText(form?.job_no);
+  if (jobNo && /^DI\s/i.test(jobNo)) return jobNo;
+  return "";
+};
+
+const resolveVesselDisplayName = (form, stockList = [], vesselOptions = []) => {
+  const fromForm =
+    resolveApiText(form?.vessel_name) ||
+    resolveMany2oneLabel(form?.vessel_id, vesselOptions);
+  if (fromForm) return fromForm;
+  return (
+    (Array.isArray(stockList) ? stockList : [])
+      .map((it) =>
+        resolveMany2oneLabel(it?.vessel_id, vesselOptions) ||
+        resolveMany2oneLabel(it?.vessel, vesselOptions) ||
+        resolveApiText(typeof it?.vessel === "string" ? it.vessel : "")
+      )
+      .find(Boolean) || ""
+  );
+};
+
+const pickDeliveryDiLabel = (...candidates) => {
+  for (const candidate of candidates) {
+    const text = resolveApiText(candidate);
+    if (!text) continue;
+    if (/^SI\s/i.test(text)) continue;
+    return text;
+  }
+  return "";
+};
+
 const buildFormResetPayload = () => ({
   vessel_id: null,
   vessel_name: null,
@@ -383,6 +428,27 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const getPicDisplayName = () =>
     formData.picName || getOptionNameById(picOptions, formData.pic) || "";
 
+  const getVesselDisplayName = () => resolveApiText(formData.vessel) || "-";
+
+  const getDeliveryDiNumberDisplay = () => {
+    if (!isDeliveryLike) return formData.jobNo || "";
+    return (
+      pickDeliveryDiLabel(
+        getOptionNameById(diOptions, formData.siNo),
+        formData.jobNo,
+        selectedSiName
+      ) || "-"
+    );
+  };
+
+  const getDeliveryFormTitle = () => {
+    const vesselLabel = resolveApiText(formData.vessel);
+    if (isShippingAdvise) return `SHIPPING ADVISE FOR ${vesselLabel || "-"}`;
+    if (isDeliveryConfirmation) return `DELIVERY CONFIRMATION FOR M/V ${vesselLabel || "-"}`;
+    if (isDeliveryForm) return `POD / DELIVERY NOTE FOR MV ${vesselLabel || "-"}`;
+    return `INSTRUCTION / CARGO MANIFEST FOR ${vesselLabel || "-"}`;
+  };
+
   const getDeliveryToAtDisplayName = () =>
     formData.deliveryToAt || getOptionNameById(deliveryToAtOptions, formData.deliveryToAtId) || "";
 
@@ -495,14 +561,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const match = Array.isArray(list) ? list.find((o) => Number(o.id) === Number(id)) : null;
     return match?.name ? String(match.name) : "";
   };
-  const deliveryDiNumberDisplay = isDeliveryLike
-    ? (
-      selectedSiName ||
-      getOptionNameById(diOptions, formData.siNo) ||
-      resolveApiText(formData.jobNo) ||
-      ""
-    )
-    : formData.jobNo;
   const deliverySoNumberDisplay = isDeliveryLike
     ? resolveApiText(formData.soNo)
     : formData.soNo;
@@ -962,11 +1020,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     const siId =
       isDeliveryLike
-        ? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : "")
+        ? (form.di_number_id && typeof form.di_number_id === "object" ? form.di_number_id.id : (form.di_number_id ?? ""))
         : (form.si_number_id && typeof form.si_number_id === "object" ? form.si_number_id.id : "");
+    const resolvedDiName = isDeliveryLike
+      ? resolveDiNumberLabel(form, diOptions, lockedSiId ?? siId)
+      : "";
     const siName =
       isDeliveryLike
-        ? (form.di_number_id && typeof form.di_number_id === "object" ? (form.di_number_id.name || "") : "")
+        ? resolvedDiName
         : (form.si_number_id && typeof form.si_number_id === "object" ? (form.si_number_id.name || "") : "");
     const sicId =
       !isDeliveryLike
@@ -1158,10 +1219,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
 
     setFormData((prev) => ({
       ...prev,
-      vessel: Object.prototype.hasOwnProperty.call(form, "vessel_name")
-        ? form.vessel_name != null && form.vessel_name !== false
-          ? String(form.vessel_name)
-          : ""
+      vessel: Object.prototype.hasOwnProperty.call(form, "vessel_name") ||
+        Object.prototype.hasOwnProperty.call(form, "vessel_id") ||
+        stockList.length > 0
+        ? resolveVesselDisplayName(form, stockList)
         : prev.vessel,
       // header card mapping by form type
       deliveryToAt: isDeliveryLike ? resolvedDeliveryToAtName : "",
@@ -1182,7 +1243,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? String(form.sic_number)
             : "")
         : isDeliveryLike
-          ? String(siName || "")
+          ? String(resolvedDiName || "")
           : (form.job_no && form.job_no !== false ? String(form.job_no) : ""),
       soNo: isDeliveryLike
         ? resolveDeliveryHeaderText({
@@ -1423,7 +1484,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       });
     }
 
-    setSelectedSiName(siName ? String(siName) : "");
+    setSelectedSiName(isDeliveryLike ? (resolvedDiName ? String(resolvedDiName) : "") : (siName ? String(siName) : ""));
     if (consigneeId) setRequiredAgentCneeId(Number(consigneeId));
 
     const mapped = stockList.map((it, idx) => {
@@ -2056,12 +2117,12 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       return s !== "" ? s : "-";
     };
     const docTitle = isShippingAdvise
-      ? `Shipping Advise - ${formData.vessel || "-"}`
+      ? `Shipping Advise - ${getVesselDisplayName()}`
       : isDeliveryConfirmation
-        ? `DELIVERY CONFIRMATION ${formData.vessel || "-"}`
+        ? `DELIVERY CONFIRMATION FOR M/V ${getVesselDisplayName()}`
         : isDeliveryForm
-          ? `POD ${formData.vessel || "-"}`
-          : `Shipping Instruction - ${formData.vessel || "-"}`;
+          ? `POD / DELIVERY NOTE FOR MV ${getVesselDisplayName()}`
+          : `Shipping Instruction - ${getVesselDisplayName()}`;
     doc.setFontSize(12);
     doc.text(docTitle, contentLeft, contentTop);
     doc.setFontSize(9);
@@ -2124,17 +2185,19 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       ]
       : isDeliveryConfirmation
         ? [
-          ["JOB NO", deliveryDiNumberDisplay || "-"],
+          ["JOB NO", getDeliveryDiNumberDisplay()],
           ["SO NO", deliverySoNumberDisplay || "-"],
-          ["PIC", getPicDisplayName() || formData.pic || "-"],
+          ["VESSEL", getVesselDisplayName()],
+          ["PIC", getPicDisplayName() || "-"],
           ["DELIVERY DATE", formData.deadline || "-"],
           ["LOCATION", formData.to || "-"],
         ]
         : isDeliveryForm
           ? [
-            ["JOB NO", deliveryDiNumberDisplay || "-"],
+            ["JOB NO", getDeliveryDiNumberDisplay()],
             ["SO NO", deliverySoNumberDisplay || "-"],
-            ["PIC", formData.pic || "-"],
+            ["VESSEL", getVesselDisplayName()],
+            ["PIC", getPicDisplayName() || "-"],
             ["DEADLINE", formData.deadline || "-"],
             ["LOCATION", formData.to || "-"],
           ]
@@ -2399,13 +2462,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         </Flex>
 
         <Text fontSize="2xl" fontWeight="bold" mb={6}>
-          {isShippingAdvise
-            ? `SHIPPING ADVISE FOR ${formData.vessel}`
-            : isDeliveryConfirmation
-              ? `DELIVERY CONFIRMATION FOR M/V ${formData.vessel}`
-              : isDeliveryForm
-                ? `POD / DELIVERY NOTE FOR MV ${formData.vessel}`
-                : `INSTRUCTION / CARGO MANIFEST FOR ${formData.vessel}`}
+          {getDeliveryFormTitle()}
         </Text>
 
         <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6}>
@@ -3109,6 +3166,14 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                         </FormLabel>
                         <Text size="sm" fontWeight="semibold" color="white">
                           {formData.soNo || "—"}
+                        </Text>
+                      </FormControl>
+                      <FormControl display="contents">
+                        <FormLabel htmlFor="vessel-delivery" fontWeight="bold" textTransform="uppercase" m={0}>
+                          VESSEL :
+                        </FormLabel>
+                        <Text size="sm" fontWeight="semibold" color="white">
+                          {getVesselDisplayName()}
                         </Text>
                       </FormControl>
                       <FormControl display="contents">
