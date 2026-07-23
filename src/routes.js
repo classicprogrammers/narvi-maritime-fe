@@ -48,6 +48,7 @@ import Phonebook from "views/admin/phonebook";
 import Quotations from "views/admin/quotations";
 import QuotationForm from "views/admin/quotations/QuotationForm";
 import RateList from "views/admin/quotations/rate-list";
+import RateListEdit from "views/admin/quotations/RateListEdit";
 import ClientTariffs from "views/admin/quotations/client-tariffs";
 import Invoice from "views/admin/quotations/Invoice";
 import ShippingOrder from "views/admin/shipping-order";
@@ -150,6 +151,7 @@ const routes = [
       {
         name: "Rate List",
         path: "/quotations/rate-list",
+        exact: true,
         icon: (
           <Icon as={MdRateReview} width="20px" height="20px" color="inherit" />
         ),
@@ -461,6 +463,13 @@ const hiddenRoutes = [
     layout: "/admin",
     path: "/contacts/customer/:id",
     component: ClientDetail,
+  },
+  {
+    name: "Rate List Edit",
+    layout: "/admin",
+    path: "/quotations/rate-list/edit",
+    exact: true,
+    component: RateListEdit,
   },
   {
     name: "Stock Form",

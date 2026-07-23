@@ -52,6 +52,12 @@ import { normalizeLegacyStockReportFilename } from "utils/stockReportPdf";
 import StockListAttachmentsCell from "components/stock-list/StockListAttachmentsCell";
 import StockReportHistoryModal from "components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "hooks/useStockAttachmentsGallery";
+import StockHubSortMenuItems from "components/stock-list/StockHubSortMenuItems";
+import { getStockHubSortField, isStockHubSortOption } from "constants/stockHubSort";
+import {
+  getClientStockSortButtonLabel,
+  mapStockSortOptionToApiSortBy,
+} from "utils/stockSortOptions";
 import { clearClientNavigationState } from "views/client/dashboard/clientDashboardNavigation";
 import * as XLSX from "xlsx";
 
@@ -135,20 +141,7 @@ function ClientStock() {
   const fetchStock = useCallback(async () => {
     setIsLoading(true);
     try {
-      let sort_by;
-      if (clientSortOption === "via_hub") {
-        sort_by = "via_hub";
-      } else if (clientSortOption === "via_vessel") {
-        sort_by = "vessel_name";
-      } else if (clientSortOption === "status") {
-        sort_by = "stock_status";
-      } else if (clientSortOption === "via_hub_status") {
-        sort_by = "via_hub_status";
-      } else if (clientSortOption === "via_vessel_status") {
-        sort_by = "vessel_status";
-      } else if (clientSortOption === "via_vessel_via_hub_status") {
-        sort_by = "vessel_via_hub_status";
-      }
+      const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
       const res = await clientStockApi.getClientStock({
         search: search.trim() || undefined,
         stock_status: filters.status || undefined,
@@ -194,8 +187,9 @@ function ClientStock() {
         origin: toDisplay(item.first_entry_location || item.origin),
         location: toDisplay(item.first_entry_location || item.origin),
         firstEntryLocation: toDisplay(item.first_entry_location || item.origin),
-        viaHub1: toDisplay(item.via_hub_1),
-        viaHub2: toDisplay(item.via_hub_2),
+        viaHub1: toDisplay(item.via_hub_1 ?? item.via_hub),
+        viaHub2: toDisplay(item.via_hub_2 ?? item.via_hub2),
+        effectiveHub: toDisplay(item.effective_hub ?? item.hub),
         apDestination: toDisplay(item.ap_destination),
         destination: toDisplay(item.destination),
         stockStatus: toDisplay(stockStatusRaw),
@@ -291,7 +285,16 @@ function ClientStock() {
   );
   const sortedFilteredRows = useMemo(() => {
     const rows = [...filteredRows];
+    const getViaHub1 = (row) => String(row.viaHub1 && row.viaHub1 !== "-" ? row.viaHub1 : "").toLowerCase().trim();
+    const getViaHub2 = (row) => String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : "").toLowerCase().trim();
+    const getApDestination = (row) =>
+      String(row.apDestination && row.apDestination !== "-" ? row.apDestination : "").toLowerCase().trim();
     const getViaHub = (row) => String(row.viaHub2 && row.viaHub2 !== "-" ? row.viaHub2 : row.viaHub1 || "").toLowerCase().trim();
+    const getEffectiveHub = (row) => {
+      const explicit = row.effectiveHub != null && row.effectiveHub !== "-" ? String(row.effectiveHub) : "";
+      if (explicit.trim()) return explicit.toLowerCase().trim();
+      return getViaHub(row);
+    };
     const getVessel = (row) => String(row.vessel || "").toLowerCase().trim();
     const statusOrder = { pending: 1, stock: 2, in_transit: 3 };
     const compareStatus = (a, b) => {
@@ -303,8 +306,15 @@ function ClientStock() {
       return aStatus.localeCompare(bStatus);
     };
 
-    if (clientSortOption === "via_hub") {
-      rows.sort((a, b) => getViaHub(a).localeCompare(getViaHub(b)));
+    if (isStockHubSortOption(clientSortOption)) {
+      const hubSortField = getStockHubSortField(clientSortOption);
+      const getHubSortValue = (row) => {
+        if (hubSortField === "via_hub") return getViaHub1(row);
+        if (hubSortField === "via_hub2") return getViaHub2(row);
+        if (hubSortField === "ap_destination_new") return getApDestination(row);
+        return getEffectiveHub(row);
+      };
+      rows.sort((a, b) => getHubSortValue(a).localeCompare(getHubSortValue(b)));
       return rows;
     }
     if (clientSortOption === "via_vessel") {
@@ -317,7 +327,7 @@ function ClientStock() {
     }
     if (clientSortOption === "via_hub_status") {
       rows.sort((a, b) => {
-        const hubCmp = getViaHub(a).localeCompare(getViaHub(b));
+        const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
         if (hubCmp !== 0) return hubCmp;
         return compareStatus(a, b);
       });
@@ -335,7 +345,7 @@ function ClientStock() {
       rows.sort((a, b) => {
         const vesselCmp = getVessel(a).localeCompare(getVessel(b));
         if (vesselCmp !== 0) return vesselCmp;
-        const hubCmp = getViaHub(a).localeCompare(getViaHub(b));
+        const hubCmp = getEffectiveHub(a).localeCompare(getEffectiveHub(b));
         if (hubCmp !== 0) return hubCmp;
         return compareStatus(a, b);
       });
@@ -880,20 +890,13 @@ function ClientStock() {
             </InputGroup>
             <Menu>
               <MenuButton as={Button} size="sm" colorScheme="blue" variant="solid">
-                {({
-                  via_hub: "Sorting: VIA HUB (Alphabetically)",
-                  via_vessel: "Sorting: VIA VESSEL (Alphabetically)",
-                  status: "Sorting: Stock Status",
-                  via_hub_status: "Sorting: VIA HUB + Status",
-                  via_vessel_status: "Sorting: VIA VESSEL + Status",
-                  via_vessel_via_hub_status: "Sorting: VIA VESSEL + VIA HUB + Status",
-                  none: "Sorting: No Sort",
-                }[clientSortOption] || "Sorting: No Sort")}
+                {getClientStockSortButtonLabel(clientSortOption)}
               </MenuButton>
               <MenuList>
-                <MenuItem onClick={() => setClientSortOption("via_hub")}>
-                  Sort by VIA HUB (Alphabetically)
-                </MenuItem>
+                <StockHubSortMenuItems
+                  sortOption={clientSortOption}
+                  onSelect={setClientSortOption}
+                />
                 <MenuItem onClick={() => setClientSortOption("via_vessel")}>
                   Sort by VIA VESSEL (Alphabetically)
                 </MenuItem>

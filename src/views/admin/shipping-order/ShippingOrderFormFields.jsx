@@ -113,6 +113,11 @@ export default function ShippingOrderFormFields({
   const etdVal = formData.etd && formData.etd !== false
     ? (typeof formData.etd === "string" ? formData.etd.split(" ")[0] : formData.etd)
     : "";
+  const soDeliveryDateVal = formData.so_delivery_date && formData.so_delivery_date !== false
+    ? (typeof formData.so_delivery_date === "string"
+      ? formData.so_delivery_date.split(" ")[0]
+      : formData.so_delivery_date)
+    : "";
 
   return (
     <VStack spacing="6" align="stretch">
@@ -458,7 +463,7 @@ export default function ShippingOrderFormFields({
         />
       </Box>
 
-      {/* Quotation & Timestamp */}
+      {/* Quotation & SO Delivery Date */}
       <Box>
         <Flex gap="4" flexWrap="wrap">
           <FormControl flex="1" minW="260px" isDisabled>
@@ -488,13 +493,13 @@ export default function ShippingOrderFormFields({
             />
           </FormControl>
           <FormControl flex="1" minW="260px">
-            <FormLabel>SO Timestamp</FormLabel>
+            <FormLabel>SO Delivery Date</FormLabel>
             <Input
-              value={formData.timestamp}
+              type="date"
+              value={soDeliveryDateVal}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, timestamp: e.target.value }))
+                setFormData((prev) => ({ ...prev, so_delivery_date: e.target.value }))
               }
-              placeholder="13/06/2025 12:44:22"
             />
           </FormControl>
         </Flex>

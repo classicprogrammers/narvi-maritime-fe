@@ -291,8 +291,8 @@ export default function Dashboard(props) {
                 zIndex="1000"
               >
                 <Switch>
-                  {getRoutes(filteredRoutes)}
                   {getRoutes(hiddenRoutes)}
+                  {getRoutes(filteredRoutes)}
                   <Redirect from="/" to="/admin/default" />
                 </Switch>
               </Box>

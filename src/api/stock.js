@@ -104,7 +104,12 @@ export const getStockListOptionsApi = async (params = {}) => {
 };
 
 const STOCK_SEMANTIC_SORTS = new Set([
+  "origin_ap_destination",
   "via_hub",
+  "via_hub_ap_destination",
+  "via_hub_via_hub2",
+  "via_hub_via_hub2_ap_destination",
+  "effective_hub",
   "vessel_name",
   "stock_status",
   "via_hub_status",
@@ -138,6 +143,8 @@ export const getStockListApi = async (params = {}) => {
       days_on_stock_min = "",
       days_on_stock_max = "",
       via_hub = "",
+      effective_hub = "",
+      hub = "",
       supplier_id,
       warehouse_id,
       currency_id,
@@ -209,7 +216,13 @@ export const getStockListApi = async (params = {}) => {
     if (days_on_stock_max != null && String(days_on_stock_max).trim() !== "") {
       requestParams.days_on_stock_max = String(days_on_stock_max).trim();
     }
-    // Backend expects via_hub; only include when explicitly provided.
+    // Resolved hub filter (effective_hub or hub alias).
+    if (effective_hub != null && String(effective_hub).trim() !== "") {
+      requestParams.effective_hub = String(effective_hub).trim();
+    } else if (hub != null && String(hub).trim() !== "") {
+      requestParams.hub = String(hub).trim();
+    }
+    // Explicit Via Hub 1 field filter (distinct from resolved hub filter).
     if (via_hub != null && String(via_hub).trim() !== "") {
       requestParams.via_hub = String(via_hub).trim();
     }

@@ -53,6 +53,13 @@ import StockListAttachmentsCell from "../../../components/stock-list/StockListAt
 import StockSoNumberLink from "../../../components/stock-list/StockSoNumberLink";
 import StockReportHistoryModal from "../../../components/stock-list/StockReportHistoryModal";
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
+import StockHubSortMenuItems from "../../../components/stock-list/StockHubSortMenuItems";
+import {
+    getStockSortButtonLabel,
+    getStockSortDescription,
+    isApiDrivenStockSortOption,
+    mapStockSortOptionToApiSortBy,
+} from "../../../utils/stockSortOptions";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
 import {
     formatStockStatusLabel,
@@ -358,18 +365,9 @@ export default function StockList() {
         // otherwise fall back to the manual column sortBy state.
         let apiSortBy = sortBy;
 
-        if (sortOption === "via_hub") {
-            apiSortBy = "via_hub";
-        } else if (sortOption === "via_vessel") {
-            apiSortBy = "vessel_name";
-        } else if (sortOption === "status") {
-            apiSortBy = "stock_status";
-        } else if (sortOption === "via_hub_status") {
-            apiSortBy = "via_hub_status";
-        } else if (sortOption === "via_vessel_status") {
-            apiSortBy = "vessel_status";
-        } else if (sortOption === "via_vessel_via_hub_status") {
-            apiSortBy = "vessel_via_hub_status";
+        const mappedSortBy = mapStockSortOptionToApiSortBy(sortOption);
+        if (mappedSortBy) {
+            apiSortBy = mappedSortBy;
         }
 
         return getStockList({
@@ -392,7 +390,7 @@ export default function StockList() {
             // Date on Stock range filter
             date_on_stock_from: filterCreateDateFrom?.trim() || undefined,
             date_on_stock_to: filterCreateDateTo?.trim() || undefined,
-            via_hub: hubParam != null ? String(hubParam).trim() : undefined,
+            effective_hub: hubParam != null ? String(hubParam).trim() : undefined,
             supplier_id: getIdParam(selectedSupplier),
             warehouse_id: getIdParam(selectedWarehouse),
             currency_id: getIdParam(selectedCurrency),
@@ -578,6 +576,7 @@ export default function StockList() {
     const hubOptions = useMemo(() => {
         const hubSet = new Set();
         stockList.forEach(item => {
+            if (item.effective_hub) hubSet.add(String(item.effective_hub).trim());
             if (item.via_hub) hubSet.add(item.via_hub.trim());
             if (item.via_hub2) hubSet.add(item.via_hub2.trim());
         });
@@ -600,6 +599,10 @@ export default function StockList() {
         // Apply filters (Server-side handling handles these, frontend doesn't need to re-filter)
         // General search is handled server-side via searchFilter (passed as search API param)
         // Specific field filters are passed via individual API params
+
+        if (isApiDrivenStockSortOption(sortOption)) {
+            return filtered;
+        }
 
         // Apply sorting
         if (sortField) {
@@ -1280,18 +1283,13 @@ export default function StockList() {
                                                         colorScheme={sortOption !== 'none' ? "blue" : "gray"}
                                                         variant={sortOption !== 'none' ? "solid" : "outline"}
                                                     >
-                                                        {sortOption === 'none' ? "Select Sort Option" :
-                                                            sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                                sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
-                                                                    sortOption === 'status' ? "Sort: Stock Status" :
-                                                                        sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
-                                                                            sortOption === 'via_vessel_status' ? "Sort: VIA VESSEL + Status" :
-                                                                                "Sort: VIA VESSEL + VIA HUB + Status"}
+                                                        {getStockSortButtonLabel(sortOption)}
                                                     </MenuButton>
                                                     <MenuList>
-                                                        <MenuItem onClick={() => setSortOption('via_hub')}>
-                                                            Sort by VIA HUB (Alphabetically)
-                                                        </MenuItem>
+                                                        <StockHubSortMenuItems
+                                                            sortOption={sortOption}
+                                                            onSelect={setSortOption}
+                                                        />
                                                         <MenuItem onClick={() => setSortOption('via_vessel')}>
                                                             Sort by VIA VESSEL (Alphabetically)
                                                         </MenuItem>
@@ -1739,35 +1737,8 @@ export default function StockList() {
                                     {sortOption !== 'none' && (
                                         <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
                                             <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
-                                            <Text fontSize="xs" color={textColor} opacity={0.8}>
-                                                {sortOption === 'via_hub' && (
-                                                    <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
-                                                )}
-                                                {sortOption === 'via_vessel' && (
-                                                    <>VIA VESSEL (alphabetically by vessel name)</>
-                                                )}
-                                                {sortOption === 'status' && (
-                                                    <>Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
-                                                )}
-                                                {sortOption === 'via_hub_status' && (
-                                                    <>
-                                                        1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                        2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                    </>
-                                                )}
-                                                {sortOption === 'via_vessel_status' && (
-                                                    <>
-                                                        1st: VIA VESSEL (alphabetically by vessel name)<br />
-                                                        2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                    </>
-                                                )}
-                                                {sortOption === 'via_vessel_via_hub_status' && (
-                                                    <>
-                                                        1st: VIA VESSEL (alphabetically by vessel name)<br />
-                                                        2nd: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                        3rd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                    </>
-                                                )}
+                                            <Text fontSize="xs" color={textColor} opacity={0.8} whiteSpace="pre-line">
+                                                {getStockSortDescription(sortOption)}
                                             </Text>
                                         </Box>
                                     )}

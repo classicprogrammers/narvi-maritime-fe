@@ -213,6 +213,7 @@ const buildFormResetPayload = () => ({
   cnee12: null,
   cnee_text: null,
   in_liason_with: null,
+  pod_delivery_note: null,
   total_packed_quantity: null,
   total_packed_weight: null,
   packed_as: null,
@@ -278,6 +279,8 @@ const INITIAL_FORM_DATA = {
   agentsPIC: "",
   warnings: "",
   includeInLiasonWith: false,
+  podDeliveryNote: "",
+  showPodDeliveryNote: false,
 };
 
 const getInitialFormData = () => ({ ...INITIAL_FORM_DATA });
@@ -370,6 +373,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const headerUserEditedRef = useRef(false);
   const consignBlockUserEditedRef = useRef(false);
   const includeInLiasonWithUserControlledRef = useRef(false);
+  const podDeliveryNoteUserEditedRef = useRef(false);
+  const showPodDeliveryNoteUserControlledRef = useRef(false);
   const packedTotalsUserEditedRef = useRef(false);
   const isResettingRef = useRef(false);
   const lastSubmittedHeaderRef = useRef({
@@ -381,6 +386,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
   const lastSavedAutosaveRef = useRef({
     header: {},
     cneeText: null,
+    podDeliveryNote: null,
     packed: {},
   });
   const lastDeliveryHeaderRef = useRef({ siNumber: "", soNumber: "" });
@@ -762,6 +768,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     const text = value == null ? "" : String(value).trim();
     return text === "" ? null : value;
   };
+  const buildPodDeliveryNoteApiValue = (show, text) =>
+    show ? String(text ?? "") : false;
   const buildHeaderSaveCandidate = (data) => {
     if (isShippingAdvise) {
       return {
@@ -789,6 +797,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           di_number_id: data.siNo,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
+        pod_delivery_note: buildPodDeliveryNoteApiValue(
+          data.showPodDeliveryNote,
+          data.podDeliveryNote
+        ),
         ...buildHeaderMasterOptionFields({
           data,
           savedHeader: lastSavedAutosaveRef.current.header,
@@ -808,6 +820,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           di_number_id: data.siNo,
         }),
         in_liason_with: String(data.consignBlock ?? ""),
+        pod_delivery_note: buildPodDeliveryNoteApiValue(
+          data.showPodDeliveryNote,
+          data.podDeliveryNote
+        ),
         ...buildHeaderMasterOptionFields({
           data,
           savedHeader: lastSavedAutosaveRef.current.header,
@@ -867,6 +883,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
             ? String(form.in_liason_with ?? "")
             : "",
+        pod_delivery_note:
+          Object.prototype.hasOwnProperty.call(form, "pod_delivery_note") && form.pod_delivery_note !== false
+            ? String(form.pod_delivery_note ?? "")
+            : false,
         si_number_id: toIdOrNull(form.si_number_id),
         so_number_id: toIdOrNull(form.so_number_id),
         so_number: toNullIfEmpty(form.so_number),
@@ -889,6 +909,10 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           Object.prototype.hasOwnProperty.call(form, "in_liason_with") && form.in_liason_with !== false
             ? String(form.in_liason_with ?? "")
             : "",
+        pod_delivery_note:
+          Object.prototype.hasOwnProperty.call(form, "pod_delivery_note") && form.pod_delivery_note !== false
+            ? String(form.pod_delivery_note ?? "")
+            : false,
         header_pic_id: toIdOrNull(form.header_pic_id),
         header_date: formatDateForApi(form.header_date),
         deadline_text: formatDateForApi(form.deadline_text),
@@ -921,6 +945,13 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         : "")
       : form.cnee_text;
     lastSavedAutosaveRef.current.cneeText = snapshotValue(cneeRaw);
+    lastSavedAutosaveRef.current.podDeliveryNote = isDeliveryLike
+      ? snapshotValue(
+        Object.prototype.hasOwnProperty.call(form, "pod_delivery_note") && form.pod_delivery_note !== false
+          ? String(form.pod_delivery_note ?? "")
+          : false
+      )
+      : null;
     const packedAsSnapshot =
       form.packed_as && typeof form.packed_as === "object" ? form.packed_as : null;
     lastSavedAutosaveRef.current.packed = {
@@ -1062,6 +1093,15 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       : (form.cnee_text && form.cnee_text !== false ? String(form.cnee_text) : "");
     const includeInLiasonWith = isDeliveryLike
       ? (hasInLiasonWithField ? form.in_liason_with !== false : false)
+      : false;
+    const hasPodDeliveryNoteField = Object.prototype.hasOwnProperty.call(form, "pod_delivery_note");
+    const podDeliveryNoteText = isDeliveryLike
+      ? (hasPodDeliveryNoteField && form.pod_delivery_note !== false
+        ? String(form.pod_delivery_note ?? "")
+        : "")
+      : "";
+    const showPodDeliveryNote = isDeliveryLike
+      ? (hasPodDeliveryNoteField ? form.pod_delivery_note !== false : false)
       : false;
     const stockList = Array.isArray(form.stock_list) ? form.stock_list : [];
     const headerSiFromStock = stockList
@@ -1393,6 +1433,16 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             ? prev.includeInLiasonWith
             : (!hasInLiasonWithField ? prev.includeInLiasonWith : includeInLiasonWith))
           : false,
+      podDeliveryNote:
+        isDeliveryLike && !hasPodDeliveryNoteField
+          ? prev.podDeliveryNote
+          : podDeliveryNoteText,
+      showPodDeliveryNote:
+        isDeliveryLike
+          ? (showPodDeliveryNoteUserControlledRef.current
+            ? prev.showPodDeliveryNote
+            : (!hasPodDeliveryNoteField ? prev.showPodDeliveryNote : showPodDeliveryNote))
+          : false,
     }));
 
     // Keep selected agent visible in the dropdown even before options list refreshes.
@@ -1571,6 +1621,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     setCargoItems(mapped.length ? mapped : blankCargoRows());
     syncAutosaveSnapshotsFromApi(form);
     consignBlockUserEditedRef.current = false;
+    podDeliveryNoteUserEditedRef.current = false;
     // allow autosave effects after this render flushes
     setTimeout(() => {
       isApplyingFormRef.current = false;
@@ -1925,6 +1976,46 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
     return () => clearTimeout(timeoutId);
   }, [formData.consignBlock]);
 
+  // Autosave POD / Delivery note (debounced)
+  useEffect(() => {
+    if (!isDeliveryLike) return;
+    if (isResettingRef.current) return;
+    if (isApplyingFormRef.current) return;
+    if (!podDeliveryNoteUserEditedRef.current) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        const currentId = await ensureFormId();
+        if (!currentId) return;
+
+        const nextPodValue = buildPodDeliveryNoteApiValue(
+          formData.showPodDeliveryNote,
+          formData.podDeliveryNote
+        );
+        if (snapshotValue(nextPodValue) === snapshotValue(lastSavedAutosaveRef.current.podDeliveryNote)) {
+          return;
+        }
+
+        setIsSiFormLoading(true);
+        const updated = await saveForm(
+          buildSavePayloadWithId(currentId, { pod_delivery_note: nextPodValue })
+        );
+        if (updated?.id != null) setSiFormId(updated.id);
+        lastSavedAutosaveRef.current.podDeliveryNote = snapshotValue(nextPodValue);
+        podDeliveryNoteUserEditedRef.current = false;
+        if (updated) {
+          syncAutosaveSnapshotsFromApi(updated);
+        }
+      } catch (e) {
+        console.error("Failed to autosave pod_delivery_note:", e);
+        showFormSaveError(toast, e, "Failed to save form");
+      } finally {
+        setIsSiFormLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.podDeliveryNote, formData.showPodDeliveryNote, isDeliveryLike]);
+
   // Keep packed totals auto-calculated from cargo unless user overrides.
   useEffect(() => {
     if (isResettingRef.current) return;
@@ -1997,6 +2088,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       setIsSiFormLoading(true);
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
+      podDeliveryNoteUserEditedRef.current = false;
       packedTotalsUserEditedRef.current = false;
       setRequiredAgentCneeId(null);
       // Ensure we have a record id to update
@@ -2027,8 +2119,9 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
         to_text: "",
         deadline_text: "",
       };
-      lastSavedAutosaveRef.current = { header: {}, cneeText: null, packed: {} };
+      lastSavedAutosaveRef.current = { header: {}, cneeText: null, podDeliveryNote: null, packed: {} };
       includeInLiasonWithUserControlledRef.current = false;
+      showPodDeliveryNoteUserControlledRef.current = false;
       try {
         window.localStorage.setItem(liaisonCheckboxStorageKey, "false");
       } catch (e) {
@@ -2046,6 +2139,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       // Prevent immediate post-reset autosave loops from stale refs.
       headerUserEditedRef.current = false;
       consignBlockUserEditedRef.current = false;
+      podDeliveryNoteUserEditedRef.current = false;
       packedTotalsUserEditedRef.current = false;
       setRequiredAgentCneeId(null);
     } catch (e) {
@@ -2362,10 +2456,34 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
       },
     });
     const cargoTableEndY = doc.lastAutoTable?.finalY || (twoColEndY + 14);
+    let deliveryFooterStartY = cargoTableEndY + 14;
+    if (isDeliveryLike && formData.showPodDeliveryNote) {
+      const podDeliveryLines = String(formData.podDeliveryNote || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+      const podTableTopY = deliveryFooterStartY;
+      const podTableWidth = pageWidth - (contentLeft + 24);
+      autoTable(doc, {
+        startY: deliveryFooterStartY,
+        head: [["POD / DELIVERY NOTE"]],
+        body: (podDeliveryLines.length ? podDeliveryLines : ["-"]).map((line) => [line]),
+        theme: "plain",
+        styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak", valign: "top" },
+        headStyles: { fillColor: [28, 74, 149], textColor: 255 },
+        margin: { left: contentLeft, right: 24 },
+        tableWidth: podTableWidth,
+      });
+      const podTableEndY = doc.lastAutoTable?.finalY || deliveryFooterStartY;
+      doc.setDrawColor(205, 215, 232);
+      doc.setLineWidth(0.35);
+      doc.rect(contentLeft, podTableTopY, podTableWidth, Math.max(12, podTableEndY - podTableTopY));
+      deliveryFooterStartY = podTableEndY + 14;
+    }
     if (isDeliveryLike) {
       const warningText =
         "ALWAYS CHECK IF CARGO UPON DELIVERY IS IN GOOD CONDITION AND IF NOT - IF ANY IRREGULARITIES WE ARE TO BE INFORMED UPON DELIVERY COMPLETED";
-      const warningY = cargoTableEndY + 20;
+      const warningY = deliveryFooterStartY + 6;
       doc.setFontSize(9);
       doc.setTextColor(220, 38, 38);
       doc.text(doc.splitTextToSize(warningText, pageWidth - (contentLeft + 24)), contentLeft, warningY);
@@ -3614,6 +3732,45 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 )}
               </Box>
             </Box>
+            {isDeliveryLike && (
+              <Box mt={4} p={3} border="1px" borderColor="gray.200" borderRadius="md" bg="gray.50">
+                <Flex align="center" justify="space-between" mb={2}>
+                  <Text fontSize="sm" fontWeight="bold">
+                    POD / DELIVERY NOTE
+                  </Text>
+                  <HStack spacing={2}>
+                    <Text fontSize="xs" color="gray.600">
+                      Do not show
+                    </Text>
+                    <Switch
+                      colorScheme="green"
+                      isChecked={Boolean(formData.showPodDeliveryNote)}
+                      onChange={(e) => {
+                        showPodDeliveryNoteUserControlledRef.current = true;
+                        podDeliveryNoteUserEditedRef.current = true;
+                        handleInputChange("showPodDeliveryNote", e.target.checked);
+                      }}
+                    />
+                    <Text fontSize="xs" color="gray.600">
+                      Show
+                    </Text>
+                  </HStack>
+                </Flex>
+                {formData.showPodDeliveryNote && (
+                  <Textarea
+                    value={formData.podDeliveryNote || ""}
+                    onChange={(e) => {
+                      podDeliveryNoteUserEditedRef.current = true;
+                      handleInputChange("podDeliveryNote", e.target.value);
+                    }}
+                    size="sm"
+                    rows={5}
+                    placeholder="Enter POD / delivery note details..."
+                    bg="white"
+                  />
+                )}
+              </Box>
+            )}
           </Box>
 
           {/* Right Section: Select Consignee */}

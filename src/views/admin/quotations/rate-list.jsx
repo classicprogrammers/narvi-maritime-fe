@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useHistory } from "react-router-dom";
 import {
   Box,
   Button,
@@ -49,7 +50,14 @@ import {
 import Card from "components/card/Card";
 import SimpleSearchableSelect from "components/forms/SimpleSearchableSelect";
 import api from "../../../api/axios";
+import { updateRateListApi } from "../../../api/rate";
 import { useMasterData } from "../../../hooks/useMasterData";
+import { emptyToNull, mapRateItemToFormRow } from "../../../utils/rateListForm";
+import {
+  defaultRateListState,
+  readPersistedRateListState,
+  writePersistedRateListState,
+} from "../../../utils/rateListState";
 import {
   buildRateListPdf,
   buildRateListPdfModel,
@@ -99,12 +107,6 @@ function intFilterToParam(value) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-function emptyToNull(value) {
-  if (value == null) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  return value;
-}
-
 function formatAgentOption(agent) {
   if (!agent) return "";
   const code = agent.name || "";
@@ -150,6 +152,8 @@ function displayText(value) {
 
 export default function RateList() {
   const toast = useToast();
+  const history = useHistory();
+  const savedListState = useMemo(() => readPersistedRateListState(), []);
   const { clients, agents, currencies } = useMasterData();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const {
@@ -227,11 +231,13 @@ export default function RateList() {
   const [formData, setFormData] = useState(DEFAULT_FORM);
   const [editAgentOption, setEditAgentOption] = useState(null);
 
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [search, setSearch] = useState(() => savedListState?.search ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    () => savedListState?.debouncedSearch ?? savedListState?.search ?? ""
+  );
+  const [filters, setFilters] = useState(() => savedListState?.filters ?? DEFAULT_FILTERS);
+  const [page, setPage] = useState(() => savedListState?.page ?? 1);
+  const [pageSize, setPageSize] = useState(() => savedListState?.pageSize ?? 50);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -246,9 +252,13 @@ export default function RateList() {
     filters.import_group
   );
   const hasAnyFilter = Boolean(search || hasAnyAdvanceFilter);
-  const [showFilterFields, setShowFilterFields] = useState(false);
+  const [showFilterFields, setShowFilterFields] = useState(
+    () => savedListState?.showFilterFields ?? false
+  );
 
-  const [selectedRates, setSelectedRates] = useState({});
+  const [selectedRates, setSelectedRates] = useState(
+    () => savedListState?.selectedRates ?? {}
+  );
   const [pdfModel, setPdfModel] = useState(null);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
@@ -281,10 +291,27 @@ export default function RateList() {
   }, [hasAnyAdvanceFilter]);
 
   useEffect(() => {
+    writePersistedRateListState({
+      search,
+      debouncedSearch,
+      filters,
+      page,
+      pageSize,
+      showFilterFields,
+      selectedRates,
+    });
+  }, [search, debouncedSearch, filters, page, pageSize, showFilterFields, selectedRates]);
+
+  useEffect(() => {
+    if (isFirstFilterChangeRun.current) {
+      isFirstFilterChangeRun.current = false;
+      return;
+    }
     setSelectedRates({});
   }, [debouncedSearch, filters]);
 
   const isFirstSearchRun = useRef(true);
+  const isFirstFilterChangeRun = useRef(true);
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -346,6 +373,8 @@ export default function RateList() {
     setFilters(DEFAULT_FILTERS);
     setPage(1);
     setSelectedRates({});
+    setShowFilterFields(false);
+    writePersistedRateListState(defaultRateListState);
   };
 
   const toggleSelectRate = (item) => {
@@ -400,28 +429,21 @@ export default function RateList() {
         }
         : null
     );
-    setFormData({
-      id: item.id,
-      rate_type: item.rate_type || "general",
-      client_id: item.client_id?.id || item.client_id || "",
-      location_text: item.location_text || item.location || "",
-      agent_id: agentId,
-      currency_id: item.currency_id?.id || item.currency_id || "",
-      rate_name: item.rate_name || "",
-      rate_text: item.rate_text || "",
-      rate_float: item.rate_float || "",
-      rate_calculation: item.rate_calculation || "",
-      fixed_sales_rate: item.fixed_sales_rate || "",
-      valid_until: item.valid_until || "",
-      remarks: item.remarks || "",
-      sort_order: item.sort_order ?? "",
-      incl_in_tariff: Boolean(item.incl_in_tariff),
-      import_group: item.import_group || "",
-      last_update: item.last_update || "",
-      active: item.active !== false,
-      rate_id: item.rate_id || "",
-    });
+    setFormData(mapRateItemToFormRow(item));
     onOpen();
+  };
+
+  const handleNavigateToEdit = () => {
+    const selectedItems = Object.values(selectedRates);
+    if (!selectedItems.length) return;
+
+    history.push({
+      pathname: "/admin/quotations/rate-list/edit",
+      state: {
+        selectedItems,
+        isBulkEdit: selectedItems.length > 1,
+      },
+    });
   };
 
   const validateForm = () => {
@@ -466,7 +488,13 @@ export default function RateList() {
         delete payload.rate_id;
       }
 
-      await api.post(isEdit ? "/api/rate/list/update" : "/api/rate/list/create", payload);
+      if (!isEdit) {
+        delete payload.id;
+        delete payload.rate_id;
+        await api.post("/api/rate/list/create", payload);
+      } else {
+        await updateRateListApi(payload);
+      }
 
       toast({
         title: isEdit ? "Rate updated" : "Rate created",
@@ -885,21 +913,38 @@ export default function RateList() {
             >
               <Text fontSize="sm" color={tableTextColorSecondary}>
                 {selectedCount > 0
-                  ? `${selectedCount} rate${selectedCount === 1 ? "" : "s"} selected on this list`
-                  : "Use the checkboxes in the table to select rates for PDF export"}
+                  ? `${selectedCount} rate${selectedCount === 1 ? "" : "s"} selected`
+                  : "Use the checkboxes in the table to select rates for editing or PDF export"}
               </Text>
               <HStack spacing={3} flexWrap="wrap">
                 {selectedCount > 0 && (
-                  <Button
-                    colorScheme="blue"
-                    size="sm"
-                    leftIcon={<Icon as={MdPictureAsPdf} />}
-                    onClick={handleExportSelectedPdf}
-                    isLoading={isPdfLoading}
-                    loadingText="Generating..."
-                  >
-                    Export Selected ({selectedCount})
-                  </Button>
+                  <>
+                    <Button
+                      colorScheme="green"
+                      size="sm"
+                      leftIcon={<Icon as={MdEdit} />}
+                      onClick={handleNavigateToEdit}
+                    >
+                      Edit Selected ({selectedCount})
+                    </Button>
+                    <Button
+                      colorScheme="blue"
+                      size="sm"
+                      leftIcon={<Icon as={MdPictureAsPdf} />}
+                      onClick={handleExportSelectedPdf}
+                      isLoading={isPdfLoading}
+                      loadingText="Generating..."
+                    >
+                      Export Selected ({selectedCount})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedRates({})}
+                    >
+                      Clear Selection
+                    </Button>
+                  </>
                 )}
                 {hasAnyFilter && (
                   <Button

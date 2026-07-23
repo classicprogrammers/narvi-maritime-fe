@@ -69,6 +69,16 @@ import {
     stockSoIdPayloadValuesEqual,
     normalizeStockFormSoId,
 } from "../../../utils/shippingOrderListState";
+import StockHubSortMenuItems from "../../../components/stock-list/StockHubSortMenuItems";
+import { isStockHubSortOption, normalizeStockHubSortOption } from "../../../constants/stockHubSort";
+import {
+    getClientStockSortButtonLabel,
+    getStockSortButtonLabel,
+    getStockSortDescription,
+    isApiDrivenStockSortOption,
+    mapStockSortOptionToApiSortBy,
+} from "../../../utils/stockSortOptions";
+import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
 
 function mapStockSoFieldToOrder(soField) {
     if (!soField || typeof soField !== "object" || soField.id == null) return null;
@@ -446,16 +456,20 @@ function readPersistedStockViewEditState() {
             stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
             stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
-            sortOption: typeof p.sortOption === "string" ? p.sortOption : "none",
+            sortOption: typeof p.sortOption === "string"
+                ? (normalizeStockHubSortOption(p.sortOption) ?? p.sortOption)
+                : "none",
             clientSortOption:
                 p.clientSortOption === "none" ||
-                    p.clientSortOption === "via_hub" ||
+                    isStockHubSortOption(p.clientSortOption) ||
+                    normalizeStockHubSortOption(p.clientSortOption) != null ||
+                    p.clientSortOption === "effective_hub" ||
                     p.clientSortOption === "via_vessel" ||
                     p.clientSortOption === "status" ||
                     p.clientSortOption === "via_hub_status" ||
                     p.clientSortOption === "via_vessel_status" ||
                     p.clientSortOption === "via_vessel_via_hub_status"
-                    ? p.clientSortOption
+                    ? (normalizeStockHubSortOption(p.clientSortOption) ?? p.clientSortOption)
                     : "none",
         };
     } catch {
@@ -641,6 +655,12 @@ export default function Stocks() {
     const [isViewingSelected, setIsViewingSelected] = useState(false);
 
     const { clients, vessels, suppliers: vendors, countries, destinations, currencies } = useMasterData();
+    const { vesselOptions: stockViewVesselOptions, isLoadingVessels: isLoadingStockViewVessels } =
+        useClientVesselFilterOptions(stockViewClient, stockViewVessel, vessels);
+    const { vesselOptions: clientViewVesselOptions, isLoadingVessels: isLoadingClientViewVessels } =
+        useClientVesselFilterOptions(clientViewClient, clientViewVesselFilter, vessels);
+    const { vesselOptions: vesselViewVesselOptions, isLoadingVessels: isLoadingVesselViewVessels } =
+        useClientVesselFilterOptions(vesselViewClient, vesselViewVessel, vessels);
     const {
         destinationOptions: stockDestinationOptions,
         apDestinationOptions: stockApDestinationOptions,
@@ -810,20 +830,7 @@ export default function Stocks() {
             const vesselId = f.stockViewVessel != null ? (typeof f.stockViewVessel === "object" ? (f.stockViewVessel?.id ?? f.stockViewVessel?.value) : f.stockViewVessel) : undefined;
 
             // Map Stock View / Edit sortOption to backend sort_by
-            let sort_by;
-            if (sortOption === "via_hub") {
-                sort_by = "via_hub";
-            } else if (sortOption === "via_vessel") {
-                sort_by = "vessel_name";
-            } else if (sortOption === "status") {
-                sort_by = "stock_status";
-            } else if (sortOption === "via_hub_status") {
-                sort_by = "via_hub_status";
-            } else if (sortOption === "via_vessel_status") {
-                sort_by = "vessel_status";
-            } else if (sortOption === "via_vessel_via_hub_status") {
-                sort_by = "vessel_via_hub_status";
-            }
+            const sort_by = mapStockSortOptionToApiSortBy(sortOption);
 
             getStockList({
                 ...base,
@@ -845,7 +852,7 @@ export default function Stocks() {
                 days_on_stock_max: f.daysRangeTo?.trim() || undefined,
                 date_on_stock_from: f.createDateFrom?.trim() || undefined,
                 date_on_stock_to: f.createDateTo?.trim() || undefined,
-                via_hub: hubVal?.trim() || undefined,
+                effective_hub: hubVal?.trim() || undefined,
                 sort_by,
             });
         } else {
@@ -854,20 +861,7 @@ export default function Stocks() {
             const statusParam = statusSet.size > 0 ? Array.from(statusSet) : undefined;
 
             // Map clientSortOption to backend sort_by
-            let sort_by;
-            if (clientSortOption === "via_hub") {
-                sort_by = "via_hub";
-            } else if (clientSortOption === "via_vessel") {
-                sort_by = "vessel_name";
-            } else if (clientSortOption === "status") {
-                sort_by = "stock_status";
-            } else if (clientSortOption === "via_hub_status") {
-                sort_by = "via_hub_status";
-            } else if (clientSortOption === "via_vessel_status") {
-                sort_by = "vessel_status";
-            } else if (clientSortOption === "via_vessel_via_hub_status") {
-                sort_by = "vessel_via_hub_status";
-            }
+            const sort_by = mapStockSortOptionToApiSortBy(clientSortOption);
 
             getStockList({
                 ...base,
@@ -1306,6 +1300,7 @@ export default function Stocks() {
     const hubOptions = useMemo(() => {
         const hubSet = new Set();
         stockList.forEach(item => {
+            if (item.effective_hub) hubSet.add(String(item.effective_hub).trim());
             if (item.via_hub) hubSet.add(item.via_hub.trim());
             if (item.via_hub2) hubSet.add(item.via_hub2.trim());
         });
@@ -1328,14 +1323,7 @@ export default function Stocks() {
         // Status filter is applied by API only (status checkboxes -> status param); no frontend status filter
 
         // When using API-driven sorts, keep backend ordering and skip frontend sorting.
-        if (
-            sortOption === 'via_hub' ||
-            sortOption === 'via_vessel' ||
-            sortOption === 'status' ||
-            sortOption === 'via_hub_status' ||
-            sortOption === 'via_vessel_status' ||
-            sortOption === 'via_vessel_via_hub_status'
-        ) {
+        if (isApiDrivenStockSortOption(sortOption)) {
             return filtered;
         }
 
@@ -3920,18 +3908,13 @@ export default function Stocks() {
                                         colorScheme={sortOption !== 'none' ? "blue" : "gray"}
                                         variant={sortOption !== 'none' ? "solid" : "outline"}
                                     >
-                                        {sortOption === 'none' ? "Select Sort Option" :
-                                            sortOption === 'via_hub' ? "Sort: VIA HUB" :
-                                                sortOption === 'via_vessel' ? "Sort: VIA VESSEL" :
-                                                    sortOption === 'status' ? "Sort: Stock Status" :
-                                                        sortOption === 'via_hub_status' ? "Sort: VIA HUB + Status" :
-                                                            sortOption === 'via_vessel_status' ? "Sort: VIA VESSEL + Status" :
-                                                                "Sort: VIA VESSEL + VIA HUB + Status"}
+                                        {getStockSortButtonLabel(sortOption)}
                                     </MenuButton>
                                     <MenuList>
-                                        <MenuItem onClick={() => setSortOption('via_hub')}>
-                                            Sort by VIA HUB (Alphabetically)
-                                        </MenuItem>
+                                        <StockHubSortMenuItems
+                                            sortOption={sortOption}
+                                            onSelect={setSortOption}
+                                        />
                                         <MenuItem onClick={() => setSortOption('via_vessel')}>
                                             Sort by VIA VESSEL (Alphabetically)
                                         </MenuItem>
@@ -3994,12 +3977,12 @@ export default function Stocks() {
                                                             <SimpleSearchableSelect
                                                                 value={vesselViewVessel}
                                                                 onChange={(value) => setVesselViewVessel(value)}
-                                                                options={vessels}
+                                                                options={vesselViewVesselOptions}
                                                                 placeholder="Select Vessel"
                                                                 displayKey="name"
                                                                 valueKey="id"
                                                                 formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                isLoading={false}
+                                                                isLoading={isLoadingVesselViewVessels}
                                                                 bg={inputBg}
                                                                 color={inputText}
                                                                 borderColor={borderColor}
@@ -4017,7 +4000,10 @@ export default function Stocks() {
                                                             </Flex>
                                                             <SimpleSearchableSelect
                                                                 value={vesselViewClient}
-                                                                onChange={(value) => setVesselViewClient(value)}
+                                                                onChange={(value) => {
+                                                                    setVesselViewClient(value);
+                                                                    setVesselViewVessel(null);
+                                                                }}
                                                                 options={clients}
                                                                 placeholder="Select Client"
                                                                 displayKey="name"
@@ -4134,7 +4120,10 @@ export default function Stocks() {
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
                                                                         value={clientViewClient}
-                                                                        onChange={(value) => setClientViewClient(value)}
+                                                                        onChange={(value) => {
+                                                                            setClientViewClient(value);
+                                                                            setClientViewVesselFilter(null);
+                                                                        }}
                                                                         options={clients}
                                                                         placeholder="Filter by Client"
                                                                         displayKey="name"
@@ -4166,12 +4155,12 @@ export default function Stocks() {
                                                                     <SimpleSearchableSelect
                                                                         value={clientViewVesselFilter}
                                                                         onChange={(value) => setClientViewVesselFilter(value)}
-                                                                        options={vessels}
+                                                                        options={clientViewVesselOptions}
                                                                         placeholder="Filter by Vessel"
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                        isLoading={false}
+                                                                        isLoading={isLoadingClientViewVessels}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -4231,6 +4220,7 @@ export default function Stocks() {
                                                             value={clientViewClient}
                                                             onChange={(value) => {
                                                                 setClientViewClient(value);
+                                                                setClientViewVesselFilter(null);
                                                                 // Client name will auto-fill via clientViewClientData
                                                             }}
                                                             options={clients}
@@ -4504,7 +4494,10 @@ export default function Stocks() {
                                                                 <Box flex="1">
                                                                     <SimpleSearchableSelect
                                                                         value={stockViewClient}
-                                                                        onChange={(value) => setStockViewClient(value)}
+                                                                        onChange={(value) => {
+                                                                            setStockViewClient(value);
+                                                                            setStockViewVessel(null);
+                                                                        }}
                                                                         options={clients}
                                                                         placeholder="Filter by Client"
                                                                         displayKey="name"
@@ -4536,12 +4529,12 @@ export default function Stocks() {
                                                                     <SimpleSearchableSelect
                                                                         value={stockViewVessel}
                                                                         onChange={(value) => setStockViewVessel(value)}
-                                                                        options={vessels}
+                                                                        options={stockViewVesselOptions}
                                                                         placeholder="Filter by Vessel"
                                                                         displayKey="name"
                                                                         valueKey="id"
                                                                         formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                        isLoading={false}
+                                                                        isLoading={isLoadingStockViewVessels}
                                                                         bg={inputBg}
                                                                         color={inputText}
                                                                         borderColor={borderColor}
@@ -4811,35 +4804,8 @@ export default function Stocks() {
                                                 {sortOption !== 'none' && (
                                                     <Box mt="2" p="3" bg={useColorModeValue("blue.50", "blue.900")} borderRadius="md" border="1px" borderColor={useColorModeValue("blue.200", "blue.700")}>
                                                         <Text fontSize="xs" color={textColor} fontWeight="600" mb="1">Sorting Order:</Text>
-                                                        <Text fontSize="xs" color={textColor} opacity={0.8}>
-                                                            {sortOption === 'via_hub' && (
-                                                                <>VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists</>
-                                                            )}
-                                                            {sortOption === 'via_vessel' && (
-                                                                <>VIA VESSEL (alphabetically by vessel name)</>
-                                                            )}
-                                                            {sortOption === 'status' && (
-                                                                <>Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction</>
-                                                            )}
-                                                            {sortOption === 'via_hub_status' && (
-                                                                <>
-                                                                    1st: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                                    2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                                </>
-                                                            )}
-                                                            {sortOption === 'via_vessel_status' && (
-                                                                <>
-                                                                    1st: VIA VESSEL (alphabetically by vessel name)<br />
-                                                                    2nd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                                </>
-                                                            )}
-                                                            {sortOption === 'via_vessel_via_hub_status' && (
-                                                                <>
-                                                                    1st: VIA VESSEL (alphabetically by vessel name)<br />
-                                                                    2nd: VIA HUB (alphabetically) - VIA HUB 2 overwrites VIA HUB 1 if exists<br />
-                                                                    3rd: Stock Status - Pending → Stock → In Transit → Arrived Destination → On a Shipping Instruction → On a Delivery Instruction
-                                                                </>
-                                                            )}
+                                                        <Text fontSize="xs" color={textColor} opacity={0.8} whiteSpace="pre-line">
+                                                            {getStockSortDescription(sortOption)}
                                                         </Text>
                                                     </Box>
                                                 )}
@@ -5343,20 +5309,13 @@ export default function Stocks() {
                                                                 colorScheme="blue"
                                                                 variant="solid"
                                                             >
-                                                                {({
-                                                                    via_hub: "Sorting: VIA HUB (Alphabetically)",
-                                                                    via_vessel: "Sorting: VIA VESSEL (Alphabetically)",
-                                                                    status: "Sorting: Stock Status",
-                                                                    via_hub_status: "Sorting: VIA HUB + Status",
-                                                                    via_vessel_status: "Sorting: VIA VESSEL + Status",
-                                                                    via_vessel_via_hub_status: "Sorting: VIA VESSEL + VIA HUB + Status",
-                                                                    none: "Sorting: No Sort",
-                                                                }[clientSortOption] || "Sorting: No Sort")}
+                                                                {getClientStockSortButtonLabel(clientSortOption)}
                                                             </MenuButton>
                                                             <MenuList>
-                                                                <MenuItem onClick={() => setClientSortOption("via_hub")}>
-                                                                    Sort by VIA HUB (Alphabetically)
-                                                                </MenuItem>
+                                                                <StockHubSortMenuItems
+                                                                    sortOption={clientSortOption}
+                                                                    onSelect={setClientSortOption}
+                                                                />
                                                                 <MenuItem onClick={() => setClientSortOption("via_vessel")}>
                                                                     Sort by VIA VESSEL (Alphabetically)
                                                                 </MenuItem>
@@ -5406,7 +5365,10 @@ export default function Stocks() {
                                                             <Box flex="1">
                                                                 <SimpleSearchableSelect
                                                                     value={clientViewClient}
-                                                                    onChange={(value) => setClientViewClient(value)}
+                                                                    onChange={(value) => {
+                                                                        setClientViewClient(value);
+                                                                        setClientViewVesselFilter(null);
+                                                                    }}
                                                                     options={clients}
                                                                     placeholder="Filter by Client"
                                                                     displayKey="name"
@@ -5438,12 +5400,12 @@ export default function Stocks() {
                                                                 <SimpleSearchableSelect
                                                                     value={clientViewVesselFilter}
                                                                     onChange={(value) => setClientViewVesselFilter(value)}
-                                                                    options={vessels}
+                                                                    options={clientViewVesselOptions}
                                                                     placeholder="Filter by Vessel"
                                                                     displayKey="name"
                                                                     valueKey="id"
                                                                     formatOption={(option) => option.name || String(option.id ?? "")}
-                                                                    isLoading={false}
+                                                                    isLoading={isLoadingClientViewVessels}
                                                                     bg={inputBg}
                                                                     color={inputText}
                                                                     borderColor={borderColor}

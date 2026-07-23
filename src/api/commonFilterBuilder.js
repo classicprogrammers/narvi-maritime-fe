@@ -44,7 +44,12 @@ const normalizeStatusForEndpoint = (statusCsv, endpointType) => {
 };
 
 const STOCK_SEMANTIC_SORTS = new Set([
+  "origin_ap_destination",
   "via_hub",
+  "via_hub_ap_destination",
+  "via_hub_via_hub2",
+  "via_hub_via_hub2_ap_destination",
+  "effective_hub",
   "vessel_name",
   "stock_status",
   "via_hub_status",
@@ -73,6 +78,8 @@ export const buildCommonStockJobFilters = (params = {}, endpointType = "stock") 
   assign("so_number", params.so_number);
   assign("stock_item_id", params.stock_item_id);
   assign("remarks", params.remarks);
+  assign("effective_hub", params.effective_hub);
+  assign("hub", params.hub);
   assign("sort_by", params.sort_by);
   const resolvedSortBy = isPresent(params.sort_by) ? String(params.sort_by).trim() : "";
   if (!STOCK_SEMANTIC_SORTS.has(resolvedSortBy)) {

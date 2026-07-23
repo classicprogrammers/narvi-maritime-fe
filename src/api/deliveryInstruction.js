@@ -20,6 +20,18 @@ const isDeliveryInstructionFormResult = (value) =>
       Object.prototype.hasOwnProperty.call(value, "di_number_id") ||
       Object.prototype.hasOwnProperty.call(value, "si_number") ||
       Object.prototype.hasOwnProperty.call(value, "so_number") ||
+      Object.prototype.hasOwnProperty.call(value, "pod_delivery_note") ||
+      Object.prototype.hasOwnProperty.call(value, "in_liason_with"))
+  );
+
+const isDeliveryConfirmationFormResult = (value) =>
+  Boolean(
+    value &&
+    typeof value === "object" &&
+    (Object.prototype.hasOwnProperty.call(value, "id") ||
+      Object.prototype.hasOwnProperty.call(value, "stock_list") ||
+      Object.prototype.hasOwnProperty.call(value, "di_number_id") ||
+      Object.prototype.hasOwnProperty.call(value, "pod_delivery_note") ||
       Object.prototype.hasOwnProperty.call(value, "in_liason_with"))
   );
 

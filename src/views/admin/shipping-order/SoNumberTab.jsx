@@ -115,7 +115,7 @@ const formatCurrency = (value) => {
   }).format(numberValue);
 };
 
-const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 19;
+const SHIPPING_ORDER_TABLE_COLUMN_COUNT = 20;
 
 const SoNumberTab = () => {
   const textColor = useColorModeValue("gray.700", "white");
@@ -267,11 +267,6 @@ const SoNumberTab = () => {
   const resetForm = () => {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, "0");
-    const localTimestamp = `${pad(now.getDate())}/${pad(
-      now.getMonth() + 1
-    )}/${now.getFullYear()} ${pad(now.getHours())}:${pad(
-      now.getMinutes()
-    )}:${pad(now.getSeconds())}`;
     // Default DATE CREATED to today's date (YYYY-MM-DD) when creating a new SO
     const todayDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
       now.getDate()
@@ -295,13 +290,13 @@ const SoNumberTab = () => {
       eta_date: "",
       etb: "",
       etd: "",
+      so_delivery_date: "",
       next_action: "",
       internal_remark: "",
       client_case_invoice_ref: "",
       vsls_agent_dtls: "",
       quotation: "",
       quotation_id: null,
-      timestamp: localTimestamp,
       attachments: [],
       existingAttachments: [],
       attachment_to_delete: [],
@@ -1110,7 +1105,11 @@ const SoNumberTab = () => {
           </Button>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
-        <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.timestamp || order.date_created)}</Text></Td>
+        <Td {...tableCellProps}>
+          <Text {...cellText}>
+            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
+          </Text>
+        </Td>
       </Tr>
     ));
   };
@@ -1605,7 +1604,7 @@ const SoNumberTab = () => {
                 { label: "Files", field: "attachments", sortable: false },
                 { label: "Package Link", field: null, sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
-                { label: "SOCreateDate Timestamp", field: "timestamp", sortable: false },
+                { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
               ].map((col) => (
                 <Th
                   key={col.label}

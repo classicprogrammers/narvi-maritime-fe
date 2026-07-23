@@ -66,6 +66,7 @@ export function normalizeOrder(order) {
     eta_date: order.eta_date,
     etb: order.etb,
     etd: order.etd,
+    so_delivery_date: order.so_delivery_date ? toDateOnly(String(order.so_delivery_date)) : "",
     next_action: order.next_action ? toDateOnly(String(order.next_action)) : "",
     internal_remark: order.internal_remark,
     client_case_invoice_ref: order.client_case_invoice_ref,
@@ -194,6 +195,12 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
         compareValue: data.etd && data.etd !== false ? toDateOnly(data.etd) : null,
       },
       {
+        key: "so_delivery_date",
+        value: data.so_delivery_date ? toDateOnly(data.so_delivery_date) : null,
+        originalValue: normalizeOriginalDate(originalData.so_delivery_date),
+        compareValue: data.so_delivery_date ? toDateOnly(data.so_delivery_date) : null,
+      },
+      {
         key: "date_order",
         value: toDateTime(data.date_created || data.date_order),
         originalValue: normalizeOriginalDateTime(originalData.date_order || originalData.date_created),
@@ -245,6 +252,7 @@ export function buildPayloadFromForm(data, isUpdate = false, originalData = {}) 
   if (hasValue(etbDate)) payload.etb = etbDate;
   const etdDate = data.etd && data.etd !== false ? toDateOnly(data.etd) : false;
   if (hasValue(etdDate)) payload.etd = etdDate;
+  if (hasValue(data.so_delivery_date)) payload.so_delivery_date = toDateOnly(data.so_delivery_date);
   const dateOrder = toDateTime(data.date_created || data.date_order);
   if (hasValue(dateOrder)) payload.date_order = dateOrder;
   if (hasValue(data.next_action)) payload.next_action = toDateOnly(data.next_action);
