@@ -85,6 +85,9 @@ import {
   clearPendingSoFilter,
   getInitialShippingOrderListState,
   parseSoFilterFromUrl,
+  resolvePicIdsByNames,
+  SHIPPING_ORDER_DEFAULT_ATH_PIC_NAMES,
+  SHIPPING_ORDER_DEFAULT_SIN_PIC_NAMES,
   SHIPPING_ORDER_STATUS_FILTER_OPTIONS,
   writePersistedShippingOrderListState,
 } from "../../../utils/shippingOrderListState";
@@ -216,19 +219,7 @@ const SoNumberTab = () => {
   const [athReadyForInvoicePics, setAthReadyForInvoicePics] = useState(savedState.athReadyForInvoicePics);
   const [sinReadyForInvoicePics, setSinReadyForInvoicePics] = useState(savedState.sinReadyForInvoicePics);
 
-  // Apply default PIC selections only once (do not reset when user clears all PICs)
-  const activeATHPicsDefaultsAppliedRef = useRef(
-    Array.isArray(savedState.activeATHPics) && savedState.activeATHPics.length > 0
-  );
-  const activeSINPicsDefaultsAppliedRef = useRef(
-    Array.isArray(savedState.activeSINPics) && savedState.activeSINPics.length > 0
-  );
-  const athReadyForInvoicePicsDefaultsAppliedRef = useRef(
-    Array.isArray(savedState.athReadyForInvoicePics) && savedState.athReadyForInvoicePics.length > 0
-  );
-  const sinReadyForInvoicePicsDefaultsAppliedRef = useRef(
-    Array.isArray(savedState.sinReadyForInvoicePics) && savedState.sinReadyForInvoicePics.length > 0
-  );
+  const picDefaultsInitializedRef = useRef(false);
 
   // Client filter states
   const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
@@ -261,6 +252,38 @@ const SoNumberTab = () => {
     }
     setPage(1);
   };
+
+  const applyDefaultPicsForFilter = useCallback(
+    (filterName) => {
+      if (!pics.length) return;
+      const athIds = resolvePicIdsByNames(pics, SHIPPING_ORDER_DEFAULT_ATH_PIC_NAMES);
+      const sinIds = resolvePicIdsByNames(pics, SHIPPING_ORDER_DEFAULT_SIN_PIC_NAMES);
+      if (filterName === "activeATH" && athIds.length) {
+        setActiveATHPics(athIds);
+      } else if (filterName === "athReadyForInvoice" && athIds.length) {
+        setAthReadyForInvoicePics(athIds);
+      } else if (filterName === "activeSIN" && sinIds.length) {
+        setActiveSINPics(sinIds);
+      } else if (filterName === "sinReadyForInvoice" && sinIds.length) {
+        setSinReadyForInvoicePics(sinIds);
+      }
+    },
+    [pics]
+  );
+
+  const applyAllDefaultPicSelections = useCallback(() => {
+    if (!pics.length) return;
+    const athIds = resolvePicIdsByNames(pics, SHIPPING_ORDER_DEFAULT_ATH_PIC_NAMES);
+    const sinIds = resolvePicIdsByNames(pics, SHIPPING_ORDER_DEFAULT_SIN_PIC_NAMES);
+    if (athIds.length) {
+      setActiveATHPics(athIds);
+      setAthReadyForInvoicePics(athIds);
+    }
+    if (sinIds.length) {
+      setActiveSINPics(sinIds);
+      setSinReadyForInvoicePics(sinIds);
+    }
+  }, [pics]);
 
   // Persist filter state so it survives navigation (e.g. edit/create SO then back)
   useEffect(() => {
@@ -586,66 +609,12 @@ const SoNumberTab = () => {
 
   // PICs come from cache (useMasterData) - /api/person/incharge/list stored in cache, no repeated calls
 
-  // Initialize default PICs once when PIC master data loads (not when user clears selection)
+  // Default ATH/SIN PIC selections when master data loads (overrides stale session PIC ids)
   useEffect(() => {
-    if (pics.length === 0) return;
-
-    const findPicByName = (name) => {
-      return pics.find((p) => p.name && p.name.toLowerCase() === name.toLowerCase());
-    };
-
-    if (!activeATHPicsDefaultsAppliedRef.current) {
-      activeATHPicsDefaultsAppliedRef.current = true;
-      const amanta = findPicByName("Amanta");
-      const igor = findPicByName("Igor");
-      const tasos = findPicByName("Tasos");
-      const defaultATH = [amanta, igor, tasos]
-        .filter(Boolean)
-        .map((p) => Number(p.id))
-        .filter((id) => !Number.isNaN(id));
-      if (defaultATH.length > 0) {
-        setActiveATHPics(defaultATH);
-      }
-    }
-
-    if (!activeSINPicsDefaultsAppliedRef.current) {
-      activeSINPicsDefaultsAppliedRef.current = true;
-      const defaultSIN = ["Alexandra", "Bali", "Martin"]
-        .map((name) => findPicByName(name))
-        .filter(Boolean)
-        .map((p) => Number(p.id))
-        .filter((id) => !Number.isNaN(id));
-      if (defaultSIN.length > 0) {
-        setActiveSINPics(defaultSIN);
-      }
-    }
-
-    if (!athReadyForInvoicePicsDefaultsAppliedRef.current) {
-      athReadyForInvoicePicsDefaultsAppliedRef.current = true;
-      const amanta = findPicByName("Amanta");
-      const igor = findPicByName("Igor");
-      const tasos = findPicByName("Tasos");
-      const defaultATH = [amanta, igor, tasos]
-        .filter(Boolean)
-        .map((p) => Number(p.id))
-        .filter((id) => !Number.isNaN(id));
-      if (defaultATH.length > 0) {
-        setAthReadyForInvoicePics(defaultATH);
-      }
-    }
-
-    if (!sinReadyForInvoicePicsDefaultsAppliedRef.current) {
-      sinReadyForInvoicePicsDefaultsAppliedRef.current = true;
-      const defaultSIN = ["Alexandra", "Bali", "Martin"]
-        .map((name) => findPicByName(name))
-        .filter(Boolean)
-        .map((p) => Number(p.id))
-        .filter((id) => !Number.isNaN(id));
-      if (defaultSIN.length > 0) {
-        setSinReadyForInvoicePics(defaultSIN);
-      }
-    }
-  }, [pics]);
+    if (pics.length === 0 || picDefaultsInitializedRef.current) return;
+    picDefaultsInitializedRef.current = true;
+    applyAllDefaultPicSelections();
+  }, [pics, applyAllDefaultPicSelections]);
 
   // Helper to get client name for filter labels (filter stores id; list display uses order.client from API)
   const getClientName = useCallback((clientId) => {
@@ -686,11 +655,16 @@ const SoNumberTab = () => {
   }, [getCountryName, getDestinationName]);
 
   // Handler functions for filters
+  const PIC_CHIP_FILTERS = ["activeATH", "athReadyForInvoice", "activeSIN", "sinReadyForInvoice"];
+
   const toggleFilter = (filterName) => {
     setActiveFilters((prev) => {
       const nextValue = !prev[filterName];
       if (!nextValue) {
         return { ...prev, [filterName]: false };
+      }
+      if (PIC_CHIP_FILTERS.includes(filterName)) {
+        applyDefaultPicsForFilter(filterName);
       }
       const cleared = Object.keys(prev).reduce(
         (acc, key) => ({ ...acc, [key]: false }),
@@ -1553,31 +1527,36 @@ const SoNumberTab = () => {
             </Flex>
           </Box>
 
-          {/* Client Selection for Active and Ready for Invoice Client filters */}
+          {/* Client selection when Active Client or Ready for Invoice Client chip is on */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
-            <Box>
-              <SimpleSearchableSelect
-                value={activeFilters.activeClient ? activeClientFilter : readyForInvoiceClientFilter}
-                onChange={(value) => {
-                  const next = value != null && value !== "" ? value : null;
-                  if (activeFilters.activeClient) {
-                    setActiveClientFilter(next);
-                  } else {
-                    setReadyForInvoiceClientFilter(next);
-                  }
-                  setPage(1);
-                }}
-                options={clients}
-                placeholder="Select client"
-                displayKey="name"
-                valueKey="id"
-                isLoading={false}
-                bg={inputBg}
-                color={inputText}
-                borderColor={borderColor}
-                size="sm"
-                maxW="300px"
-              />
+            <Box w="100%" maxW="360px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1" color={textColor}>
+                  {activeFilters.activeClient ? "Active Client — select client (optional)" : "Ready for Invoice Client — select client (optional)"}
+                </FormLabel>
+                <SimpleSearchableSelect
+                  value={activeFilters.activeClient ? activeClientFilter : readyForInvoiceClientFilter}
+                  onChange={(value) => {
+                    const next = value != null && value !== "" ? value : null;
+                    if (activeFilters.activeClient) {
+                      setActiveClientFilter(next);
+                    } else {
+                      setReadyForInvoiceClientFilter(next);
+                    }
+                    setPage(1);
+                  }}
+                  options={clients}
+                  placeholder="Search or select client"
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt.name || `Client ${opt.id}`}
+                  isLoading={false}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                  size="sm"
+                />
+              </FormControl>
             </Box>
           )}
         </Flex>

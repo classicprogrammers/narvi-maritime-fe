@@ -9,8 +9,20 @@ export const PENDING_SO_FILTER_KEY = "narvi_pending_so_filter";
 /** Survives React Strict Mode remount after URL is stripped. */
 let pendingSoFilterCache = null;
 
-export const SHIPPING_ORDER_FILTER_DESTINATION_ATH = "ATH";
-export const SHIPPING_ORDER_FILTER_DESTINATION_SIN = "SIN";
+/** Default PIC names for ATH / SIN preset chips. */
+export const SHIPPING_ORDER_DEFAULT_ATH_PIC_NAMES = ["Amanta", "Igor", "Tasos"];
+export const SHIPPING_ORDER_DEFAULT_SIN_PIC_NAMES = ["Alexandra", "Bali", "Martin"];
+
+export function resolvePicIdsByNames(pics = [], names = []) {
+  if (!Array.isArray(pics) || !Array.isArray(names)) return [];
+  const findPicByName = (name) =>
+    pics.find((p) => p.name && p.name.toLowerCase() === String(name).toLowerCase());
+  return names
+    .map((name) => findPicByName(name))
+    .filter(Boolean)
+    .map((p) => Number(p.id))
+    .filter((id) => Number.isFinite(id));
+}
 
 export const SHIPPING_ORDER_STATUS_FILTER_OPTIONS = [
   { value: "active", label: "Active" },
@@ -22,7 +34,7 @@ export const SHIPPING_ORDER_STATUS_FILTER_OPTIONS = [
 ];
 
 /** Status values for Ready for Invoice preset chips (OR match on API). */
-export const SHIPPING_ORDER_READY_FOR_INVOICE_DONE = ["pending", "pending_pod"];
+export const SHIPPING_ORDER_READY_FOR_INVOICE_DONE = ["ready_for_invoice", "pending_pod"];
 
 const resolveEntityId = (value) => {
   if (value == null || value === "") return undefined;
@@ -71,22 +83,18 @@ export function buildShippingOrderListQueryParams({
 
   if (f.activeATH) {
     params.done = "active";
-    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_ATH;
     const picIds = normalizePicIdsList(activeATHPics);
     if (picIds) params.pic_new = picIds;
   } else if (f.activeSIN) {
     params.done = "active";
-    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_SIN;
     const picIds = normalizePicIdsList(activeSINPics);
     if (picIds) params.pic_new = picIds;
   } else if (f.athReadyForInvoice) {
     params.done = [...SHIPPING_ORDER_READY_FOR_INVOICE_DONE];
-    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_ATH;
     const picIds = normalizePicIdsList(athReadyForInvoicePics);
     if (picIds) params.pic_new = picIds;
   } else if (f.sinReadyForInvoice) {
     params.done = [...SHIPPING_ORDER_READY_FOR_INVOICE_DONE];
-    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_SIN;
     const picIds = normalizePicIdsList(sinReadyForInvoicePics);
     if (picIds) params.pic_new = picIds;
   } else if (f.activeClient) {
