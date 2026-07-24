@@ -48,8 +48,18 @@ export const getShippingOrders = async (params = {}) => {
     if (country_id != null && country_id !== "") {
       requestParams.country_id = country_id;
     }
-    if (done) {
-      requestParams.done = done;
+    if (done != null && done !== "") {
+      const doneValues = Array.isArray(done)
+        ? done.map((value) => String(value).trim()).filter((value) => value !== "")
+        : String(done)
+          .split(",")
+          .map((value) => value.trim())
+          .filter((value) => value !== "");
+      if (doneValues.length === 1) {
+        requestParams.done = doneValues[0];
+      } else if (doneValues.length > 1) {
+        requestParams.done = doneValues;
+      }
     }
     if (destination != null && String(destination).trim() !== "") {
       requestParams.destination = String(destination).trim();

@@ -610,12 +610,13 @@ const SoNumberTab = () => {
 
     if (!activeSINPicsDefaultsAppliedRef.current) {
       activeSINPicsDefaultsAppliedRef.current = true;
-      const martin = findPicByName("Martin");
-      if (martin) {
-        const martinId = Number(martin.id);
-        if (!Number.isNaN(martinId)) {
-          setActiveSINPics([martinId]);
-        }
+      const defaultSIN = ["Alexandra", "Bali", "Martin"]
+        .map((name) => findPicByName(name))
+        .filter(Boolean)
+        .map((p) => Number(p.id))
+        .filter((id) => !Number.isNaN(id));
+      if (defaultSIN.length > 0) {
+        setActiveSINPics(defaultSIN);
       }
     }
 
@@ -635,12 +636,13 @@ const SoNumberTab = () => {
 
     if (!sinReadyForInvoicePicsDefaultsAppliedRef.current) {
       sinReadyForInvoicePicsDefaultsAppliedRef.current = true;
-      const martin = findPicByName("Martin");
-      if (martin) {
-        const martinId = Number(martin.id);
-        if (!Number.isNaN(martinId)) {
-          setSinReadyForInvoicePics([martinId]);
-        }
+      const defaultSIN = ["Alexandra", "Bali", "Martin"]
+        .map((name) => findPicByName(name))
+        .filter(Boolean)
+        .map((p) => Number(p.id))
+        .filter((id) => !Number.isNaN(id));
+      if (defaultSIN.length > 0) {
+        setSinReadyForInvoicePics(defaultSIN);
       }
     }
   }, [pics]);
