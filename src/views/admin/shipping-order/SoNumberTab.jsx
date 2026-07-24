@@ -81,9 +81,11 @@ import {
 } from "../../../utils/shippingOrderAttachments";
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import {
+  buildShippingOrderListQueryParams,
   clearPendingSoFilter,
   getInitialShippingOrderListState,
   parseSoFilterFromUrl,
+  SHIPPING_ORDER_STATUS_FILTER_OPTIONS,
   writePersistedShippingOrderListState,
 } from "../../../utils/shippingOrderListState";
 
@@ -170,6 +172,10 @@ const SoNumberTab = () => {
   const [searchClientFilter, setSearchClientFilter] = useState(savedState.searchClientFilter);
   const [searchVesselFilter, setSearchVesselFilter] = useState(savedState.searchVesselFilter);
   const [searchCountryFilter, setSearchCountryFilter] = useState(savedState.searchCountryFilter);
+  const [searchPicFilter, setSearchPicFilter] = useState(savedState.searchPicFilter);
+  const [searchStatusFilter, setSearchStatusFilter] = useState(
+    savedState.searchStatusFilter || ""
+  );
 
   // Pagination state
   const [page, setPage] = useState(savedState.page);
@@ -210,6 +216,20 @@ const SoNumberTab = () => {
   const [athReadyForInvoicePics, setAthReadyForInvoicePics] = useState(savedState.athReadyForInvoicePics);
   const [sinReadyForInvoicePics, setSinReadyForInvoicePics] = useState(savedState.sinReadyForInvoicePics);
 
+  // Apply default PIC selections only once (do not reset when user clears all PICs)
+  const activeATHPicsDefaultsAppliedRef = useRef(
+    Array.isArray(savedState.activeATHPics) && savedState.activeATHPics.length > 0
+  );
+  const activeSINPicsDefaultsAppliedRef = useRef(
+    Array.isArray(savedState.activeSINPics) && savedState.activeSINPics.length > 0
+  );
+  const athReadyForInvoicePicsDefaultsAppliedRef = useRef(
+    Array.isArray(savedState.athReadyForInvoicePics) && savedState.athReadyForInvoicePics.length > 0
+  );
+  const sinReadyForInvoicePicsDefaultsAppliedRef = useRef(
+    Array.isArray(savedState.sinReadyForInvoicePics) && savedState.sinReadyForInvoicePics.length > 0
+  );
+
   // Client filter states
   const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
   const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(savedState.readyForInvoiceClientFilter);
@@ -223,6 +243,25 @@ const SoNumberTab = () => {
   // Current PIC filter being edited
   const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
 
+  const activeATHPicsKey = activeATHPics.join(",");
+  const activeSINPicsKey = activeSINPics.join(",");
+  const athReadyForInvoicePicsKey = athReadyForInvoicePics.join(",");
+  const sinReadyForInvoicePicsKey = sinReadyForInvoicePics.join(",");
+
+  const handlePicChipSelectionChange = (filterType, values) => {
+    const picIds = values.map((v) => Number(v)).filter((id) => Number.isFinite(id));
+    if (filterType === "activeATH") {
+      setActiveATHPics(picIds);
+    } else if (filterType === "activeSIN") {
+      setActiveSINPics(picIds);
+    } else if (filterType === "athReadyForInvoice") {
+      setAthReadyForInvoicePics(picIds);
+    } else if (filterType === "sinReadyForInvoice") {
+      setSinReadyForInvoicePics(picIds);
+    }
+    setPage(1);
+  };
+
   // Persist filter state so it survives navigation (e.g. edit/create SO then back)
   useEffect(() => {
     writePersistedShippingOrderListState({
@@ -231,6 +270,8 @@ const SoNumberTab = () => {
       searchClientFilter,
       searchVesselFilter,
       searchCountryFilter,
+      searchPicFilter,
+      searchStatusFilter,
       page,
       sortBy,
       sortOrder,
@@ -248,6 +289,8 @@ const SoNumberTab = () => {
     searchValue,
     searchQuery,
     searchClientFilter,
+    searchPicFilter,
+    searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
     page,
@@ -317,18 +360,19 @@ const SoNumberTab = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setIsLoading(true);
-      const clientIdFrom = (v) => (v != null && typeof v === "object" ? v.id : v);
-      let client_id;
-      let done;
-      if (activeFilters.activeClient && activeClientFilter) {
-        client_id = clientIdFrom(activeClientFilter);
-        done = "active";
-      } else if (activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter) {
-        client_id = clientIdFrom(readyForInvoiceClientFilter);
-        done = "ready_for_invoice";
-      } else if (searchClientFilter) {
-        client_id = clientIdFrom(searchClientFilter);
-      }
+      const advancedParams = buildShippingOrderListQueryParams({
+        activeFilters,
+        activeATHPics,
+        activeSINPics,
+        athReadyForInvoicePics,
+        sinReadyForInvoicePics,
+        activeClientFilter,
+        readyForInvoiceClientFilter,
+        searchClientFilter,
+        searchPicFilter,
+        searchStatusFilter,
+      });
+
       const vesselId = searchVesselFilter != null && typeof searchVesselFilter === "object"
         ? (searchVesselFilter.id ?? searchVesselFilter.value)
         : searchVesselFilter;
@@ -342,7 +386,7 @@ const SoNumberTab = () => {
         page,
         page_size: pageSize,
         ...(soId != null && soId !== "" && { so_id: soId }),
-        ...(client_id != null && client_id !== "" && { client_id, done }),
+        ...advancedParams,
         ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
         ...(countryId != null && countryId !== "" && { country_id: countryId }),
       });
@@ -395,14 +439,51 @@ const SoNumberTab = () => {
     sortOrder,
     nextActionSortOption,
     searchQuery,
-    activeFilters.activeClient,
-    activeFilters.readyForInvoiceClient,
+    activeFilters,
+    activeATHPicsKey,
+    activeSINPicsKey,
+    athReadyForInvoicePicsKey,
+    sinReadyForInvoicePicsKey,
     activeClientFilter,
     readyForInvoiceClientFilter,
     searchClientFilter,
+    searchPicFilter,
+    searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
     toast,
+  ]);
+
+  // Refetch when PIC chip selections change (debounced while toggling checkboxes in modal)
+  const skipInitialPicChipFetchRef = useRef(true);
+  useEffect(() => {
+    const picChipActive =
+      activeFilters.activeATH ||
+      activeFilters.activeSIN ||
+      activeFilters.athReadyForInvoice ||
+      activeFilters.sinReadyForInvoice;
+    if (!picChipActive) return undefined;
+
+    if (skipInitialPicChipFetchRef.current) {
+      skipInitialPicChipFetchRef.current = false;
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      fetchOrders();
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    activeATHPicsKey,
+    activeSINPicsKey,
+    athReadyForInvoicePicsKey,
+    sinReadyForInvoicePicsKey,
+    activeFilters.activeATH,
+    activeFilters.activeSIN,
+    activeFilters.athReadyForInvoice,
+    activeFilters.sinReadyForInvoice,
+    fetchOrders,
   ]);
 
   useEffect(() => {
@@ -420,11 +501,16 @@ const SoNumberTab = () => {
   }, [
     pageSize,
     searchQuery,
-    activeFilters.activeClient,
-    activeFilters.readyForInvoiceClient,
+    activeFilters,
+    activeATHPics,
+    activeSINPics,
+    athReadyForInvoicePics,
+    sinReadyForInvoicePics,
     activeClientFilter,
     readyForInvoiceClientFilter,
     searchClientFilter,
+    searchPicFilter,
+    searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
   ]);
@@ -500,70 +586,73 @@ const SoNumberTab = () => {
 
   // PICs come from cache (useMasterData) - /api/person/incharge/list stored in cache, no repeated calls
 
-  // Initialize default PICs when PICs are loaded
+  // Initialize default PICs once when PIC master data loads (not when user clears selection)
   useEffect(() => {
-    if (pics.length > 0) {
-      // Find PICs by name (case-insensitive)
-      const findPicByName = (name) => {
-        return pics.find((p) => p.name && p.name.toLowerCase() === name.toLowerCase());
-      };
+    if (pics.length === 0) return;
 
-      // Initialize Active ATH PICs (Amanta, Igor, Tasos)
-      if (activeATHPics.length === 0) {
-        const amanta = findPicByName("Amanta");
-        const igor = findPicByName("Igor");
-        const tasos = findPicByName("Tasos");
-        const defaultATH = [amanta, igor, tasos]
-          .filter(Boolean)
-          .map((p) => Number(p.id))
-          .filter((id) => !Number.isNaN(id));
-        if (defaultATH.length > 0) {
-          setActiveATHPics(defaultATH);
-        }
+    const findPicByName = (name) => {
+      return pics.find((p) => p.name && p.name.toLowerCase() === name.toLowerCase());
+    };
+
+    if (!activeATHPicsDefaultsAppliedRef.current) {
+      activeATHPicsDefaultsAppliedRef.current = true;
+      const amanta = findPicByName("Amanta");
+      const igor = findPicByName("Igor");
+      const tasos = findPicByName("Tasos");
+      const defaultATH = [amanta, igor, tasos]
+        .filter(Boolean)
+        .map((p) => Number(p.id))
+        .filter((id) => !Number.isNaN(id));
+      if (defaultATH.length > 0) {
+        setActiveATHPics(defaultATH);
       }
+    }
 
-      // Initialize Active SIN PICs (Martin)
-      if (activeSINPics.length === 0) {
-        const martin = findPicByName("Martin");
-        if (martin) {
-          const martinId = Number(martin.id);
-          if (!Number.isNaN(martinId)) {
-            setActiveSINPics([martinId]);
-          }
-        }
-      }
-
-      // Initialize ATH Ready for Invoice PICs (Amanta, Igor, Tasos)
-      if (athReadyForInvoicePics.length === 0) {
-        const amanta = findPicByName("Amanta");
-        const igor = findPicByName("Igor");
-        const tasos = findPicByName("Tasos");
-        const defaultATH = [amanta, igor, tasos]
-          .filter(Boolean)
-          .map((p) => Number(p.id))
-          .filter((id) => !Number.isNaN(id));
-        if (defaultATH.length > 0) {
-          setAthReadyForInvoicePics(defaultATH);
-        }
-      }
-
-      // Initialize SIN Ready for Invoice PICs (Martin)
-      if (sinReadyForInvoicePics.length === 0) {
-        const martin = findPicByName("Martin");
-        if (martin) {
-          const martinId = Number(martin.id);
-          if (!Number.isNaN(martinId)) {
-            setSinReadyForInvoicePics([martinId]);
-          }
+    if (!activeSINPicsDefaultsAppliedRef.current) {
+      activeSINPicsDefaultsAppliedRef.current = true;
+      const martin = findPicByName("Martin");
+      if (martin) {
+        const martinId = Number(martin.id);
+        if (!Number.isNaN(martinId)) {
+          setActiveSINPics([martinId]);
         }
       }
     }
-  }, [pics, activeATHPics.length, activeSINPics.length, athReadyForInvoicePics.length, sinReadyForInvoicePics.length]);
+
+    if (!athReadyForInvoicePicsDefaultsAppliedRef.current) {
+      athReadyForInvoicePicsDefaultsAppliedRef.current = true;
+      const amanta = findPicByName("Amanta");
+      const igor = findPicByName("Igor");
+      const tasos = findPicByName("Tasos");
+      const defaultATH = [amanta, igor, tasos]
+        .filter(Boolean)
+        .map((p) => Number(p.id))
+        .filter((id) => !Number.isNaN(id));
+      if (defaultATH.length > 0) {
+        setAthReadyForInvoicePics(defaultATH);
+      }
+    }
+
+    if (!sinReadyForInvoicePicsDefaultsAppliedRef.current) {
+      sinReadyForInvoicePicsDefaultsAppliedRef.current = true;
+      const martin = findPicByName("Martin");
+      if (martin) {
+        const martinId = Number(martin.id);
+        if (!Number.isNaN(martinId)) {
+          setSinReadyForInvoicePics([martinId]);
+        }
+      }
+    }
+  }, [pics]);
 
   // Helper to get client name for filter labels (filter stores id; list display uses order.client from API)
   const getClientName = useCallback((clientId) => {
-    if (!clientId) return "-";
-    const client = clients.find((c) => c.id === clientId);
+    if (clientId == null || clientId === "") return "-";
+    const normalizedId = typeof clientId === "object"
+      ? (clientId.id ?? clientId.value)
+      : clientId;
+    if (normalizedId == null || normalizedId === "") return "-";
+    const client = clients.find((c) => String(c.id) === String(normalizedId));
     return client ? client.name : "-";
   }, [clients]);
 
@@ -596,10 +685,18 @@ const SoNumberTab = () => {
 
   // Handler functions for filters
   const toggleFilter = (filterName) => {
-    setActiveFilters((prev) => ({
-      ...prev,
-      [filterName]: !prev[filterName],
-    }));
+    setActiveFilters((prev) => {
+      const nextValue = !prev[filterName];
+      if (!nextValue) {
+        return { ...prev, [filterName]: false };
+      }
+      const cleared = Object.keys(prev).reduce(
+        (acc, key) => ({ ...acc, [key]: false }),
+        {}
+      );
+      return { ...cleared, [filterName]: true };
+    });
+    setPage(1);
   };
 
   const handleSort = (field) => {
@@ -625,153 +722,36 @@ const SoNumberTab = () => {
     picFilterModalDisclosure.onOpen();
   };
 
-  const handlePicFilterSave = (selectedPicIds) => {
-    if (editingPicFilter === "activeATH") {
-      setActiveATHPics(selectedPicIds);
-    } else if (editingPicFilter === "activeSIN") {
-      setActiveSINPics(selectedPicIds);
-    } else if (editingPicFilter === "athReadyForInvoice") {
-      setAthReadyForInvoicePics(selectedPicIds);
-    } else if (editingPicFilter === "sinReadyForInvoice") {
-      setSinReadyForInvoicePics(selectedPicIds);
-    }
-    picFilterModalDisclosure.onClose();
-    setEditingPicFilter(null);
-  };
+  // Client-side sort only (filtering is server-side via advanced filter chips)
+  const sortedOrders = useMemo(() => {
+    let sorted = [...orders];
 
-  // Filter and sort orders
-  const filteredOrders = useMemo(() => {
-    let filtered = [...orders];
-
-    // Note: Text search is now handled server-side via searchQuery
-    // Client-side search (searchValue) is removed since we use server-side search
-
-    // Helper function to normalize PIC ID for comparison
-    const normalizePicId = (picId) => {
-      if (picId === null || picId === undefined || picId === false || picId === "") {
-        return null;
-      }
-      // Convert to number for consistent comparison
-      const numId = Number(picId);
-      return Number.isNaN(numId) ? null : numId;
-    };
-
-    // Helper function to extract PIC ID from order (check multiple fields and raw data)
-    const extractPicId = (order) => {
-      // Try normalized fields first
-      let picId = order.pic_new || order.pic_id || order.pic;
-
-      // If not found, check raw order data
-      if (!picId && order._raw) {
-        picId = order._raw.pic_new || order._raw.pic_id || order._raw.pic;
-      }
-
-      // Handle case where pic might be an object with id property
-      if (picId && typeof picId === 'object' && picId.id) {
-        picId = picId.id;
-      }
-
-      // Handle case where pic might be an array (take first element)
-      if (Array.isArray(picId) && picId.length > 0) {
-        picId = picId[0];
-        // If array element is an object, get its id
-        if (typeof picId === 'object' && picId.id) {
-          picId = picId.id;
-        }
-      }
-
-      return normalizePicId(picId);
-    };
-
-    // Apply Active ATH filter
-    if (activeFilters.activeATH && activeATHPics.length > 0) {
-      const normalizedFilterPics = activeATHPics.map(id => Number(id));
-      filtered = filtered.filter((order) => {
-        const orderPicId = extractPicId(order);
-        if (orderPicId === null) return false;
-        return order.done === "active" && normalizedFilterPics.includes(orderPicId);
-      });
-    }
-
-    // Apply Active SIN filter
-    if (activeFilters.activeSIN && activeSINPics.length > 0) {
-      filtered = filtered.filter((order) => {
-        const orderPicId = extractPicId(order);
-        if (orderPicId === null) return false;
-        // Normalize filter PIC IDs and compare
-        const normalizedFilterPics = activeSINPics.map(id => Number(id));
-        return order.done === "active" && normalizedFilterPics.includes(orderPicId);
-      });
-    }
-
-    // Apply Active Client filter
-    if (activeFilters.activeClient && activeClientFilter) {
-      filtered = filtered.filter((order) => {
-        return order.done === "active" && order.client_id === activeClientFilter;
-      });
-    }
-
-    // Apply Ready for Invoice Client filter
-    if (activeFilters.readyForInvoiceClient && readyForInvoiceClientFilter) {
-      filtered = filtered.filter((order) => {
-        return order.done === "ready_for_invoice" && order.client_id === readyForInvoiceClientFilter;
-      });
-    }
-
-    // Apply ATH Ready for Invoice filter
-    if (activeFilters.athReadyForInvoice && athReadyForInvoicePics.length > 0) {
-      filtered = filtered.filter((order) => {
-        const orderPicId = extractPicId(order);
-        if (orderPicId === null) return false;
-        // Normalize filter PIC IDs and compare
-        const normalizedFilterPics = athReadyForInvoicePics.map(id => Number(id));
-        return order.done === "ready_for_invoice" && normalizedFilterPics.includes(orderPicId);
-      });
-    }
-
-    // Apply SIN Ready for Invoice filter
-    if (activeFilters.sinReadyForInvoice && sinReadyForInvoicePics.length > 0) {
-      filtered = filtered.filter((order) => {
-        const orderPicId = extractPicId(order);
-        if (orderPicId === null) return false;
-        // Normalize filter PIC IDs and compare
-        const normalizedFilterPics = sinReadyForInvoicePics.map(id => Number(id));
-        return order.done === "ready_for_invoice" && normalizedFilterPics.includes(orderPicId);
-      });
-    }
-
-    // Apply Next Action sorting if enabled
     if (nextActionSortOption === 'next_action') {
-      filtered.sort((a, b) => {
-        // 1st priority: Sort by Next Action date
-        // Items with Next Action dates come first (sorted ascending by date)
-        // Items without Next Action dates come at the end
+      sorted.sort((a, b) => {
         const aHasNextAction = a.next_action && a.next_action !== "";
         const bHasNextAction = b.next_action && b.next_action !== "";
 
         if (aHasNextAction && !bHasNextAction) {
-          return -1; // a comes before b
+          return -1;
         }
         if (!aHasNextAction && bHasNextAction) {
-          return 1; // b comes before a
+          return 1;
         }
         if (aHasNextAction && bHasNextAction) {
-          // Both have Next Action dates - sort by date (ascending - earliest first)
           const aDate = new Date(a.next_action);
           const bDate = new Date(b.next_action);
           if (aDate.getTime() !== bDate.getTime()) {
             return aDate.getTime() - bDate.getTime();
           }
         }
-        // If Next Action dates are equal, maintain order
         return 0;
       });
     }
 
-    // Apply manual sorting if selected
     if (sortConfig.field && sortConfig.field !== "next_action") {
-      filtered.sort((a, b) => {
-        let aValue, bValue;
+      sorted.sort((a, b) => {
+        let aValue;
+        let bValue;
 
         if (sortConfig.field === "so_number") {
           aValue = a.so_number || "";
@@ -793,33 +773,18 @@ const SoNumberTab = () => {
           bValue = b[sortConfig.field] || "";
         }
 
-        // Convert to strings for comparison
         const aStr = String(aValue).toLowerCase();
         const bStr = String(bValue).toLowerCase();
 
         if (sortConfig.direction === "asc") {
           return aStr.localeCompare(bStr);
-        } else {
-          return bStr.localeCompare(aStr);
         }
+        return bStr.localeCompare(aStr);
       });
     }
 
-    return filtered;
-  }, [
-    orders,
-    activeFilters,
-    activeATHPics,
-    activeSINPics,
-    activeClientFilter,
-    readyForInvoiceClientFilter,
-    athReadyForInvoicePics,
-    sinReadyForInvoicePics,
-    sortConfig,
-    nextActionSortOption,
-    getClientName,
-    getDestinationDisplay,
-  ]);
+    return sorted;
+  }, [orders, sortConfig, nextActionSortOption]);
 
   const handleCreate = () => {
     resetForm();
@@ -948,7 +913,7 @@ const SoNumberTab = () => {
   };
 
   const renderTableBody = () => {
-    if (isLoading && orders.length === 0) {
+    if (isLoading) {
       return (
         <Tr>
           <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
@@ -960,7 +925,7 @@ const SoNumberTab = () => {
       );
     }
 
-    if (filteredOrders.length === 0) {
+    if (sortedOrders.length === 0) {
       return (
         <Tr>
           <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
@@ -972,7 +937,7 @@ const SoNumberTab = () => {
       );
     }
 
-    return filteredOrders.map((order) => (
+    return sortedOrders.map((order) => (
       <Tr
         key={order.id || order.so_number}
         _hover={{ bg: hoverBg }}
@@ -989,6 +954,11 @@ const SoNumberTab = () => {
           </HStack>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{getSoNumber(order)}</Text></Td>
+        <Td {...tableCellProps}>
+          <Text {...cellText}>
+            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
+          </Text>
+        </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.next_action ? formatDate(order.next_action) : "-"}</Text></Td>
         <Td {...tableCellProps}><Text {...cellText}>{formatDateTime(order.create_date || order.date_created || order.date_order)}</Text></Td>
         <Td {...tableCellProps}>
@@ -1105,11 +1075,6 @@ const SoNumberTab = () => {
           </Button>
         </Td>
         <Td {...tableCellProps}><Text {...cellText}>{order.quotation || "-"}</Text></Td>
-        <Td {...tableCellProps}>
-          <Text {...cellText}>
-            {order.so_delivery_date ? formatDate(order.so_delivery_date) : "-"}
-          </Text>
-        </Td>
       </Tr>
     ));
   };
@@ -1198,9 +1163,9 @@ const SoNumberTab = () => {
           mb={advancedFiltersDisclosure.isOpen ? 3 : 0}
         >
           Advanced Filters
-          {(searchClientFilter || searchVesselFilter || searchCountryFilter) && (
+          {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter) && (
             <Badge ml="2" colorScheme="blue" fontSize="xs">
-              {(searchClientFilter ? 1 : 0) + (searchVesselFilter ? 1 : 0) + (searchCountryFilter ? 1 : 0)}
+              {(searchClientFilter ? 1 : 0) + (searchVesselFilter ? 1 : 0) + (searchCountryFilter ? 1 : 0) + (searchPicFilter ? 1 : 0) + (searchStatusFilter ? 1 : 0)}
             </Badge>
           )}
         </Button>
@@ -1266,7 +1231,51 @@ const SoNumberTab = () => {
                 />
               </FormControl>
             </Box>
-            {(searchClientFilter || searchVesselFilter || searchCountryFilter) && (
+            <Box flex="1" minW="200px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by PIC</FormLabel>
+                <SimpleSearchableSelect
+                  value={searchPicFilter}
+                  onChange={(value) => {
+                    setSearchPicFilter(value != null && value !== "" ? value : null);
+                    setPage(1);
+                  }}
+                  options={pics || []}
+                  placeholder="Select PIC"
+                  displayKey="name"
+                  valueKey="id"
+                  formatOption={(opt) => opt.name || `PIC ${opt.id}`}
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                />
+              </FormControl>
+            </Box>
+            <Box flex="1" minW="200px">
+              <FormControl>
+                <FormLabel fontSize="xs" mb="1">Search by Status</FormLabel>
+                <Select
+                  size="sm"
+                  value={searchStatusFilter}
+                  onChange={(e) => {
+                    setSearchStatusFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="All statuses"
+                  bg={inputBg}
+                  color={inputText}
+                  borderColor={borderColor}
+                >
+                  <option value="">All statuses</option>
+                  {SHIPPING_ORDER_STATUS_FILTER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+            {(searchClientFilter || searchVesselFilter || searchCountryFilter || searchPicFilter || searchStatusFilter) && (
               <Button
                 size="sm"
                 leftIcon={<Icon as={MdClear} />}
@@ -1277,6 +1286,8 @@ const SoNumberTab = () => {
                   setSearchClientFilter(null);
                   setSearchVesselFilter(null);
                   setSearchCountryFilter(null);
+                  setSearchPicFilter(null);
+                  setSearchStatusFilter("");
                   setPage(1);
                 }}
               >
@@ -1546,11 +1557,13 @@ const SoNumberTab = () => {
               <SimpleSearchableSelect
                 value={activeFilters.activeClient ? activeClientFilter : readyForInvoiceClientFilter}
                 onChange={(value) => {
+                  const next = value != null && value !== "" ? value : null;
                   if (activeFilters.activeClient) {
-                    setActiveClientFilter(value);
+                    setActiveClientFilter(next);
                   } else {
-                    setReadyForInvoiceClientFilter(value);
+                    setReadyForInvoiceClientFilter(next);
                   }
+                  setPage(1);
                 }}
                 options={clients}
                 placeholder="Select client"
@@ -1588,6 +1601,7 @@ const SoNumberTab = () => {
               {[
                 { label: "Actions", field: null, sortable: false },
                 { label: "SO Number", field: "so_number", sortable: true },
+                { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
                 { label: "Next Action", field: "next_action", sortable: true },
                 { label: "Date Created", field: "date_created", sortable: true },
                 { label: "Status", field: "done", sortable: false },
@@ -1604,7 +1618,6 @@ const SoNumberTab = () => {
                 { label: "Files", field: "attachments", sortable: false },
                 { label: "Package Link", field: null, sortable: false },
                 { label: "Quotation", field: "quotation", sortable: false },
-                { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
               ].map((col) => (
                 <Th
                   key={col.label}
@@ -1988,15 +2001,8 @@ const SoNumberTab = () => {
                   ).map((id) => String(id))
                 }
                 onChange={(values) => {
-                  const picIds = values.map((v) => Number(v));
-                  if (editingPicFilter === "activeATH") {
-                    setActiveATHPics(picIds);
-                  } else if (editingPicFilter === "activeSIN") {
-                    setActiveSINPics(picIds);
-                  } else if (editingPicFilter === "athReadyForInvoice") {
-                    setAthReadyForInvoicePics(picIds);
-                  } else if (editingPicFilter === "sinReadyForInvoice") {
-                    setSinReadyForInvoicePics(picIds);
+                  if (editingPicFilter) {
+                    handlePicChipSelectionChange(editingPicFilter, values);
                   }
                 }}
               >

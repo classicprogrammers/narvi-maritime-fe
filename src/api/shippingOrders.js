@@ -19,6 +19,9 @@ export const getShippingOrders = async (params = {}) => {
       country_id,
       done,
       so_id,
+      destination,
+      pic_new,
+      pic_id,
     } = params;
 
     const requestParams = {
@@ -33,7 +36,8 @@ export const getShippingOrders = async (params = {}) => {
     }
 
     if (client_id != null && client_id !== "") {
-      requestParams.client_id = client_id;
+      const numericClientId = Number(client_id);
+      requestParams.client_id = Number.isFinite(numericClientId) ? numericClientId : client_id;
     }
     if (vessel_id != null && vessel_id !== "") {
       requestParams.vessel_id = vessel_id;
@@ -46,6 +50,24 @@ export const getShippingOrders = async (params = {}) => {
     }
     if (done) {
       requestParams.done = done;
+    }
+    if (destination != null && String(destination).trim() !== "") {
+      requestParams.destination = String(destination).trim();
+    }
+    const picNewSource = pic_new ?? pic_id;
+    if (picNewSource != null && picNewSource !== "") {
+      const picNewIds = Array.isArray(picNewSource)
+        ? picNewSource
+        : String(picNewSource)
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part) => part !== "");
+      const normalizedPicNewIds = picNewIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      if (normalizedPicNewIds.length > 0) {
+        requestParams.pic_new = normalizedPicNewIds;
+      }
     }
     // Normalize so_id to only the numeric part (e.g. "SO 123", "so-123" -> "123")
     if (so_id != null && String(so_id).trim() !== "") {

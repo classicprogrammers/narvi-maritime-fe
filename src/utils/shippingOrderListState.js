@@ -9,12 +9,124 @@ export const PENDING_SO_FILTER_KEY = "narvi_pending_so_filter";
 /** Survives React Strict Mode remount after URL is stripped. */
 let pendingSoFilterCache = null;
 
+export const SHIPPING_ORDER_FILTER_DESTINATION_ATH = "ATH";
+export const SHIPPING_ORDER_FILTER_DESTINATION_SIN = "SIN";
+
+export const SHIPPING_ORDER_STATUS_FILTER_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "archive", label: "Archive" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "done", label: "Done" },
+  { value: "pending_pod", label: "Pending POD" },
+  { value: "ready_for_invoice", label: "Ready for Invoice" },
+];
+
+const resolveEntityId = (value) => {
+  if (value == null || value === "") return undefined;
+  if (typeof value === "object") {
+    const id = value.id ?? value.value;
+    return id != null && id !== "" ? id : undefined;
+  }
+  return value;
+};
+
+/** Normalize client filter value for GET /api/shipping/orders (id number when possible). */
+export function normalizeShippingOrderClientId(value) {
+  const id = resolveEntityId(value);
+  if (id == null || id === "") return undefined;
+  const asNumber = Number(id);
+  if (Number.isFinite(asNumber)) return asNumber;
+  return id;
+}
+
+const normalizeStoredClientFilter = (value) => {
+  const id = normalizeShippingOrderClientId(value);
+  return id != null ? id : null;
+};
+
+const normalizePicIdsList = (picIds) => {
+  if (!Array.isArray(picIds) || picIds.length === 0) return undefined;
+  const list = picIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+  return list.length ? list : undefined;
+};
+
+/** Query params for GET /api/shipping/orders from SO Number Tracker advanced filters. */
+export function buildShippingOrderListQueryParams({
+  activeFilters = {},
+  activeATHPics = [],
+  activeSINPics = [],
+  athReadyForInvoicePics = [],
+  sinReadyForInvoicePics = [],
+  activeClientFilter = null,
+  readyForInvoiceClientFilter = null,
+  searchClientFilter = null,
+  searchPicFilter = null,
+  searchStatusFilter = "",
+} = {}) {
+  const params = {};
+  const f = activeFilters;
+
+  if (f.activeATH) {
+    params.done = "active";
+    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_ATH;
+    const picIds = normalizePicIdsList(activeATHPics);
+    if (picIds) params.pic_new = picIds;
+  } else if (f.activeSIN) {
+    params.done = "active";
+    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_SIN;
+    const picIds = normalizePicIdsList(activeSINPics);
+    if (picIds) params.pic_new = picIds;
+  } else if (f.athReadyForInvoice) {
+    params.done = "ready_for_invoice";
+    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_ATH;
+    const picIds = normalizePicIdsList(athReadyForInvoicePics);
+    if (picIds) params.pic_new = picIds;
+  } else if (f.sinReadyForInvoice) {
+    params.done = "ready_for_invoice";
+    params.destination = SHIPPING_ORDER_FILTER_DESTINATION_SIN;
+    const picIds = normalizePicIdsList(sinReadyForInvoicePics);
+    if (picIds) params.pic_new = picIds;
+  } else if (f.activeClient) {
+    params.done = "active";
+  } else if (f.readyForInvoiceClient) {
+    params.done = "ready_for_invoice";
+  }
+
+  let clientId;
+  if (f.activeClient) {
+    clientId = normalizeShippingOrderClientId(activeClientFilter);
+  } else if (f.readyForInvoiceClient) {
+    clientId = normalizeShippingOrderClientId(readyForInvoiceClientFilter);
+  } else {
+    clientId = normalizeShippingOrderClientId(searchClientFilter);
+  }
+
+  if (clientId != null && clientId !== "") {
+    params.client_id = clientId;
+  }
+
+  if (!params.pic_new && searchPicFilter != null && searchPicFilter !== "") {
+    const picId = Number(searchPicFilter);
+    if (Number.isFinite(picId)) {
+      params.pic_new = [picId];
+    }
+  }
+
+  if (!params.done && searchStatusFilter) {
+    params.done = searchStatusFilter;
+  }
+
+  return params;
+}
+
 export const defaultShippingOrderListState = {
   searchValue: "",
   searchQuery: "",
   searchClientFilter: null,
   searchVesselFilter: null,
   searchCountryFilter: null,
+  searchPicFilter: null,
+  searchStatusFilter: "",
   page: 1,
   sortBy: "id",
   sortOrder: "desc",
@@ -47,9 +159,12 @@ export function readPersistedShippingOrderListState() {
     return {
       searchValue: typeof p.searchValue === "string" ? p.searchValue : "",
       searchQuery: typeof p.searchQuery === "string" ? p.searchQuery : "",
-      searchClientFilter: p.searchClientFilter != null ? p.searchClientFilter : null,
+      searchClientFilter: normalizeStoredClientFilter(p.searchClientFilter),
       searchVesselFilter: p.searchVesselFilter != null ? p.searchVesselFilter : null,
       searchCountryFilter: p.searchCountryFilter != null ? p.searchCountryFilter : null,
+      searchPicFilter: p.searchPicFilter != null ? p.searchPicFilter : null,
+      searchStatusFilter:
+        typeof p.searchStatusFilter === "string" ? p.searchStatusFilter : "",
       page: typeof p.page === "number" ? p.page : 1,
       sortBy: typeof p.sortBy === "string" ? p.sortBy : "id",
       sortOrder: p.sortOrder === "asc" || p.sortOrder === "desc" ? p.sortOrder : "desc",
@@ -61,9 +176,9 @@ export function readPersistedShippingOrderListState() {
       activeSINPics: Array.isArray(p.activeSINPics) ? p.activeSINPics : [],
       athReadyForInvoicePics: Array.isArray(p.athReadyForInvoicePics) ? p.athReadyForInvoicePics : [],
       sinReadyForInvoicePics: Array.isArray(p.sinReadyForInvoicePics) ? p.sinReadyForInvoicePics : [],
-      activeClientFilter: p.activeClientFilter != null ? p.activeClientFilter : null,
+      activeClientFilter: normalizeStoredClientFilter(p.activeClientFilter),
       readyForInvoiceClientFilter:
-        p.readyForInvoiceClientFilter != null ? p.readyForInvoiceClientFilter : null,
+        normalizeStoredClientFilter(p.readyForInvoiceClientFilter),
       sortConfig:
         p.sortConfig && typeof p.sortConfig === "object"
           ? p.sortConfig
