@@ -4,6 +4,7 @@ import { getSuppliers } from "../api/suppliers";
 import vesselsAPI from "../api/vessels";
 import { getShippingOrders } from "../api/shippingOrders";
 import { mergeSelectedIntoOptions, mergeShippingOrderLists } from "../utils/stockFormSelectUtils";
+import { resolveShippingOrderSoIdApiParam, getSoNumberSearchKeyFromField } from "../utils/shippingOrderListState";
 
 const PAGE_SIZE = 50;
 const DEBOUNCE_MS = 300;
@@ -47,6 +48,27 @@ export default function useStockFormRemoteSelects({
   const vesselFetchKeyRef = useRef({});
   const initialPrefetchDoneRef = useRef(false);
 
+  const clientsReadyRef = useRef(false);
+  const suppliersReadyRef = useRef(false);
+  const shippingOrdersReadyRef = useRef(false);
+  const lastClientSearchRef = useRef("");
+  const lastSupplierSearchRef = useRef("");
+  const lastSoSearchRef = useRef("");
+  const lastVesselSearchByKeyRef = useRef({});
+  const vesselReadyKeysRef = useRef(new Set());
+
+  const shouldFetchForSearch = useCallback((trimmed, readyRef, lastSearchRef) => {
+    if (trimmed !== "") {
+      lastSearchRef.current = trimmed;
+      return true;
+    }
+    if (readyRef.current && lastSearchRef.current === "") {
+      return false;
+    }
+    lastSearchRef.current = "";
+    return true;
+  }, []);
+
   const fetchClients = useCallback(async (search = "") => {
     setIsLoadingClients(true);
     try {
@@ -57,6 +79,7 @@ export default function useStockFormRemoteSelects({
       });
       const list = Array.isArray(result?.customers) ? result.customers : [];
       setClientSearchOptions(list);
+      clientsReadyRef.current = true;
     } catch (error) {
       console.error("Stock form client search failed:", error);
       setClientSearchOptions([]);
@@ -71,16 +94,20 @@ export default function useStockFormRemoteSelects({
 
   const handleClientSearchChange = useCallback(
     (q) => {
+      const trimmed = String(q ?? "").trim();
+      if (!shouldFetchForSearch(trimmed, clientsReadyRef, lastClientSearchRef)) {
+        return;
+      }
       scheduleClientSearch(q);
     },
-    [scheduleClientSearch]
+    [scheduleClientSearch, shouldFetchForSearch]
   );
 
   const ensureClientOptionsLoaded = useCallback(() => {
-    if (clientSearchOptions === null) {
+    if (!clientsReadyRef.current) {
       fetchClients("");
     }
-  }, [clientSearchOptions, fetchClients]);
+  }, [fetchClients]);
 
   const getClientOptionsForValue = useCallback(
     (selectedId) => {
@@ -100,6 +127,7 @@ export default function useStockFormRemoteSelects({
       });
       const list = Array.isArray(result?.suppliers) ? result.suppliers : [];
       setSupplierSearchOptions(list);
+      suppliersReadyRef.current = true;
     } catch (error) {
       console.error("Stock form supplier search failed:", error);
       setSupplierSearchOptions([]);
@@ -114,16 +142,20 @@ export default function useStockFormRemoteSelects({
 
   const handleSupplierSearchChange = useCallback(
     (q) => {
+      const trimmed = String(q ?? "").trim();
+      if (!shouldFetchForSearch(trimmed, suppliersReadyRef, lastSupplierSearchRef)) {
+        return;
+      }
       scheduleSupplierSearch(q);
     },
-    [scheduleSupplierSearch]
+    [scheduleSupplierSearch, shouldFetchForSearch]
   );
 
   const ensureSupplierOptionsLoaded = useCallback(() => {
-    if (supplierSearchOptions === null) {
+    if (!suppliersReadyRef.current) {
       fetchSuppliers("");
     }
-  }, [supplierSearchOptions, fetchSuppliers]);
+  }, [fetchSuppliers]);
 
   const getSupplierOptionsForValue = useCallback(
     (selectedId) => {
@@ -151,12 +183,14 @@ export default function useStockFormRemoteSelects({
         if (gen !== soRequestGenRef.current) return;
         const list = Array.isArray(response?.orders) ? response.orders : [];
         applyShippingOrderResults(list);
+        shippingOrdersReadyRef.current = true;
       } catch (error) {
         if (gen !== soRequestGenRef.current) return;
         console.error("Stock form SO search failed:", error);
         applyShippingOrderResults([]);
       } finally {
         if (gen === soRequestGenRef.current) {
+          shippingOrdersReadyRef.current = true;
           setIsLoadingShippingOrders(false);
         }
       }
@@ -170,16 +204,20 @@ export default function useStockFormRemoteSelects({
 
   const handleShippingOrderSearchChange = useCallback(
     (q) => {
+      const trimmed = String(q ?? "").trim();
+      if (!shouldFetchForSearch(trimmed, shippingOrdersReadyRef, lastSoSearchRef)) {
+        return;
+      }
       scheduleShippingOrderSearch(q);
     },
-    [scheduleShippingOrderSearch]
+    [scheduleShippingOrderSearch, shouldFetchForSearch]
   );
 
   const ensureShippingOrderOptionsLoaded = useCallback(() => {
-    if (shippingOrders.length === 0 && !isLoadingShippingOrders) {
+    if (!shippingOrdersReadyRef.current && !isLoadingShippingOrders) {
       fetchShippingOrders("");
     }
-  }, [shippingOrders.length, isLoadingShippingOrders, fetchShippingOrders]);
+  }, [isLoadingShippingOrders, fetchShippingOrders]);
 
   const pinShippingOrder = useCallback(
     (order) => {
@@ -191,19 +229,34 @@ export default function useStockFormRemoteSelects({
   );
 
   const ensureShippingOrderForSelection = useCallback(
-    async (soId) => {
-      if (soId == null || soId === "" || soId === false) return;
-      const sid = String(soId);
+    async (recordId, { soField = null } = {}) => {
+      if (recordId == null || recordId === "" || recordId === false) return;
+      const sid = String(recordId);
       const inList = (list) =>
         (Array.isArray(list) ? list : []).some((o) => String(o.id) === sid);
       if (inList(shippingOrders) || inList(pinnedOrdersRef.current)) {
         return;
       }
+      const knownOrders = mergeShippingOrderLists(
+        pinnedOrdersRef.current,
+        shippingOrders
+      );
+      const apiSoId = resolveShippingOrderSoIdApiParam(recordId, {
+        shippingOrders: knownOrders,
+        soField,
+      });
       try {
-        const byId = await getShippingOrders({ so_id: soId, page_size: 10 });
-        let list = Array.isArray(byId?.orders) ? byId.orders : [];
+        let list = [];
+        if (apiSoId) {
+          const bySoId = await getShippingOrders({ so_id: apiSoId, page_size: 10 });
+          list = Array.isArray(bySoId?.orders) ? bySoId.orders : [];
+        }
         if (!list.length) {
-          const bySearch = await getShippingOrders({ search: sid, page_size: PAGE_SIZE });
+          const searchTerm = apiSoId || getSoNumberSearchKeyFromField(soField) || sid;
+          const bySearch = await getShippingOrders({
+            search: String(searchTerm),
+            page_size: PAGE_SIZE,
+          });
           list = Array.isArray(bySearch?.orders) ? bySearch.orders : [];
         }
         const match = list.find((o) => String(o.id) === sid) || list[0];
@@ -239,6 +292,7 @@ export default function useStockFormRemoteSelects({
         const response = await vesselsAPI.getVessels(params);
         const clientVessels = Array.isArray(response?.vessels) ? response.vessels : [];
         setVesselOptionsByClientId((prev) => ({ ...prev, [cacheKey]: clientVessels }));
+        vesselReadyKeysRef.current.add(cacheKey);
         if (typeof onVesselsLoaded === "function" && clientVessels.length) {
           onVesselsLoaded(clientVessels);
         }
@@ -258,6 +312,18 @@ export default function useStockFormRemoteSelects({
 
   const handleVesselSearchChange = useCallback(
     (clientId, q) => {
+      const cacheKey = clientId == null || clientId === "" ? "__all__" : String(clientId);
+      const trimmed = String(q ?? "").trim();
+      const last = lastVesselSearchByKeyRef.current[cacheKey] ?? "";
+      if (trimmed !== "") {
+        lastVesselSearchByKeyRef.current[cacheKey] = trimmed;
+        scheduleVesselSearch(clientId, q);
+        return;
+      }
+      if (vesselReadyKeysRef.current.has(cacheKey) && last === "") {
+        return;
+      }
+      lastVesselSearchByKeyRef.current[cacheKey] = "";
       scheduleVesselSearch(clientId, q);
     },
     [scheduleVesselSearch]
@@ -266,11 +332,11 @@ export default function useStockFormRemoteSelects({
   const ensureVesselsLoadedForClient = useCallback(
     (clientId) => {
       const cacheKey = clientId == null || clientId === "" ? "__all__" : String(clientId);
-      if (!Array.isArray(vesselOptionsByClientId[cacheKey])) {
+      if (!vesselReadyKeysRef.current.has(cacheKey)) {
         fetchVesselsForClient(clientId, "");
       }
     },
-    [vesselOptionsByClientId, fetchVesselsForClient]
+    [fetchVesselsForClient]
   );
 
   const getVesselOptionsForClient = useCallback(

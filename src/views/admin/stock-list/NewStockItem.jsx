@@ -113,20 +113,16 @@ export default function StockForm() {
         shippingOrders,
         isLoadingShippingOrders,
         handleShippingOrderSearchChange,
-        ensureShippingOrderOptionsLoaded,
         ensureShippingOrderForSelection,
         getClientOptionsForValue,
         handleClientSearchChange,
-        ensureClientOptionsLoaded,
         isLoadingClients,
         getSupplierOptionsForValue,
         handleSupplierSearchChange,
-        ensureSupplierOptionsLoaded,
         isLoadingSuppliers,
         fetchVesselsForClient,
         getVesselOptionsForClient,
         handleVesselSearchChange,
-        ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
         stockFormSelectDropdownProps,
     } = useStockFormRemoteSelects({
@@ -233,6 +229,7 @@ export default function StockForm() {
         remarks: "", // Remarks - Free text + textarea
         internalRemark: "", // Internal Remark - Free text + textarea
         soId: null, // Shipping order M2O (so_id.id)
+        soIdApiHint: null, // stock.so_id M2O or stock_so_number for API so_id lookup
         siNumber: "", // SI Number - STRING type (preserves spaces, e.g., "00021 1.1")
         siCombined: "", // SI Combined - STRING type (preserves spaces, e.g., "00021 1.1")
         diNumber: "", // DI Number - STRING type (preserves spaces, e.g., "00021 1.1")
@@ -433,9 +430,9 @@ export default function StockForm() {
     }, [refreshClients, refreshVessels]);
 
     useEffect(() => {
-        const soIds = [...new Set(formRows.map((row) => row.soId).filter(Boolean))];
-        soIds.forEach((soId) => {
-            ensureShippingOrderForSelection(soId);
+        formRows.forEach((row) => {
+            if (!row.soId) return;
+            ensureShippingOrderForSelection(row.soId, { soField: row.soIdApiHint ?? null });
         });
     }, [formRows, ensureShippingOrderForSelection]);
 
@@ -778,6 +775,7 @@ export default function StockForm() {
             remarks: getFieldValue(stock.remarks),
             internalRemark: getFieldValue(stock.internal_remark),
             soId: normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrders)),
+            soIdApiHint: stock.so_id ?? stock.stock_so_number ?? null,
             siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
@@ -1017,6 +1015,15 @@ export default function StockForm() {
                         }
                     }
                 }
+            }
+
+            if (field === "soId") {
+                const order = shippingOrders.find((o) => String(o.id) === String(processedValue));
+                updatedRow.soIdApiHint = order
+                    ? { id: order.id, name: order.name, so_id: order.so_id }
+                    : processedValue
+                        ? updatedRow.soIdApiHint
+                        : null;
             }
 
             newRows[rowIndex] = updatedRow;
@@ -1618,7 +1625,6 @@ export default function StockForm() {
                                                 formatOption={(option) => option.name || `Client ${option.id}`}
                                                 isLoading={isLoadingClients}
                                                 onSearchChange={handleClientSearchChange}
-                                                onFocus={ensureClientOptionsLoaded}
                                                 {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1639,7 +1645,6 @@ export default function StockForm() {
                                                 formatOption={(option) => option.name || String(option.id ?? "")}
                                                 isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
                                                 onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
-                                                onFocus={() => ensureVesselsLoadedForClient(row.client)}
                                                 {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1682,7 +1687,6 @@ export default function StockForm() {
                                                 formatOption={(option) => option.name || `Supplier ${option.id}`}
                                                 isLoading={isLoadingSuppliers}
                                                 onSearchChange={handleSupplierSearchChange}
-                                                onFocus={ensureSupplierOptionsLoaded}
                                                 {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
@@ -2198,7 +2202,6 @@ export default function StockForm() {
                                                     valueKey="id"
                                                     isLoading={isLoadingShippingOrders}
                                                     onSearchChange={handleShippingOrderSearchChange}
-                                                    onFocus={ensureShippingOrderOptionsLoaded}
                                                     {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}

@@ -220,6 +220,39 @@ export function normalizeSoSearchQuery(value) {
 }
 
 /**
+ * Value for GET /api/shipping/orders?so_id= — business SO number (e.g. "3412"), not record id (e.g. 22976).
+ */
+export function resolveShippingOrderSoIdApiParam(
+  recordId,
+  { shippingOrders = [], soField = null } = {}
+) {
+  const lists = Array.isArray(shippingOrders) ? shippingOrders : [];
+  const rid = recordId != null && recordId !== "" && recordId !== false ? String(recordId) : null;
+
+  if (rid) {
+    const order = lists.find((o) => o && String(o.id) === rid);
+    if (order) {
+      if (order.so_id != null && order.so_id !== "" && order.so_id !== false) {
+        const normalized = normalizeSoSearchQuery(String(order.so_id));
+        if (normalized) return normalized;
+        return String(order.so_id).trim().replace(/^SO-/i, "").trim();
+      }
+      const fromOrder = getSoNumberSearchKeyFromField(order);
+      if (fromOrder) {
+        return normalizeSoSearchQuery(fromOrder) || fromOrder;
+      }
+    }
+  }
+
+  const fromField = getSoNumberSearchKeyFromField(soField);
+  if (fromField) {
+    return normalizeSoSearchQuery(fromField) || fromField;
+  }
+
+  return null;
+}
+
+/**
  * Business SO number for API search — M2O uses `name` (e.g. "3674"), not internal `id` (e.g. 23417).
  */
 export function getSoNumberSearchKeyFromField(soField) {

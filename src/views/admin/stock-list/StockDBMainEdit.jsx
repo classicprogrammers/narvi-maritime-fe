@@ -133,20 +133,16 @@ export default function StockDBMainEdit() {
         shippingOrders,
         isLoadingShippingOrders,
         handleShippingOrderSearchChange,
-        ensureShippingOrderOptionsLoaded,
         ensureShippingOrderForSelection,
         getClientOptionsForValue,
         handleClientSearchChange,
-        ensureClientOptionsLoaded,
         isLoadingClients,
         getSupplierOptionsForValue,
         handleSupplierSearchChange,
-        ensureSupplierOptionsLoaded,
         isLoadingSuppliers,
         fetchVesselsForClient,
         getVesselOptionsForClient,
         handleVesselSearchChange,
-        ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
         stockFormSelectDropdownProps,
     } = useStockFormRemoteSelects({
@@ -345,6 +341,7 @@ export default function StockDBMainEdit() {
         client: "",
         vessel: "",
         soId: null, // Shipping order M2O (so_id.id)
+        soIdApiHint: null,
         siNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
         siCombined: "", // STRING type (preserves spaces, e.g., "00021 1.1")
         diNumber: "", // STRING type (preserves spaces, e.g., "00021 1.1")
@@ -469,6 +466,7 @@ export default function StockDBMainEdit() {
             vessel: normalizeId(stock.vessel_id) || normalizeId(stock.vessel) || "",
             // Use getFieldValue to preserve spaces in text fields (e.g., "00021 1.1")
             soId: normalizeStockFormSoId(resolveStockSoIdForForm(stock, shippingOrdersRef.current)),
+            soIdApiHint: stock.so_id ?? stock.stock_so_number ?? null,
             siNumber: addSIPrefix(getFieldValue(stock.si_number) || ""),
             siCombined: addSICombinedPrefix(stock.si_combined === false ? "" : (getFieldValue(stock.si_combined) || "")),
             diNumber: addDIPrefix(getFieldValue(stock.di_no) || ""),
@@ -649,9 +647,9 @@ export default function StockDBMainEdit() {
     }, []);
 
     useEffect(() => {
-        const soIds = [...new Set(formRows.map((row) => row.soId).filter(Boolean))];
-        soIds.forEach((soId) => {
-            ensureShippingOrderForSelection(soId);
+        formRows.forEach((row) => {
+            if (!row.soId) return;
+            ensureShippingOrderForSelection(row.soId, { soField: row.soIdApiHint ?? null });
         });
     }, [formRows, ensureShippingOrderForSelection]);
 
@@ -925,6 +923,15 @@ export default function StockDBMainEdit() {
                         }
                     }
                 }
+            }
+
+            if (field === "soId") {
+                const order = shippingOrders.find((o) => String(o.id) === String(processedValue));
+                newRows[rowIndex].soIdApiHint = order
+                    ? { id: order.id, name: order.name, so_id: order.so_id }
+                    : processedValue
+                        ? newRows[rowIndex].soIdApiHint
+                        : null;
             }
 
             return newRows;
@@ -1754,7 +1761,6 @@ export default function StockDBMainEdit() {
                                             formatOption={(option) => option.name || `Client ${option.id}`}
                                             isLoading={isLoadingClients}
                                             onSearchChange={handleClientSearchChange}
-                                            onFocus={ensureClientOptionsLoaded}
                                             {...stockFormSelectDropdownProps}
                                             bg={inputBg}
                                             color={inputText}
@@ -1775,7 +1781,6 @@ export default function StockDBMainEdit() {
                                             formatOption={(option) => option.name || String(option.id ?? "")}
                                             isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
                                             onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
-                                            onFocus={() => ensureVesselsLoadedForClient(row.client)}
                                             {...stockFormSelectDropdownProps}
                                             bg={inputBg}
                                             color={inputText}
@@ -1800,7 +1805,6 @@ export default function StockDBMainEdit() {
                                                 valueKey="id"
                                                 isLoading={isLoadingShippingOrders}
                                                 onSearchChange={handleShippingOrderSearchChange}
-                                                onFocus={ensureShippingOrderOptionsLoaded}
                                                 {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
@@ -1957,7 +1961,6 @@ export default function StockDBMainEdit() {
                                             formatOption={(option) => option.name || `Supplier ${option.id}`}
                                             isLoading={isLoadingSuppliers}
                                             onSearchChange={handleSupplierSearchChange}
-                                            onFocus={ensureSupplierOptionsLoaded}
                                             {...stockFormSelectDropdownProps}
                                             bg={inputBg}
                                             color={inputText}
