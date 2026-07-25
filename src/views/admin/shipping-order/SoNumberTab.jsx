@@ -836,12 +836,11 @@ const SoNumberTab = () => {
 
   const handleFormSubmit = async () => {
     const hasClient = !!formData?.client_id;
-    const hasVessel = !!formData?.vessel_id;
 
-    if (!formData || !hasClient || !hasVessel) {
+    if (!formData || !hasClient) {
       toast({
         title: "Missing details",
-        description: "Client and vessel are required.",
+        description: "Client is required.",
         status: "warning",
         duration: 4000,
         isClosable: true,

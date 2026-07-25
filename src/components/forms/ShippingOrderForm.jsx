@@ -252,10 +252,6 @@ const ShippingOrderForm = ({
             newErrors.partner_id = 'Partner/Client is required';
         }
 
-        if (!formData.vessel_id) {
-            newErrors.vessel_id = 'Vessel is required';
-        }
-
         if (!formData.quotation_id) {
             newErrors.quotation_id = 'Quotation ID is required';
         }
@@ -426,7 +422,7 @@ const ShippingOrderForm = ({
                                 </GridItem>
 
                                 <GridItem>
-                                    <FormControl isRequired isInvalid={errors.vessel_id}>
+                                    <FormControl>
                                         <FormLabel fontSize="sm" color="gray.600">Vessel</FormLabel>
                                         <SearchableSelect
                                             value={formData.vessel_id}
@@ -438,10 +434,7 @@ const ShippingOrderForm = ({
                                             displayKey="name"
                                             valueKey="id"
                                             formatOption={(option) => `${option.name || option.imo_number || `Vessel ${option.id}`}`}
-                                            error={errors.vessel_id}
-                                            isRequired
                                         />
-                                        <FormErrorMessage>{errors.vessel_id}</FormErrorMessage>
                                     </FormControl>
                                 </GridItem>
 
