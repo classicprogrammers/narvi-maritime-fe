@@ -54,9 +54,7 @@ import {
     MdMoreVert,
     MdVisibility,
 } from "react-icons/md";
-import { getShippingOrders } from "../../../api/shippingOrders";
 import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } from "../../../constants/stockStatus";
-import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
 import { useMasterData } from "../../../hooks/useMasterData";
@@ -66,6 +64,7 @@ import { createStockItemApi } from "../../../api/stock";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import StockDestinationSelect from "../../../components/forms/StockDestinationSelect";
 import useStockDestinationOptions from "../../../hooks/useStockDestinationOptions";
+import useStockFormRemoteSelects from "../../../hooks/useStockFormRemoteSelects";
 import {
     buildStockDestinationIdsPayload,
     buildStockDestinationNewPayload,
@@ -110,15 +109,35 @@ export default function StockForm() {
         setQDestination,
         setQApDestination,
     } = useStockDestinationOptions();
+    const {
+        shippingOrders,
+        isLoadingShippingOrders,
+        handleShippingOrderSearchChange,
+        ensureShippingOrderOptionsLoaded,
+        ensureShippingOrderForSelection,
+        getClientOptionsForValue,
+        handleClientSearchChange,
+        ensureClientOptionsLoaded,
+        isLoadingClients,
+        getSupplierOptionsForValue,
+        handleSupplierSearchChange,
+        ensureSupplierOptionsLoaded,
+        isLoadingSuppliers,
+        fetchVesselsForClient,
+        getVesselOptionsForClient,
+        handleVesselSearchChange,
+        ensureVesselsLoadedForClient,
+        isLoadingVesselByClient,
+        stockFormSelectDropdownProps,
+    } = useStockFormRemoteSelects({
+        masterClients: clients,
+        masterSuppliers: suppliers,
+        masterVessels: vessels,
+    });
     const [isLoading, setIsLoading] = useState(isEditing);
-    const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
-    const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
     const [selectedItems, setSelectedItems] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
-    const [shippingOrders, setShippingOrders] = useState([]);
-    const [isLoadingShippingOrders, setIsLoadingShippingOrders] = useState(false);
     const hasFetchedCurrenciesRef = React.useRef(false);
-    const hasFetchedShippingOrdersRef = React.useRef(false);
     const hasPatchedLegacySoIdRef = React.useRef(false);
 
     // Dimensions modal state
@@ -271,36 +290,10 @@ export default function StockForm() {
         [user?.name, user?.email]
     );
 
-    const getVesselOptionsForClient = useCallback(
-        (clientId) => {
-            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
-            if (!normalizedClientId) return vessels;
-            const cachedClientVessels = vesselOptionsByClientId[normalizedClientId];
-            if (Array.isArray(cachedClientVessels)) return cachedClientVessels;
-            return vessels.filter((vessel) => String(vessel.client_id ?? vessel.client ?? "") === normalizedClientId);
-        },
-        [vesselOptionsByClientId, vessels]
-    );
-
-    const fetchVesselsForClient = useCallback(
-        async (clientId) => {
-            const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
-            if (!normalizedClientId) return;
-            if (Array.isArray(vesselOptionsByClientId[normalizedClientId])) return;
-            try {
-                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: true }));
-                const response = await vesselsAPI.getVessels({ client_id: normalizedClientId, page_size: 200 });
-                const clientVessels = Array.isArray(response?.vessels) ? response.vessels : [];
-                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: clientVessels }));
-            } catch (error) {
-                console.error("Failed to fetch vessels for client", normalizedClientId, error);
-                setVesselOptionsByClientId((prev) => ({ ...prev, [normalizedClientId]: [] }));
-            } finally {
-                setIsLoadingVesselByClient((prev) => ({ ...prev, [normalizedClientId]: false }));
-            }
-        },
-        [vesselOptionsByClientId]
-    );
+    const getVesselLoadingKey = useCallback((clientId) => {
+        const normalized = clientId == null || clientId === "" ? "__all__" : String(clientId);
+        return normalized;
+    }, []);
 
     // Load stock items for bulk edit or single edit
     const ADD_STOCK_HAS_DATA_KEY = "addStockHasData";
@@ -440,22 +433,11 @@ export default function StockForm() {
     }, [refreshClients, refreshVessels]);
 
     useEffect(() => {
-        if (hasFetchedShippingOrdersRef.current) return;
-        hasFetchedShippingOrdersRef.current = true;
-        const fetchShippingOrders = async () => {
-            try {
-                setIsLoadingShippingOrders(true);
-                const response = await getShippingOrders({ page_size: 500 });
-                const list = Array.isArray(response?.orders) ? response.orders : [];
-                setShippingOrders(list);
-            } catch (error) {
-                console.error("Failed to fetch shipping orders:", error);
-            } finally {
-                setIsLoadingShippingOrders(false);
-            }
-        };
-        fetchShippingOrders();
-    }, []);
+        const soIds = [...new Set(formRows.map((row) => row.soId).filter(Boolean))];
+        soIds.forEach((soId) => {
+            ensureShippingOrderForSelection(soId);
+        });
+    }, [formRows, ensureShippingOrderForSelection]);
 
     useEffect(() => {
         if (!shippingOrders.length || hasPatchedLegacySoIdRef.current || !isEditing) return;
@@ -1629,12 +1611,15 @@ export default function StockForm() {
                                             <SimpleSearchableSelect
                                                 value={row.client}
                                                 onChange={(value) => handleInputChange(rowIndex, "client", value)}
-                                                options={clients}
+                                                options={getClientOptionsForValue(row.client)}
                                                 placeholder="Select Client"
                                                 displayKey="name"
                                                 valueKey="id"
                                                 formatOption={(option) => option.name || `Client ${option.id}`}
-                                                isLoading={false}
+                                                isLoading={isLoadingClients}
+                                                onSearchChange={handleClientSearchChange}
+                                                onFocus={ensureClientOptionsLoaded}
+                                                {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1647,12 +1632,15 @@ export default function StockForm() {
                                             <SimpleSearchableSelect
                                                 value={row.vessel}
                                                 onChange={(value) => handleInputChange(rowIndex, "vessel", value)}
-                                                options={getVesselOptionsForClient(row.client)}
+                                                options={getVesselOptionsForClient(row.client, row.vessel)}
                                                 placeholder="Select Vessel"
                                                 displayKey="name"
                                                 valueKey="id"
                                                 formatOption={(option) => option.name || String(option.id ?? "")}
-                                                isLoading={Boolean(row.client && isLoadingVesselByClient[String(row.client)])}
+                                                isLoading={Boolean(isLoadingVesselByClient[getVesselLoadingKey(row.client)])}
+                                                onSearchChange={(q) => handleVesselSearchChange(row.client, q)}
+                                                onFocus={() => ensureVesselsLoadedForClient(row.client)}
+                                                {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -1687,12 +1675,15 @@ export default function StockForm() {
                                             <SimpleSearchableSelect
                                                 value={row.supplier}
                                                 onChange={(value) => handleInputChange(rowIndex, "supplier", value)}
-                                                options={suppliers}
+                                                options={getSupplierOptionsForValue(row.supplier)}
                                                 placeholder="Select Supplier"
                                                 displayKey="name"
                                                 valueKey="id"
                                                 formatOption={(option) => option.name || `Supplier ${option.id}`}
-                                                isLoading={false}
+                                                isLoading={isLoadingSuppliers}
+                                                onSearchChange={handleSupplierSearchChange}
+                                                onFocus={ensureSupplierOptionsLoaded}
+                                                {...stockFormSelectDropdownProps}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}
@@ -2201,13 +2192,14 @@ export default function StockForm() {
                                                     placeholder={
                                                         isLoadingShippingOrders
                                                             ? "Loading SO numbers..."
-                                                            : shippingOrderOptions.length === 0
-                                                                ? "No SO numbers available"
-                                                                : "Select SO Number"
+                                                            : "Search SO number..."
                                                     }
                                                     displayKey="name"
                                                     valueKey="id"
                                                     isLoading={isLoadingShippingOrders}
+                                                    onSearchChange={handleShippingOrderSearchChange}
+                                                    onFocus={ensureShippingOrderOptionsLoaded}
+                                                    {...stockFormSelectDropdownProps}
                                                     bg={inputBg}
                                                     color={inputText}
                                                     borderColor={borderColor}
