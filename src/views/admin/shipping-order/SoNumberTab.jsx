@@ -57,8 +57,6 @@ import {
   MdRefresh,
   MdSearch,
   MdClose,
-  MdArrowUpward,
-  MdArrowDownward,
   MdFilterList,
   MdClear,
   MdContentCopy,
@@ -187,8 +185,6 @@ const SoNumberTab = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
-  const [sortBy, setSortBy] = useState(savedState.sortBy);
-  const [sortOrder, setSortOrder] = useState(savedState.sortOrder);
 
   const [formData, setFormData] = useState(null);
   const { clients, vessels, countries, pics, destinations } = useMasterData();
@@ -224,12 +220,6 @@ const SoNumberTab = () => {
   // Client filter states
   const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
   const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(savedState.readyForInvoiceClientFilter);
-
-  // Sorting state
-  const [sortConfig, setSortConfig] = useState(savedState.sortConfig);
-
-  // Next Action sorting option
-  const [nextActionSortOption, setNextActionSortOption] = useState(savedState.nextActionSortOption);
 
   // Current PIC filter being edited
   const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
@@ -296,8 +286,6 @@ const SoNumberTab = () => {
       searchPicFilter,
       searchStatusFilter,
       page,
-      sortBy,
-      sortOrder,
       activeFilters,
       activeATHPics,
       activeSINPics,
@@ -305,8 +293,6 @@ const SoNumberTab = () => {
       sinReadyForInvoicePics,
       activeClientFilter,
       readyForInvoiceClientFilter,
-      sortConfig,
-      nextActionSortOption,
     });
   }, [
     searchValue,
@@ -317,8 +303,6 @@ const SoNumberTab = () => {
     searchVesselFilter,
     searchCountryFilter,
     page,
-    sortBy,
-    sortOrder,
     activeFilters,
     activeATHPics,
     activeSINPics,
@@ -326,8 +310,6 @@ const SoNumberTab = () => {
     sinReadyForInvoicePics,
     activeClientFilter,
     readyForInvoiceClientFilter,
-    sortConfig,
-    nextActionSortOption,
   ]);
 
   const resetForm = () => {
@@ -426,8 +408,7 @@ const SoNumberTab = () => {
 
       const normalized = list
         .map(normalizeOrder)
-        .filter(Boolean)
-        .sort((a, b) => (b.id || 0) - (a.id || 0));
+        .filter(Boolean);
 
       setOrders(normalized);
       setTotalCount(data.total_count || normalized.length);
@@ -458,9 +439,6 @@ const SoNumberTab = () => {
   }, [
     page,
     pageSize,
-    sortBy,
-    sortOrder,
-    nextActionSortOption,
     searchQuery,
     activeFilters,
     activeATHPicsKey,
@@ -675,92 +653,10 @@ const SoNumberTab = () => {
     setPage(1);
   };
 
-  const handleSort = (field) => {
-    setSortConfig((prev) => {
-      if (prev.field === field) {
-        // Toggle direction if same field
-        return {
-          field,
-          direction: prev.direction === "asc" ? "desc" : "asc",
-        };
-      } else {
-        // New field, default to ascending
-        return {
-          field,
-          direction: "asc",
-        };
-      }
-    });
-  };
-
   const openPicFilterModal = (filterType) => {
     setEditingPicFilter(filterType);
     picFilterModalDisclosure.onOpen();
   };
-
-  // Client-side sort only (filtering is server-side via advanced filter chips)
-  const sortedOrders = useMemo(() => {
-    let sorted = [...orders];
-
-    if (nextActionSortOption === 'next_action') {
-      sorted.sort((a, b) => {
-        const aHasNextAction = a.next_action && a.next_action !== "";
-        const bHasNextAction = b.next_action && b.next_action !== "";
-
-        if (aHasNextAction && !bHasNextAction) {
-          return -1;
-        }
-        if (!aHasNextAction && bHasNextAction) {
-          return 1;
-        }
-        if (aHasNextAction && bHasNextAction) {
-          const aDate = new Date(a.next_action);
-          const bDate = new Date(b.next_action);
-          if (aDate.getTime() !== bDate.getTime()) {
-            return aDate.getTime() - bDate.getTime();
-          }
-        }
-        return 0;
-      });
-    }
-
-    if (sortConfig.field && sortConfig.field !== "next_action") {
-      sorted.sort((a, b) => {
-        let aValue;
-        let bValue;
-
-        if (sortConfig.field === "so_number") {
-          aValue = a.so_number || "";
-          bValue = b.so_number || "";
-        } else if (sortConfig.field === "date_created") {
-          aValue = a.date_created || "";
-          bValue = b.date_created || "";
-        } else if (sortConfig.field === "client") {
-          aValue = a.client || "";
-          bValue = b.client || "";
-        } else if (sortConfig.field === "vessel_id") {
-          aValue = a.vessel_name || "";
-          bValue = b.vessel_name || "";
-        } else if (sortConfig.field === "pic") {
-          aValue = a.pic_name || "";
-          bValue = b.pic_name || "";
-        } else {
-          aValue = a[sortConfig.field] || "";
-          bValue = b[sortConfig.field] || "";
-        }
-
-        const aStr = String(aValue).toLowerCase();
-        const bStr = String(bValue).toLowerCase();
-
-        if (sortConfig.direction === "asc") {
-          return aStr.localeCompare(bStr);
-        }
-        return bStr.localeCompare(aStr);
-      });
-    }
-
-    return sorted;
-  }, [orders, sortConfig, nextActionSortOption]);
 
   const handleCreate = () => {
     resetForm();
@@ -900,7 +796,7 @@ const SoNumberTab = () => {
       );
     }
 
-    if (sortedOrders.length === 0) {
+    if (orders.length === 0) {
       return (
         <Tr>
           <Td colSpan={SHIPPING_ORDER_TABLE_COLUMN_COUNT}>
@@ -912,7 +808,7 @@ const SoNumberTab = () => {
       );
     }
 
-    return sortedOrders.map((order) => (
+    return orders.map((order) => (
       <Tr
         key={order.id || order.so_number}
         _hover={{ bg: hoverBg }}
@@ -1476,56 +1372,6 @@ const SoNumberTab = () => {
             </WrapItem>
           </Wrap>
 
-          {/* Sorting Section */}
-          <Box mt="4">
-            <Flex align="center" gap="4">
-              <Text fontSize="sm" fontWeight="medium" color={textColor}>
-                Sorting:
-              </Text>
-              <Menu>
-                <MenuButton
-                  as={Button}
-                  rightIcon={<Icon as={MdArrowDownward} />}
-                  size="sm"
-                  variant="outline"
-                  colorScheme={nextActionSortOption === 'next_action' ? 'blue' : 'gray'}
-                >
-                  {nextActionSortOption === 'next_action'
-                    ? 'Sort by Next Action'
-                    : 'No Sort'}
-                </MenuButton>
-                <MenuList>
-                  <MenuItem
-                    onClick={() => setNextActionSortOption('none')}
-                    bg={nextActionSortOption === 'none' ? 'blue.50' : 'transparent'}
-                  >
-                    No Sort
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() => setNextActionSortOption('next_action')}
-                    bg={nextActionSortOption === 'next_action' ? 'blue.50' : 'transparent'}
-                  >
-                    Sort by Next Action
-                  </MenuItem>
-                </MenuList>
-              </Menu>
-              {nextActionSortOption === 'next_action' && (
-                <Box
-                  p="2"
-                  bg="blue.50"
-                  borderRadius="md"
-                  fontSize="xs"
-                  color="blue.700"
-                  maxW="400px"
-                >
-                  <Text fontWeight="medium">Sorting Order:</Text>
-                  <Text>1st priority: Items with Next Action dates (sorted ascending)</Text>
-                  <Text>2nd priority: Items without Next Action dates (at the end)</Text>
-                </Box>
-              )}
-            </Flex>
-          </Box>
-
           {/* Client selection when Active Client or Ready for Invoice Client chip is on */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
             <Box w="100%" maxW="360px">
@@ -1580,13 +1426,13 @@ const SoNumberTab = () => {
             <Tr>
               {[
                 { label: "Actions", field: null, sortable: false },
-                { label: "SO Number", field: "so_number", sortable: true },
+                { label: "SO Number", field: "so_number", sortable: false },
                 { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
-                { label: "Next Action", field: "next_action", sortable: true },
-                { label: "Date Created", field: "date_created", sortable: true },
+                { label: "Next Action", field: "next_action", sortable: false },
+                { label: "Date Created", field: "date_created", sortable: false },
                 { label: "Status", field: "done", sortable: false },
-                { label: "Person in Charge", field: "pic", sortable: true },
-                { label: "Client Code", field: "client", sortable: true },
+                { label: "Person in Charge", field: "pic", sortable: false },
+                { label: "Client Code", field: "client", sortable: false },
                 { label: "Vessel Name", field: "vessel_name", sortable: false },
                 { label: "Destination", field: "destination", sortable: false },
                 { label: "ETA", field: "eta_date", sortable: false },
@@ -1610,21 +1456,10 @@ const SoNumberTab = () => {
                   px="12px"
                   minW="130px"
                   style={{ color: "#000000d4" }}
-                  cursor={col.sortable ? "pointer" : "default"}
-                  onClick={col.sortable ? () => handleSort(col.field) : undefined}
-                  _hover={col.sortable ? { bg: hoverBg } : {}}
                   position="relative"
                   {...tableHeaderCellProps}
                 >
-                  <Flex align="center" gap="2">
-                    <Text>{col.label}</Text>
-                    {col.sortable && sortConfig.field === col.field && (
-                      <Icon
-                        as={sortConfig.direction === "asc" ? MdArrowUpward : MdArrowDownward}
-                        fontSize="14px"
-                      />
-                    )}
-                  </Flex>
+                  <Text>{col.label}</Text>
                 </Th>
               ))}
             </Tr>
