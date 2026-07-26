@@ -1657,33 +1657,6 @@ export default function StockList() {
                                                     )}
                                                 </HStack>
                                             </Box>
-                                            {/* PO Number Filter */}
-                                            <Box w="220px" minW="200px">
-                                                <HStack spacing="1">
-                                                    <InputGroup size="sm">
-                                                        <Input
-                                                            value={filterPO}
-                                                            onChange={(e) => setFilterPO(e.target.value)}
-                                                            placeholder="Filter by PO Number"
-                                                            bg={inputBg}
-                                                            color={inputText}
-                                                            borderColor={borderColor}
-                                                            pl="8"
-                                                        />
-                                                    </InputGroup>
-                                                    {filterPO && (
-                                                        <IconButton
-                                                            size="sm"
-                                                            icon={<Icon as={MdClose} />}
-                                                            colorScheme="red"
-                                                            variant="ghost"
-                                                            onClick={() => setFilterPO("")}
-                                                            aria-label="Clear PO number filter"
-                                                        />
-                                                    )}
-                                                </HStack>
-                                            </Box>
-
                                             {/* Req No Filter */}
                                             <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
@@ -1706,6 +1679,33 @@ export default function StockList() {
                                                             variant="ghost"
                                                             onClick={() => setFilterReqNo("")}
                                                             aria-label="Clear Req No filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
+                                            {/* PO Number Filter */}
+                                            <Box w="220px" minW="200px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterPO}
+                                                            onChange={(e) => setFilterPO(e.target.value)}
+                                                            placeholder="Filter by PO Number"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterPO && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterPO("")}
+                                                            aria-label="Clear PO number filter"
                                                         />
                                                     )}
                                                 </HStack>
@@ -1910,11 +1910,11 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("supplier_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         SUPPLIER {sortField === "supplier_id" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
-                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
-                                        PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
-                                    </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("req_no")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         REQ NO {sortField === "req_no" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    </Th>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                        PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
                                     <Th {...headerProps}>EXTRA 2</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -2021,8 +2021,8 @@ export default function StockList() {
                                                 </Badge>
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                            <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
+                                            <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
@@ -2286,18 +2286,18 @@ export default function StockList() {
                                             </Box>
                                             <Box>
                                                 <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
-                                                    PO Number
-                                                </Text>
-                                                <Box>
-                                                    {renderMultiLineLabels(item.po_text)}
-                                                </Box>
-                                            </Box>
-                                            <Box>
-                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
                                                     Req No
                                                 </Text>
                                                 <Box>
                                                     {renderMultiLineLabels(item.req_no)}
+                                                </Box>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    PO Number
+                                                </Text>
+                                                <Box>
+                                                    {renderMultiLineLabels(item.po_text)}
                                                 </Box>
                                             </Box>
                                             <Box>

@@ -1692,8 +1692,8 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">SI Combined</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
@@ -1976,22 +1976,6 @@ export default function StockDBMainEdit() {
                                     </Td>
                                     <Td {...cellProps}>
                                         <Textarea
-                                            value={row.poNumber || ""}
-                                            onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
-                                            placeholder="Enter PO Number(s) - one per line"
-                                            size="sm"
-                                            rows={3}
-                                            w="auto"
-                                            minW="24ch"
-                                            maxW="90ch"
-                                            cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
-                                            bg={inputBg}
-                                            color={inputText}
-                                            borderColor={borderColor}
-                                        />
-                                    </Td>
-                                    <Td {...cellProps}>
-                                        <Textarea
                                             value={row.reqNo || ""}
                                             onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
                                             placeholder="Enter Req No(s) - one per line"
@@ -2001,6 +1985,22 @@ export default function StockDBMainEdit() {
                                             minW="24ch"
                                             maxW="90ch"
                                             cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.poNumber || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
+                                            placeholder="Enter PO Number(s) - one per line"
+                                            size="sm"
+                                            rows={3}
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="90ch"
+                                            cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

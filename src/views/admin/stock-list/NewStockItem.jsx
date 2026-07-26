@@ -1572,8 +1572,8 @@ export default function StockForm() {
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Vessel</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
-                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
@@ -1702,6 +1702,22 @@ export default function StockForm() {
                                                 autoWidthMax={55}
                                             />
                                         </Td>
+                                        <Td {...cellProps}>
+                                            <Textarea
+                                                value={row.reqNo || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
+                                                placeholder="Enter Req No(s) - one per line"
+                                                size="sm"
+                                                rows={3}
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </Td>
                                         {/* Single PO Number field, but allow multiple lines for clarity */}
                                         <Td {...cellProps}>
                                             <Textarea
@@ -1714,22 +1730,6 @@ export default function StockForm() {
                                                 minW="24ch"
                                                 maxW="90ch"
                                                 cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
-                                                bg={inputBg}
-                                                color={inputText}
-                                                borderColor={borderColor}
-                                            />
-                                        </Td>
-                                        <Td {...cellProps}>
-                                            <Textarea
-                                                value={row.reqNo || ""}
-                                                onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
-                                                placeholder="Enter Req No(s) - one per line"
-                                                size="sm"
-                                                rows={3}
-                                                w="auto"
-                                                minW="24ch"
-                                                maxW="90ch"
-                                                cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}

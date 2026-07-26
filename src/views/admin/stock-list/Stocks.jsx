@@ -135,8 +135,8 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "vessel", label: "VESSEL" },
         { key: "via_hub_1", label: "HUB 1" },
         { key: "supplier", label: "SUPPLIER" },
-        { key: "po", label: "PO #", type: "po" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
+        { key: "po", label: "PO #", type: "po" },
         { key: "stock_status", label: "STOCK STATUS", type: "status" },
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
@@ -147,8 +147,8 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "client", label: "CLIENT" },
         { key: "vessel", label: "VESSEL" },
         { key: "supplier", label: "SUPPLIER" },
-        { key: "po", label: "PO #", type: "po" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
+        { key: "po", label: "PO #", type: "po" },
         { key: "so_number", label: "SO NUMBER" },
         { key: "destination", label: "DESTINATION" },
         { key: "warehouse_id", label: "WAREHOUSE ID" },
@@ -163,8 +163,8 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "client", label: "CLIENT" },
         { key: "vessel", label: "VESSEL" },
         { key: "supplier", label: "SUPPLIER" },
-        { key: "po", label: "PO #", type: "po" },
         { key: "req_no", label: "REQ NO", type: "req_no" },
+        { key: "po", label: "PO #", type: "po" },
         { key: "stock_status", label: "STOCK STATUS", type: "status" },
         { key: "cur", label: "CUR" },
         { key: "value", label: "VALUE" },
@@ -187,8 +187,8 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
 const PDF_EXPORT_HEADERS = [
     "VESSEL",
     "SUPPLIER",
-    "PO #",
     "REQ NO",
+    "PO #",
     "STOCK STATUS",
     "CUR",
     "VALUE",
@@ -233,8 +233,8 @@ const PDF_TABLE_BODY_STYLES = {
 const EXCEL_EXPORT_HEADERS = [
     "VESSEL",
     "SUPPLIER",
-    "PO #",
     "REQ NO",
+    "PO #",
     "STOCK STATUS",
     "CUR",
     "VALUE",
@@ -1656,14 +1656,14 @@ export default function Stocks() {
         const apDestination = formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-";
 
         if (viewType === "filter1") {
-            return [vessel, viaHub1, supplier, poNumber, reqNo, stockStatus, boxes, kg, lwhText, dgUn];
+            return [vessel, viaHub1, supplier, reqNo, poNumber, stockStatus, boxes, kg, lwhText, dgUn];
         }
         if (viewType === "filter2") {
-            return [vessel, supplier, poNumber, reqNo, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
+            return [vessel, supplier, reqNo, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
         }
         if (viewType === "filter3") {
             return [
-                vessel, supplier, poNumber, reqNo, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
+                vessel, supplier, reqNo, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
                 origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, warehouseId,
             ];
         }
@@ -1683,8 +1683,8 @@ export default function Stocks() {
             return [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
-                (item.po_text || "-").replace(/\n/g, " "),
                 (item.req_no || "-").replace(/\n/g, " "),
+                (item.po_text || "-").replace(/\n/g, " "),
                 getStatusLabel(item.stock_status) || "-",
                 getDisplayName(item.currency_id || item.currency) || "-",
                 item.value ?? "-",
@@ -1720,8 +1720,8 @@ export default function Stocks() {
             return [
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
-                (item.po_text || "-").replace(/\n/g, " "),
                 (item.req_no || "-").replace(/\n/g, " "),
+                (item.po_text || "-").replace(/\n/g, " "),
                 getStatusLabel(item.stock_status) || "-",
                 currency,
                 value,
@@ -1744,10 +1744,10 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
-        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "PO #", "REQ NO", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
-        filter2: ["VESSEL", "SUPPLIER", "PO #", "REQ NO", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
+        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
+        filter2: ["VESSEL", "SUPPLIER", "REQ NO", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
         filter3: [
-            "VESSEL", "SUPPLIER", "PO #", "REQ NO", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
+            "VESSEL", "SUPPLIER", "REQ NO", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "WAREHOUSE ID",
         ],
     };
@@ -1769,8 +1769,8 @@ export default function Stocks() {
                 "VESSEL",
                 "WAREHOUSE ID",
                 "SUPPLIER",
-                "PO#",
                 "REQ NO",
+                "PO#",
                 "DG/UN NUMBER",
                 "BOXES",
                 "WEIGHT",
@@ -1791,8 +1791,8 @@ export default function Stocks() {
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
-                (item.po_text || "-").replace(/\n/g, " "),
                 (item.req_no || "-").replace(/\n/g, " "),
+                (item.po_text || "-").replace(/\n/g, " "),
                 item.dg_un || "-",
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
@@ -3448,13 +3448,13 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
-                                : renderMultiLineLabels(item.po_text)}
+                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
+                                : renderMultiLineLabels(item.req_no)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
-                                : renderMultiLineLabels(item.req_no)}
+                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
+                                : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : (
@@ -3739,13 +3739,13 @@ export default function Stocks() {
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
-                                : renderMultiLineLabels(item.po_text)}
+                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
+                                : renderMultiLineLabels(item.req_no)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing
-                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
-                                : renderMultiLineLabels(item.req_no)}
+                                ? renderEditableCell(item, "po_text", item.po_text, "textarea")
+                                : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
@@ -4801,32 +4801,6 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
-                                                        {/* PO Number Filter */}
-                                                        <Box w="220px" minW="200px">
-                                                            <HStack spacing="1">
-                                                                <InputGroup size="sm">
-                                                                    <Input
-                                                                        value={stockViewFilterPO}
-                                                                        onChange={(e) => setStockViewFilterPO(e.target.value)}
-                                                                        placeholder="Search by PO number..."
-                                                                        bg={inputBg}
-                                                                        color={inputText}
-                                                                        borderColor={borderColor}
-                                                                        pl="8"
-                                                                    />
-                                                                </InputGroup>
-                                                                {stockViewFilterPO && (
-                                                                    <IconButton
-                                                                        size="sm"
-                                                                        icon={<Icon as={MdClose} />}
-                                                                        colorScheme="red"
-                                                                        variant="ghost"
-                                                                        onClick={() => setStockViewFilterPO("")}
-                                                                        aria-label="Clear PO number filter"
-                                                                    />
-                                                                )}
-                                                            </HStack>
-                                                        </Box>
                                                         {/* Req No Filter */}
                                                         <Box w="220px" minW="200px">
                                                             <HStack spacing="1">
@@ -4849,6 +4823,32 @@ export default function Stocks() {
                                                                         variant="ghost"
                                                                         onClick={() => setStockViewFilterReqNo("")}
                                                                         aria-label="Clear Req No filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
+                                                        {/* PO Number Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterPO}
+                                                                        onChange={(e) => setStockViewFilterPO(e.target.value)}
+                                                                        placeholder="Search by PO number..."
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterPO && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterPO("")}
+                                                                        aria-label="Clear PO number filter"
                                                                     />
                                                                 )}
                                                             </HStack>
@@ -5062,8 +5062,8 @@ export default function Stocks() {
                                                     <Th {...headerProps}>VESSEL</Th>
                                                     <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
-                                                    <Th {...headerProps}>PO NUMBER</Th>
                                                     <Th {...headerProps}>REQ NO</Th>
+                                                    <Th {...headerProps}>PO NUMBER</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SI COMBINED</Th>
@@ -5136,8 +5136,8 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.vessel_id || item.vessel)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
-                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
+                                                                <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
                                                                 <Td {...cellProps}>
                                                                     <StockSoNumberLink
                                                                         item={item}
@@ -5937,8 +5937,8 @@ export default function Stocks() {
                                                     <Th {...headerProps}>VESSEL</Th>
                                                     <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
-                                                    <Th {...headerProps}>PO NUMBER</Th>
                                                     <Th {...headerProps}>REQ NO</Th>
+                                                    <Th {...headerProps}>PO NUMBER</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SI COMBINED</Th>
@@ -5983,8 +5983,8 @@ export default function Stocks() {
                                                     <Th {...headerProps}>DELIVERED DATE</Th>
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
-                                                    <Th {...headerProps}>PO#</Th>
                                                     <Th {...headerProps}>REQ NO</Th>
+                                                    <Th {...headerProps}>PO#</Th>
                                                     <Th {...headerProps}>DG/UN NUMBER</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>KG</Th>
