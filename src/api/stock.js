@@ -136,6 +136,7 @@ export const getStockListApi = async (params = {}) => {
       si_combined = "",
       di_no = "",
       po_text = "",
+      req_no = "",
       remarks = "",
       stock_item_id = "",
       date_on_stock = "",
@@ -195,6 +196,7 @@ export const getStockListApi = async (params = {}) => {
     if (si_combined != null && String(si_combined).trim() !== "") requestParams.si_combined = String(si_combined).trim();
     if (di_no != null && String(di_no).trim() !== "") requestParams.di_no = String(di_no).trim();
     if (po_text != null && String(po_text).trim() !== "") requestParams.po_text = String(po_text).trim();
+    if (req_no != null && String(req_no).trim() !== "") requestParams.req_no = String(req_no).trim();
     if (remarks != null && String(remarks).trim() !== "") requestParams.remarks = String(remarks).trim();
     if (stock_item_id != null && String(stock_item_id).trim() !== "") requestParams.stock_item_id = String(stock_item_id).trim();
     if (date_on_stock != null && String(date_on_stock).trim() !== "") {

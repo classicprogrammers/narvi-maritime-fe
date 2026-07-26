@@ -348,6 +348,7 @@ export default function StockDBMainEdit() {
         stockStatus: "",
         supplier: "",
         poNumber: "",
+        reqNo: "",
         origin_text: "",
         viaHub1: "",
         viaHub2: "",
@@ -473,6 +474,7 @@ export default function StockDBMainEdit() {
             stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || "",
+            reqNo: getFieldValue(stock.req_no) || "",
             origin_text: (() => {
                 if (stock.origin_text && typeof stock.origin_text === 'string') return stock.origin_text;
                 if (typeof stock.origin_id === "object" && stock.origin_id?.name != null) return String(stock.origin_id.name);
@@ -1039,6 +1041,7 @@ export default function StockDBMainEdit() {
             ["supplier", "supplier_id", (v) => v ? String(v) : ""],
             ["vessel", "vessel_id", (v) => v ? String(v) : ""],
             ["poNumber", "po_text", (v) => v || ""],
+            ["reqNo", "req_no", (v) => v || ""],
             ["pic", "pic_new", (v) => v ? String(v) : false],
             ["items", "item", (v) => v !== "" && v !== null && v !== undefined ? toNumber(v) || 0 : 0],
             ["itemId", "item_id", (v) => v ? String(v) : ""],
@@ -1690,6 +1693,7 @@ export default function StockDBMainEdit() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">DI Number</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Origin</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 1</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">HUB 2</Th>
@@ -1981,6 +1985,22 @@ export default function StockDBMainEdit() {
                                             minW="24ch"
                                             maxW="90ch"
                                             cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td {...cellProps}>
+                                        <Textarea
+                                            value={row.reqNo || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
+                                            placeholder="Enter Req No(s) - one per line"
+                                            size="sm"
+                                            rows={3}
+                                            w="auto"
+                                            minW="24ch"
+                                            maxW="90ch"
+                                            cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
                                             bg={inputBg}
                                             color={inputText}
                                             borderColor={borderColor}

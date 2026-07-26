@@ -102,6 +102,7 @@ export default function StockForm() {
         supplier: "",
         // Allow multiple PO numbers via multi-line text (one per line)
         poNumber: "",
+        reqNo: "",
         warehouseId: "",
         shippingDoc: "",
         items: "",
@@ -476,6 +477,7 @@ export default function StockForm() {
             stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text),
+            reqNo: getFieldValue(stock.req_no),
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             shippingDoc: getFieldValue(stock.shipping_doc),
             items: getFieldValue(stock.items) || getFieldValue(stock.item_desc),
@@ -826,6 +828,7 @@ export default function StockForm() {
                 .filter(Boolean);
 
         const poArray = splitLines(rowData.poNumber);
+        const reqArray = splitLines(rowData.reqNo);
         const lwhArray = splitLines(rowData.lwhText);
 
         // Update payload — create uses buildStockCreateLinePayload
@@ -839,6 +842,7 @@ export default function StockForm() {
             // Send raw text plus parsed array of PO numbers (one per line)
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
+            req_no: rowData.reqNo || "",
             pic_new: rowData.pic ? String(rowData.pic) : false,
             item_id: rowData.itemId ? String(rowData.itemId) : "",
             item: rowData.item !== "" && rowData.item !== null && rowData.item !== undefined ? toNumber(rowData.item) || 0 : 0,
@@ -917,6 +921,7 @@ export default function StockForm() {
 
         // Also send parsed arrays so backend can use them as needed
         payload.po_text_array = poArray;
+        payload.req_no_array = reqArray;
         payload.lwh_text_array = lwhArray;
 
         // Only include stock_item_id if it exists (for updates)
@@ -1238,6 +1243,7 @@ export default function StockForm() {
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
+                                <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Shipping Doc</Th>
                                 <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="150px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Pcs</Th>
@@ -1347,6 +1353,17 @@ export default function StockForm() {
                                         <Input
                                             value={row.poNumber}
                                             onChange={(e) => handleInputChange(rowIndex, "poNumber", e.target.value)}
+                                            placeholder=""
+                                            size="sm"
+                                            bg={inputBg}
+                                            color={inputText}
+                                            borderColor={borderColor}
+                                        />
+                                    </Td>
+                                    <Td borderRight="1px" borderColor={useColorModeValue("gray.200", "gray.600")} px="8px" py="8px">
+                                        <Input
+                                            value={row.reqNo || ""}
+                                            onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
                                             placeholder=""
                                             size="sm"
                                             bg={inputBg}

@@ -136,6 +136,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "via_hub_1", label: "HUB 1" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "po", label: "PO #", type: "po" },
+        { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "stock_status", label: "STOCK STATUS", type: "status" },
         { key: "boxes", label: "BOXES" },
         { key: "kg", label: "KG" },
@@ -147,6 +148,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "vessel", label: "VESSEL" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "po", label: "PO #", type: "po" },
+        { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "so_number", label: "SO NUMBER" },
         { key: "destination", label: "DESTINATION" },
         { key: "warehouse_id", label: "WAREHOUSE ID" },
@@ -162,6 +164,7 @@ const CLIENT_VIEW_TABLE_COLUMNS = {
         { key: "vessel", label: "VESSEL" },
         { key: "supplier", label: "SUPPLIER" },
         { key: "po", label: "PO #", type: "po" },
+        { key: "req_no", label: "REQ NO", type: "req_no" },
         { key: "stock_status", label: "STOCK STATUS", type: "status" },
         { key: "cur", label: "CUR" },
         { key: "value", label: "VALUE" },
@@ -185,6 +188,7 @@ const PDF_EXPORT_HEADERS = [
     "VESSEL",
     "SUPPLIER",
     "PO #",
+    "REQ NO",
     "STOCK STATUS",
     "CUR",
     "VALUE",
@@ -203,10 +207,10 @@ const PDF_EXPORT_HEADERS = [
 
 /** Column count for the primary (dark blue) PDF row per export type */
 const PDF_EXPORT_SPLIT_AT = {
-    viewEdit: 9,
-    filter1: 9,
-    filter2: 8,
-    filter3: 9,
+    viewEdit: 10,
+    filter1: 10,
+    filter2: 9,
+    filter3: 10,
 };
 
 const PDF_RECORD_LABEL_COLOR = [68, 68, 68];
@@ -230,6 +234,7 @@ const EXCEL_EXPORT_HEADERS = [
     "VESSEL",
     "SUPPLIER",
     "PO #",
+    "REQ NO",
     "STOCK STATUS",
     "CUR",
     "VALUE",
@@ -453,6 +458,7 @@ function readPersistedStockViewEditState() {
             stockViewFilterSICombined: typeof p.stockViewFilterSICombined === "string" ? p.stockViewFilterSICombined : "",
             stockViewFilterDI: typeof p.stockViewFilterDI === "string" ? p.stockViewFilterDI : "",
             stockViewFilterPO: typeof p.stockViewFilterPO === "string" ? p.stockViewFilterPO : "",
+            stockViewFilterReqNo: typeof p.stockViewFilterReqNo === "string" ? p.stockViewFilterReqNo : "",
             stockViewSearchFilter: typeof p.stockViewSearchFilter === "string" ? p.stockViewSearchFilter : "",
             stockViewHub: p.stockViewHub != null ? p.stockViewHub : null,
             stockViewActiveFilter: typeof p.stockViewActiveFilter === "string" ? p.stockViewActiveFilter : "true",
@@ -510,6 +516,7 @@ const defaultStockViewEditState = {
     stockViewFilterSICombined: "",
     stockViewFilterDI: "",
     stockViewFilterPO: "",
+    stockViewFilterReqNo: "",
     stockViewSearchFilter: "",
     stockViewHub: null,
     stockViewActiveFilter: "true",
@@ -601,6 +608,7 @@ export default function Stocks() {
     const [stockViewFilterSICombined, setStockViewFilterSICombined] = useState(savedState.stockViewFilterSICombined);
     const [stockViewFilterDI, setStockViewFilterDI] = useState(savedState.stockViewFilterDI);
     const [stockViewFilterPO, setStockViewFilterPO] = useState(savedState.stockViewFilterPO);
+    const [stockViewFilterReqNo, setStockViewFilterReqNo] = useState(savedState.stockViewFilterReqNo);
     const [stockViewSearchFilter, setStockViewSearchFilter] = useState(savedState.stockViewSearchFilter);
     const [stockViewHub, setStockViewHub] = useState(savedState.stockViewHub);
     const [stockViewActiveFilter, setStockViewActiveFilter] = useState(savedState.stockViewActiveFilter);
@@ -637,13 +645,14 @@ export default function Stocks() {
             stockViewFilterSICombined,
             stockViewFilterDI,
             stockViewFilterPO,
+            stockViewFilterReqNo,
             stockViewSearchFilter,
             stockViewHub,
             stockViewActiveFilter,
             sortOption,
             clientSortOption,
         });
-    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption, clientSortOption]);
+    }, [activeTab, stockViewPage, clientViewPage, vesselViewClient, vesselViewVessel, vesselViewStatuses, clientViewClient, clientViewStatuses, clientViewFilterType, clientViewSearchClient, clientViewSearchVessel, clientViewVesselFilter, stockViewClient, stockViewVessel, stockViewStatus, stockViewStockItemId, stockViewDateOnStock, stockViewDaysOnStock, stockViewFilterSO, stockViewFilterSI, stockViewFilterSICombined, stockViewFilterDI, stockViewFilterPO, stockViewFilterReqNo, stockViewSearchFilter, stockViewHub, stockViewActiveFilter, sortOption, clientSortOption]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -742,6 +751,7 @@ export default function Stocks() {
         stockViewFilterSICombined,
         stockViewFilterDI,
         stockViewFilterPO,
+        stockViewFilterReqNo,
         stockViewSearchFilter,
         stockViewHub,
         stockViewActiveFilter,
@@ -800,6 +810,7 @@ export default function Stocks() {
         stockViewFilterSICombined,
         stockViewFilterDI,
         stockViewFilterPO,
+        stockViewFilterReqNo,
         stockViewSearchFilter,
         stockViewHub,
         stockViewActiveFilter,
@@ -845,6 +856,7 @@ export default function Stocks() {
                 si_combined: f.stockViewFilterSICombined?.trim() || undefined,
                 di_no: f.stockViewFilterDI?.trim() || undefined,
                 po_text: f.stockViewFilterPO?.trim() || undefined,
+                req_no: f.stockViewFilterReqNo?.trim() || undefined,
                 stock_item_id: f.stockViewStockItemId?.trim() || undefined,
                 date_on_stock: f.stockViewDateOnStock?.trim() || undefined,
                 days_on_stock: f.stockViewDaysOnStock?.trim() || undefined,
@@ -900,6 +912,7 @@ export default function Stocks() {
             if (filterState.stockViewFilterSICombined !== undefined) setStockViewFilterSICombined(filterState.stockViewFilterSICombined);
             if (filterState.stockViewFilterDI !== undefined) setStockViewFilterDI(filterState.stockViewFilterDI);
             if (filterState.stockViewFilterPO !== undefined) setStockViewFilterPO(filterState.stockViewFilterPO);
+            if (filterState.stockViewFilterReqNo !== undefined) setStockViewFilterReqNo(filterState.stockViewFilterReqNo);
             if (filterState.stockViewSearchFilter !== undefined) setStockViewSearchFilter(filterState.stockViewSearchFilter);
             if (filterState.stockViewActiveFilter !== undefined) setStockViewActiveFilter(filterState.stockViewActiveFilter);
             // Clear location.state to prevent restoring on subsequent renders
@@ -1001,6 +1014,7 @@ export default function Stocks() {
             stockViewFilterSICombined,
             stockViewFilterDI,
             stockViewFilterPO,
+            stockViewFilterReqNo,
             stockViewSearchFilter,
             stockViewActiveFilter,
         };
@@ -1619,6 +1633,7 @@ export default function Stocks() {
         const vessel = getDisplayName(item.vessel_id || item.vessel) || "-";
         const supplier = getDisplayName(item.supplier_id || item.supplier) || "-";
         const poNumber = (item.po_text || "-").replace(/\n/g, " ");
+        const reqNo = (item.req_no || "-").replace(/\n/g, " ");
         const stockStatus = getStatusLabel(item.stock_status) || "-";
         const boxes = item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-";
         const kg = item.weight_kg ?? item.weight_kgs ?? "-";
@@ -1641,14 +1656,14 @@ export default function Stocks() {
         const apDestination = formatStockDestinationDisplay(item, "ap") || item.ap_destination || item.ap_destination_id || "-";
 
         if (viewType === "filter1") {
-            return [vessel, viaHub1, supplier, poNumber, stockStatus, boxes, kg, lwhText, dgUn];
+            return [vessel, viaHub1, supplier, poNumber, reqNo, stockStatus, boxes, kg, lwhText, dgUn];
         }
         if (viewType === "filter2") {
-            return [vessel, supplier, poNumber, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
+            return [vessel, supplier, poNumber, reqNo, soNumber, destination, warehouseId, boxes, kg, shippingDocs, exportDoc1, exportDoc2, lwhText];
         }
         if (viewType === "filter3") {
             return [
-                vessel, supplier, poNumber, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
+                vessel, supplier, poNumber, reqNo, stockStatus, currency, value, dateOnStock, boxes, kg, lwhText,
                 origin, viaHub1, viaHub2, apDestination, destination, dgUn, soNumber, warehouseId,
             ];
         }
@@ -1669,6 +1684,7 @@ export default function Stocks() {
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.po_text || "-").replace(/\n/g, " "),
+                (item.req_no || "-").replace(/\n/g, " "),
                 getStatusLabel(item.stock_status) || "-",
                 getDisplayName(item.currency_id || item.currency) || "-",
                 item.value ?? "-",
@@ -1705,6 +1721,7 @@ export default function Stocks() {
                 getDisplayName(item.vessel_id || item.vessel) || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.po_text || "-").replace(/\n/g, " "),
+                (item.req_no || "-").replace(/\n/g, " "),
                 getStatusLabel(item.stock_status) || "-",
                 currency,
                 value,
@@ -1727,10 +1744,10 @@ export default function Stocks() {
     };
 
     const CLIENT_VIEW_EXPORT_HEADERS = {
-        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "PO #", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
-        filter2: ["VESSEL", "SUPPLIER", "PO #", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
+        filter1: ["VESSEL", "HUB 1", "SUPPLIER", "PO #", "REQ NO", "STOCK STATUS", "BOXES", "KG", "LWH TEXT", "DG/UN"],
+        filter2: ["VESSEL", "SUPPLIER", "PO #", "REQ NO", "SO NUMBER", "DESTINATION", "WAREHOUSE ID", "BOXES", "KG", "SHIPPING DOCS", "EXPORT DOCS 1", "EXPORT DOCS 2", "LWH TEXT"],
         filter3: [
-            "VESSEL", "SUPPLIER", "PO #", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
+            "VESSEL", "SUPPLIER", "PO #", "REQ NO", "STOCK STATUS", "CUR", "VALUE", "DATE ON STOCK", "BOXES", "KG", "LWH TEXT",
             "ORIGIN", "HUB1", "HUB2", "AP DESTINATION", "DESTINATION", "DG/UN", "SO NUMBER", "WAREHOUSE ID",
         ],
     };
@@ -1753,6 +1770,7 @@ export default function Stocks() {
                 "WAREHOUSE ID",
                 "SUPPLIER",
                 "PO#",
+                "REQ NO",
                 "DG/UN NUMBER",
                 "BOXES",
                 "WEIGHT",
@@ -1774,6 +1792,7 @@ export default function Stocks() {
                 item.warehouse_new || item.warehouse_id || item.stock_warehouse || item.warehouse || "-",
                 getDisplayName(item.supplier_id || item.supplier) || "-",
                 (item.po_text || "-").replace(/\n/g, " "),
+                (item.req_no || "-").replace(/\n/g, " "),
                 item.dg_un || "-",
                 item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
                 item.weight_kg ?? item.weight_kgs ?? "-",
@@ -2558,6 +2577,7 @@ export default function Stocks() {
             client_id: getFieldValue("client_id", "client"),
             // Keep raw PO text (can contain multiple lines)
             po_text: item.po_text || "",
+            req_no: item.req_no || "",
             so_id: normalizeStockFormSoId(resolveStockSoIdForForm(item, shippingOrdersFromStock)) || "",
             si_number: getFieldValue("si_number") || "",
             di_no: getFieldValue("di_no") || "",
@@ -2746,6 +2766,13 @@ export default function Stocks() {
             // Arrays of PO numbers and LWH lines (derived from text, one per line)
             {
                 backend: "po_text_array", original: ["po_text_array"], edited: ["po_text"], transform: (v) => {
+                    const val = Array.isArray(v) ? v.join("\n") : (v || "");
+                    return splitLines(val);
+                }
+            },
+            { backend: "req_no", original: ["req_no"], edited: ["req_no"], transform: (v) => v || "" },
+            {
+                backend: "req_no_array", original: ["req_no_array"], edited: ["req_no"], transform: (v) => {
                     const val = Array.isArray(v) ? v.join("\n") : (v || "");
                     return splitLines(val);
                 }
@@ -2971,6 +2998,7 @@ export default function Stocks() {
             vessel: getDisplayName(item.vessel_id || item.vessel) || "-",
             supplier: getDisplayName(item.supplier_id || item.supplier) || "-",
             po: item.po_text || "-",
+            req_no: item.req_no || "-",
             stock_status: getStatusLabel(item.stock_status) || "-",
             boxes: item.item ?? item.items ?? item.item_id ?? item.stock_items_quantity ?? "-",
             kg: item.weight_kg ?? item.weight_kgs ?? "-",
@@ -3012,6 +3040,9 @@ export default function Stocks() {
         }
         if (column.type === "po") {
             return renderMultiLineLabels(item.po_text);
+        }
+        if (column.type === "req_no") {
+            return renderMultiLineLabels(item.req_no);
         }
         if (column.type === "multiline") {
             const fieldValue = getClientViewFieldValues(item)[column.key];
@@ -3421,6 +3452,11 @@ export default function Stocks() {
                                 : renderMultiLineLabels(item.po_text)}
                         </Td>
                         <Td {...cellProps}>
+                            {isEditing
+                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
+                                : renderMultiLineLabels(item.req_no)}
+                        </Td>
+                        <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "so_id", item.so_id || item.so_number || item.stock_so_number, "so_number") : (
                                 <StockSoNumberLink
                                     item={item}
@@ -3705,6 +3741,11 @@ export default function Stocks() {
                             {isEditing
                                 ? renderEditableCell(item, "po_text", item.po_text, "textarea")
                                 : renderMultiLineLabels(item.po_text)}
+                        </Td>
+                        <Td {...cellProps}>
+                            {isEditing
+                                ? renderEditableCell(item, "req_no", item.req_no, "textarea")
+                                : renderMultiLineLabels(item.req_no)}
                         </Td>
                         <Td {...cellProps}>
                             {isEditing ? renderEditableCell(item, "details", item.details || item.item_desc) : <Text {...cellText}>{renderText(item.details || item.item_desc)}</Text>}
@@ -4428,7 +4469,7 @@ export default function Stocks() {
                                                             <Text fontSize="md" fontWeight="700" color={textColor}>Basic Filters</Text>
                                                         </HStack>
                                                         <HStack>
-                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
+                                                            {(stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || createDateFrom || createDateTo || daysRangeFrom || daysRangeTo || vesselViewStatuses.size > 0) && (
                                                                 <Button
                                                                     size="xs"
                                                                     leftIcon={<Icon as={MdClose} />}
@@ -4451,6 +4492,7 @@ export default function Stocks() {
                                                                         setStockViewFilterSICombined("");
                                                                         setStockViewFilterDI("");
                                                                         setStockViewFilterPO("");
+                                                                        setStockViewFilterReqNo("");
                                                                         setStockViewSearchFilter("");
                                                                         setVesselViewStatuses(new Set());
                                                                     }}
@@ -4785,6 +4827,32 @@ export default function Stocks() {
                                                                 )}
                                                             </HStack>
                                                         </Box>
+                                                        {/* Req No Filter */}
+                                                        <Box w="220px" minW="200px">
+                                                            <HStack spacing="1">
+                                                                <InputGroup size="sm">
+                                                                    <Input
+                                                                        value={stockViewFilterReqNo}
+                                                                        onChange={(e) => setStockViewFilterReqNo(e.target.value)}
+                                                                        placeholder="Search by Req No..."
+                                                                        bg={inputBg}
+                                                                        color={inputText}
+                                                                        borderColor={borderColor}
+                                                                        pl="8"
+                                                                    />
+                                                                </InputGroup>
+                                                                {stockViewFilterReqNo && (
+                                                                    <IconButton
+                                                                        size="sm"
+                                                                        icon={<Icon as={MdClose} />}
+                                                                        colorScheme="red"
+                                                                        variant="ghost"
+                                                                        onClick={() => setStockViewFilterReqNo("")}
+                                                                        aria-label="Clear Req No filter"
+                                                                    />
+                                                                )}
+                                                            </HStack>
+                                                        </Box>
                                                     </Flex>
                                                     <StatusFilterRow
                                                         statusEntries={Object.entries(STATUS_CONFIG).filter(([statusKey]) => {
@@ -4813,7 +4881,7 @@ export default function Stocks() {
                                                 {/* Results Count */}
                                                 <Text fontSize="sm" color={tableTextColorSecondary}>
                                                     {allFilteredItems.length} of {total_count > 0 ? total_count : stockList.length} stock items
-                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
+                                                    {(stockViewClient || stockViewVessel || stockViewStatus || stockViewStockItemId || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || vesselViewStatuses.size > 0 || isViewingSelected) && " (filtered)"}
                                                 </Text>
                                             </VStack>
                                         </Card>
@@ -4995,6 +5063,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
                                                     <Th {...headerProps}>PO NUMBER</Th>
+                                                    <Th {...headerProps}>REQ NO</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SI COMBINED</Th>
@@ -5068,6 +5137,7 @@ export default function Stocks() {
                                                                 <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
                                                                 <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                                                 <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
+                                                                <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                                                 <Td {...cellProps}>
                                                                     <StockSoNumberLink
                                                                         item={item}
@@ -5811,7 +5881,7 @@ export default function Stocks() {
                                             </Text>
                                             <Text color={tableTextColorSecondary} fontSize="sm" textAlign="center">
                                                 {(() => {
-                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
+                                                    const hasStockViewFilters = stockViewStockItemId || stockViewClient || stockViewVessel || stockViewStatus || stockViewDateOnStock || stockViewDaysOnStock || stockViewHub || stockViewFilterSO || stockViewFilterSI || stockViewFilterSICombined || stockViewFilterDI || stockViewFilterPO || stockViewFilterReqNo || stockViewSearchFilter || vesselViewVessel || vesselViewClient || vesselViewStatuses.size > 0 || isViewingSelected;
                                                     const hasClientViewFilters = clientViewClient || clientViewVesselFilter || clientViewSearchClient || clientViewSearchVessel || clientViewStatuses.size > 0 || isViewingSelected;
                                                     if (activeTab === 0) {
                                                         return hasStockViewFilters
@@ -5868,6 +5938,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>STOCKITEMID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
                                                     <Th {...headerProps}>PO NUMBER</Th>
+                                                    <Th {...headerProps}>REQ NO</Th>
                                                     <Th {...headerProps}>SO NUMBER</Th>
                                                     <Th {...headerProps}>SI NUMBER</Th>
                                                     <Th {...headerProps}>SI COMBINED</Th>
@@ -5913,6 +5984,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>WAREHOUSE ID</Th>
                                                     <Th {...headerProps}>SUPPLIER</Th>
                                                     <Th {...headerProps}>PO#</Th>
+                                                    <Th {...headerProps}>REQ NO</Th>
                                                     <Th {...headerProps}>DG/UN NUMBER</Th>
                                                     <Th {...headerProps}>BOXES</Th>
                                                     <Th {...headerProps}>KG</Th>

@@ -201,6 +201,7 @@ export default function StockForm() {
         stockStatus: "",
         supplier: "",
         poNumber: "", // Free text + textarea
+        reqNo: "", // Free text + textarea (API: req_no)
         expReadyInStock: "", // Ready ex Supplier - date field
         warehouseId: "", // Free text + textarea
         dateOnStock: "", // Date field
@@ -728,6 +729,7 @@ export default function StockForm() {
             stockStatus: normalizeStockStatusKey(getFieldValue(stock.stock_status)),
             supplier: normalizeId(stock.supplier_id) || normalizeId(stock.supplier) || "",
             poNumber: getFieldValue(stock.po_text) || "",
+            reqNo: getFieldValue(stock.req_no) || "",
             expReadyInStock: getFieldValue(stock.exp_ready_in_stock) || "",
             warehouseId: getFieldValue(stock.warehouse_new) || getFieldValue(stock.warehouse_id) || "",
             dateOnStock: getFieldValue(stock.date_on_stock) || "",
@@ -1118,6 +1120,7 @@ export default function StockForm() {
                 .filter(Boolean);
 
         const poArray = splitLines(rowData.poNumber);
+        const reqArray = splitLines(rowData.reqNo);
         const lwhArray = splitLines(rowData.lwhText);
 
         // Update payload (partial/changed fields) — create uses buildStockCreateLinePayload
@@ -1130,6 +1133,7 @@ export default function StockForm() {
             vessel_id: rowData.vessel ? String(rowData.vessel) : "",
             // PO numbers: raw text + array of lines
             po_text: rowData.poNumber || "",
+            req_no: rowData.reqNo || "",
             pic_new: rowData.pic ? String(rowData.pic) : false,
             item_id: rowData.itemId ? String(rowData.itemId) : "", // Keep item_id for lines format
             stock_items_quantity: rowData.itemId ? String(rowData.itemId) : "", // Also include stock_items_quantity
@@ -1225,6 +1229,7 @@ export default function StockForm() {
 
         // Also send parsed arrays so backend can use them as needed
         payload.po_text_array = poArray;
+        payload.req_no_array = reqArray;
         payload.lwh_text_array = lwhArray;
 
         // Only include stock_item_id if it exists (for updates)
@@ -1568,6 +1573,7 @@ export default function StockForm() {
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="100px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PIC</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="120px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Supplier</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">PO Number</Th>
+                                    <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Req No</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Ready ex Supplier</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="200px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Warehouse ID</Th>
                                     <Th bg={useColorModeValue("gray.600", "gray.700")} color="white" borderRight="1px" borderColor={useColorModeValue("gray.500", "gray.600")} minW="140px" px="8px" py="12px" fontSize="11px" fontWeight="600" textTransform="uppercase">Date on Stock</Th>
@@ -1708,6 +1714,22 @@ export default function StockForm() {
                                                 minW="24ch"
                                                 maxW="90ch"
                                                 cols={getAutoCols(row.poNumber, "Enter PO Number(s) - one per line", { min: 24, max: 90 })}
+                                                bg={inputBg}
+                                                color={inputText}
+                                                borderColor={borderColor}
+                                            />
+                                        </Td>
+                                        <Td {...cellProps}>
+                                            <Textarea
+                                                value={row.reqNo || ""}
+                                                onChange={(e) => handleInputChange(rowIndex, "reqNo", e.target.value)}
+                                                placeholder="Enter Req No(s) - one per line"
+                                                size="sm"
+                                                rows={3}
+                                                w="auto"
+                                                minW="24ch"
+                                                maxW="90ch"
+                                                cols={getAutoCols(row.reqNo, "Enter Req No(s) - one per line", { min: 24, max: 90 })}
                                                 bg={inputBg}
                                                 color={inputText}
                                                 borderColor={borderColor}

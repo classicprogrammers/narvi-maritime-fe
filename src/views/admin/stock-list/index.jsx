@@ -115,6 +115,7 @@ function readPersistedStockMainDbState() {
             filterSICombined: typeof p.filterSICombined === "string" ? p.filterSICombined : "",
             filterDI: typeof p.filterDI === "string" ? p.filterDI : "",
             filterPO: typeof p.filterPO === "string" ? p.filterPO : "",
+            filterReqNo: typeof p.filterReqNo === "string" ? p.filterReqNo : "",
             filterRemarks: typeof p.filterRemarks === "string" ? p.filterRemarks : "",
             filterDaysOnStock: typeof p.filterDaysOnStock === "string" ? p.filterDaysOnStock : "",
             filterCreateDateFrom: typeof p.filterCreateDateFrom === "string" ? p.filterCreateDateFrom : "",
@@ -153,6 +154,7 @@ const defaultStockMainDbState = {
     filterSICombined: "",
     filterDI: "",
     filterPO: "",
+    filterReqNo: "",
     filterRemarks: "",
     filterDaysOnStock: "",
     filterCreateDateFrom: "",
@@ -244,6 +246,7 @@ export default function StockList() {
     const [filterSICombined, setFilterSICombined] = useState(savedState.filterSICombined);
     const [filterDI, setFilterDI] = useState(savedState.filterDI);
     const [filterPO, setFilterPO] = useState(savedState.filterPO);
+    const [filterReqNo, setFilterReqNo] = useState(savedState.filterReqNo);
     const [filterRemarks, setFilterRemarks] = useState(savedState.filterRemarks);
     const [filterDaysOnStock, setFilterDaysOnStock] = useState(savedState.filterDaysOnStock);
     const [filterCreateDateFrom, setFilterCreateDateFrom] = useState(savedState.filterCreateDateFrom);
@@ -280,6 +283,7 @@ export default function StockList() {
             filterSICombined,
             filterDI,
             filterPO,
+            filterReqNo,
             filterRemarks,
             filterDaysOnStock,
             filterCreateDateFrom,
@@ -288,7 +292,7 @@ export default function StockList() {
             sortOrder,
             activeFilter,
         });
-    }, [page, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
+    }, [page, searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, sortBy, sortOrder, activeFilter]);
 
     // Sorting state
     const [sortField, setSortField] = useState(null);
@@ -385,6 +389,7 @@ export default function StockList() {
             si_combined: filterSICombined?.trim() || undefined,
             di_no: filterDI?.trim() || undefined,
             po_text: filterPO?.trim() || undefined,
+            req_no: filterReqNo?.trim() || undefined,
             remarks: filterRemarks?.trim() || undefined,
             days_on_stock_min: filterDaysOnStock?.trim() || undefined,
             // Date on Stock range filter
@@ -396,7 +401,7 @@ export default function StockList() {
             currency_id: getIdParam(selectedCurrency),
             active: resolveStockListActiveParam(activeFilter),
         });
-    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
+    }, [getStockList, page, sortBy, sortOrder, sortOption, searchFilter, selectedClient, selectedVessel, selectedStatus, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock, filterCreateDateFrom, filterCreateDateTo, selectedHub, selectedSupplier, selectedWarehouse, selectedCurrency, activeFilter]);
 
     const statusFilterOptions = useMemo(
         () => getStatusOptionsForActiveFilter(stockStatusOptions, activeFilter),
@@ -419,7 +424,7 @@ export default function StockList() {
             setFetchTrigger((t) => t + 1);
         }, 400);
         return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
-    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterRemarks, filterDaysOnStock]);
+    }, [searchFilter, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, selectedHub, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, filterRemarks, filterDaysOnStock]);
 
     // Fetch stock list on mount and when page or fetchTrigger changes
     useEffect(() => {
@@ -463,6 +468,7 @@ export default function StockList() {
             if (filterState.filterSICombined !== undefined) setFilterSICombined(filterState.filterSICombined);
             if (filterState.filterDI !== undefined) setFilterDI(filterState.filterDI);
             if (filterState.filterPO !== undefined) setFilterPO(filterState.filterPO);
+            if (filterState.filterReqNo !== undefined) setFilterReqNo(filterState.filterReqNo);
             if (filterState.filterRemarks !== undefined) setFilterRemarks(filterState.filterRemarks);
             if (filterState.filterDaysOnStock !== undefined) setFilterDaysOnStock(filterState.filterDaysOnStock);
             if (filterState.searchFilter !== undefined) setSearchFilter(filterState.searchFilter);
@@ -780,7 +786,7 @@ export default function StockList() {
         }
 
         return filtered;
-    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, sortField, sortDirection, sortOption, isViewingSelected, selectedRows]);
+    }, [stockList, selectedClient, selectedVessel, selectedSupplier, selectedStatus, selectedWarehouse, selectedCurrency, filterSO, filterSI, filterSICombined, filterDI, filterPO, filterReqNo, sortField, sortDirection, sortOption, isViewingSelected, selectedRows]);
 
     // Get selected items for the view modal
     const viewSelectedItems = useMemo(() => {
@@ -821,6 +827,7 @@ export default function StockList() {
                 filterSICombined,
                 filterDI,
                 filterPO,
+                filterReqNo,
                 filterRemarks,
                 filterDaysOnStock,
                 searchFilter
@@ -855,6 +862,7 @@ export default function StockList() {
             filterSICombined,
             filterDI,
             filterPO,
+            filterReqNo,
             filterRemarks,
             filterDaysOnStock,
             searchFilter
@@ -1235,7 +1243,7 @@ export default function StockList() {
                                                 </HStack>
                                             </HStack>
                                             <HStack>
-                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
+                                                {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter) && (
                                                     <Button
                                                         size="xs"
                                                         leftIcon={<Icon as={MdClose} />}
@@ -1254,6 +1262,7 @@ export default function StockList() {
                                                             setFilterSICombined("");
                                                             setFilterDI("");
                                                             setFilterPO("");
+                                                            setFilterReqNo("");
                                                             setFilterRemarks("");
                                                             setFilterDaysOnStock("");
                                                             setFilterCreateDateFrom("");
@@ -1675,6 +1684,33 @@ export default function StockList() {
                                                 </HStack>
                                             </Box>
 
+                                            {/* Req No Filter */}
+                                            <Box w="220px" minW="200px">
+                                                <HStack spacing="1">
+                                                    <InputGroup size="sm">
+                                                        <Input
+                                                            value={filterReqNo}
+                                                            onChange={(e) => setFilterReqNo(e.target.value)}
+                                                            placeholder="Filter by Req No"
+                                                            bg={inputBg}
+                                                            color={inputText}
+                                                            borderColor={borderColor}
+                                                            pl="8"
+                                                        />
+                                                    </InputGroup>
+                                                    {filterReqNo && (
+                                                        <IconButton
+                                                            size="sm"
+                                                            icon={<Icon as={MdClose} />}
+                                                            colorScheme="red"
+                                                            variant="ghost"
+                                                            onClick={() => setFilterReqNo("")}
+                                                            aria-label="Clear Req No filter"
+                                                        />
+                                                    )}
+                                                </HStack>
+                                            </Box>
+
                                             {/* Remarks Filter */}
                                             <Box w="220px" minW="200px">
                                                 <HStack spacing="1">
@@ -1746,7 +1782,7 @@ export default function StockList() {
                                     {/* Results Count */}
                                     <Text fontSize="sm" color={tableTextColorSecondary}>
                                         Showing {filteredAndSortedStock.length} of {totalCount || reduxTotalCount || stockList.length} stock items
-                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
+                                        {(selectedClient || selectedVessel || selectedSupplier || selectedStatus || selectedWarehouse || selectedCurrency || selectedHub || filterSO || filterSI || filterSICombined || filterDI || filterPO || filterReqNo || filterRemarks || filterDaysOnStock || filterCreateDateFrom || filterCreateDateTo || searchFilter || isViewingSelected) && " (filtered)"}
                                     </Text>
                                 </VStack>
                             </Collapse>
@@ -1877,6 +1913,9 @@ export default function StockList() {
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("po_text")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         PO NUMBER {sortField === "po_text" && (sortDirection === "asc" ? "↑" : "↓")}
                                     </Th>
+                                    <Th {...headerProps} cursor="pointer" onClick={() => handleSort("req_no")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
+                                        REQ NO {sortField === "req_no" && (sortDirection === "asc" ? "↑" : "↓")}
+                                    </Th>
                                     <Th {...headerProps}>EXTRA 2</Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("origin_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
                                         ORIGIN {sortField === "origin_id" && (sortDirection === "asc" ? "↑" : "↓")}
@@ -1983,6 +2022,7 @@ export default function StockList() {
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{getDisplayName(item.supplier_id || item.supplier)}</Text></Td>
                                             <Td {...cellProps}>{renderMultiLineLabels(item.po_text)}</Td>
+                                            <Td {...cellProps}>{renderMultiLineLabels(item.req_no)}</Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.extra_2 || item.extra)}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{item.origin_text || item.origin || getDisplayName(item.origin_id) || "-"}</Text></Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.via_hub)}</Text></Td>
@@ -2250,6 +2290,14 @@ export default function StockList() {
                                                 </Text>
                                                 <Box>
                                                     {renderMultiLineLabels(item.po_text)}
+                                                </Box>
+                                            </Box>
+                                            <Box>
+                                                <Text fontSize="xs" color={useColorModeValue("gray.600", "gray.400")} mb={1}>
+                                                    Req No
+                                                </Text>
+                                                <Box>
+                                                    {renderMultiLineLabels(item.req_no)}
                                                 </Box>
                                             </Box>
                                             <Box>
