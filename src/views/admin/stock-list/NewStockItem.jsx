@@ -120,9 +120,9 @@ export default function StockForm() {
         getSupplierOptionsForValue,
         handleSupplierSearchChange,
         isLoadingSuppliers,
-        fetchVesselsForClient,
         getVesselOptionsForClient,
         handleVesselSearchChange,
+        ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
         stockFormSelectDropdownProps,
     } = useStockFormRemoteSelects({
@@ -515,9 +515,9 @@ export default function StockForm() {
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
         uniqueClientIds.forEach((clientId) => {
-            fetchVesselsForClient(clientId);
+            ensureVesselsLoadedForClient(clientId);
         });
-    }, [formRows, fetchVesselsForClient]);
+    }, [formRows, ensureVesselsLoadedForClient]);
 
     // Normalize client IDs when formRows load
     useEffect(() => {
@@ -902,7 +902,7 @@ export default function StockForm() {
 
     const handleInputChange = (rowIndex, field, value) => {
         if (field === "client" && value) {
-            fetchVesselsForClient(value);
+            ensureVesselsLoadedForClient(value);
         }
         setFormRows(prev => {
             const newRows = [...prev];

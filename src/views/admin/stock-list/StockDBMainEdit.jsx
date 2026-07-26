@@ -140,9 +140,9 @@ export default function StockDBMainEdit() {
         getSupplierOptionsForValue,
         handleSupplierSearchChange,
         isLoadingSuppliers,
-        fetchVesselsForClient,
         getVesselOptionsForClient,
         handleVesselSearchChange,
+        ensureVesselsLoadedForClient,
         isLoadingVesselByClient,
         stockFormSelectDropdownProps,
     } = useStockFormRemoteSelects({
@@ -687,9 +687,9 @@ export default function StockDBMainEdit() {
     useEffect(() => {
         const uniqueClientIds = [...new Set(formRows.map((row) => row.client).filter(Boolean).map((clientId) => String(clientId)))];
         uniqueClientIds.forEach((clientId) => {
-            fetchVesselsForClient(clientId);
+            ensureVesselsLoadedForClient(clientId);
         });
-    }, [formRows, fetchVesselsForClient]);
+    }, [formRows, ensureVesselsLoadedForClient]);
 
     // For edit form: fetch single vessel by id (GET /api/vessels/:id) when form has vessel_id not in the list.
     // Use vesselsRef so we only depend on formRows – avoids re-running when setVessels updates state.
@@ -845,7 +845,7 @@ export default function StockDBMainEdit() {
     // Handle input change
     const handleInputChange = (rowIndex, field, value) => {
         if (field === "client" && value) {
-            fetchVesselsForClient(value);
+            ensureVesselsLoadedForClient(value);
         }
         setFormRows(prev => {
             const newRows = [...prev];

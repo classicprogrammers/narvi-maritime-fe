@@ -169,7 +169,9 @@ const SimpleSearchableSelect = ({
   const openDropdown = (prefill = "") => {
     setIsOpen(true);
     setSearchValue(prefill);
-    if (typeof onSearchChange === "function") onSearchChange(prefill);
+    if (typeof onSearchChange === "function" && (!serverSideSearch || String(prefill).trim() !== "")) {
+      onSearchChange(prefill);
+    }
   };
 
   const handleInputChange = (e) => {

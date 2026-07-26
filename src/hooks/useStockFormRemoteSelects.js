@@ -46,6 +46,7 @@ export default function useStockFormRemoteSelects({
   const [vesselOptionsByClientId, setVesselOptionsByClientId] = useState({});
   const [isLoadingVesselByClient, setIsLoadingVesselByClient] = useState({});
   const vesselFetchKeyRef = useRef({});
+  const vesselRequestGenRef = useRef({});
   const initialPrefetchDoneRef = useRef(false);
 
   const clientsReadyRef = useRef(false);
@@ -274,22 +275,31 @@ export default function useStockFormRemoteSelects({
     async (clientId, search = "") => {
       const normalizedClientId = clientId == null || clientId === "" ? "" : String(clientId);
       const cacheKey = normalizedClientId || "__all__";
-      const requestKey = `${cacheKey}:${String(search ?? "").trim()}`;
-      if (vesselFetchKeyRef.current[cacheKey] === requestKey && vesselOptionsByClientId[cacheKey]) {
+      const trimmedSearch = String(search ?? "").trim();
+      const activeSearch = (lastVesselSearchByKeyRef.current[cacheKey] ?? "").trim();
+      if (trimmedSearch === "" && activeSearch !== "") {
+        return;
+      }
+      const requestKey = `${cacheKey}:${trimmedSearch}`;
+      if (vesselFetchKeyRef.current[cacheKey] === requestKey) {
         return;
       }
       vesselFetchKeyRef.current[cacheKey] = requestKey;
+      const gen = (vesselRequestGenRef.current[cacheKey] = (vesselRequestGenRef.current[cacheKey] || 0) + 1);
       try {
         setIsLoadingVesselByClient((prev) => ({ ...prev, [cacheKey]: true }));
         const params = {
           page_size: PAGE_SIZE,
-          search: String(search ?? "").trim(),
+          search: trimmedSearch,
           is_client: true,
         };
         if (normalizedClientId) {
           params.client_id = normalizedClientId;
         }
         const response = await vesselsAPI.getVessels(params);
+        if (gen !== vesselRequestGenRef.current[cacheKey]) {
+          return;
+        }
         const clientVessels = Array.isArray(response?.vessels) ? response.vessels : [];
         setVesselOptionsByClientId((prev) => ({ ...prev, [cacheKey]: clientVessels }));
         vesselReadyKeysRef.current.add(cacheKey);
@@ -297,13 +307,18 @@ export default function useStockFormRemoteSelects({
           onVesselsLoaded(clientVessels);
         }
       } catch (error) {
+        if (gen !== vesselRequestGenRef.current[cacheKey]) {
+          return;
+        }
         console.error("Stock form vessel search failed:", normalizedClientId, error);
         setVesselOptionsByClientId((prev) => ({ ...prev, [cacheKey]: [] }));
       } finally {
-        setIsLoadingVesselByClient((prev) => ({ ...prev, [cacheKey]: false }));
+        if (gen === vesselRequestGenRef.current[cacheKey]) {
+          setIsLoadingVesselByClient((prev) => ({ ...prev, [cacheKey]: false }));
+        }
       }
     },
-    [vesselOptionsByClientId, onVesselsLoaded]
+    [onVesselsLoaded]
   );
 
   const scheduleVesselSearch = useDebouncedFn((clientId, q) => {
@@ -320,7 +335,11 @@ export default function useStockFormRemoteSelects({
         scheduleVesselSearch(clientId, q);
         return;
       }
-      if (vesselReadyKeysRef.current.has(cacheKey) && last === "") {
+      if (last !== "") {
+        lastVesselSearchByKeyRef.current[cacheKey] = "";
+        return;
+      }
+      if (vesselReadyKeysRef.current.has(cacheKey)) {
         return;
       }
       lastVesselSearchByKeyRef.current[cacheKey] = "";
