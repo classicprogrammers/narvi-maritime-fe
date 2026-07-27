@@ -1675,7 +1675,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           page_size: 200,
           q_to: qTo,
         };
-        if (!isDeliveryLike) {
+        if (!isShippingAdvise) {
           optionsParams.q_cnee = qCnee;
           optionsParams.q_agent = qAgent;
           optionsParams.agent_id = formData.selectAgent || undefined;
@@ -2583,7 +2583,7 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
           {getDeliveryFormTitle()}
         </Text>
 
-        <Grid templateColumns={`${isDeliveryLike ? "1fr" : "3fr 1fr"}`} gap={4} mb={6}>
+        <Grid templateColumns="3fr 1fr" gap={4} mb={6}>
           <Box>
             <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={4} mb={4}>
               <Box>
@@ -3773,9 +3773,8 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
             )}
           </Box>
 
-          {/* Right Section: Select Consignee */}
-          {!isDeliveryLike && (
-            <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
+          {/* Right Section: Agent / Consignee (same as shipping instruction) */}
+          <Box bg="orange.50" p={3} border="1px" borderColor="orange.200">
               <Grid templateColumns="1fr 2fr" gap={2} fontSize="sm">
                 <FormControl display="contents">
                   <FormLabel htmlFor="selectAgent" fontWeight="bold" m={0}>
@@ -4102,7 +4101,6 @@ export default function ShippingInstructionDetail({ formType = "instruction" }) 
                 </FormControl>
               </Grid>
             </Box>
-          )}
         </Grid>
 
       </Box>
