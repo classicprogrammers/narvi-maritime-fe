@@ -156,7 +156,7 @@ export const defaultShippingOrderListState = {
   activeClientFilter: null,
   readyForInvoiceClientFilter: null,
   sortConfig: { field: null, direction: "asc" },
-  nextActionSortOption: "none",
+  nextActionSortOption: "so_number",
 };
 
 export function readPersistedShippingOrderListState() {
@@ -195,13 +195,21 @@ export function readPersistedShippingOrderListState() {
           ? p.sortConfig
           : defaultShippingOrderListState.sortConfig,
       nextActionSortOption:
-        p.nextActionSortOption === "none" || p.nextActionSortOption === "next_action"
-          ? p.nextActionSortOption
-          : "none",
+        p.nextActionSortOption === "next_action" || p.nextActionSortOption === "desc"
+          ? "next_action"
+          : "so_number",
     };
   } catch {
     return null;
   }
+}
+
+/** sort_by / sort_order for GET /api/shipping/orders list. */
+export function buildShippingOrderListSortParams(listSortOption) {
+  if (listSortOption === "next_action") {
+    return { sort_by: "next_action", sort_order: "desc" };
+  }
+  return { sort_by: "so_number", sort_order: "desc" };
 }
 
 export function writePersistedShippingOrderListState(state) {

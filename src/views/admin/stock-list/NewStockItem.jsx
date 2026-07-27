@@ -234,7 +234,7 @@ export default function StockForm() {
         siNumber: "", // SI Number - STRING type (preserves spaces, e.g., "00021 1.1")
         siCombined: "", // SI Combined - STRING type (preserves spaces, e.g., "00021 1.1")
         diNumber: "", // DI Number - STRING type (preserves spaces, e.g., "00021 1.1")
-        clientAccess: false, // Client Access - Yes or No
+        clientAccess: true, // Client Access - Yes or No (default Yes)
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel

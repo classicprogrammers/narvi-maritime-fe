@@ -381,7 +381,7 @@ export default function StockDBMainEdit() {
         value: "",
         currency: "",
         dgUn: "",
-        clientAccess: false,
+        clientAccess: true,
         pic: null, // PIC ID
         attachments: [], // Array of { filename, mimetype, datas } for new uploads
         attachmentsToDelete: [], // Array of attachment IDs to delete (for updates)

@@ -60,6 +60,7 @@ import {
   MdFilterList,
   MdClear,
   MdContentCopy,
+  MdSort,
 } from "react-icons/md";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { getNarviQuotations } from "../../../api/narviQuotation";
@@ -80,6 +81,7 @@ import {
 import ShippingOrderFormFields from "./ShippingOrderFormFields";
 import {
   buildShippingOrderListQueryParams,
+  buildShippingOrderListSortParams,
   clearPendingSoFilter,
   getInitialShippingOrderListState,
   parseSoFilterFromUrl,
@@ -221,6 +223,10 @@ const SoNumberTab = () => {
   const [activeClientFilter, setActiveClientFilter] = useState(savedState.activeClientFilter);
   const [readyForInvoiceClientFilter, setReadyForInvoiceClientFilter] = useState(savedState.readyForInvoiceClientFilter);
 
+  const [nextActionSortOption, setNextActionSortOption] = useState(
+    savedState.nextActionSortOption || "so_number"
+  );
+
   // Current PIC filter being edited
   const [editingPicFilter, setEditingPicFilter] = useState(null); // 'activeATH', 'activeSIN', 'athReadyForInvoice', 'sinReadyForInvoice'
 
@@ -293,6 +299,7 @@ const SoNumberTab = () => {
       sinReadyForInvoicePics,
       activeClientFilter,
       readyForInvoiceClientFilter,
+      nextActionSortOption,
     });
   }, [
     searchValue,
@@ -310,6 +317,7 @@ const SoNumberTab = () => {
     sinReadyForInvoicePics,
     activeClientFilter,
     readyForInvoiceClientFilter,
+    nextActionSortOption,
   ]);
 
   const resetForm = () => {
@@ -392,6 +400,7 @@ const SoNumberTab = () => {
         page_size: pageSize,
         ...(soId != null && soId !== "" && { so_id: soId }),
         ...advancedParams,
+        ...buildShippingOrderListSortParams(nextActionSortOption),
         ...(vesselId != null && vesselId !== "" && { vessel_id: vesselId }),
         ...(countryId != null && countryId !== "" && { country_id: countryId }),
       });
@@ -452,6 +461,7 @@ const SoNumberTab = () => {
     searchStatusFilter,
     searchVesselFilter,
     searchCountryFilter,
+    nextActionSortOption,
     toast,
   ]);
 
@@ -675,6 +685,21 @@ const SoNumberTab = () => {
   const handleRefresh = () => {
     fetchOrders();
   };
+
+  const setNextActionSort = useCallback((option) => {
+    setNextActionSortOption(option);
+    setPage(1);
+  }, []);
+
+  const cycleNextActionColumnSort = useCallback(() => {
+    setNextActionSortOption((prev) => (prev === "next_action" ? "so_number" : "next_action"));
+    setPage(1);
+  }, []);
+
+  const nextActionSortLabel =
+    nextActionSortOption === "next_action"
+      ? "Next Action (latest first)"
+      : "SO #";
 
   const getSoNumber = (order) => {
     if (order.so_number) return order.so_number;
@@ -1172,7 +1197,8 @@ const SoNumberTab = () => {
       {/* Filters Section */}
       <Box mb="4">
         <Flex direction="column" gap="3">
-          <Wrap spacing="3">
+          <Flex align="center" justify="space-between" gap="3" flexWrap="wrap" w="100%">
+            <Wrap spacing="3" flex="1" minW="0">
             {/* Active ATH Filter */}
             <WrapItem>
               <Tag
@@ -1371,6 +1397,23 @@ const SoNumberTab = () => {
               </Tag>
             </WrapItem>
           </Wrap>
+            <Menu>
+              <MenuButton
+                as={Button}
+                size="sm"
+                variant={nextActionSortOption === "next_action" ? "solid" : "outline"}
+                colorScheme={nextActionSortOption === "next_action" ? "blue" : "gray"}
+                leftIcon={<Icon as={MdSort} />}
+                flexShrink={0}
+              >
+                Sort: {nextActionSortLabel}
+              </MenuButton>
+              <MenuList>
+                <MenuItem onClick={() => setNextActionSort("so_number")}>SO #</MenuItem>
+                <MenuItem onClick={() => setNextActionSort("next_action")}>Next Action (latest first)</MenuItem>
+              </MenuList>
+            </Menu>
+          </Flex>
 
           {/* Client selection when Active Client or Ready for Invoice Client chip is on */}
           {(activeFilters.activeClient || activeFilters.readyForInvoiceClient) && (
@@ -1428,7 +1471,7 @@ const SoNumberTab = () => {
                 { label: "Actions", field: null, sortable: false },
                 { label: "SO Number", field: "so_number", sortable: false },
                 { label: "SO Delivery Date", field: "so_delivery_date", sortable: false },
-                { label: "Next Action", field: "next_action", sortable: false },
+                { label: "Next Action", field: "next_action", sortable: true },
                 { label: "Date Created", field: "date_created", sortable: false },
                 { label: "Status", field: "done", sortable: false },
                 { label: "Person in Charge", field: "pic", sortable: false },
@@ -1457,9 +1500,17 @@ const SoNumberTab = () => {
                   minW="130px"
                   style={{ color: "#000000d4" }}
                   position="relative"
+                  cursor={col.field === "next_action" ? "pointer" : undefined}
+                  onClick={col.field === "next_action" ? cycleNextActionColumnSort : undefined}
+                  _hover={col.field === "next_action" ? { bg: hoverBg } : undefined}
                   {...tableHeaderCellProps}
                 >
-                  <Text>{col.label}</Text>
+                  <HStack spacing="1">
+                    <Text>{col.label}</Text>
+                    {col.field === "next_action" && nextActionSortOption === "next_action" && (
+                      <Text fontSize="xs">↓</Text>
+                    )}
+                  </HStack>
                 </Th>
               ))}
             </Tr>

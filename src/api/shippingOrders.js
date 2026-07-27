@@ -8,10 +8,8 @@ export const getShippingOrders = async (params = {}) => {
     const {
       page = 1,
       page_size = 80,
-      // sort_by and sort_order are intentionally not sent to backend;
-      // backend will use its own default sorting.
-      sort_by = "id",
-      sort_order = "desc",
+      sort_by,
+      sort_order,
       search = "",
       client_id,
       vessel_id,
@@ -85,6 +83,13 @@ export const getShippingOrders = async (params = {}) => {
       const digitsMatch = rawSoId.match(/\d+/);
       if (digitsMatch && digitsMatch[0] !== "") {
         requestParams.so_id = digitsMatch[0];
+      }
+    }
+
+    if (params.sort_by != null && String(params.sort_by).trim() !== "") {
+      requestParams.sort_by = String(params.sort_by).trim();
+      if (params.sort_order === "asc" || params.sort_order === "desc") {
+        requestParams.sort_order = params.sort_order;
       }
     }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import {
   Box,
   Button,
@@ -15,20 +15,8 @@ import { Link } from "react-router-dom";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import ShippingOrderAttachmentsField from "../../../components/shipping-order/ShippingOrderAttachmentsField";
 import ShippingOrderCiplFilesField from "../../../components/shipping-order/ShippingOrderCiplFilesField";
-import { getVessels } from "../../../api/vessels";
-import {
-  getVesselsForClient,
-  mergeSelectedVesselOption,
-  resolveRelationId,
-} from "./shippingOrderUtils";
-
-// Coerce relation field to id so we never pass { id, name } to inputs (avoids "Objects are not valid as a React child")
-const toId = (v) =>
-  v == null || v === ""
-    ? null
-    : typeof v === "object" && v !== null && "id" in v
-      ? v.id
-      : v;
+import { useClientVesselFilterOptions } from "../../../hooks/useClientVesselFilterOptions";
+import { resolveRelationId } from "./shippingOrderUtils";
 
 /**
  * Shared form body for shipping order (used in modal and edit page).
@@ -52,58 +40,12 @@ export default function ShippingOrderFormFields({
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const readOnlyBg = useColorModeValue("gray.50", "gray.700");
 
-  const [clientVessels, setClientVessels] = useState([]);
-  const [isLoadingClientVessels, setIsLoadingClientVessels] = useState(false);
-  const selectedClientId = resolveRelationId(formData?.client_id);
-
-  useEffect(() => {
-    if (!selectedClientId) {
-      setClientVessels([]);
-      setIsLoadingClientVessels(false);
-      return undefined;
-    }
-
-    let cancelled = false;
-    (async () => {
-      setIsLoadingClientVessels(true);
-      try {
-        const response = await getVessels({
-          client_id: selectedClientId,
-          page_size: 500,
-          sort_by: "name",
-          sort_order: "asc",
-        });
-        if (!cancelled) {
-          setClientVessels(Array.isArray(response?.vessels) ? response.vessels : []);
-        }
-      } catch (_error) {
-        if (!cancelled) {
-          setClientVessels(getVesselsForClient(vessels, selectedClientId));
-        }
-      } finally {
-        if (!cancelled) setIsLoadingClientVessels(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedClientId, vessels]);
-
-  const vesselOptions = useMemo(() => {
-    const baseList = selectedClientId
-      ? (clientVessels.length > 0 || !isLoadingClientVessels
-        ? clientVessels
-        : getVesselsForClient(vessels, selectedClientId))
-      : [];
-    return mergeSelectedVesselOption(baseList, formData?.vessel_id, vessels, formData || {});
-  }, [
-    clientVessels,
-    formData,
-    isLoadingClientVessels,
-    selectedClientId,
-    vessels,
-  ]);
+  // Show all vessels when no client; filter to that client's vessels when client is set.
+  const { vesselOptions, isLoadingVessels } = useClientVesselFilterOptions(
+    formData?.client_id,
+    formData?.vessel_id,
+    vessels
+  );
 
   if (!formData) return null;
 
@@ -246,17 +188,17 @@ export default function ShippingOrderFormFields({
               }}
               options={vesselOptions}
               placeholder={
-                !selectedClientId
-                  ? "Select client first"
-                  : isLoadingClientVessels
-                    ? "Loading vessels..."
-                    : vesselOptions.length === 0
+                isLoadingVessels
+                  ? "Loading vessels..."
+                  : formData.client_id
+                    ? vesselOptions.length === 0
                       ? "No vessels for this client"
                       : "Select vessel"
+                    : "Select vessel"
               }
               displayKey="name"
               valueKey="id"
-              isLoading={isLoadingClientVessels}
+              isLoading={isLoadingVessels}
               bg={inputBg}
               color={inputText}
               borderColor={borderColor}

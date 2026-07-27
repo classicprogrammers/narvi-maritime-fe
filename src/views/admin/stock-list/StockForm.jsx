@@ -129,7 +129,7 @@ export default function StockForm() {
         expReadyInStock: "", // Date field
         remarks: "",
         blank: "",
-        clientAccess: false,
+        clientAccess: true,
         // Internal fields for API payload (auto-filled or calculated)
         vesselDestination: "", // Auto-filled from vessel
         vesselEta: "", // Auto-filled from vessel
