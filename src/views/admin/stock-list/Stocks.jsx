@@ -128,6 +128,8 @@ import StockReportHistoryModal from "../../../components/stock-list/StockReportH
 import { useStockAttachmentsGallery } from "../../../hooks/useStockAttachmentsGallery";
 import { getInlineAttachmentDisplayNames } from "../../../utils/stockReportAttachmentsUi";
 import { formatVolumeCbm } from "../../../utils/stockVolume";
+import { useUser } from "../../../redux/hooks/useUser";
+import { canEditStockList } from "../../../utils/stockListAccess";
 
 const CLIENT_VIEW_TABLE_COLUMNS = {
     filter1: [
@@ -542,6 +544,15 @@ export default function Stocks() {
     const [editingRowData, setEditingRowData] = useState({});
 
     const toast = useToast();
+    const { user } = useUser();
+    const canEditStock = useMemo(() => canEditStockList(user), [user]);
+
+    useEffect(() => {
+        if (!canEditStock && editingRowIds.size > 0) {
+            setEditingRowIds(new Set());
+            setEditingRowData({});
+        }
+    }, [canEditStock, editingRowIds.size]);
 
     const {
         stockList,
@@ -992,6 +1003,7 @@ export default function Stocks() {
     };
 
     const handleEditItem = (item) => {
+        if (!canEditStock) return;
         // Pass current filter state so it can be restored when navigating back
         const filterState = {
             activeTab,
@@ -1032,6 +1044,7 @@ export default function Stocks() {
 
     // Handle navigate to edit page with selected items
     const handleNavigateToEdit = () => {
+        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             // Filter the full data objects from filtered stock for selected items
@@ -2475,6 +2488,7 @@ export default function Stocks() {
 
     // Handle create new - navigate to form page
     const handleCreateNew = () => {
+        if (!canEditStock) return;
         history.push("/admin/stock-list/form");
     };
 
@@ -2624,6 +2638,7 @@ export default function Stocks() {
     };
 
     const handleEditStart = (item) => {
+        if (!canEditStock) return;
         const normalizedItem = normalizeItemForEditing(item);
         setEditingRowIds(new Set([item.id]));
         setEditingRowData({ [item.id]: normalizedItem });
@@ -2631,6 +2646,7 @@ export default function Stocks() {
 
     // Handle bulk edit - make all selected rows editable
     const handleBulkEdit = () => {
+        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             const selectedItems = filteredAndSortedStock.filter(item => selectedIds.includes(item.id));
@@ -2874,6 +2890,7 @@ export default function Stocks() {
 
     // Handle inline edit save - for single row
     const handleEditSave = async (item) => {
+        if (!canEditStock) return;
         try {
             const editedData = editingRowData[item.id];
             const linePayload = buildPayload(item, editedData);
@@ -2921,6 +2938,7 @@ export default function Stocks() {
 
     // Handle bulk save - save all rows being edited in a single API call with lines array
     const handleBulkSave = async () => {
+        if (!canEditStock) return;
         const editingIds = Array.from(editingRowIds);
         if (editingIds.length === 0) return;
 
@@ -3142,7 +3160,7 @@ export default function Stocks() {
 
     // Helper function to render editable cell
     const renderEditableCell = (item, field, value, type = "text", options = null) => {
-        const isEditing = editingRowIds.has(item.id);
+        const isEditing = canEditStock && editingRowIds.has(item.id);
         const rowEditingData = editingRowData[item.id] || {};
         const currentValue = rowEditingData[field] !== undefined ? rowEditingData[field] : value;
 
@@ -3399,7 +3417,7 @@ export default function Stocks() {
         return stockItems.map((item, index) => {
             const statusStyle = getStatusStyle(item.stock_status);
             const rowBg = statusStyle.bgColor || tableRowBg;
-            const isEditing = editingRowIds.has(item.id);
+            const isEditing = canEditStock && editingRowIds.has(item.id);
 
             // Render cells based on active tab
             if (activeTab === 0) {
@@ -3632,6 +3650,7 @@ export default function Stocks() {
                                 }
                             />
                         </Td>
+                        {canEditStock && (
                         <Td {...cellProps}>
                             {isEditing ? (
                                 <HStack spacing="2">
@@ -3665,6 +3684,7 @@ export default function Stocks() {
                                 </HStack>
                             )}
                         </Td>
+                        )}
                     </Tr>
                 );
             } else if (activeTab === 1) {
@@ -3844,6 +3864,7 @@ export default function Stocks() {
                                 }
                             />
                         </Td>
+                        {canEditStock && (
                         <Td {...cellProps}>
                             {isEditing ? (
                                 <HStack spacing="2">
@@ -3877,6 +3898,7 @@ export default function Stocks() {
                                 </HStack>
                             )}
                         </Td>
+                        )}
                     </Tr>
                 );
             }
@@ -4941,6 +4963,7 @@ export default function Stocks() {
                                                 colorScheme="blue"
                                                 size="sm"
                                                 onClick={handleNavigateToEdit}
+                                                isDisabled={!canEditStock}
                                             >
                                                 Edit Selected
                                             </Button>
@@ -5095,7 +5118,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
                                                 </Tr>
                                             </Thead>
                                             <Tbody>
@@ -5237,6 +5260,7 @@ export default function Stocks() {
                                                                         }
                                                                     />
                                                                 </Td>
+                                                                {canEditStock && (
                                                                 <Td {...cellProps}>
                                                                     <IconButton
                                                                         icon={<Icon as={MdEdit} />}
@@ -5247,6 +5271,7 @@ export default function Stocks() {
                                                                         aria-label="Edit"
                                                                     />
                                                                 </Td>
+                                                                )}
                                                             </Tr>
                                                         );
                                                     })}
@@ -5826,6 +5851,7 @@ export default function Stocks() {
                                                     colorScheme="blue"
                                                     size="sm"
                                                     onClick={handleBulkEdit}
+                                                    isDisabled={!canEditStock}
                                                 >
                                                     Edit Selected
                                                 </Button>
@@ -5970,7 +5996,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>CLIENT</Th>
                                                     <Th {...headerProps}>INTERNAL REMARKS</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
                                                 </>
                                             ) : (
                                                 <>
@@ -6006,7 +6032,7 @@ export default function Stocks() {
                                                     <Th {...headerProps}>SIC NUMBER</Th>
                                                     <Th {...headerProps}>DI NUMBER</Th>
                                                     <Th {...headerProps}>FILES</Th>
-                                                    <Th {...headerProps}>ACTIONS</Th>
+                                                    {canEditStock && <Th {...headerProps}>ACTIONS</Th>}
                                                 </>
                                             )}
                                         </Tr>

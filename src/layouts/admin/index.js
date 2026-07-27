@@ -52,6 +52,11 @@ export default function Dashboard(props) {
     const userType = user?.user_type || "user";
     return getFilteredRoutes(userType);
   }, [user?.user_type]);
+
+  const filteredHiddenRoutes = useMemo(() => {
+    const isAdmin = (user?.user_type || "user") === "admin";
+    return hiddenRoutes.filter((route) => !route.adminOnly || isAdmin);
+  }, [user?.user_type]);
   // functions for changing the states from components
   const getRoute = () => {
     return window.location.pathname !== "/admin/full-screen-maps";
@@ -291,7 +296,7 @@ export default function Dashboard(props) {
                 zIndex="1000"
               >
                 <Switch>
-                  {getRoutes(hiddenRoutes)}
+                  {getRoutes(filteredHiddenRoutes)}
                   {getRoutes(filteredRoutes)}
                   <Redirect from="/" to="/admin/default" />
                 </Switch>

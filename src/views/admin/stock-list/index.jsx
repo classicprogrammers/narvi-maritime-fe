@@ -45,6 +45,7 @@ import { useStock } from "../../../redux/hooks/useStock";
 import { Checkbox, Input, Select, InputGroup, InputLeftElement, InputRightElement, Divider, Switch } from "@chakra-ui/react";
 import { useHistory, useLocation } from "react-router-dom";
 import { useUser } from "../../../redux/hooks/useUser";
+import { canEditStockList } from "../../../utils/stockListAccess";
 import { useMasterData } from "../../../hooks/useMasterData";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
 import { formatStockDestinationDisplay } from "../../../utils/stockDestinationOptions";
@@ -195,27 +196,7 @@ export default function StockList() {
     const { user } = useUser();
     const { clients, vessels, agents: vendors, countries, destinations, currencies } = useMasterData();
 
-    // Check if current user is authorized to edit (Igor or Martin only)
-    const isAuthorizedToEdit = React.useMemo(() => {
-        if (!user) return false;
-
-        const userEmail = (user.email || "").toLowerCase().trim();
-        const userName = (user.name || "").toLowerCase().trim();
-
-        // Check by email
-        const allowedEmails = [
-            "igor@narvimaritime.com",
-            "martin@narvimaritime.com"
-        ];
-
-        // Check by name (case-insensitive)
-        const allowedNames = ["igor", "martin"];
-
-        const emailMatch = allowedEmails.includes(userEmail);
-        const nameMatch = allowedNames.some(name => userName.includes(name));
-
-        return emailMatch || nameMatch;
-    }, [user]);
+    const canEditStock = useMemo(() => canEditStockList(user), [user]);
 
     // Dimensions modal state
     const { isOpen: isDimensionsModalOpen, onOpen: onDimensionsModalOpen, onClose: onDimensionsModalClose } = useDisclosure();
@@ -809,6 +790,7 @@ export default function StockList() {
 
     // Handle bulk edit - navigate to StockDB Main edit page with selected items' full data
     const handleBulkEdit = () => {
+        if (!canEditStock) return;
         const selectedIds = Array.from(selectedRows);
         if (selectedIds.length > 0) {
             // Filter the full data objects from stockList for selected items
@@ -848,6 +830,7 @@ export default function StockList() {
 
     // Handle single item edit - navigate to StockDB Main edit page with item's full data
     const handleEditItem = (item) => {
+        if (!canEditStock) return;
         // Pass current filter state so it can be restored when navigating back
         const filterState = {
             selectedClient,
@@ -1809,7 +1792,7 @@ export default function StockList() {
                             colorScheme="blue"
                             size="sm"
                             onClick={handleBulkEdit}
-                            isDisabled={!isAuthorizedToEdit}
+                            isDisabled={!canEditStock}
                         >
                             Edit Selected
                         </Button>
@@ -1880,7 +1863,7 @@ export default function StockList() {
                                             isIndeterminate={filteredAndSortedStock.some(item => selectedRows.has(item.id)) && !filteredAndSortedStock.every(item => selectedRows.has(item.id))}
                                             onChange={(e) => handleSelectAll(e.target.checked)}
                                             size="sm"
-                                            isDisabled={!isAuthorizedToEdit}
+                                            isDisabled={!canEditStock}
                                         />
                                     </Th>
                                     <Th {...headerProps} cursor="pointer" onClick={() => handleSort("stock_item_id")} _hover={{ bg: useColorModeValue("gray.100", "gray.600") }}>
@@ -1990,7 +1973,7 @@ export default function StockList() {
                                                     isChecked={selectedRows.has(item.id)}
                                                     onChange={(e) => handleRowSelect(item.id, e.target.checked)}
                                                     size="sm"
-                                                    isDisabled={!isAuthorizedToEdit}
+                                                    isDisabled={!canEditStock}
                                                 />
                                             </Td>
                                             <Td {...cellProps}><Text {...cellText}>{renderText(item.stock_item_id)}</Text></Td>
@@ -2107,8 +2090,8 @@ export default function StockList() {
                                                     colorScheme="blue"
                                                     aria-label="Edit"
                                                     onClick={() => handleEditItem(item)}
-                                                    isDisabled={!isAuthorizedToEdit}
-                                                    title={!isAuthorizedToEdit ? "Only Igor and Martin can edit" : "Edit item"}
+                                                    isDisabled={!canEditStock}
+                                                    title={!canEditStock ? "Only admin users can edit stock" : "Edit item"}
                                                 />
                                             </Td>
                                         </Tr>

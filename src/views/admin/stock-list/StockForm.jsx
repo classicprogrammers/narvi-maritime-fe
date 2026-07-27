@@ -44,6 +44,7 @@ import { normalizeStockStatusKey, shouldGenerateStockReportForStatusChange } fro
 import vesselsAPI from "../../../api/vessels";
 import { useStock } from "../../../redux/hooks/useStock";
 import { useUser } from "../../../redux/hooks/useUser";
+import { canEditStockList } from "../../../utils/stockListAccess";
 import { useMasterData } from "../../../hooks/useMasterData";
 import { getCached, MASTER_KEYS } from "../../../utils/masterDataCache";
 import SimpleSearchableSelect from "../../../components/forms/SimpleSearchableSelect";
@@ -74,6 +75,14 @@ export default function StockForm() {
     const isEditing = !!id || isBulkEdit;
     const toast = useToast();
     const { user } = useUser();
+    const canEditStock = canEditStockList(user);
+
+    useEffect(() => {
+        if (user != null && !canEditStock) {
+            history.replace("/admin/stock-list/main-db");
+        }
+    }, [user, canEditStock, history]);
+
     const { updateStockItem, getStockList, updateLoading, stockList } = useStock();
     const { clients, vessels, suppliers, countries, pics, currencies, refreshClients, refreshVessels } = useMasterData();
     const { destinationOptions, apDestinationOptions } = useStockDestinationOptions();
@@ -1094,6 +1103,10 @@ export default function StockForm() {
     const handleBackToStockList = () => {
         history.push("/admin/stock-list/main-db");
     };
+
+    if (user != null && !canEditStock) {
+        return null;
+    }
 
     if (isLoading) {
         return (
